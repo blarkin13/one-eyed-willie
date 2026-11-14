@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One-Eyed Willie — Libraries</title>
+<style>
+:root{color-scheme:dark;font:16px system-ui,-apple-system,sans-serif;background:#0e1015;color:#eff1f5}
+*{box-sizing:border-box}body{margin:0}header{padding:20px 4vw;border-bottom:1px solid #303541;display:flex;align-items:center;gap:18px}
+.brand{font-size:1.25rem;font-weight:750;letter-spacing:-.03em}
+nav{margin-left:auto;color:#98a1ae;font-size:.9rem}main{max-width:1080px;margin:auto;padding:42px 22px}
+h1{font-size:2rem;letter-spacing:-.04em;margin:0 0 4px}h2{font-size:1.05rem;margin:0}
+.muted{color:#a5acb8;font-size:.9rem}.toolbar,.row{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+button,input,select{font:inherit;border-radius:9px}button{background:#e7ebf2;color:#171a20;border:0;padding:10px 14px;font-weight:600;cursor:pointer}
+button.secondary{color:#e7ebf2;background:#242a35;border:1px solid #394150}button.danger{background:transparent;color:#fda4a4;border:1px solid #7b3434}
+button:disabled{opacity:.45;cursor:wait}.card{background:#191d25;border:1px solid #303744;border-radius:15px;padding:19px;margin:13px 0}
+.path{color:#a8b0be;word-break:break-all;font-family:ui-monospace,monospace;font-size:.85rem}
+input,select{width:100%;padding:12px;border:1px solid #50586a;background:#10141b;color:white}
+label{display:block;margin:18px 0 6px;color:#d2d7e0;font-size:.9rem}
+dialog{border:1px solid #4b5564;border-radius:16px;background:#1a1e27;color:#fafafa;width:min(550px,calc(100% - 25px));padding:22px}
+dialog::backdrop{background:#000b}.folder{display:block;width:100%;text-align:left;margin:4px 0;background:#262c37;color:#fafafa}
+.folder.selected{outline:2px solid #8fb8ff}.folder-list{max-height:230px;overflow:auto;margin-top:10px}
+.message{margin:14px 0;color:#9dc7ff;min-height:1.3em}.error{color:#ffa8a8}.actions{display:flex;gap:9px;flex-wrap:wrap}
+footer{padding:35px;color:#7f8896;text-align:center;font-size:.8rem}
+</style></head><body>
+<header><span class="brand">One-Eyed Willie</span><nav>Settings / Libraries</nav></header>
+<main>
+<div class="toolbar"><div><h1>Libraries</h1><div class="muted">Manage movie and TV folders on your server.</div></div>
+<button onclick="openAdd()">+ Add library</button></div>
+<p class="message" id="message" role="status"></p><section id="library-list"></section>
+<div class="card"><h2>Library safety</h2><p class="muted">Media folders are mounted read-only. Scanning updates the catalog, not your original files. Automatic scanning and metadata matching will follow.</p></div>
+</main>
+<dialog id="add-dialog"><form id="add-form">
+<h2>Add a library</h2><label for="name">Library name</label><input id="name" maxlength="80" required placeholder="Movies">
+<label for="kind">Type</label><select id="kind"><option value="movies">Movies</option><option value="tv">TV Shows</option></select>
+<label>Folder on server</label><div class="path" id="current-path">/media</div>
+<div class="folder-list" id="folders"></div>
+<p class="muted" id="folder-status">Choose a folder or use the current directory.</p>
+<div class="actions"><button type="submit">Save library</button>
+<button type="button" class="secondary" onclick="document.getElementById('add-dialog').close()">Cancel</button></div>
+</form></dialog>
+<footer>One-Eyed Willie · Local media server</footer>
+<script>
+const byId=id=>document.getElementById(id);
+let chosen='/media', current='/media', busy=false;
+const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function api(path,opts={}){let r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});if(!r.ok){let x=await r.json().catch(()=>({}));throw Error(x.detail||'Request failed')}return r.json()}
+function notify(s,error=false){byId('message').textContent=s;byId('message').className='message'+(error?' error':'')}
+async function load(){try{const libs=await api('/api/libraries');const target=byId('library-list');target.innerHTML='';
+if(!libs.length){target.innerHTML='<div class="card muted">No libraries configured yet. Add a Movies or TV Shows folder to begin.</div>';return}
+for(const lib of libs){let el=document.createElement('article');el.className='card';
+el.innerHTML='<div class="row"><div><h2>'+escapeHTML(lib.name)+'</h2><div class="muted">'+(lib.kind==='movies'?'Movies':'TV Shows')+' · '+lib.media_count+' video files</div><p class="path">'+escapeHTML(lib.path)+'</p><div class="muted">'+(lib.last_scanned?'Last scanned: '+escapeHTML(new Date(lib.last_scanned).toLocaleString()):'Not scanned yet')+'</div></div><div class="actions"><button class="secondary scan">Scan now</button><button class="danger remove">Remove</button></div></div>';
+el.querySelector('.scan').onclick=()=>scan(lib.id);el.querySelector('.remove').onclick=()=>remove(lib.id,lib.name);target.appendChild(el)}}catch(e){notify(e.message,true)}}
+async function browse(path){try{let result=await api('/api/folders?path='+encodeURIComponent(path));current=result.path;chosen=current;byId('current-path').textContent=current;
+let target=byId('folders');target.innerHTML='';if(current!='/media'){let b=document.createElement('button');b.type='button';b.className='folder';b.textContent='← Parent folder';b.onclick=()=>browse(current.slice(0,current.lastIndexOf('/'))||'/media');target.appendChild(b)}
+for(let folder of result.folders){let b=document.createElement('button');b.type='button';b.className='folder';b.textContent='📁 '+folder.name;b.onclick=()=>browse(folder.path);target.appendChild(b)}
+byId('folder-status').textContent='Selected folder: '+current}catch(e){byId('folder-status').textContent=e.message}}
+function openAdd(){byId('name').value='Movies';byId('kind').value='movies';byId('add-dialog').showModal();browse('/media')}
+byId('kind').onchange=()=>byId('name').value=byId('kind').value==='movies'?'Movies':'TV Shows';
+byId('add-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/libraries',{method:'POST',body:JSON.stringify({name:byId('name').value,kind:byId('kind').value,path:chosen})});byId('add-dialog').close();notify('Library saved. Select Scan now to catalog the files.');await load()}catch(ex){byId('folder-status').textContent=ex.message}};
+async function scan(id){notify('Scanning files. This can take some time for large libraries.');try{let result=await api('/api/libraries/'+id+'/scan',{method:'POST'});notify('Scan complete: '+result.found+' files found'+(result.errors?' ('+result.errors+' errors)':''));await load()}catch(e){notify(e.message,true)}}
+async function remove(id,name){if(!confirm('Remove '+name+' from One-Eyed Willie? Your original media files will not be deleted.'))return;try{await api('/api/libraries/'+id,{method:'DELETE'});notify('Library removed; media files were not deleted.');await load()}catch(e){notify(e.message,true)}}
+load();
+</script></body></html>
