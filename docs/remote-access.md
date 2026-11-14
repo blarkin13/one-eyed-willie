@@ -5,8 +5,8 @@
 This mode does not depend on Cloudflare Tunnel or a VPN. It uses Caddy's automatic free HTTPS certificates and a password prompt in front of the existing application, which currently does not have built-in authentication.
 
 ## Requirements
-- A router you can configure to forward TCP **80 and 443** to the NUC, and a home connection with a reachable public IPv4 address (not CGNAT). UDP 443 is optional for HTTP/3.
-- A hostname such as `willie.humperdinck.studio` with DNS **A** record to that public IP, **DNS only** (not proxied). The old Tunnel CNAME must be replaced once public IP and router forwarding are ready.
+- A router you can configure to forward TCP **443** to the NUC, and a home connection with a reachable public IPv4 address (not CGNAT). TCP 80 can also be forwarded for HTTP redirects and HTTP-based ACME checks but is optional when TLS-ALPN certificate verification on 443 works. UDP 443 is optional for HTTP/3.
+- A hostname such as a free `your-choice.duckdns.org` name pointing to that public IP. This avoids changing any Humperdinck DNS records. The separate `workers.dev` public address, if used, will still need to reach this secure origin.
 - If your public address changes, you need a free dynamic DNS update mechanism; this is not included yet.
 - Ensure TCP 80/443 aren't already used by other software on the NUC.
 
@@ -27,7 +27,7 @@ HASH=$(printf '%s' "$WILLIE_PASSWORD" | sudo docker run --rm -i caddy:2 caddy ha
 unset WILLIE_PASSWORD
 umask 077
 {
-  printf 'WILLIE_HOSTNAME=willie.humperdinck.studio\n'
+  printf 'WILLIE_HOSTNAME=YOUR_FREE_HOST.duckdns.org\n'
   printf 'ACME_EMAIL=YOUR_EMAIL_ADDRESS\n'
   printf 'WILLIE_USERNAME=willie\n'
   # Quotes prevent Compose treating hash dollars as variable interpolation.
@@ -41,7 +41,7 @@ sudo docker compose -f compose.yaml down
 sudo docker compose --env-file .env.remote -f compose.remote.yaml up -d --build
 ```
 Replace YOUR_EMAIL_ADDRESS in the local file with your own email (don't commit it).
-Visit `https://willie.humperdinck.studio/health` from cellular data; authenticate and expect JSON.
+Visit `https://YOUR_FREE_HOST.duckdns.org/health` from cellular data; authenticate and expect JSON.
 Use `sudo docker compose --env-file .env.remote -f compose.remote.yaml logs https` if certificate issuance fails.
 
 ## Rollback to local mode
