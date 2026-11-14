@@ -28,10 +28,18 @@ def health():
     return {"status": "ok", "application": "one-eyed-willie", "version": "0.4.0"}
 
 @app.get("/api/catalog")
-def get_catalog(kind: str | None = None, search: str = Query("", max_length=150)):
+def get_catalog(
+    kind: str | None = None,
+    search: str = Query("", max_length=150),
+    sort: str = Query("title"),
+    offset: int = Query(0, ge=0),
+    limit: int = Query(60, ge=1, le=100),
+):
     if kind not in (None, "movies", "tv"):
         return {"total": 0, "items": []}
-    return catalog(kind, search)
+    if sort not in ("title", "recent", "year"):
+        sort = "title"
+    return catalog(kind, search, limit=limit, offset=offset, sort=sort)
 
 @app.get("/")
 def home():
