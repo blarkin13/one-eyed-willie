@@ -1,7 +1,3 @@
-{
-    email {$ACME_EMAIL}
-}
-
 {$WILLIE_HOSTNAME} {
     basic_auth {
         {$WILLIE_USERNAME} {$WILLIE_PASSWORD_HASH}
