@@ -1,0 +1,12 @@
+[Unit]
+Description=Poll GitHub main for One-Eyed Willie updates
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=1min
+AccuracySec=10s
+Persistent=true
+Unit=one-eyed-willie-update.service
+
+[Install]
+WantedBy=timers.target
