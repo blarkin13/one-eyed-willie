@@ -16,7 +16,24 @@ export default {
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === "/__edge/health") {
-      return Response.json({ edge: "ok", origin_configured: Boolean(env.ORIGIN_URL), remote_server_verified: false }, { headers: NO_CACHE });
+      let originStatus = "not_configured";
+      if (env.ORIGIN_URL) {
+        try {
+          const check = await fetch(new URL("/health", env.ORIGIN_URL), {
+            method: "GET", redirect: "manual", signal: AbortSignal.timeout(4000),
+            cf: { cacheTtl: 0 }
+          });
+          if (check.status === 401) originStatus = "reachable_protected";
+          else if (check.status === 200) originStatus = "reachable_UNPROTECTED";
+          else originStatus = "unexpected_status_" + check.status;
+          check.body?.cancel();
+        } catch (_) { originStatus = "unreachable"; }
+      }
+      return Response.json({
+        edge: "ok",
+        origin_status: originStatus,
+        remote_server_verified: originStatus === "reachable_protected"
+      }, { headers: NO_CACHE });
     }
     if (!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(request.method)) {
       return new Response("Method not allowed", { status: 405, headers: NO_CACHE });
