@@ -1,0 +1,11 @@
+[Unit]
+Description=Update One-Eyed Willie from every new main commit
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+User=root
+ExecStart=/bin/bash /opt/one-eyed-willie/app/deploy/update.sh
+TimeoutStartSec=10min
