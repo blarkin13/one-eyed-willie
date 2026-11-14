@@ -4,6 +4,7 @@ from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse
 from server.library import router
 from server.catalog import catalog, start_background_scans
+from server.connections import router as connections_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -14,12 +15,13 @@ async def lifespan(app: FastAPI):
         stop.set()
         thread.join(timeout=5)
 
-app = FastAPI(title="One-Eyed Willie", version="0.3.0", lifespan=lifespan)
+app = FastAPI(title="One-Eyed Willie", version="0.4.0", lifespan=lifespan)
 app.include_router(router)
+app.include_router(connections_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "application": "one-eyed-willie", "version": "0.3.0"}
+    return {"status": "ok", "application": "one-eyed-willie", "version": "0.4.0"}
 
 @app.get("/api/catalog")
 def get_catalog(kind: str | None = None, search: str = Query("", max_length=150)):
