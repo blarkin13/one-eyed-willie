@@ -5,6 +5,7 @@ from fastapi.responses import FileResponse
 from server.library import router
 from server.catalog import catalog, start_background_scans
 from server.connections import router as connections_router
+from server.remote_config import router as remote_config_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -18,6 +19,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="One-Eyed Willie", version="0.4.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
+app.include_router(remote_config_router)
 
 @app.get("/health")
 def health():
@@ -36,3 +38,7 @@ def home():
 @app.get("/settings/libraries")
 def library_settings():
     return FileResponse(Path(__file__).with_name("index.html"), media_type="text/html")
+
+@app.get("/settings/remote")
+def remote_settings_page():
+    return FileResponse(Path(__file__).with_name("remote_settings.html"), media_type="text/html")
