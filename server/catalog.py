@@ -49,14 +49,14 @@ def episode_info(path, root):
             "episode": int(match.group(2)) if match else None}
 
 
-def catalog(kind=None, search="", limit=300):
+def catalog(kind=None, search="", limit=60, offset=0, sort="title"):
     with db() as conn:
         libs = conn.execute("SELECT id,kind,path FROM libraries").fetchall()
         groups = {}
         for lib in libs:
             if kind and lib["kind"] != kind:
                 continue
-            rows = conn.execute("SELECT id,path,size FROM media WHERE library_id=? ORDER BY path", (lib["id"],)).fetchall()
+            rows = conn.execute("SELECT id,path,size,added_at FROM media WHERE library_id=? ORDER BY path", (lib["id"],)).fetchall()
             for row in rows:
                 try:
                     parsed = movie_info(row["path"], lib["path"]) if lib["kind"] == "movies" else episode_info(row["path"], lib["path"])
@@ -69,9 +69,12 @@ def catalog(kind=None, search="", limit=300):
                     groups[key] = {"kind": lib["kind"], "library_id": lib["id"],
                                    "key": parsed["key"], "title": parsed["title"],
                                    "year": parsed["year"], "files": 0, "seasons": set(),
+                                   "added_at": row["added_at"],
                                    "episodes": []}
                 g = groups[key]
                 g["files"] += 1
+                if row["added_at"] and (not g["added_at"] or row["added_at"] > g["added_at"]):
+                    g["added_at"] = row["added_at"]
                 if lib["kind"] == "tv":
                     if parsed["season"] is not None:
                         g["seasons"].add(parsed["season"])
@@ -83,8 +86,13 @@ def catalog(kind=None, search="", limit=300):
             group["episodes"].sort(key=lambda e: (e["season"] if e["season"] is not None else 999,
                                                  e["episode"] if e["episode"] is not None else 999))
             results.append(group)
-        results.sort(key=lambda g: (g["title"].casefold(), g["year"] or 0))
-        return {"total": len(results), "items": results[:limit]}
+        if sort == "recent":
+            results.sort(key=lambda g: (g["added_at"] or "", g["title"].casefold()), reverse=True)
+        elif sort == "year":
+            results.sort(key=lambda g: (g["year"] or 0, g["title"].casefold()), reverse=True)
+        else:
+            results.sort(key=lambda g: (g["title"].casefold(), g["year"] or 0))
+        return {"total": len(results), "items": results[offset:offset + limit]}
 
 
 def periodic_scan(stop):
