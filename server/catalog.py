@@ -17,7 +17,7 @@ YEAR = re.compile(r"(?<!\d)(19\d{2}|20\d{2})(?!\d)")
 def pretty(raw):
     raw = re.sub(r"[._]+", " ", raw)
     raw = re.sub(r"(?i)\b(2160p|1080p|720p|480p|web[ -]?dl|bluray|brrip|x264|x265|hevc|h264|aac|dts|remux)\b.*$", "", raw)
-    return re.sub(r"\s+", " ", raw).strip(" -") or "Unknown"
+    return re.sub(r"\s+", " ", raw).strip(" -()[]{}") or "Unknown"
 
 
 def movie_info(path, root):
