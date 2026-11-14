@@ -19,7 +19,7 @@ router = APIRouter(prefix="/api")
 CONFIG_FILE = Path(os.environ.get("REMOTE_SETTINGS_PATH", "/data/remote-settings.json"))
 LOCK = RLock()
 HOST_PATTERN = re.compile(
-    r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z]{2,63}$",
+    r"(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$",
     re.IGNORECASE,
 )
 
