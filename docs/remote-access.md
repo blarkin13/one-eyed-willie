@@ -11,7 +11,7 @@ This mode does not depend on Cloudflare Tunnel or a VPN. It uses Caddy's automat
 - Ensure TCP 80/443 aren't already used by other software on the NUC.
 
 ## Security prerequisites
-- **Do not** forward TCP 8787. The remote Compose file exposes it only to Docker's internal network.
+- **Do not** forward TCP 8787. The remote Compose file retains local port 8787 for home-network access; do not forward 8787 on your router.
 - Set a strong password; four numeric digits are **not sufficient** for a public Internet service.
 - Password authentication is temporary; future Android TV pairing will need device tokens instead.
 - Basic authentication over HTTPS encrypts credentials in transit. The web app and metadata are behind Caddy.
