@@ -1,0 +1,20 @@
+services:
+  one-eyed-willie:
+    build: .
+    image: one-eyed-willie:local
+    container_name: one-eyed-willie
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      - /media/brian/My Book:/media:ro
+      - /opt/one-eyed-willie/data:/data
+      - /opt/one-eyed-willie/config:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
