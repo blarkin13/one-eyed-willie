@@ -29,6 +29,13 @@ class RemoteSettings(BaseModel):
     public_url: str = Field(default="", max_length=300)
 
 
+def _invalid_port(parsed):
+    try:
+        return parsed.port not in (None, 443)
+    except ValueError:
+        return True
+
+
 def normalized(data: RemoteSettings) -> RemoteSettings:
     public_ip = data.public_ip.strip()
     if public_ip:
@@ -51,7 +58,7 @@ def normalized(data: RemoteSettings) -> RemoteSettings:
             parsed.scheme != "https"
             or parsed.username is not None
             or parsed.password is not None
-            or parsed.port not in (None, 443)
+            or _invalid_port(parsed)
             or parsed.path not in ("", "/")
             or parsed.query
             or parsed.fragment
@@ -78,7 +85,6 @@ def _view(data: RemoteSettings):
         "origin_hostname": data.public_ip.replace(".", "-") + ".sslip.io" if data.public_ip else "",
         "remote_access_ready": False,
         "status": "Setup required — saving settings does not enable remote access",
-        "local_address_hint": "http://192.168.86.29:8787",
     }
 
 
