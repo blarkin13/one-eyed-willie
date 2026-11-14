@@ -1,0 +1,54 @@
+# Opt-in secure remote mode; use INSTEAD of compose.yaml, not alongside it.
+# Required environment: WILLIE_HOSTNAME, ACME_EMAIL, WILLIE_USERNAME, WILLIE_PASSWORD_HASH
+services:
+  one-eyed-willie:
+    build: .
+    image: one-eyed-willie:local
+    container_name: one-eyed-willie
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      MEDIA_ROOT: /media
+      DATABASE_PATH: /data/library.sqlite3
+    # Preserve existing home-network access; never forward 8787 on the router.
+    ports:
+      - "8787:8787"
+    volumes:
+      - /media/brian/My Book:/media:ro
+      - /opt/one-eyed-willie/data:/data
+      - /opt/one-eyed-willie/config:/config:ro
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  https:
+    image: caddy:2
+    container_name: one-eyed-willie-https
+    restart: unless-stopped
+    depends_on:
+      one-eyed-willie:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      WILLIE_HOSTNAME: ${WILLIE_HOSTNAME:?Set WILLIE_HOSTNAME}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL}
+      WILLIE_USERNAME: ${WILLIE_USERNAME:?Set WILLIE_USERNAME}
+      WILLIE_PASSWORD_HASH: ${WILLIE_PASSWORD_HASH:?Set WILLIE_PASSWORD_HASH}
+    volumes:
+      - ./deploy/Caddyfile.remote:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  caddy_data:
+  caddy_config:
