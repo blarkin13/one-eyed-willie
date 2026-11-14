@@ -1,0 +1,43 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>One-Eyed Willie</title><style>
+:root{color-scheme:dark;background:#0c0f15;color:#f6f7fa;font:16px system-ui,-apple-system,sans-serif}*{box-sizing:border-box}
+body{margin:0}header{display:flex;align-items:center;gap:25px;padding:19px clamp(18px,4vw,70px);border-bottom:1px solid #283040;position:sticky;top:0;background:#0c0f15ee;backdrop-filter:blur(10px);z-index:2}
+.logo{font-weight:800;font-size:1.28rem;letter-spacing:-.035em}nav{display:flex;gap:17px;margin-left:auto}a{color:#aab4c5;text-decoration:none}a:hover,a.selected{color:white}main{max-width:1500px;margin:auto;padding:32px clamp(18px,4vw,70px)}
+h1{font-size:clamp(1.9rem,4vw,2.6rem);letter-spacing:-.045em;margin:14px 0 5px}p{color:#a8b1c2}
+.controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:23px 0}
+input{background:#191f2b;border:1px solid #323d50;border-radius:10px;color:white;padding:12px 14px;min-width:min(100%,320px);font:inherit}
+button{background:#202a3a;color:white;border:1px solid #344358;border-radius:9px;padding:10px 16px;cursor:pointer;font:inherit}
+button[aria-pressed=true]{background:#dbe7ff;color:#111827;border-color:#dbe7ff}
+#items{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:22px}
+.poster{aspect-ratio:2/3;background:linear-gradient(155deg,#263147,#151b28);border:1px solid #364257;border-radius:12px;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;font-weight:700;font-size:1.2rem;color:#becce0}
+.item h3{font-size:.96rem;margin:10px 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sub{color:#939fb3;font-size:.82rem}
+details{background:#1b2230;border-radius:10px;margin-top:7px;padding:8px;font-size:.85rem}
+summary{cursor:pointer}.episodes{max-height:220px;overflow:auto;color:#b4c0d2}.episodes div{padding:6px 0;border-bottom:1px solid #30394b}
+.notice{padding:18px;background:#18202e;border:1px solid #2a3a50;border-radius:12px;color:#b6c4d7;margin:15px 0 25px}
+@media(max-width:550px){header{flex-wrap:wrap}nav{width:100%;margin:0}#items{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
+</style></head><body>
+<header><span class="logo">One-Eyed Willie</span><nav><a href="/" class="selected">Library</a><a href="/settings/libraries">Settings</a></nav></header>
+<main><h1>Your Library</h1><p>Movies and TV shows cataloged from your local media drive.</p>
+<div class="controls"><div><button id="all" aria-pressed="true">All</button> <button id="movies">Movies</button> <button id="tv">TV Shows</button></div>
+<input type="search" id="search" aria-label="Search titles" placeholder="Search your library…"></div>
+<p id="status" role="status">Loading library…</p>
+<div id="items"></div>
+<div class="notice">Titles are currently grouped from filenames and folders. Automatic rescan runs every 5 minutes. Posters, summaries, and metadata matching are the next integration.</div>
+</main><script>
+const el=id=>document.getElementById(id),escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
+let filter='';
+for(let k of ['all','movies','tv'])el(k).onclick=()=>{filter=k==='all'?'':k;for(let x of ['all','movies','tv'])el(x).setAttribute('aria-pressed',String(x===k));load()};
+let timer;el('search').oninput=()=>{clearTimeout(timer);timer=setTimeout(load,200)};
+async function load(){
+const params=new URLSearchParams();if(filter)params.set('kind',filter);if(el('search').value)params.set('search',el('search').value);
+try{let r=await fetch('/api/catalog?'+params);if(!r.ok)throw Error('Server returned '+r.status);
+let data=await r.json();el('status').textContent=data.total+' titles'+(data.total>data.items.length?' (showing first '+data.items.length+')':'');
+let area=el('items');area.replaceChildren();
+for(let item of data.items){let card=document.createElement('article');card.className='item';
+const info=item.kind==='tv'?(item.files+' episodes/files · '+item.seasons.length+' seasons'):(item.files+' file'+(item.files===1?'':'s'));
+card.innerHTML='<div class="poster">'+escapeHTML(item.title)+'</div><h3 title="'+escapeHTML(item.title)+'">'+escapeHTML(item.title)+'</h3><div class="sub">'+(item.year||'')+' · '+escapeHTML(info)+'</div>';
+if(item.kind==='tv'&&item.episodes.length){let details=document.createElement('details');let summary=document.createElement('summary');summary.textContent='Episodes';details.appendChild(summary);
+let episodes=document.createElement('div');episodes.className='episodes';for(let ep of item.episodes){let row=document.createElement('div');row.textContent=(ep.season===null?'':('S'+String(ep.season).padStart(2,'0')))+(ep.episode===null?'':('E'+String(ep.episode).padStart(2,'0')))+' '+ep.filename;episodes.appendChild(row)}details.appendChild(episodes);card.appendChild(details)}
+area.appendChild(card)}
+}catch(e){el('status').textContent='Unable to load catalog: '+e.message}
+}load();
+</script></body></html>

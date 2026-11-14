@@ -21,12 +21,12 @@ dialog::backdrop{background:#000b}.folder{display:block;width:100%;text-align:le
 .message{margin:14px 0;color:#9dc7ff;min-height:1.3em}.error{color:#ffa8a8}.actions{display:flex;gap:9px;flex-wrap:wrap}
 footer{padding:35px;color:#7f8896;text-align:center;font-size:.8rem}
 </style></head><body>
-<header><span class="brand">One-Eyed Willie</span><nav>Settings / Libraries</nav></header>
+<header><span class="brand">One-Eyed Willie</span><nav><a href="/" style="color:#d9e7fa;text-decoration:none;margin-right:15px">Library</a> Settings / Libraries</nav></header>
 <main>
 <div class="toolbar"><div><h1>Libraries</h1><div class="muted">Manage movie and TV folders on your server.</div></div>
 <button onclick="openAdd()">+ Add library</button></div>
 <p class="message" id="message" role="status"></p><section id="library-list"></section>
-<div class="card"><h2>Library safety</h2><p class="muted">Media folders are mounted read-only. Scanning updates the catalog, not your original files. Automatic scanning and metadata matching will follow.</p></div>
+<div class="card"><h2>Library safety</h2><p class="muted">Media folders are mounted read-only. Scanning updates the catalog, not your original files. Automatic scans run every five minutes. Poster and metadata matching will follow.</p></div>
 </main>
 <dialog id="add-dialog"><form id="add-form">
 <h2>Add a library</h2><label for="name">Library name</label><input id="name" maxlength="80" required placeholder="Movies">
