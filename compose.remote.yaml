@@ -10,8 +10,9 @@ services:
     environment:
       MEDIA_ROOT: /media
       DATABASE_PATH: /data/library.sqlite3
-    expose:
-      - "8787"
+    # Preserve existing home-network access; never forward 8787 on the router.
+    ports:
+      - "8787:8787"
     volumes:
       - /media/brian/My Book:/media:ro
       - /opt/one-eyed-willie/data:/data
