@@ -34,7 +34,7 @@ services:
       one-eyed-willie:
         condition: service_healthy
     ports:
-      - "80:80"
+      # Only port 443 is published; the NUC already uses host port 80.
       - "443:443"
       - "443:443/udp"
     environment:
