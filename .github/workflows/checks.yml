@@ -1,0 +1,13 @@
+name: Checks
+on:
+  push:
+  pull_request:
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Compile Python
+        run: python -m compileall -q server
+      - name: Build Docker image
+        run: docker build -t one-eyed-willie:ci .
