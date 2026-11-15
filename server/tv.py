@@ -9,18 +9,27 @@ from .library import db
 from .artwork import localize, local_show_poster
 from .metadata import show_metadata as tmdb_show_metadata, season_metadata, token_status
 from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tvmaze_season_metadata
+from .arr import sonarr_metadata
 
 def show_metadata(title, year=None):
-    """Use optional TMDB credentials when present, else automatic keyless TVmaze."""
+    """Prefer established TV providers; Sonarr fills gaps without re-searching titles."""
     if token_status():
         tmdb = tmdb_show_metadata(title, year)
         if tmdb:
             return tmdb
-    return tvmaze_show_metadata(title, year)
+    automatic = tvmaze_show_metadata(title, year)
+    sonarr = sonarr_metadata(title, year)
+    if automatic:
+        if sonarr.get("overview") and not automatic.get("overview"):
+            automatic["overview"] = sonarr["overview"]
+        return automatic
+    return sonarr
 
 def provider_season(meta, number):
     if meta.get("source") == "TVmaze":
         return tvmaze_season_metadata(meta.get("tvmaze_id"), number)
+    if meta.get("source") == "Sonarr":
+        return {}
     return season_metadata(meta.get("tmdb_id"), number)
 
 

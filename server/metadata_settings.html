@@ -9,24 +9,9 @@
 <main class="content">
 <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Metadata</h1>
 <p>Manage automatic TV metadata and movie artwork sources.</p></div></div>
-<section class="form-card">
-<h2>Movie posters and descriptions</h2>
-<p>One-Eyed Willie automatically uses poster images and <code>movie.nfo</code> files already stored beside movies. To display artwork managed by Radarr, connect your existing local Radarr installation once. No additional TMDB, IMDb or Rotten Tomatoes API subscription is needed.</p>
-<p id="radarr-status" role="status">Checking local movie metadata source…</p>
-<form id="radarr-form">
-<label for="radarr-url">Radarr LAN address</label>
-<input id="radarr-url" type="url" placeholder="http://192.168.86.29:7878" autocomplete="off" required>
-<small>Use Radarr's local address. The public Radarr port-forward is not needed. One-Eyed Willie only accepts LAN addresses.</small>
-<label for="radarr-key">Radarr API key</label>
-<input id="radarr-key" type="password" maxlength="128" minlength="12" autocomplete="off" required placeholder="Radarr → Settings → General → Security">
-<small>This is your existing Radarr API key—not a new paid API account. It stays on the NUC and is never sent to clients or GitHub.</small>
-<div class="form-actions">
-<button type="submit" class="primary-button" id="radarr-save">Connect Radarr</button>
-<button type="button" class="danger-button" id="radarr-remove">Disconnect Radarr</button>
-</div>
-<p class="message" id="radarr-message" role="status"></p>
-</form>
-</section>
+<section class="form-card"><h2>Connected media managers</h2>
+<p>Manage Radarr (movies) and Sonarr (TV shows) together under <a class="text-link" href="/settings/connections">Settings → Connections</a>. Existing Radarr settings are preserved.</p>
+<a class="secondary-button" href="/settings/connections">Open Connections</a></section>
 <section class="form-card"><h2>Automatic TV metadata — enabled</h2><p>TV shows, posters, seasons, and episode descriptions load automatically from the free TVmaze public API. No account, token, or subscription is required.</p><p class="muted">The TV library remains usable if metadata cannot be retrieved. This provider is licensed under CC BY-SA and credited in the app.</p></section>
 <section class="form-card">
 <h2>Optional: The Movie Database (TMDB)</h2>
@@ -78,44 +63,5 @@ $('remove').addEventListener('click',async()=>{
  }catch(error){msg(error.message,true)}
 });
 
-async function loadRadarr(){
- try{
-  const r=await fetch('/api/movies/source',{cache:'no-store'});
-  if(!r.ok)throw Error('Unable to read Radarr settings');
-  const data=await r.json();
-  $('radarr-status').textContent=data.connected
-    ?'Connected to local Radarr ('+data.address+'). Movie posters and descriptions are available.'
-    :'Using local artwork only. Connect Radarr once to use your existing movie posters and descriptions.';
-  if(data.address)$('radarr-url').value=data.address;
-  $('radarr-remove').disabled=!data.connected||data.managed==='environment';
- }catch(error){$('radarr-message').textContent=error.message;}
-}
-$('radarr-form').addEventListener('submit',async event=>{
- event.preventDefault();$('radarr-save').disabled=true;
- $('radarr-message').textContent='Checking local Radarr connection…';
- try{
-  const response=await fetch('/api/movies/source',{method:'PUT',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({url:$('radarr-url').value.trim(),api_key:$('radarr-key').value.trim()})});
-  const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw Error(body.detail||'Unable to connect to Radarr');
-  $('radarr-key').value='';
-  $('radarr-message').textContent='Radarr connected. Refresh the Movies page to load posters.';
-  await loadRadarr();
- }catch(error){$('radarr-message').textContent=error.message;}
- finally{$('radarr-save').disabled=false;}
-});
-$('radarr-remove').addEventListener('click',async()=>{
- if(!confirm('Disconnect Radarr? Local poster files and previously cached images are not deleted.'))return;
- try{
-  const response=await fetch('/api/movies/source',{method:'DELETE'});
-  const body=await response.json().catch(()=>({}));
-  if(!response.ok)throw Error(body.detail||'Unable to disconnect Radarr');
-  $('radarr-message').textContent='Radarr disconnected.';
-  $('radarr-key').value='';
-  await loadRadarr();
- }catch(error){$('radarr-message').textContent=error.message;}
-});
-loadRadarr();
 load();
 </script></body></html>

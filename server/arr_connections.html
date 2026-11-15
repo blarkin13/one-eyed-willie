@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+<style>
+.connection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:16px}
+.connection-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:23px}
+.connection-head{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.connection-head h2{margin:0;font-size:1.3rem;letter-spacing:-.02em}
+.connection-kind{color:var(--muted);font-size:.9rem;margin:6px 0 16px}
+.connection-state{color:#b9cadc;font-size:.84rem;padding:9px 0;overflow-wrap:anywhere}
+.connection-card label{display:block;font-size:.83rem;font-weight:650;margin:14px 0 6px}
+.connection-card input{width:100%;background:#0c1420;color:#ecf3ff;border:1px solid #374962;border-radius:10px;padding:12px;min-height:44px}
+.connection-card .form-actions{margin-top:17px}
+.connection-help{color:#9aacc2;line-height:1.65;font-size:.86rem}
+.integration-state{font-size:.78rem;color:#a1b8d0;letter-spacing:.03em}
+.integration-state.on{color:#92d9b4}
+</style></head>
+<body data-page="connections"><div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace">
+<header class="topbar"><div id="breadcrumbs" class="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+<main class="content">
+<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Connections</h1>
+<p>Connect your existing media managers once. They handle library management; One-Eyed Willie handles browsing.</p></div>
+<a class="primary-button" href="/explore">Explore More</a></div>
+<div class="connection-grid" id="connections"></div>
+<section class="form-card"><h2>How this works</h2>
+<p>Enter the LAN address and existing API key from each media manager's Settings. Your API keys stay on this server. You don't need a new account or a new public port-forward.</p>
+<p>Radarr manages movies; Sonarr manages TV series. One-Eyed Willie can send a title to either service after you choose its folder and quality profile. Adding a title does not mean the media is available to play.</p>
+<p>Other *arr applications have different content types: Lidarr manages music, Readarr manages books, and Prowlarr manages indexers. They can be integrated separately when those features are supported; connecting them here would not add movie or TV browsing.</p></section>
+</main></div></div>
+<script>
+const providers=[{id:'radarr',title:'Radarr',desc:'Movie artwork, descriptions and add-to-library',port:7878},{id:'sonarr',title:'Sonarr',desc:'TV show metadata and add-to-library',port:8989}];
+const $=id=>document.getElementById(id);
+const statusEls={};
+async function fetchJson(url,opts){
+ const r=await fetch(url,opts);
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'Request failed');
+ return data;
+}
+function build(){
+ const parent=$('connections');
+ for(const provider of providers){
+   const article=document.createElement('article');article.className='connection-card';
+   const header=document.createElement('div');header.className='connection-head';
+   const name=document.createElement('h2');name.textContent=provider.title;
+   const state=document.createElement('span');state.className='integration-state';state.textContent='Checking…';
+   header.append(name,state);
+   const desc=document.createElement('p');desc.className='connection-kind';desc.textContent=provider.desc;
+   const summary=document.createElement('div');summary.className='connection-state';
+   const form=document.createElement('form');
+   const labelUrl=document.createElement('label');labelUrl.textContent=provider.title+' LAN address';
+   const url=document.createElement('input');url.type='url';url.placeholder='http://192.168.86.29:'+provider.port;url.required=true;url.autocomplete='off';url.setAttribute('aria-label',provider.title+' LAN address');
+   const labelKey=document.createElement('label');labelKey.textContent=provider.title+' API key';
+   const key=document.createElement('input');key.type='password';key.required=true;key.autocomplete='off';key.minLength=12;key.maxLength=128;key.placeholder='Settings → General → API Key';key.setAttribute('aria-label',provider.title+' API key');
+   labelUrl.append(url);labelKey.append(key);
+   const actions=document.createElement('div');actions.className='form-actions';
+   const connect=document.createElement('button');connect.className='primary-button';connect.type='submit';connect.textContent='Connect '+provider.title;
+   const disconnect=document.createElement('button');disconnect.className='danger-button';disconnect.type='button';disconnect.textContent='Disconnect';
+   actions.append(connect,disconnect);
+   const message=document.createElement('p');message.className='message';message.setAttribute('role','status');
+   form.append(labelUrl,labelKey,actions,message);
+   form.onsubmit=async event=>{
+     event.preventDefault();connect.disabled=true;message.textContent='Testing local connection…';
+     try{
+       await fetchJson('/api/arr/connections/'+provider.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),api_key:key.value.trim()})});
+       key.value='';message.textContent=provider.title+' connected successfully.';await refresh();
+     }catch(e){message.textContent=e.message;}
+     finally{connect.disabled=false;}
+   };
+   disconnect.onclick=async()=>{
+     if(!confirm('Disconnect '+provider.title+'? Saved artwork and locally indexed files will remain.'))return;
+     disconnect.disabled=true;
+     try{await fetchJson('/api/arr/connections/'+provider.id,{method:'DELETE'});message.textContent=provider.title+' disconnected.';await refresh();}
+     catch(e){message.textContent=e.message;}
+     finally{disconnect.disabled=false;}
+   };
+   const help=document.createElement('p');help.className='connection-help';
+   help.textContent='The API key is stored privately on your NUC. Do not use the public forwarded address.';
+   article.append(header,desc,summary,form,help);parent.append(article);
+   statusEls[provider.id]={state,summary,url,disconnect,connect};
+ }
+}
+async function refresh(){
+ try{
+   const data=await fetchJson('/api/arr/connections');
+   for(const provider of providers){
+     const controls=statusEls[provider.id],setting=data[provider.id]||{};
+     controls.state.textContent=setting.connected?'Connected':'Not connected';
+     controls.state.className='integration-state'+(setting.connected?' on':'');
+     controls.summary.textContent=setting.connected?'Connected to '+setting.address:'Connect to show '+provider.desc.toLowerCase()+'.';
+     if(setting.address)controls.url.value=setting.address;
+     controls.disconnect.disabled=!setting.connected||setting.managed==='environment';
+   }
+ }catch(e){for(const id of Object.keys(statusEls))statusEls[id].summary.textContent=e.message;}
+}
+build();refresh();
+</script></body></html>
