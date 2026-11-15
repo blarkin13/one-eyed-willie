@@ -193,8 +193,13 @@ def season_metadata(tmdb_id, season_number):
 
 @router.get("/settings")
 def metadata_settings():
-    return {"tmdb_configured": token_status(), "source": "TMDB",
-            "notice": "This product uses the TMDB API but is not endorsed or certified by TMDB."}
+    return {
+        "automatic_tv_metadata": True,
+        "automatic_provider": "TVmaze",
+        "tmdb_configured": token_status(),
+        "optional_provider": "TMDB",
+        "notice": "TVmaze data is CC BY-SA; TMDB is optional and requires a key.",
+    }
 
 
 @router.post("/settings")

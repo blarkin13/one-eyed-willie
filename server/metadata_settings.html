@@ -9,9 +9,10 @@
 <main class="content">
 <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Metadata</h1>
 <p>Get TV show posters, season artwork, episode stills, and descriptions.</p></div></div>
+<section class="form-card"><h2>Automatic TV metadata — enabled</h2><p>TV shows, posters, seasons, and episode descriptions load automatically from the free TVmaze public API. No account, token, or subscription is required.</p><p class="muted">The TV library remains usable if metadata cannot be retrieved. This provider is licensed under CC BY-SA and credited in the app.</p></section>
 <section class="form-card">
-<h2>The Movie Database (TMDB)</h2>
-<p>TMDB offers free API access for personal, non-commercial projects. Connecting a read-access token enables artwork and summaries. Your token is stored on your NUC, not in GitHub.</p>
+<h2>Optional: The Movie Database (TMDB)</h2>
+<p>TMDB offers free API access for personal, non-commercial projects. If you want to use TMDB instead of TVmaze, you can add your own optional read-access token. This is not needed for automatic TV metadata. Your token is stored on your NUC, not in GitHub.</p>
 <p id="token-status" role="status">Checking metadata settings…</p>
 <form id="token-form">
 <label for="token">TMDB API Read Access Token</label>
@@ -21,11 +22,11 @@
 <p class="message" id="message" role="status"></p>
 </form></section>
 <section class="form-card"><h2>How matching works</h2>
-<p>One-Eyed Willie identifies the show, season, and episode from your existing file and folder names. TMDB supplies optional posters and descriptions. It does not change, rename, or upload your media files.</p>
+<p>One-Eyed Willie identifies shows, seasons, and episodes from existing file and folder names. TVmaze supplies posters and descriptions automatically, and TMDB is an optional alternative. It does not change, rename, or upload your media files.</p>
 <p>Artwork and summaries are cached locally. If no match is found, you'll see the original title and a placeholder rather than incorrect artwork.</p></section>
 <section class="form-card" aria-labelledby="credits"><h2 id="credits">Credits</h2>
 <p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
-<p>TV metadata and artwork from <a class="text-link" href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a>. The pirate-style heading font is Pirata One by Rodrigo Fuenzalida and Nicolas Massi, licensed under the SIL Open Font License 1.1. Standard interface and media text use the system sans-serif font.</p></section>
+<p>Automatic TV metadata supplied by <a class="text-link" href="https://www.tvmaze.com" target="_blank" rel="noopener noreferrer">TVmaze</a> under CC BY-SA, with attribution and share-alike terms. Optional TMDB metadata and artwork from <a class="text-link" href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a>. The pirate-style heading font is Pirata One by Rodrigo Fuenzalida and Nicolas Massi, licensed under the SIL Open Font License 1.1. Standard interface and media text use the system sans-serif font.</p></section>
 </main></div></div>
 <script>
 const $=id=>document.getElementById(id);
@@ -35,7 +36,7 @@ async function load(){
   const response=await fetch('/api/metadata/settings',{cache:'no-store'});
   if(!response.ok)throw Error('Unable to read metadata settings');
   const data=await response.json();
-  $('token-status').textContent=data.tmdb_configured?'TMDB is connected. Artwork and summaries can be loaded.':'Not connected. Library folders and episode navigation still work without TMDB.';
+  $('token-status').textContent=data.tmdb_configured?'TMDB is connected. Artwork and summaries can be loaded.':'TVmaze is already active. No TMDB token is needed.';
   $('remove').disabled=!data.tmdb_configured;
  }catch(error){msg(error.message,true)}
 }

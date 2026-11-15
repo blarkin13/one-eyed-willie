@@ -6,7 +6,22 @@ from fastapi import APIRouter, HTTPException, Query
 
 from .catalog import episode_info
 from .library import db
-from .metadata import show_metadata, season_metadata, token_status
+from .metadata import show_metadata as tmdb_show_metadata, season_metadata, token_status
+from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tvmaze_season_metadata
+
+def show_metadata(title, year=None):
+    """Use optional TMDB credentials when present, else automatic keyless TVmaze."""
+    if token_status():
+        tmdb = tmdb_show_metadata(title, year)
+        if tmdb:
+            return tmdb
+    return tvmaze_show_metadata(title, year)
+
+def provider_season(meta, number):
+    if meta.get("source") == "TVmaze":
+        return tvmaze_season_metadata(meta.get("tvmaze_id"), number)
+    return season_metadata(meta.get("tmdb_id"), number)
+
 
 router = APIRouter(prefix="/api/tv")
 
@@ -85,7 +100,7 @@ def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_len
     return {
         "poster_url": metadata.get("poster_url"),
         "overview": metadata.get("overview", ""),
-        "metadata_available": token_status(),
+        "metadata_available": bool(metadata), "metadata_source": metadata.get("source"), "source_url": metadata.get("source_url"),
     }
 
 
@@ -99,7 +114,7 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         "backdrop_url": meta.get("backdrop_url"),
         "seasons": seasons,
         "episode_count": len(show["episodes"]),
-        "metadata_available": token_status(),
+        "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
 
 
@@ -113,7 +128,7 @@ def season_details(
     season = next((s for s in seasons if s["number"] == season_number), None)
     if season is None:
         raise HTTPException(404, "Season not found in your library")
-    detail = season_metadata(meta.get("tmdb_id"), season_number)
+    detail = provider_season(meta, season_number)
     metadata_episodes = detail.get("episodes", {})
     entries = []
     for episode in show["episodes"]:
@@ -135,7 +150,7 @@ def season_details(
                    "overview": detail.get("overview") or season["overview"],
                    "poster_url": detail.get("poster_url") or season["poster_url"]},
         "episodes": entries,
-        "metadata_available": token_status(),
+        "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
 
 
@@ -154,7 +169,7 @@ def episode_details(media_id: int = Query(ge=1)):
     except (ValueError, OSError) as error:
         raise HTTPException(404, "TV episode unavailable") from error
     show, meta, _ = merged_show(row["library_id"], parsed["key"])
-    detail = season_metadata(meta.get("tmdb_id"), parsed["season"]) if parsed["season"] is not None else {}
+    detail = provider_season(meta, parsed["season"]) if parsed["season"] is not None else {}
     episode_meta = detail.get("episodes", {}).get(str(parsed["episode"]), {})
     return {
         "id": media_id, "library_id": row["library_id"], "key": parsed["key"],
@@ -168,5 +183,5 @@ def episode_details(media_id: int = Query(ge=1)):
         "runtime": episode_meta.get("runtime"),
         "filename": Path(row["path"]).name,
         "playback_available": False,
-        "metadata_available": token_status(),
+        "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }

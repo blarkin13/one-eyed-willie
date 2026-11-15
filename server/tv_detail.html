@@ -12,7 +12,7 @@
 <a class="breadcrumb-link" id="back-link" href="/tv">← All TV Shows</a>
 <div id="loading" class="status-line" role="status">Loading TV library…</div>
 <div id="view"></div>
-<p class="note">Artwork and episode descriptions, when available, are supplied by TMDB. Video playback is not yet implemented.</p>
+<p class="note">TV artwork and episode descriptions load automatically from TVmaze. Optional TMDB is also supported. Video playback is not yet implemented.</p>
 </main>
 </div></div>
 <script>
@@ -30,7 +30,7 @@ function el(tag,cls,text){
 }
 function image(src,cls,alt){
   const node=el('img',cls);node.alt=alt||'';
-  if(typeof src==='string'&&src.startsWith('https://image.tmdb.org/t/p/')){
+  if(typeof src==='string'&&(src.startsWith('https://image.tmdb.org/t/p/')||src.startsWith('https://static.tvmaze.com/uploads/images/'))){
     node.src=src;node.loading='lazy';node.referrerPolicy='no-referrer';
   }
   return node;
@@ -40,9 +40,13 @@ function poster(url,alt){
  const fallback=el('div','hero-poster');fallback.setAttribute('role','img');fallback.setAttribute('aria-label','Poster not available');
  return fallback;
 }
+function credit(data){
+ const div=el('p','muted');div.append('TV show information from ');
+ const link=el('a','text-link','TVmaze');link.href=(typeof data.source_url==='string'&&data.source_url.startsWith('https://www.tvmaze.com/'))?data.source_url:'https://www.tvmaze.com/';link.target='_blank';link.rel='noopener noreferrer';div.append(link,'.');return div;
+}
 function notice(){
  const div=el('div','metadata-notice');
- div.append('For posters, descriptions, and episode stills, add a free TMDB read-access token in ');
+ div.append('Automatic TVmaze metadata did not match this title. You can optionally try TMDB in ');
  const link=el('a','', 'Settings → Metadata');link.href='/settings/metadata';div.append(link,'.');
  return div;
 }
@@ -87,6 +91,7 @@ async function renderShow(){
    const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
    view.appendChild(note);
  }
+ if(data.metadata_source==='TVmaze')view.appendChild(credit(data));
  if(!data.metadata_available)view.appendChild(notice());
 }
 async function renderSeason(){

@@ -39,7 +39,7 @@
       <p id="status" class="status-line" role="status">Loading titles…</p>
       <div id="items" aria-live="off"></div>
       <div class="load-more-wrap"><button type="button" class="secondary-button" id="more" hidden>Load more</button></div>
-      <p class="note">TV posters and descriptions load through optional TMDB metadata in Settings → Metadata. Without it, titles remain browsable with text covers.</p>
+      <p class="note">TV posters and episode details load automatically from TVmaze when available. TMDB is an optional source in Settings → Metadata.</p>
     </main>
   </div>
 </div>
@@ -120,7 +120,7 @@ function runPosterQueue(){
    if(!response.ok)throw Error('Poster request failed');
    return response.json();
   }).then(data=>{
-   if(!data.poster_url||!data.poster_url.startsWith('https://image.tmdb.org/t/p/'))return;
+   if(!data.poster_url||!(data.poster_url.startsWith('https://image.tmdb.org/t/p/')||data.poster_url.startsWith('https://static.tvmaze.com/uploads/images/')))return;
    if(!card.isConnected)return;
    const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
    img.src=data.poster_url;img.loading='lazy';img.referrerPolicy='no-referrer';
