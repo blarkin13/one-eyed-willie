@@ -3,7 +3,22 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · TV Shows</title>
 <link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script><script defer src="/assets/player.js"></script>
-</head><body data-page="tv">
+<style>
+body[data-page=tv] .tv-extras{padding:10px 0 28px}
+body[data-page=tv] .tv-extras h2{margin:30px 0 17px;font-size:1.45rem}
+.tv-facts{display:flex;gap:12px 28px;flex-wrap:wrap;color:#a9bdd3;margin-bottom:12px}
+.tv-rating{color:#dfedfc}
+.tv-cast{display:grid;grid-auto-flow:column;grid-auto-columns:125px;gap:18px;overflow-x:auto;padding-bottom:10px}
+.tv-cast-person{display:flex;flex-direction:column;gap:6px}
+.tv-actor-image{width:125px;height:170px;object-fit:cover;background:#1a2b3a;border-radius:6px}
+.tv-actor-placeholder{display:grid;place-items:center;color:#a5bcd6;font-size:2rem}
+.tv-cast-person strong{font-size:.89rem}.tv-cast-person span{font-size:.78rem;color:#9aabc0}
+.tv-trailer{max-width:950px;aspect-ratio:16/9;background:#101b29;display:grid;place-items:center}
+.tv-trailer iframe{display:block;width:100%;height:100%;border:0}
+.tv-reviews{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px 36px}
+.tv-review{padding:0;border:0}.tv-review p{color:#b7c9d9;line-height:1.65;white-space:pre-wrap}
+.tv-trailer-launch{background:none;color:#d9ecfb;border:0;font-size:1rem;cursor:pointer}
+</style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace">
@@ -11,7 +26,7 @@
 <a class="breadcrumb-link" id="back-link" href="/tv">← All TV Shows</a>
 <div id="loading" class="status-line" role="status">Loading TV library…</div>
 <div id="view"></div>
-<p class="note">TV artwork and episode descriptions load automatically from TVmaze and connected metadata providers.</p>
+
 </main>
 </div></div>
 <script>
@@ -26,6 +41,17 @@ function el(tag,cls,text){
   const node=document.createElement(tag);if(cls)node.className=cls;
   if(text!==undefined&&text!==null)node.textContent=String(text);
   return node;
+}
+function watchIcon(watched){
+ return watched
+  ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
+  : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function updateWatchIcon(button,watched,scope='episode'){
+ const action=watched?'Mark '+scope+' unwatched':'Mark '+scope+' watched';
+ button.title=action;button.setAttribute('aria-label',action);
+ button.setAttribute('aria-pressed',String(!!watched));
+ button.innerHTML=watchIcon(watched);
 }
 function playbackButton(id,title,resume=false){
  const button=el('button',resume?'secondary-button media-icon-action':'primary-button media-icon-action');
@@ -74,15 +100,14 @@ function hero(title,overview,art,backdrop,year,subtitle){
  head.append(artNode,info);return head;
 }
 function bulkWatchedControl(data,scope){
- const button=el('button','icon-only-control');
+ const button=el('button','media-icon-action watch-icon-control');
  const allWatched=scope==='show'
    ?data.watched_count===data.episode_count
    :data.season.watched_count===data.season.episode_count;
  const updateLabel=watched=>{
    button.title=watched?'Mark all unwatched':'Mark all watched';
    button.setAttribute('aria-label',button.title);
-   button.textContent=watched?'↶':'✓';
-   button.setAttribute('aria-pressed',String(watched));
+   updateWatchIcon(button,watched,scope==='show'?'series':'season');
  };
  updateLabel(allWatched);
  button.onclick=async()=>{
@@ -102,12 +127,63 @@ function bulkWatchedControl(data,scope){
      button.after(note);setTimeout(()=>note.remove(),2500);
      if(scope==='season')view.querySelectorAll('.episode-actions button[aria-pressed]').forEach(control=>{
         control.setAttribute('aria-pressed',String(watched));
-        control.textContent=watched?'✓ Watched':'Mark watched';
+        updateWatchIcon(control,watched);
      });
    }catch(err){loading.textContent=err.message}
    finally{button.disabled=false}
  };
  return button;
+}
+function showExtras(data){
+ const section=el('section','tv-extras');
+ const facts=el('div','tv-facts');
+ const score=Number(data.rating);
+ if(Number.isFinite(score)&&score>0)facts.append(el('span','tv-rating','★ '+score.toFixed(1)+' / 10 · '+(data.metadata_source||'Provider')));
+ if(data.network)facts.append(el('span','tv-network',data.network));
+ if(Array.isArray(data.genres)&&data.genres.length)facts.append(el('span','tv-genres',data.genres.join(' · ')));
+ if(facts.childNodes.length)section.append(facts);
+ if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
+   const title=el('h2','','Trailer');
+   const trailer=el('div','tv-trailer');
+   const launch=el('button','tv-trailer-launch','▶ Watch trailer');
+   launch.type='button';
+   launch.onclick=()=>{
+     const frame=document.createElement('iframe');
+     frame.title=data.title+' trailer';frame.allowFullscreen=true;
+     frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+     frame.referrerPolicy='strict-origin-when-cross-origin';
+     frame.src='https://www.youtube-nocookie.com/embed/'+data.trailer_key+'?autoplay=1';
+     trailer.replaceChildren(frame);
+   };
+   trailer.append(launch);section.append(title,trailer);
+ }
+ const actors=Array.isArray(data.cast)?data.cast.filter(person=>person.name):[];
+ if(actors.length){
+   section.append(el('h2','','Cast'));
+   const grid=el('div','tv-cast');
+   for(const actor of actors){
+     const person=el('article','tv-cast-person');
+     if(actor.photo?.startsWith('/api/artwork/'))person.append(image(actor.photo,'tv-actor-image',''));
+     else person.append(el('div','tv-actor-image tv-actor-placeholder',actor.name[0]));
+     person.append(el('strong','',actor.name));
+     if(actor.character)person.append(el('span','',actor.character));
+     grid.append(person);
+   }
+   section.append(grid);
+ }
+ const reviews=Array.isArray(data.reviews)?data.reviews.filter(review=>review.excerpt):[];
+ if(reviews.length){
+   section.append(el('h2','','Reviews · TMDB community'));
+   const grid=el('div','tv-reviews');
+   for(const review of reviews){
+     const entry=el('article','tv-review');
+     entry.append(el('strong','',review.author||'TMDB contributor'),
+                  el('p','',review.excerpt));
+     grid.append(entry);
+   }
+   section.append(grid);
+ }
+ return section;
 }
 function coverCard(item,title,subtitle,href){
  const article=el('article','season-card');
@@ -130,6 +206,7 @@ async function renderShow(){
  view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
  const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'));
  view.append(showActions);
+ view.append(showExtras(data));
  const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
  view.appendChild(heading);
  const grid=el('div','season-grid');
@@ -173,17 +250,16 @@ async function renderSeason(){
   const controls=el('div','episode-actions');
   const play=playbackButton(episode.id,data.show.title+' · '+episode.title);
   const resume=canResume(episode)?playbackButton(episode.id,data.show.title+' · '+episode.title,true):null;
-  const watched=el('button','secondary-button',episode.watched?'✓ Watched':'Mark watched');
-  watched.type='button';watched.setAttribute('aria-pressed',String(!!episode.watched));
+  const watched=el('button','media-icon-action watch-icon-control');
+  watched.type='button';updateWatchIcon(watched,episode.watched);
   watched.onclick=async()=>{
     watched.disabled=true;
     try{
       const r=await fetch('/api/watch/'+episode.id+'/watched',{method:'PUT',
         headers:{'Content-Type':'application/json'},body:JSON.stringify({watched:!episode.watched})});
       if(!r.ok)throw Error('Status unavailable');
-      episode.watched=!episode.watched;watched.textContent=episode.watched?'✓ Watched':'Mark watched';
-      watched.setAttribute('aria-pressed',String(episode.watched));
-    }catch(_){watched.textContent='Try again'}
+      episode.watched=!episode.watched;updateWatchIcon(watched,episode.watched);
+    }catch(_){watched.title='Try again';}
     finally{watched.disabled=false;}
   };
   controls.append(play);if(resume)controls.append(resume);
@@ -209,8 +285,8 @@ async function renderEpisode(){
  const controls=el('div','episode-detail-actions');
  const play=playbackButton(data.id,data.show_title+' · '+data.title);
  const resume=canResume(data)?playbackButton(data.id,data.show_title+' · '+data.title,true):null;
- const watched=el('button','secondary-button',data.watched?'✓ Watched · mark unwatched':'Mark watched');
- watched.type='button';watched.setAttribute('aria-pressed',String(!!data.watched));
+ const watched=el('button','media-icon-action watch-icon-control');
+ watched.type='button';updateWatchIcon(watched,data.watched);
  watched.onclick=async()=>{
    watched.disabled=true;
    try{
@@ -218,9 +294,8 @@ async function renderEpisode(){
        method:'PUT',headers:{'Content-Type':'application/json'},
        body:JSON.stringify({watched:!data.watched})});
      if(!r.ok)throw Error('Unable to save status');
-     data.watched=!data.watched;watched.textContent=data.watched?'✓ Watched · mark unwatched':'Mark watched';
-     watched.setAttribute('aria-pressed',String(data.watched));
-   }catch(_){watched.textContent='Try again'}
+     data.watched=!data.watched;updateWatchIcon(watched,data.watched);
+   }catch(_){watched.title='Try again'}
    finally{watched.disabled=false}
  };
  controls.append(play);if(resume)controls.append(resume);

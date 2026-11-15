@@ -82,6 +82,11 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
 @media(max-width:510px){.movie-detail-hero{display:block;min-height:0}
  .movie-detail-poster{max-height:200px;width:130px}
  .movie-detail-data{margin-top:20px}}
+.movie-detail-actions .media-icon-action[hidden]{display:none!important}
+.trailer-embed{width:min(100%,1100px);aspect-ratio:16/9;background:#000}
+.trailer-embed iframe{width:100%;height:100%;border:0;display:block}
+.metadata-hint{color:#94aabd;font-size:.95rem;line-height:1.7;margin:3px 0 18px}
+.metadata-hint a{text-decoration:underline;text-underline-offset:3px;color:#c2dfff}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -108,6 +113,10 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
         title="Resume from saved position" aria-label="Resume from saved position">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
       </button>
+      <button id="trailer-movie" type="button" class="secondary-button media-icon-action" hidden
+        aria-label="Play trailer" title="Play trailer">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
+      </button>
       <button id="watched-movie" type="button" class="secondary-button media-icon-action"
         title="Mark watched" aria-label="Mark watched">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -126,10 +135,15 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
     <p id="movie-tagline" class="movie-tagline"></p>
     <dl id="movie-fact-list" class="movie-fact-list"></dl>
   </div>
-  <section id="cast-section" class="movie-block" hidden>
+  <section id="trailer-section" class="movie-block" hidden>
+    <h2>Trailer</h2><div id="trailer-embed" class="trailer-embed"></div>
+  </section>
+  <section id="cast-section" class="movie-block">
+    <h2>Cast</h2><p id="cast-unavailable" class="metadata-hint" hidden>Cast information isn't available from the connected movie metadata. <a href="/settings/metadata">Connect TMDB in Settings → Metadata</a> to enable cast and community reviews.</p>
     <h2>Cast</h2><div id="cast-list" class="movie-cast"></div>
   </section>
-  <section id="reviews-section" class="movie-block" hidden>
+  <section id="reviews-section" class="movie-block">
+    <p id="reviews-unavailable" class="metadata-hint" hidden>No community reviews are available for this movie from the connected metadata source.</p>
     <h2>Reviews <span class="source-label">TMDB community</span></h2>
     <div id="review-list" class="movie-reviews"></div>
   </section>
@@ -183,6 +197,10 @@ async function loadMovie(){
      $('progress-label').textContent=Math.round(position/60)+' of '+Math.round(duration/60)+' minutes';
    }else $('progress-label').textContent='';
    $('play-movie').disabled=!movie.media_id;
+   const trailer=$('trailer-movie');
+   trailer.hidden=!/^[A-Za-z0-9_-]{11}$/.test(movie.trailer_key||'');
+   $('trailer-section').hidden=trailer.hidden;
+   $('trailer-embed').replaceChildren();
    renderExtras(movie);
    $('movie-detail').hidden=false;$('expanded').hidden=false;$('movie-status').textContent='';
  }catch(error){$('movie-status').textContent=error.message}
@@ -217,7 +235,8 @@ function renderExtras(data){
  }
  const cast=$('cast-list');cast.replaceChildren();
  const people=Array.isArray(data.cast)?data.cast.filter(p=>p.name):[];
- $('cast-section').hidden=!people.length;
+ $('cast-section').hidden=false;
+ $('cast-unavailable').hidden=people.length>0;
  for(const person of people){
    const article=document.createElement('article');article.className='cast-person';
    if(person.photo?.startsWith('/api/artwork/')){
@@ -233,7 +252,8 @@ function renderExtras(data){
  }
  const reviews=$('review-list');reviews.replaceChildren();
  const comments=Array.isArray(data.reviews)?data.reviews.filter(r=>r.excerpt):[];
- $('reviews-section').hidden=!comments.length;
+ $('reviews-section').hidden=false;
+ $('reviews-unavailable').hidden=comments.length>0;
  for(const review of comments){
    const article=document.createElement('article');article.className='movie-review';
    const author=document.createElement('strong');author.textContent=review.author;
@@ -241,6 +261,18 @@ function renderExtras(data){
    article.append(author,excerpt);reviews.append(article);
  }
 }
+$('trailer-movie').addEventListener('click',()=>{
+ if(!/^[A-Za-z0-9_-]{11}$/.test(movie?.trailer_key||''))return;
+ const holder=$('trailer-embed');holder.replaceChildren();
+ const frame=document.createElement('iframe');
+ frame.title=movie.title+' official trailer';frame.loading='lazy';
+ frame.referrerPolicy='strict-origin-when-cross-origin';
+ frame.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen';
+ frame.allowFullscreen=true;
+ frame.src='https://www.youtube-nocookie.com/embed/'+movie.trailer_key+'?autoplay=1';
+ holder.append(frame);
+ $('trailer-section').scrollIntoView({behavior:'smooth',block:'start'});
+});
 $('play-movie').addEventListener('click',()=>{
  if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title,{restart:true});
 });

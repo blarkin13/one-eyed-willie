@@ -143,7 +143,7 @@ def _snapshot():
         if row and row["source_url"] == settings["url"]:
             try:
                 cached = json.loads(row["snapshot"])
-                if time.time() - row["updated_at"] < SNAPSHOT_SECONDS:
+                if time.time() - row["updated_at"] < SNAPSHOT_SECONDS and all("youtube_trailer_id" in m for m in cached):
                     return cached
             except ValueError:
                 pass
@@ -173,6 +173,7 @@ def _snapshot():
                 "runtime": film.get("runtime"),
                 "genres": film.get("genres") if isinstance(film.get("genres"), list) else [],
                 "imdb_id": film.get("imdbId"),
+                "youtube_trailer_id": film.get("youTubeTrailerId") or "",
                 "tmdb_id": film.get("tmdbId"),
                 "ratings": {name: {"value": value.get("value"), "votes": value.get("votes")}
                             for name, value in (film.get("ratings") or {}).items()
@@ -288,6 +289,37 @@ def _local_nfo(video_path, root):
     return {}
 
 
+def _tmdb_id_for_title(title, year):
+    """Exact title/year match when Radarr has no TMDB ID. Cached and opt-in."""
+    from .metadata import token_status, _call, _cache_get, _cache_put, LOCK as META_LOCK
+    if not token_status():
+        return None
+    key = "movie-match:v1:" + _simple(title) + ":" + str(year or "")
+    with META_LOCK:
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached.get("id")
+        result = _call("search/movie", query={
+            "query": title, "year": year or "",
+            "include_adult": "false", "language": "en-US",
+        })
+        if not isinstance(result, dict):
+            return None
+        matches = [
+            m for m in result.get("results", [])
+            if isinstance(m, dict) and (
+                _simple(m.get("title")) == _simple(title)
+                or _simple(m.get("original_title")) == _simple(title)
+            ) and isinstance(m.get("id"), int) and m["id"] > 0
+            and (not year or not m.get("release_date")
+                 or (str(m["release_date"])[:4].isdigit() and
+                     abs(int(str(m["release_date"])[:4]) - year) <= 1))
+        ]
+        found = matches[0]["id"] if len(matches) == 1 else None
+        _cache_put(key, {"id": found} if found else {})
+        return found
+
+
 def _movie_extras(radarr):
     """Optional, cached TMDB cast and user reviews; never scrape review sites."""
     tmdb_id = radarr.get("tmdb_id")
@@ -296,14 +328,14 @@ def _movie_extras(radarr):
     from .metadata import token_status, _call, _cache_get, _cache_put, image_url, LOCK as META_LOCK
     if not token_status():
         return {}
-    key = "movie-extras:" + str(tmdb_id)
+    key = "movie-extras:v3:" + str(tmdb_id)
     with META_LOCK:
         cached = _cache_get(key)
         if cached is not None:
             return cached
         details = _call("movie/" + str(tmdb_id),
                         query={"language": "en-US",
-                               "append_to_response": "credits,reviews"})
+                               "append_to_response": "credits,reviews,videos"})
         if details is None:
             return {}
         credits = details.get("credits") or {}
@@ -324,7 +356,17 @@ def _movie_extras(radarr):
                 "excerpt": str(review.get("content") or "")[:850],
                 "source": "TMDB",
             })
+        videos = (details or {}).get("videos") or {}
+        trailer = next((
+            str(v.get("key")) for v in videos.get("results", [])
+            if isinstance(v, dict) and v.get("site") == "YouTube"
+            and v.get("type") == "Trailer"
+            and re.fullmatch(r"[A-Za-z0-9_-]{11}", str(v.get("key") or ""))
+        ), None)
         extras = {
+            "trailer_key": trailer,
+            "poster_url": register_remote(image_url(details.get("poster_path"), "w500")),
+            "backdrop_url": register_remote(image_url(details.get("backdrop_path"), "w1280")),
             "cast": cast, "reviews": user_reviews,
             "tagline": str((details or {}).get("tagline") or "")[:250],
             "release_date": (details or {}).get("release_date"),
@@ -360,19 +402,29 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
             "WHERE m.library_id=? AND m.path=? ORDER BY m.id LIMIT 1",
             (library_id, str(video)),
         ).fetchone()
+    if enrich and not radarr.get("tmdb_id"):
+        tmdb_id = _tmdb_id_for_title(parsed["title"], parsed["year"])
+        if tmdb_id:
+            radarr = {**radarr, "tmdb_id": tmdb_id}
     extras = _movie_extras(radarr) if enrich else {}
     return {
         **extras,
         "ratings": radarr.get("ratings") or {},
         "studio": radarr.get("studio") or "",
         "certification": radarr.get("certification") or "",
+        "trailer_key": (
+            radarr.get("youtube_trailer_id")
+            if re.fullmatch(r"[A-Za-z0-9_-]{11}",
+                            str(radarr.get("youtube_trailer_id") or ""))
+            else extras.get("trailer_key")
+        ),
         "library_id": library_id, "key": key, "title": parsed["title"],
         "media_id": entry["id"] if entry else None,
         "watched": bool(entry and entry["completed"]),
         "position_seconds": entry["position_seconds"] if entry and entry["position_seconds"] else 0,
         "duration_seconds": entry["duration_seconds"] if entry and entry["duration_seconds"] else 0,
-        "year": parsed["year"], "poster_url": poster_url,
-        "backdrop_url": backdrop_url,
+        "year": parsed["year"], "poster_url": poster_url or extras.get("poster_url"),
+        "backdrop_url": backdrop_url or extras.get("backdrop_url"),
         "overview": nfo.get("overview") or radarr.get("overview") or "",
         "runtime": nfo.get("runtime") or radarr.get("runtime"),
         "genres": nfo.get("genres") or radarr.get("genres") or [],
