@@ -48,8 +48,9 @@ class CompactLayoutTests(unittest.TestCase):
             file = SERVER / filename
             self.assertTrue(file.is_file())
             self.assertEqual(file.read_bytes()[:8], bytes([137,80,78,71,13,10,26,10]))
-            self.assertIn("/assets/" + filename, (SERVER / "shell.js").read_text())
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
+        # The rail displays the skull icon, not the full square logo.
+        self.assertIn("/assets/favicon.png", (SERVER / "shell.js").read_text())
 
     def test_there_is_no_top_header_or_magnifier(self):
         for page in ("dashboard.html", "catalog.html", "index.html",
@@ -64,6 +65,17 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertNotIn("topbar-action", shell)
         self.assertIn(".topbar,.app-topbar{display:none!important}",
                       (SERVER / "ui.css").read_text())
+
+    def test_brand_is_single_compact_icon_not_duplicated_full_logo(self):
+        shell = (SERVER / "shell.js").read_text()
+        css = (SERVER / "ui.css").read_text()
+        self.assertIn("image.src='/assets/favicon.png'", shell)
+        self.assertIn("words.textContent='One-Eyed Willie'", shell)
+        self.assertNotIn("words.src='/assets/logo.png'", shell)
+        self.assertIn("image.width=36;image.height=36", shell)
+        self.assertIn(".sidebar .brand-logo{width:36px;height:36px", css)
+        self.assertNotIn("object-position:center bottom", css)
+        self.assertIn("border:0", css)
 
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()

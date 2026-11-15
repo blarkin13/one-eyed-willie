@@ -34,8 +34,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
   brand.title='One-Eyed Willie';
   const image=document.createElement('img');image.className='brand-logo';image.src='/assets/favicon.png';
-  image.alt='';image.width=54;image.height=54;
-  const words=document.createElement('img');words.className='brand-name';words.src='/assets/logo.png';words.alt='';
+  image.alt='';image.width=36;image.height=36;
+  // The supplied full logo also contains a skull. Never show it next to
+  // the separate skull icon or crop it into a tiny, unreadable wordmark.
+  const words=document.createElement('span');words.className='brand-name';words.textContent='One-Eyed Willie';
   brand.append(image,words);target.append(brand);
   const nav=document.createElement('nav');nav.className='side-nav';nav.setAttribute('aria-label','Main navigation');
   navItems.forEach(item=>{
