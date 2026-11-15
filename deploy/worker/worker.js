@@ -38,6 +38,7 @@ export default {
     if (!["GET","HEAD","POST","PUT","PATCH","DELETE"].includes(request.method)) {
       return new Response("Method not allowed", { status: 405, headers: NO_CACHE });
     }
+    if (/^\\/api\\/watch\\/[0-9]+\\/(stream|transcode)(\\/|$)/i.test(url.pathname)) return blocked();
     if (request.headers.has("range") ||
         /^\/(api\/)?(stream|streams|play|playback|transcode|download|video|videos|audio|media)(\/|$)/i.test(url.pathname)) {
       return blocked();
