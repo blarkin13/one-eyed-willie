@@ -40,6 +40,11 @@ class AddInput(BaseModel):
     quality_profile_id: int = Field(gt=0)
     search_now: bool = False
     language_profile_id: int | None = Field(default=None, gt=0)
+    series_type: str = 'standard'
+    monitor: str = 'all'
+    season_folder: bool = True
+    minimum_availability: str = 'released'
+    tags: list[int] = Field(default_factory=list, max_length=30)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -90,7 +95,7 @@ def _request(name, settings, resource, *, method="GET", query=None, payload=None
     api = _version(name, settings)
     allowed = {
         "movie", "series", "movie/lookup", "series/lookup",
-        "rootfolder", "qualityprofile", "languageprofile",
+        "rootfolder", "qualityprofile", "languageprofile", "tag",
     }
     if resource not in allowed:
         raise ValueError("Unsupported API resource")
@@ -243,6 +248,12 @@ def options(name: str):
     profiles = _get(name, "qualityprofile")
     if not isinstance(folders, list) or not isinstance(profiles, list):
         raise HTTPException(502, "Could not retrieve folders and profiles")
+    try:
+        tag_records = _get(name, "tag")
+    except HTTPException:
+        tag_records = []
+    tags = [{"id": x["id"], "name": str(x.get("label") or x.get("name") or "Tag")}
+            for x in tag_records if isinstance(x, dict) and isinstance(x.get("id"), int)] if isinstance(tag_records, list) else []
     languages = []
     if name == "sonarr" and _version(name, _settings(name)) == "v3":
         try:
@@ -260,6 +271,7 @@ def options(name: str):
         "profiles": [{"id": x["id"], "name": x.get("name") or "Profile"}
                      for x in profiles if isinstance(x, dict) and isinstance(x.get("id"), int)],
         "languages": languages,
+        "tags": tags,
     }
 
 
@@ -275,6 +287,14 @@ def add(name: str, selection: AddInput):
     profiles = {x["id"] for x in opts["profiles"]}
     if selection.root_folder not in paths or selection.quality_profile_id not in profiles:
         raise HTTPException(422, "Select an existing root folder and quality profile")
+    allowed_tags = {x["id"] for x in opts.get("tags", [])}
+    if any(tag not in allowed_tags for tag in selection.tags):
+        raise HTTPException(422, "Select existing tags from your media manager")
+    if name == "radarr" and selection.minimum_availability not in ("announced", "inCinemas", "released"):
+        raise HTTPException(422, "Unsupported minimum availability")
+    if name == "sonarr" and (selection.series_type not in ("standard", "daily", "anime") or
+        selection.monitor not in ("all", "future", "missing", "existing", "pilot", "firstSeason", "lastSeason", "latestSeason", "none")):
+        raise HTTPException(422, "Unsupported Sonarr monitoring or series type")
     languages = {x["id"] for x in opts.get("languages", [])}
     if languages and selection.language_profile_id not in languages:
         raise HTTPException(422, "Select an existing Sonarr language profile")
@@ -293,11 +313,12 @@ def add(name: str, selection: AddInput):
         "title": exact.get("title"),
         "rootFolderPath": selection.root_folder,
         "qualityProfileId": selection.quality_profile_id,
-        "monitored": True,
+        "monitored": selection.monitor != "none" if name == "sonarr" else True,
+        "tags": selection.tags,
     }
     if name == "radarr":
         payload.update({"tmdbId": selection.external_id,
-                        "minimumAvailability": "released",
+                        "minimumAvailability": selection.minimum_availability,
                         "addOptions": {"searchForMovie": selection.search_now}})
         endpoint = "movie"
     else:
@@ -305,12 +326,11 @@ def add(name: str, selection: AddInput):
             payload["languageProfileId"] = selection.language_profile_id
         payload.update({
             "tvdbId": selection.external_id,
-            "seasonFolder": True,
-            "seriesType": exact.get("seriesType") if exact.get("seriesType") in
-                          ("standard", "daily", "anime") else "standard",
+            "seasonFolder": selection.season_folder,
+            "seriesType": selection.series_type,
             "seasons": exact.get("seasons") or [],
             "addOptions": {"searchForMissingEpisodes": selection.search_now,
-                           "monitor": "all"},
+                           "monitor": selection.monitor},
         })
         endpoint = "series"
     result = _request(name, setting, endpoint, method="POST", payload=payload)
