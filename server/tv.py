@@ -49,9 +49,10 @@ def local_show(library_id: int, show_key: str):
         ).fetchall()
 
     with db() as conn:
-        watched_ids = {row["media_id"] for row in conn.execute(
-            "SELECT media_id FROM playback_progress WHERE completed=1"
+        playback = {row["media_id"]: dict(row) for row in conn.execute(
+            "SELECT media_id,position_seconds,duration_seconds,completed FROM playback_progress"
         )}
+        watched_ids = {id for id, state in playback.items() if state["completed"]}
     found = []
     info = None
     for entry in entries:
@@ -70,6 +71,8 @@ def local_show(library_id: int, show_key: str):
             "filename": Path(entry["path"]).name,
             "added_at": entry["added_at"],
             "watched": entry["id"] in watched_ids,
+            "position_seconds": playback.get(entry["id"], {}).get("position_seconds", 0),
+            "duration_seconds": playback.get(entry["id"], {}).get("duration_seconds", 0),
         })
     if not info or not found:
         raise HTTPException(404, "TV show not found")
@@ -210,6 +213,8 @@ def episode_details(media_id: int = Query(ge=1)):
         "filename": Path(row["path"]).name,
         "playback_available": True,
         "watched": next((e["watched"] for e in show["episodes"] if e["id"] == media_id), False),
+        "position_seconds": next((e["position_seconds"] for e in show["episodes"] if e["id"] == media_id), 0),
+        "duration_seconds": next((e["duration_seconds"] for e in show["episodes"] if e["id"] == media_id), 0),
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
     return localize(result)
