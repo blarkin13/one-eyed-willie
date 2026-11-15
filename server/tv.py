@@ -100,6 +100,8 @@ def save_match(library_id: int = Query(ge=1), key: str = Query(min_length=1, max
         _manual_table(conn)
         conn.execute("INSERT INTO tv_manual_matches(library_id,show_key,provider,provider_id) VALUES(?,?,?,?) ON CONFLICT(library_id,show_key) DO UPDATE SET provider=excluded.provider,provider_id=excluded.provider_id",
                      (library_id, key, change.provider, change.provider_id))
+    from .poster_index import invalidate
+    invalidate("tv", library_id, key)
     return {"matched": True, "provider": change.provider, "provider_id": change.provider_id, "title": details.get("title")}
 
 
@@ -109,6 +111,8 @@ def clear_match(library_id: int = Query(ge=1), key: str = Query(min_length=1, ma
     with db() as conn:
         _manual_table(conn)
         conn.execute("DELETE FROM tv_manual_matches WHERE library_id=? AND show_key=?", (library_id, key))
+    from .poster_index import invalidate
+    invalidate("tv", library_id, key)
     return {"matched": False}
 
 

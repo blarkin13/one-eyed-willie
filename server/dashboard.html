@@ -123,7 +123,10 @@ function tile(item, watching=false){
     const indicator=document.createElement('span');indicator.className='watched-badge';
     indicator.textContent='✓ Watched';article.append(indicator);
   }
-  if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
+  if(item.poster_url?.startsWith('/api/artwork/')){
+    const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
+    img.src=item.poster_url;img.loading='lazy';img.decoding='async';cover.append(img);
+  }else if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
   else if(item.kind==='movies'&&item.library_id&&item.key)moviePosterJobs.push({cover,item});
   if(watching){
     const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');

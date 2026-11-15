@@ -103,10 +103,15 @@ def home_shelves():
             if len(watching) >= 12:
                 break
 
-    return {
+    from .poster_index import attach_posters
+    shelves = {
         "continue_watching": list(watching.values()),
         "recent_movies": list(recent["movies"].values())[:16],
         "recent_tv": list(recent["tv"].values())[:16],
+    }
+    attach_posters([item for items in shelves.values() for item in items])
+    return {
+        **shelves,
         "totals": {
             "movies": len(recent["movies"]),
             "tv": len(recent["tv"]),

@@ -107,7 +107,10 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title"):
             results.sort(key=lambda g: (g["year"] or 0, g["title"].casefold()), reverse=True)
         else:
             results.sort(key=lambda g: (g["title"].casefold(), g["year"] or 0))
-        return {"total": len(results), "items": results[offset:offset + limit]}
+        from .poster_index import attach_posters
+        page = results[offset:offset + limit]
+        attach_posters(page)
+        return {"total": len(results), "items": page}
 
 
 def periodic_scan(stop):
