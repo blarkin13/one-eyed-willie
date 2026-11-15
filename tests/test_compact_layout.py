@@ -111,7 +111,8 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn('id="watched-movie"', full_movie)
         self.assertIn("WilliePlayer.open", full_movie)
         self.assertIn("/api/stream/hls/", player)
-        self.assertIn("Play fullscreen", tv)
+        self.assertIn("function playbackButton(", tv)
+        self.assertIn("Resume from saved position", tv)
         self.assertIn("WilliePlayer.open", home)
         self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
 
