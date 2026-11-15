@@ -153,6 +153,8 @@ async function renderSeason(){
  document.title=data.season.name+' · '+data.show.title+' · One-Eyed Willie';
  view.append(hero(data.show.title+' — '+data.season.name,data.season.overview,
    data.season.poster_url,null,null,'TV SEASON'));
+ const seasonActions=el('div','show-bulk-actions');seasonActions.append(bulkWatchedControl(data,'season'));
+ view.append(seasonActions);
  const heading=el('div','section-heading');heading.append(el('h2','','Episodes'),el('span','',data.episodes.length+' in your library'));view.appendChild(heading);
  const list=el('div','episode-grid');
  for(const episode of data.episodes){
