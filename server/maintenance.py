@@ -140,9 +140,12 @@ def _next_media_batch(task, count):
         row = conn.execute("SELECT offset FROM maintenance_cursor WHERE task=?", (task,)).fetchone()
         offset = (row["offset"] if row else 0) % max(1, total)
         count = min(count, total)
-        batch = _media_rows(count, offset)
+        query = ("SELECT m.id,m.path,m.size,m.mtime_ns FROM media m "
+                 "JOIN libraries l ON l.id=m.library_id "
+                 "WHERE l.kind IN ('tv','movies') ORDER BY m.id LIMIT ? OFFSET ?")
+        batch = [dict(row) for row in conn.execute(query, (count, offset))]
         if len(batch) < count and total > len(batch):
-            batch += _media_rows(count-len(batch), 0)
+            batch += [dict(row) for row in conn.execute(query, (count-len(batch), 0))]
         conn.execute("INSERT INTO maintenance_cursor(task,offset) VALUES(?,?) "
                      "ON CONFLICT(task) DO UPDATE SET offset=excluded.offset",
                      (task, (offset+len(batch)) % max(1, total)))
