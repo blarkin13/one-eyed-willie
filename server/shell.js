@@ -87,3 +87,103 @@ document.addEventListener('DOMContentLoaded', () => {
     link.addEventListener('blur',()=>target.classList.remove('nav-focused'));
   });
 });
+
+
+/* Interactive cinematic backdrop on Home, library catalogs and Explore.
+ * Only the active hovered/focused title fetches metadata, with a short delay
+ * and a bounded cache. The app remains readable under a permanent dark veil. */
+document.addEventListener('DOMContentLoaded',()=>{
+  if(!['home','movies','tv','explore'].includes(document.body.dataset.page))return;
+  const backdrop=document.createElement('div');
+  backdrop.className='willie-hover-backdrop';
+  backdrop.setAttribute('aria-hidden','true');
+  const layers=[document.createElement('div'),document.createElement('div')];
+  for(const layer of layers){layer.className='willie-hover-backdrop-layer';backdrop.append(layer)}
+  document.body.prepend(backdrop);
+  const cache=new Map();
+  let active=null,showTimer=null,hideTimer=null,generation=0,visible=-1,currentUrl='';
+  const valid=url=>typeof url==='string'&&(
+    url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/'));
+  function clear(){
+    generation++;active=null;currentUrl='';visible=-1;
+    for(const layer of layers)layer.classList.remove('is-visible');
+  }
+  function cancel(){clearTimeout(showTimer);clearTimeout(hideTimer)}
+  async function lookup(element){
+    const direct=element.dataset.hoverBackdrop;
+    if(valid(direct))return direct;
+    const kind=element.dataset.hoverKind;
+    const id=element.dataset.hoverLibraryId;
+    const key=element.dataset.hoverKey;
+    if(!['tv','movies'].includes(kind)||!/^\d+$/.test(id||'')||!key)return null;
+    const identity=kind+'|'+id+'|'+key;
+    if(cache.has(identity))return cache.get(identity);
+    const query=new URLSearchParams({library_id:id,key});
+    const url=kind==='tv'?'/api/tv/show?'+query:'/api/movies/details?'+query;
+    const promise=fetch(url,{cache:'default'}).then(response=>{
+      if(!response.ok)throw Error('Backdrop unavailable');
+      return response.json();
+    }).then(data=>valid(data.backdrop_url)?data.backdrop_url:null).catch(()=>null);
+    cache.set(identity,promise);
+    if(cache.size>90)cache.delete(cache.keys().next().value);
+    return promise;
+  }
+  function apply(url,serial){
+    if(serial!==generation)return;
+    if(!valid(url)){clear();return}
+    if(currentUrl===url)return;
+    const img=new Image();
+    img.onload=()=>{
+      if(serial!==generation)return;
+      const index=visible===0?1:0;
+      layers[index].style.backgroundImage='url("'+url+'")';
+      layers[index].classList.add('is-visible');
+      layers[1-index].classList.remove('is-visible');
+      visible=index;currentUrl=url;
+    };
+    img.onerror=()=>{if(serial===generation)clear()};
+    img.src=url;
+  }
+  function select(element){
+    if(element===active)return;
+    cancel();
+    active=element;const serial=++generation;
+    if(!element){clear();return}
+    showTimer=setTimeout(async()=>{
+      const url=await lookup(element);
+      if(serial!==generation)return;
+      apply(url,serial);
+    },180);
+  }
+  const locate=target=>target instanceof Element?
+    target.closest('[data-hover-kind],[data-hover-backdrop]'):null;
+  document.addEventListener('pointerover',event=>{
+    const element=locate(event.target);
+    if(element)select(element);
+  });
+  document.addEventListener('pointerout',event=>{
+    const element=locate(event.target);
+    if(!element||element!==active)return;
+    if(event.relatedTarget instanceof Node&&element.contains(event.relatedTarget))return;
+    cancel();
+    hideTimer=setTimeout(()=>{
+      const focused=locate(document.activeElement);
+      if(focused&&focused.isConnected)select(focused);
+      else select(null);
+    },130);
+  });
+  document.addEventListener('focusin',event=>{
+    const element=locate(event.target);
+    if(element)select(element);
+  });
+  document.addEventListener('focusout',event=>{
+    const element=locate(event.target);
+    if(!element||active!==element)return;
+    hideTimer=setTimeout(()=>{
+      const focused=locate(document.activeElement);
+      if(focused&&focused.isConnected)select(focused);
+      else select(null);
+    },140);
+  });
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)select(null)});
+});

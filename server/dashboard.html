@@ -3,8 +3,8 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Home</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
-<link rel="stylesheet" href="/assets/ui.css">
-<script defer src="/assets/shell.js"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=hover-1">
+<script defer src="/assets/shell.js?v=hover-1"></script>
 <script defer src="/assets/player.js?v=player-30"></script>
 <style>
 .shelf{margin-top:36px}.shelf:first-of-type{margin-top:0}
@@ -100,6 +100,10 @@ function tile(item, watching=false){
     ?'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
     :'/movie?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
   link.setAttribute('aria-label',watching?'Resume '+item.title:'Browse '+item.title);
+  if(item.library_id&&item.key){
+    link.dataset.hoverKind=item.kind==='movies'?'movies':'tv';
+    link.dataset.hoverLibraryId=String(item.library_id);link.dataset.hoverKey=item.key;
+  }
   if(watching && item.media_id){
     link.href='/watch/'+item.media_id;
     link.addEventListener('click',event=>{

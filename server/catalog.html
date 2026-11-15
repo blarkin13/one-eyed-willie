@@ -3,8 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Browse</title>
-<link rel="stylesheet" href="/assets/ui.css">
-<script defer src="/assets/shell.js"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=hover-1">
+<script defer src="/assets/shell.js?v=hover-1"></script>
 <style>
 .library-toolbar{margin:26px 0 20px}
 .count-label{color:#98a7ba;font-size:.88rem}
@@ -268,6 +268,8 @@ function createCard(item){
    ?'/movie?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
    :'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
  button.className='tile-button';button.setAttribute('aria-label','View details for '+item.title);
+  button.dataset.hoverKind=type==='movies'?'movies':'tv';
+  button.dataset.hoverLibraryId=String(item.library_id);button.dataset.hoverKey=item.key;
  let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
  const cover=document.createElement('div');cover.className='cover cover--'+(hash%6);
  const top=document.createElement('div');top.className='cover-top';
