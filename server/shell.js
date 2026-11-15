@@ -33,9 +33,9 @@ document.addEventListener('DOMContentLoaded', () => {
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
   brand.title='One-Eyed Willie';
-  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/logo.svg';
+  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/favicon.png';
   image.alt='';image.width=54;image.height=54;
-  const words=document.createElement('span');words.className='brand-name';words.textContent='One-Eyed Willie';
+  const words=document.createElement('img');words.className='brand-name';words.src='/assets/logo.png';words.alt='';
   brand.append(image,words);target.append(brand);
   const nav=document.createElement('nav');nav.className='side-nav';nav.setAttribute('aria-label','Main navigation');
   navItems.forEach(item=>{
@@ -55,20 +55,10 @@ document.addEventListener('DOMContentLoaded', () => {
       subnav.append(a);
     });target.append(subnav);
   }
-  // Existing page headers stay functional; their repetitive copy is removed.
-  const topbar=document.querySelector('.topbar');
-  if(topbar){
-    topbar.classList.add('app-topbar');
-    const breadcrumb=document.getElementById('breadcrumbs');
-    if(breadcrumb)breadcrumb.remove();
-    const oldStatus=topbar.querySelector('.server-pill');if(oldStatus)oldStatus.remove();
-    const actions=document.createElement('div');actions.className='topbar-actions';
-    const search=document.createElement('a');search.href='/movies?focus=search';
-    search.className='topbar-action';search.title='Search movies';search.setAttribute('aria-label','Search movies');
-    search.append(glyph('fa-magnifying-glass','search'));actions.append(search);
-    topbar.append(actions);
-  }
-  const favicon=document.createElement('link');favicon.rel='icon';favicon.type='image/svg+xml';favicon.href='/assets/logo.svg';
+  const favicon=document.createElement('link');
+  favicon.rel='icon';
+  favicon.type='image/png';
+  favicon.href='/assets/favicon.png';
   document.head.append(favicon);
   // Use Font Awesome Free when loaded; keep local SVGs when offline.
   if(document.fonts&&document.fonts.load){
