@@ -240,7 +240,7 @@ class MainActivity : ComponentActivity() {
         }
         val web = browser
         if (direction != null && web != null) {
-            if (event.action == KeyEvent.ACTION_DOWN) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 web.evaluateJavascript(
                     "window.__willieTvMove && window.__willieTvMove('$direction')",
                     null
@@ -414,7 +414,12 @@ class MainActivity : ComponentActivity() {
                 body.oew-tv-backdrop-active .explore-grid::before,
                 body.oew-tv-backdrop-active .movie-grid::before,
                 body.oew-tv-backdrop-active .tv-grid::before{display:none!important}
-                *{scroll-margin:26px}
+                /* No smooth page scrolling or shelf snap while using D-pad. */
+                html,body{scroll-behavior:auto!important;scroll-padding:0!important}
+                .shelf-track,.discovery-row{
+                  scroll-snap-type:none!important;scroll-behavior:auto!important;
+                }
+                *{scroll-margin:0!important;scroll-behavior:auto!important}
                 @media(max-width:750px){
                   #items{grid-template-columns:repeat(4,minmax(0,1fr))!important}
                 }
@@ -527,32 +532,81 @@ class MainActivity : ComponentActivity() {
               });
               if(locateBackdrop(document.activeElement))
                 setBackdropTarget(locateBackdrop(document.activeElement));
+              // Dedicated remote navigation: menu items are a vertical list,
+              // while content posters are traversed by adjacent row/column.
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
-              const visible=node=>{
-                if (!node.isConnected || node.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
+              const isVisible=node=>{
+                if(!node?.isConnected || node.closest('[hidden],[inert],[aria-hidden="true"]'))return false;
                 const style=getComputedStyle(node);
                 if(style.display==='none'||style.visibility==='hidden'||style.pointerEvents==='none')return false;
                 const r=node.getBoundingClientRect();
                 return r.width>3&&r.height>3;
               };
-              const focusables=()=>[...document.querySelectorAll(selector)].filter(visible);
+              const rect=node=>node.getBoundingClientRect();
+              const centerX=r=>r.left+r.width/2;
+              const centerY=r=>r.top+r.height/2;
+              const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible);
+              const allMenu=()=>[...document.querySelectorAll('#app-nav .nav-link')].filter(isVisible);
+              const isMenu=node=>Boolean(node?.closest?.('#app-nav'));
               const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href]';
-              const firstContent=()=>[...document.querySelectorAll(contentSelector)].find(visible);
-              const menuLinks=()=>[...document.querySelectorAll('#app-nav .nav-link')].filter(node=>node.isConnected);
-              const focusItem=node=>{
+              const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
+              const firstPoster=()=>allPosters()[0]||null;
+              const focusNode=node=>{
                 if(!node)return false;
                 node.focus({preventScroll:true});
-                node.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+                const r=rect(node);
+                const padding=44;
+                // Only scroll enough to reveal a genuinely clipped selection.
+                // scrollIntoView() caused entire shelves to snap/jump by a row.
+                if(isMenu(node)){
+                  const scroller=node.closest('.side-nav');
+                  if(scroller){
+                    const outer=rect(scroller);
+                    if(r.top<outer.top+8)scroller.scrollTop-=outer.top+8-r.top;
+                    else if(r.bottom>outer.bottom-8)scroller.scrollTop+=r.bottom-outer.bottom+8;
+                  }
+                }else{
+                  const delta=r.top<padding?r.top-padding:
+                    r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
+                  if(Math.abs(delta)>1)window.scrollBy({top:delta,left:0,behavior:'instant'});
+                  const shelf=node.closest('.shelf-track,.discovery-row');
+                  if(shelf){
+                    const bounds=rect(shelf);
+                    const deltaX=r.left<bounds.left+12?r.left-bounds.left-12:
+                      r.right>bounds.right-12?r.right-bounds.right+12:0;
+                    if(Math.abs(deltaX)>1)shelf.scrollLeft+=deltaX;
+                  }
+                }
                 return true;
               };
-              // Loading shelves populate asynchronously. Once the first real
-              // poster exists, focus it instead of leaving focus in the rail.
+              const findAdjacent= (active, direction, pool)=>{
+                const from=rect(active), x=centerX(from), y=centerY(from);
+                const horizontal=direction==='left'||direction==='right';
+                const forwardSign=(direction==='right'||direction==='down')?1:-1;
+                let best=null,score=Infinity;
+                for(const node of pool){
+                  if(node===active)continue;
+                  const r=rect(node), dx=centerX(r)-x,dy=centerY(r)-y;
+                  const along=(horizontal?dx:dy)*forwardSign;
+                  if(along<=3)continue;
+                  const side=Math.abs(horizontal?dy:dx);
+                  const overlap=horizontal?
+                    Math.min(from.bottom,r.bottom)-Math.max(from.top,r.top):
+                    Math.min(from.right,r.right)-Math.max(from.left,r.left);
+                  // Prefer the immediate adjacent card in the current
+                  // row/column instead of a distant diagonal control.
+                  const penalty=overlap>0?0:1000+side*4;
+                  const value=along+side*2.5+penalty;
+                  if(value<score){score=value;best=node}
+                }
+                return best;
+              };
               let initialFocusFinished=false,remoteUsed=false;
               const tryInitialFocus=()=>{
                 if(initialFocusFinished||remoteUsed)return;
-                const first=firstContent();
-                if(!first)return;
-                initialFocusFinished=focusItem(first);
+                const poster=firstPoster();
+                if(!poster)return;
+                initialFocusFinished=focusNode(poster);
                 initialObserver.disconnect();
               };
               const initialObserver=new MutationObserver(tryInitialFocus);
@@ -562,68 +616,50 @@ class MainActivity : ComponentActivity() {
               setTimeout(()=>initialObserver.disconnect(),10000);
               const move=direction=>{
                 remoteUsed=true;
-                const nodes=focusables();
+                const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
-                const inMenu=active?.closest?.('#app-nav');
-                const first=firstContent();
-                if(inMenu && direction==='right'){
-                  return focusItem(first||nodes.find(node=>!node.closest('#app-nav')));
-                }
-                if(inMenu && direction==='left')return true;
-                if(!nodes.includes(active)){
-                  return focusItem(first||nodes.find(node=>!node.closest('#app-nav'))||nodes[0]);
-                }
-                if(direction==='left' && first && !inMenu){
-                  // A collapsed rail is off-screen. Give it a deliberate
-                  // directional entry only at the left edge of the content.
-                  const rect=active.getBoundingClientRect();
-                  const peers=[...document.querySelectorAll(contentSelector)].filter(visible);
-                  const sameRowLeft=peers.some(node=>{
-                    if(node===active)return false;
-                    const r=node.getBoundingClientRect();
-                    return r.right<=rect.left+3 &&
-                      Math.min(r.bottom,rect.bottom)>Math.max(r.top,rect.top);
-                  });
-                  if(!sameRowLeft){
-                    const activeMenu=menuLinks().find(node=>node.getAttribute('aria-current')==='page')
-                      ||menuLinks()[0];
-                    return focusItem(activeMenu);
+                if(isMenu(active)){
+                  if(direction==='right'){
+                    // Leave the rail at the content item closest to the
+                    // current selection, never trap focus inside the menu.
+                    const posters=allPosters();
+                    const target=findAdjacent(active,'right',posters)||posters[0]||
+                      nodes.find(node=>!isMenu(node));
+                    return focusNode(target);
                   }
+                  if(direction==='left')return true;
+                  const menu=allMenu();
+                  const index=menu.indexOf(active);
+                  if(index<0)return focusNode(menu[0]);
+                  const next=index+(direction==='down'?1:-1);
+                  return focusNode(menu[Math.max(0,Math.min(menu.length-1,next))]);
                 }
-                const from=active.getBoundingClientRect();
-                const centerX=from.left+from.width/2,centerY=from.top+from.height/2;
-                const horizontal=direction==='left'||direction==='right';
-                let winner=null,best=Infinity;
-                for(const node of nodes){
-                  if(node===active || node.closest('#app-nav'))continue;
-                  const r=node.getBoundingClientRect();
-                  const dx=r.left+r.width/2-centerX,dy=r.top+r.height/2-centerY;
-                  const forward=direction==='right'?dx>2:direction==='left'?dx< -2:
-                                direction==='down'?dy>2:dy< -2;
-                  if(!forward)continue;
-                  const axis=Math.abs(horizontal?dx:dy);
-                  const lateral=Math.abs(horizontal?dy:dx);
-                  const overlap=horizontal?
-                    Math.min(from.bottom,r.bottom)-Math.max(from.top,r.top):
-                    Math.min(from.right,r.right)-Math.max(from.left,r.left);
-                  // Stay on the same shelf/column instead of skipping diagonally.
-                  const score=axis+lateral*(overlap>0?2:5)+
-                    (overlap>0?0:Math.max(from.width,from.height)*0.3);
-                  if(score<best){best=score;winner=node}
+                const posters=allPosters();
+                if(!nodes.includes(active))return focusNode(posters[0]||nodes.find(n=>!isMenu(n)));
+                const from=rect(active);
+                const sameRowLeft=posters.some(node=>{
+                  if(node===active)return false;
+                  const r=rect(node);
+                  return r.right<=from.left+3 &&
+                    Math.min(r.bottom,from.bottom)>Math.max(r.top,from.top);
+                });
+                if(direction==='left' && posters.includes(active) && !sameRowLeft){
+                  const menu=allMenu();
+                  return focusNode(menu.find(n=>n.getAttribute('aria-current')==='page')||menu[0]);
                 }
-                if(!winner)return true;
-                winner.focus({preventScroll:true});
-                winner.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+                // If currently on a poster, choose the immediately adjacent
+                // poster in its row or column before any unrelated controls.
+                if(posters.includes(active)){
+                  const adjacent=findAdjacent(active,direction,posters);
+                  if(adjacent)return focusNode(adjacent);
+                }
+                const other=nodes.filter(node=>!isMenu(node));
+                const next=findAdjacent(active,direction,other);
+                if(next)return focusNode(next);
                 return true;
               };
               window.__willieTvMove=move;
-              // The Android Activity alone owns directional key handling. Do
-              // not also install a document keydown listener: that double-moves.
-              document.addEventListener('focusin',event=>{
-                if(!visible(event.target))return;
-                event.target.scrollIntoView?.({block:'nearest',inline:'nearest'});
-              },true);
             })();
         """.trimIndent()
     }
