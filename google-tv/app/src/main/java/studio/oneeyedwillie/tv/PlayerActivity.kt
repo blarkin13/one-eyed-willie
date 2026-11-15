@@ -200,7 +200,7 @@ class PlayerActivity : ComponentActivity() {
                 override fun onStopTrackingTouch(bar: SeekBar?) {
                     dragging=false
                     val duration = currentDuration()
-                    if(duration>0) seekTo(duration*progress/1000.0)
+                    if(duration>0) seekTo(duration*(bar?.progress ?: 0)/1000.0)
                 }
                 override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
                     if(fromUser && !dragging) {
@@ -443,9 +443,10 @@ class PlayerActivity : ComponentActivity() {
         network.execute {
             try {
                 val info = request("/api/watch/$mediaId/status")
-                val resume = if (info.optBoolean("watched", false)) 0.0
+                val resume = if (intent.getBooleanExtra("restart", false) || info.optBoolean("watched", false)) 0.0
                     else info.optDouble("position_seconds", 0.0).coerceAtLeast(0.0)
                 durationSeconds = info.optDouble("duration_seconds", 0.0)
+                completed = info.optBoolean("watched",false)
                 val mode = info.optString("mode", "")
                 val streamUrl = info.optString("stream_url", "")
                 if (mode == "direct" && streamUrl.isNotBlank()) {
