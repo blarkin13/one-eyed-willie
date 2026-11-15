@@ -19,6 +19,8 @@ services:
       - /media/brian/My Book:/media:ro
       - /opt/one-eyed-willie/data:/data
       - /opt/one-eyed-willie/config:/config:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     security_opt:
       - no-new-privileges:true
     healthcheck:

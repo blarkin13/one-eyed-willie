@@ -40,6 +40,22 @@
 <p id="os-message" class="message" role="status"></p>
 </form></section>
 
+<section class="connection-card" aria-labelledby="plex-heading" style="margin-top:18px;max-width:760px">
+<div class="connection-head"><h2 id="plex-heading">Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
+<p class="connection-kind">Import watched movies and episodes from your local Plex server into One-Eyed Willie.</p>
+<p id="plex-summary" class="connection-state" role="status">Checking connection…</p>
+<form id="plex-form">
+<label for="plex-url">Plex local address</label>
+<input id="plex-url" type="url" required placeholder="http://host.docker.internal:32400" value="http://host.docker.internal:32400" autocomplete="off">
+<label for="plex-token">Plex authentication token</label>
+<input id="plex-token" type="password" required minlength="6" maxlength="512" placeholder="Your Plex X-Plex-Token" autocomplete="off" spellcheck="false">
+<p class="connection-help">Use a Plex token for the Plex user whose watched history you want. Plex must be reachable from the One-Eyed Willie server on port 32400. The token is saved locally and is never shown again.</p>
+<div class="form-actions"><button type="submit" class="primary-button" id="plex-connect">Connect Plex</button><button type="button" id="plex-disconnect" class="danger-button">Disconnect</button></div>
+</form>
+<div class="form-actions" style="margin-top:14px"><button type="button" class="secondary-button" id="plex-preview" disabled>Preview watched import</button><button type="button" class="primary-button" id="plex-import" hidden>Import matched watched items</button></div>
+<p id="plex-message" class="message" role="status"></p>
+<p class="connection-help">Imports only confirmed watched items, never removes existing watch history and never changes Plex. Matches are checked by movie title/year or TV show/season/episode number. Review the preview before importing.</p>
+</section>
 <section class="form-card"><h2>How this works</h2>
 <p>Enter the LAN address and existing API key from each media manager's Settings. Your API keys stay on this server. You don't need a new account or a new public port-forward.</p>
 <p>Radarr manages movies; Sonarr manages TV series. One-Eyed Willie can send a title to either service after you choose its folder and quality profile. Adding a title does not mean the media is available to play.</p>
@@ -147,6 +163,62 @@ $('os-remove').addEventListener('click',async()=>{
  }catch(error){$('os-message').textContent=error.message;await refreshOpenSubtitles();}
 });
 refreshOpenSubtitles();
+
+
+async function refreshPlex(){
+ try{
+  const data=await fetchJson('/api/plex/settings',{cache:'no-store'});
+  $('plex-state').textContent=data.connected?'Connected':'Not connected';
+  $('plex-state').className='integration-state'+(data.connected?' on':'');
+  $('plex-summary').textContent=data.connected?'Connected to '+data.address:'Connect Plex to import watched statuses.';
+  if(data.connected)$('plex-url').value=data.address;
+  $('plex-disconnect').disabled=!data.connected;
+  $('plex-preview').disabled=!data.connected;
+  $('plex-import').hidden=true;
+ }catch(error){$('plex-summary').textContent=error.message}
+}
+$('plex-form').addEventListener('submit',async event=>{
+ event.preventDefault();$('plex-connect').disabled=true;$('plex-message').textContent='Testing Plex…';
+ try{
+  await fetchJson('/api/plex/settings',{method:'PUT',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({url:$('plex-url').value,token:$('plex-token').value.trim()})});
+  $('plex-token').value='';
+  $('plex-message').textContent='Plex connected. Preview the watched import.';
+  await refreshPlex();
+ }catch(error){$('plex-message').textContent=error.message}
+ finally{$('plex-connect').disabled=false}
+});
+$('plex-disconnect').addEventListener('click',async()=>{
+ if(!confirm('Disconnect Plex? Existing One-Eyed Willie watched history will be kept.'))return;
+ try{
+  await fetchJson('/api/plex/settings',{method:'DELETE'});
+  $('plex-message').textContent='Plex disconnected; imported watched history remains.';
+  await refreshPlex();
+ }catch(error){$('plex-message').textContent=error.message}
+});
+$('plex-preview').addEventListener('click',async()=>{
+ $('plex-preview').disabled=true;$('plex-import').hidden=true;
+ $('plex-message').textContent='Comparing watched items with the local library…';
+ try{
+  const summary=await fetchJson('/api/plex/import/preview',{cache:'no-store'});
+  $('plex-message').textContent='Plex watched: '+summary.plex_watched+
+    ' · New matches: '+summary.new_matches+' · Not found: '+summary.unmatched+
+    ' · Ambiguous: '+summary.ambiguous+'. No changes made yet.';
+  $('plex-import').hidden=!summary.new_matches;
+ }catch(error){$('plex-message').textContent=error.message}
+ finally{$('plex-preview').disabled=false}
+});
+$('plex-import').addEventListener('click',async()=>{
+ if(!confirm('Mark matching Plex movies and TV episodes watched in One-Eyed Willie? This does not modify Plex.'))return;
+ $('plex-import').disabled=true;$('plex-message').textContent='Importing watched statuses…';
+ try{
+  const result=await fetchJson('/api/plex/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});
+  $('plex-message').textContent='Imported '+result.imported+' watched items. '+result.unmatched+' unmatched and '+result.ambiguous+' ambiguous items skipped.';
+  $('plex-import').hidden=true;
+ }catch(error){$('plex-message').textContent=error.message}
+ finally{$('plex-import').disabled=false}
+});
+refreshPlex();
 
 build();refresh();
 </script></body></html>
