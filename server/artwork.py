@@ -79,6 +79,59 @@ def register_remote(url):
     return None
 
 
+RADARR_IMAGE = re.compile(
+    r"^/MediaCover/[0-9]+/(poster|fanart)(?:-[0-9]+)?\.(jpg|jpeg|png|webp)$",
+    re.IGNORECASE,
+)
+
+
+def register_radarr(source):
+    """Register a Radarr-hosted cover without passing API credentials to a browser."""
+    if not isinstance(source, str):
+        return None
+    from .movies import _settings
+    config = _settings()
+    if not config:
+        return None
+    # Radarr also returns query parameters such as lastWrite; these do not
+    # identify a different movie and are omitted for a stable cache key.
+    parsed = urllib.parse.urlsplit(source)
+    if parsed.scheme or parsed.netloc:
+        candidate = parsed.scheme + "://" + parsed.netloc
+        if candidate != config["url"]:
+            return None
+    path = parsed.path
+    if not RADARR_IMAGE.fullmatch(path):
+        return None
+    return _register(config["url"] + path, "radarr")
+
+
+def _radarr_bytes(source):
+    from .movies import _settings
+    config = _settings()
+    if not config:
+        raise ValueError("Radarr connection unavailable")
+    if not source.startswith(config["url"] + "/MediaCover/"):
+        raise ValueError("Unexpected Radarr artwork address")
+    parsed = urllib.parse.urlsplit(source)
+    if not RADARR_IMAGE.fullmatch(parsed.path):
+        raise ValueError("Invalid Radarr artwork path")
+    request = urllib.request.Request(source, headers={
+        "X-Api-Key": config["api_key"],
+        "Accept": "image/jpeg,image/png,image/webp",
+        "User-Agent": "OneEyedWillie/0.8",
+    })
+    opener = urllib.request.build_opener(_SafeRedirect())
+    with opener.open(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
+        mime = response.headers.get("Content-Type", "").split(";")[0].lower().strip()
+        if mime not in IMAGE_CONTENT_TYPES:
+            raise ValueError("Unsupported Radarr image")
+        data = response.read(MAX_IMAGE_BYTES + 1)
+        if not data or len(data) > MAX_IMAGE_BYTES:
+            raise ValueError("Radarr image too large")
+        return data, mime
+
+
 def register_local(path):
     try:
         candidate = Path(path)
@@ -169,6 +222,8 @@ def _download(source):
 def _bytes_for(source, kind):
     if kind == "remote":
         return _download(source)
+    if kind == "radarr":
+        return _radarr_bytes(source)
     if kind == "local":
         path = Path(source)
         if path.is_symlink():

@@ -41,12 +41,32 @@
         <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2><p class="shelf-desc">Latest series indexed in your TV library</p></div><a href="/tv" class="shelf-action">View all shows</a></div>
         <div id="recent-tv"></div>
       </section>
-      <p class="note">TV posters and summaries are fetched automatically from TVmaze, when available.</p>
+      <p class="note">Movies use local or Radarr artwork. TV shows use TVmaze artwork. Both are cached on your NUC.</p>
     </main>
   </div>
 </div>
 <script>
 const byId=id=>document.getElementById(id);
+const moviePosterJobs=[];
+function fetchMoviePosters(){
+ const jobs=moviePosterJobs.splice(0);
+ if(!jobs.length)return;
+ fetch('/api/movies/posters',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({items:jobs.map(job=>({
+    library_id:job.item.library_id,key:job.item.key
+   }))})})
+ .then(response=>response.ok?response.json():null)
+ .then(data=>{
+   if(!data?.items)return;
+   const byKey=new Map(data.items.map(entry=>[entry.library_id+'|'+entry.key,entry.poster_url]));
+   for(const {cover,item} of jobs){
+     const src=byKey.get(item.library_id+'|'+item.key);
+     if(!src?.startsWith('/api/artwork/')||!cover.isConnected)continue;
+     const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
+     img.src=src;img.loading='lazy';cover.append(img);
+   }
+ }).catch(()=>{});
+}
 const posterJobs=[];let activePosters=0;
 function loadPoster(cover,item){
   posterJobs.push({cover,item});nextPoster();
@@ -84,6 +104,7 @@ function tile(item, watching=false){
   const meta=document.createElement('div');meta.className='tile-meta';meta.textContent=(item.year?item.year+' · ':'')+(item.subtitle||'');
   link.append(cover,title,meta);
   if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
+  else if(item.kind==='movies'&&item.library_id&&item.key)moviePosterJobs.push({cover,item});
   if(watching){
     const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');
     const percent=Math.max(0,Math.min(100,Number(item.progress_percent)||0));
@@ -113,6 +134,7 @@ async function load(){
     shelf('continue-watching',data.continue_watching,'Nothing in progress yet','Unfinished movies and TV episodes will appear here after playback progress is recorded. Playback support is still being built.',true);
     shelf('recent-movies',data.recent_movies,'No movies indexed yet','Add a movie library in Settings → Libraries and scan it.');
     shelf('recent-tv',data.recent_tv,'No TV shows indexed yet','Add a TV library in Settings → Libraries and scan it.');
+    fetchMoviePosters();
     byId('status').textContent='';
   }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
 }
