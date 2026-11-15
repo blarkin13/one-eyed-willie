@@ -22,6 +22,18 @@ class ManualMatchTests(unittest.TestCase):
         show_patch.start()
         self.addCleanup(show_patch.stop)
 
+    def test_poster_uses_library_key_and_returns_metadata(self):
+        # This endpoint was broken by an undefined show_key variable in PR #31.
+        with patch.object(tv, "show_metadata", return_value={
+            "source": "TVmaze", "poster_url": None, "overview": "A show"
+        }) as metadata, \
+             patch.object(tv, "local_show_poster", return_value=None), \
+             patch.object(tv, "localize", side_effect=lambda value: value):
+            result = tv.poster(3, "alternate title:")
+        metadata.assert_called_once_with("Alternate Title", None, 3, "alternate title:")
+        self.assertTrue(result["metadata_available"])
+        self.assertEqual(result["overview"], "A show")
+
     def test_manual_match_is_persistent_and_overrides_automatic_matching(self):
         with patch.object(tv, "tmdb_by_id", return_value={"source": "TMDB", "title": "Correct Show"}) as provider:
             saved = tv.save_match(3, "alternate title:", tv.MatchRequest(provider="TMDB", provider_id=777))
