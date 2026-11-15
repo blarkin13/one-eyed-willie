@@ -96,6 +96,12 @@ def browse():
 def ui_stylesheet():
     return FileResponse(Path(__file__).with_name("ui.css"), media_type="text/css")
 
+@app.get("/assets/ship-logo.png")
+def ship_logo_png():
+    return FileResponse(Path(__file__).with_name("ship-logo.png"), media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/assets/logo.png")
 def brand_logo_png():
     return FileResponse(Path(__file__).with_name("logo.png"), media_type="image/png",
