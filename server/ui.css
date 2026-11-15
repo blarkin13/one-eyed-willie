@@ -178,3 +178,16 @@ body[data-page="home"] .cover{border-color:#324257;border-radius:11px}
  .topbar-action{height:40px;width:40px}
 }
 @media(prefers-reduced-motion:reduce){.sidebar{transition:none}}
+
+/* v0.10.1 — headerless layout, using the supplied skull mark and full logo. */
+.topbar,.app-topbar{display:none!important}
+.workspace{min-height:100vh}
+.workspace>.content{padding-top:clamp(22px,2.6vw,38px)}
+body[data-page="home"] .workspace>.content{padding-top:24px}
+.sidebar .brand-name{width:125px;height:44px;max-width:125px;object-fit:cover;object-position:center bottom;
+  font-size:0;flex:none;border:0;background:transparent}
+.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:block}
+@media(max-width:700px){
+ .workspace>.content,body[data-page="home"] .workspace>.content{padding-top:83px!important}
+ .sidebar .brand-name,.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:none!important}
+}
