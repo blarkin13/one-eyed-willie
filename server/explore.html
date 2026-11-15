@@ -144,6 +144,114 @@ function render(items,container=$('results'),isDiscovery=false){
   article.append(trigger);grid.append(article);
  }
 }
+
+let detailSelection=null;
+function node(tag,cls,value){
+ const e=document.createElement(tag);
+ if(cls)e.className=cls;
+ if(value!==undefined&&value!==null)e.textContent=String(value);
+ return e;
+}
+function detailImage(url,cls,alt){
+ if(typeof url!=='string'||!(url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/')))return null;
+ const img=node('img',cls);img.src=url;img.alt=alt||'';img.loading='lazy';return img;
+}
+function addFact(parent,value){if(value)parent.append(node('span','',value));}
+function addSection(parent,title,body){
+ const section=node('section','explore-block');
+ section.append(node('h2','',title),body);parent.append(section);
+}
+function restoreExplore(){
+ $('explore-detail').hidden=true;$('browse-area').hidden=false;
+ detailSelection=null;document.title='One-Eyed Willie · Explore '+(provider==='radarr'?'Movies':'TV Shows');
+ window.scrollTo({top:0,behavior:'instant'});
+}
+$('detail-back').onclick=restoreExplore;
+async function showDetail(item,isDiscovery){
+ detailSelection={item,isDiscovery,provider};
+ $('browse-area').hidden=true;$('explore-detail').hidden=false;
+ $('detail-status').textContent='Loading title information…';$('detail-body').replaceChildren();
+ window.scrollTo({top:0,behavior:'instant'});
+ let extra={};
+ try{
+  const params=new URLSearchParams();
+  if(isDiscovery)params.set('tmdb_id',String(item.id));
+  else {params.set('title',item.title);if(item.year)params.set('year',String(item.year));}
+  extra=await fetchJson('/api/arr/'+provider+'/detail?'+params);
+ }catch(e){extra={available:false,message:e.message};}
+ if(!detailSelection||detailSelection.item!==item)return;
+ const data=extra.available?extra:{};
+ const title=data.title||item.title;
+ document.title=title+' · Explore · One-Eyed Willie';
+ $('detail-status').textContent=extra.available?'':(extra.message||'Additional information is not currently available.');
+ const root=$('detail-body');
+ const hero=node('div','explore-hero');
+ const backdrop=detailImage(data.backdrop_url,'explore-backdrop','');if(backdrop)hero.append(backdrop);
+ const poster=detailImage(data.poster_url||item.poster_url,'explore-poster',title+' poster');
+ hero.append(poster||node('div','explore-poster'));
+ const info=node('div','explore-info');
+ info.append(node('p','eyebrow',provider==='radarr'?'MOVIE':'TV SERIES'),node('h1','',title));
+ const meta=node('div','explore-meta');
+ addFact(meta,data.release_date||item.release_date||item.year);
+ const score=Number(data.rating??item.rating);
+ if(Number.isFinite(score)&&score>0)addFact(meta,'★ '+score.toFixed(1)+' / 10');
+ if(data.runtime)addFact(meta,data.runtime+' min');
+ if(data.status)addFact(meta,data.status);
+ if(meta.children.length)info.append(meta);
+ info.append(node('p','',data.overview||item.overview||'No description available.'));
+ if(data.tagline)info.append(node('p','',data.tagline));
+ const actions=node('div','explore-actions');
+ const add=node('button','primary-button',item.already_added?'Already in '+(provider==='radarr'?'Radarr':'Sonarr'):'Add to '+(provider==='radarr'?'Radarr':'Sonarr'));
+ add.type='button';add.disabled=!!item.already_added;add.id='detail-add';
+ add.onclick=async()=>{
+  add.disabled=true;
+  try{if(isDiscovery)await resolveDiscovery(item);else await openAdd(item);}
+  finally{if(!item.already_added&&detailSelection?.item===item)add.disabled=false;}
+ };
+ actions.append(add);info.append(actions);hero.append(info);root.append(hero);
+ const expanded=node('div','explore-expanded');
+ const facts=node('div','explore-facts');
+ if(data.genres?.length)addFact(facts,data.genres.join(' · '));
+ if(data.network)addFact(facts,'Network: '+data.network);
+ if(data.studio)addFact(facts,'Studio: '+data.studio);
+ if(data.vote_count)addFact(facts,Number(data.vote_count).toLocaleString()+' ratings');
+ if(facts.children.length)expanded.append(facts);
+ if(Array.isArray(data.seasons)&&data.seasons.length){
+  const gallery=node('div','explore-seasons');
+  for(const season of data.seasons){
+   const fig=node('figure');const image=detailImage(season.poster_url,'',season.name+' poster');
+   if(image)fig.append(image);
+   const caption=node('figcaption','',season.name||'Season '+season.number);
+   caption.append(node('small','',season.episodes+' episodes'));fig.append(caption);gallery.append(fig);
+  }
+  addSection(expanded,'Seasons',gallery);
+ }
+ if(data.trailer_key&&/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key)){
+  const iframe=node('iframe','explore-trailer');iframe.src='https://www.youtube-nocookie.com/embed/'+data.trailer_key;
+  iframe.title=title+' trailer';iframe.loading='lazy';iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture';iframe.allowFullscreen=true;
+  addSection(expanded,'Trailer',iframe);
+ }
+ if(Array.isArray(data.cast)&&data.cast.length){
+  const gallery=node('div','explore-cast');
+  for(const actor of data.cast){
+   const fig=node('figure');const image=detailImage(actor.photo_url,'',actor.name);
+   if(image)fig.append(image);
+   const cap=node('figcaption','',actor.name);if(actor.character)cap.append(node('small','',actor.character));
+   fig.append(cap);gallery.append(fig);
+  }
+  addSection(expanded,'Cast',gallery);
+ }
+ if(Array.isArray(data.reviews)&&data.reviews.length){
+  const grid=node('div','explore-reviews');
+  for(const review of data.reviews){
+   const article=node('article');article.append(node('strong','',review.author),node('p','',review.excerpt));grid.append(article);
+  }
+  addSection(expanded,'Reviews',grid);
+ }
+ if(extra.available)expanded.append(node('p','muted','Metadata provided by TMDB. Titles are not playable until added media is available in your library.'));
+ root.append(expanded);
+}
+
 async function search(){
  if(searching)return;
  const q=$('query').value.trim();
@@ -208,6 +316,7 @@ $('add-form').onsubmit=async event=>{
    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   dialog.close();
   $('status').textContent=result.title+' added to '+(target==='radarr'?'Radarr':'Sonarr')+'. '+result.note;
+  if(detailSelection?.item){detailSelection.item.already_added=true;const add=$('detail-add');if(add){add.textContent='Already in '+(target==='radarr'?'Radarr':'Sonarr');add.disabled=true;}$('detail-status').textContent=$('status').textContent;}
   results=results.map(item=>item.id===selected.id?{...item,already_added:true}:item);
   render(results);
  }catch(e){$('add-message').textContent=e.message;$('confirm-add').disabled=false;}
