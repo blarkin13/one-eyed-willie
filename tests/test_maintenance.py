@@ -48,6 +48,19 @@ class MaintenanceTests(unittest.TestCase):
             self.assertEqual(task.call_count, 2)
         self.assertEqual(maintenance.get_settings()["last_runs"]["remove_old_bundles"]["last_result"], "cleaned")
 
+    def test_analysis_batches_advance_across_indexed_media(self):
+        with library.db() as conn:
+            conn.execute("INSERT INTO libraries(id,name,kind,path) VALUES(1,'TV','tv','/media/test')")
+            for idx in range(1,6):
+                conn.execute("INSERT INTO media(id,library_id,path,title,size,mtime_ns) VALUES(?,?,?,?,?,?)",
+                             (idx,1,f"/media/test/{idx}.mp4",f"Video {idx}",100,1))
+        first = maintenance._next_media_batch("preview", 2)
+        second = maintenance._next_media_batch("preview", 2)
+        third = maintenance._next_media_batch("preview", 2)
+        self.assertEqual([x["id"] for x in first], [1,2])
+        self.assertEqual([x["id"] for x in second], [3,4])
+        self.assertEqual([x["id"] for x in third], [5,1])
+
     def test_cleanup_never_follows_symlinks_and_ignores_new_files(self):
         root = maintenance.DATA / "bundles"
         root.mkdir(parents=True)
