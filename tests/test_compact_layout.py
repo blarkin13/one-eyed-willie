@@ -48,8 +48,9 @@ class CompactLayoutTests(unittest.TestCase):
             file = SERVER / filename
             self.assertTrue(file.is_file())
             self.assertEqual(file.read_bytes()[:8], bytes([137,80,78,71,13,10,26,10]))
-            self.assertIn("/assets/" + filename, (SERVER / "shell.js").read_text())
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
+        # The rail displays the skull icon, not the full square logo.
+        self.assertIn("/assets/favicon.png", (SERVER / "shell.js").read_text())
 
     def test_there_is_no_top_header_or_magnifier(self):
         for page in ("dashboard.html", "catalog.html", "index.html",
