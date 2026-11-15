@@ -49,6 +49,23 @@ def attach_posters(items):
     return items
 
 
+def remember(kind, library_id, key, poster_url):
+    """Save poster data already resolved by a detail page for instant Home loading."""
+    if not isinstance(poster_url, str) or not poster_url.startswith("/api/artwork/"):
+        return
+    from .artwork import HEX
+    if not HEX.fullmatch(poster_url.rsplit("/", 1)[-1]):
+        return
+    with db() as conn:
+        _table(conn)
+        conn.execute(
+            "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at) "
+            "VALUES(?,?,?,?,?) ON CONFLICT(kind,library_id,show_key) DO UPDATE SET "
+            "poster_url=excluded.poster_url,checked_at=excluded.checked_at",
+            (kind, library_id, key, poster_url, int(time.time()))
+        )
+
+
 def invalidate(kind, library_id, key):
     with db() as conn:
         _table(conn)
