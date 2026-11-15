@@ -5,6 +5,7 @@ API routes are used. Adding titles changes the connected *arr library, not files
 in One-Eyed Willie's read-only media mount.
 """
 import json
+from datetime import date, timedelta
 import os
 import tempfile
 import urllib.error
@@ -230,7 +231,7 @@ def _normalized_results(name, records, library_ids):
 
 DISCOVERY_SECTIONS = {
     "radarr": {"popular": "movie/popular", "new": "movie/now_playing", "soon": "movie/upcoming"},
-    "sonarr": {"popular": "tv/popular", "new": "tv/on_the_air", "soon": "tv/airing_today"},
+    "sonarr": {"popular": "tv/popular", "new": "tv/on_the_air", "soon": "discover/tv"},
 }
 
 
@@ -244,7 +245,12 @@ def discover(name: str):
                 "message": "Add a TMDB token in Settings → Metadata to enable discovery."}
     sections = {}
     for key, endpoint in DISCOVERY_SECTIONS[name].items():
-        data = metadata._call(endpoint, query={"language": "en-US", "page": 1, "region": "US"})
+        params = {"language": "en-US", "page": 1, "region": "US"}
+        if name == "sonarr" and key == "soon":
+            params.update({"first_air_date.gte": (date.today() + timedelta(days=1)).isoformat(),
+                           "first_air_date.lte": (date.today() + timedelta(days=180)).isoformat(),
+                           "sort_by": "first_air_date.asc", "include_adult": "false"})
+        data = metadata._call(endpoint, query=params)
         items = []
         for item in (data.get("results", []) if isinstance(data, dict) else [])[:20]:
             if not isinstance(item, dict) or not isinstance(item.get("id"), int):
