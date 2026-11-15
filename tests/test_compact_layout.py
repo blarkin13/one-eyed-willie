@@ -49,8 +49,9 @@ class CompactLayoutTests(unittest.TestCase):
             self.assertTrue(file.is_file())
             self.assertEqual(file.read_bytes()[:8], bytes([137,80,78,71,13,10,26,10]))
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
-        # The rail displays the skull icon, not the full square logo.
-        self.assertIn("/assets/favicon.png", (SERVER / "shell.js").read_text())
+        # The brand uses the original logo; the favicon stays in browser tabs.
+        self.assertIn("image.src='/assets/logo.png'", (SERVER / "shell.js").read_text())
+        self.assertIn("favicon.href='/assets/favicon.png?v=3'", (SERVER / "shell.js").read_text())
 
     def test_there_is_no_top_header_or_magnifier(self):
         for page in ("dashboard.html", "catalog.html", "index.html",
@@ -73,8 +74,13 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertNotIn("image.src='/assets/favicon.png'", shell)
         self.assertIn("words.textContent='One-eyed Willie'", shell)
         self.assertIn('font-family:"Snell Roundhand"', css)
-        self.assertIn(".sidebar:hover,.sidebar:focus-within{width:440px", css)
-        self.assertIn("width:142px;height:142px", css)
+        self.assertIn(".sidebar:hover,.sidebar:focus-within{width:min(240px", css)
+        self.assertNotIn("width:440px", css)
+        self.assertNotIn("width:142px", css)
+        self.assertIn("width:90px;height:90px", css)
+        self.assertIn("brand-logo-frame", shell)
+        self.assertIn("overflow:hidden", css)
+        self.assertIn("mix-blend-mode:screen", css)
         self.assertIn("object-fit:contain", css)
         self.assertNotIn('font-family:"Pirata One"', css)
 
