@@ -1,6 +1,12 @@
 package studio.oneeyedwillie.tv
 
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.app.AlertDialog
+import android.view.KeyEvent
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.SeekBar
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -40,6 +46,26 @@ class PlayerActivity : ComponentActivity() {
     private var shuttingDown = false
     private var fallbackStarted = false
     private lateinit var message: TextView
+    private lateinit var playerView: PlayerView
+    private lateinit var chrome: LinearLayout
+    private lateinit var playButton: Button
+    private lateinit var timeline: SeekBar
+    private lateinit var elapsed: TextView
+    private lateinit var totalTime: TextView
+    private lateinit var titleText: TextView
+    private var title = "Now Playing"
+    private var selectedCaption: String? = null
+    private var nextMediaId: Int? = null
+    private var nextTitle = ""
+    private var autoPlayNext = false
+    private var pendingSeek = 0.0
+    private val uiRefresh = object : Runnable {
+        override fun run() {
+            refreshControls()
+            handler.postDelayed(this, 500)
+        }
+    }
+    private val hideChrome = Runnable { if (player?.isPlaying == true) chrome.visibility = View.GONE }
     private val handler = Handler(Looper.getMainLooper())
     private val network = Executors.newSingleThreadExecutor()
 
@@ -58,35 +84,43 @@ class PlayerActivity : ComponentActivity() {
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
+        title = intent.getStringExtra("title")?.takeIf { it.isNotBlank() } ?: "Now Playing"
         val surface = FrameLayout(this)
-        val view = PlayerView(this).apply {
+        playerView = PlayerView(this).apply {
             layoutParams = FrameLayout.LayoutParams(-1, -1)
-            useController = true
+            useController = false
         }
+        surface.addView(playerView)
+        chrome = createControls()
+        surface.addView(chrome, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
         message = TextView(this).apply {
             text = "Preparing video…"
-            textSize = 17f
+            textSize = 16f
             setTextColor(Color.WHITE)
             setBackgroundColor(0xDD101820.toInt())
-            setPadding(24, 16, 24, 16)
+            setPadding(24, 15, 24, 15)
             gravity = Gravity.CENTER
         }
-        surface.addView(view)
         surface.addView(message, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-            Gravity.BOTTOM
+            Gravity.CENTER
         ))
         setContentView(surface)
-
         player = ExoPlayer.Builder(this).build().also { exo ->
-            view.player = exo
+            playerView.player = exo
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     if (state == Player.STATE_READY) {
                         message.visibility = View.GONE
+                        scheduleHide()
                     } else if (state == Player.STATE_ENDED) {
                         completed = true
                         saveProgress(true)
+                        chrome.visibility = View.VISIBLE
+                        handler.removeCallbacks(hideChrome)
+                        if (autoPlayNext && nextMediaId != null) showNextEpisode()
                     }
                 }
                 override fun onPlayerError(error: PlaybackException) {
@@ -102,7 +136,286 @@ class PlayerActivity : ComponentActivity() {
             })
         }
         openMedia()
+        loadNextEpisode()
+        handler.post(uiRefresh)
         handler.postDelayed(checkpoint, 15_000)
+    }
+
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+
+    private fun control(label: String, action: () -> Unit) = Button(this).apply {
+        text = label
+        textSize = 17f
+        isAllCaps = false
+        setTextColor(Color.WHITE)
+        background = GradientDrawable().apply {
+            cornerRadius = dp(8).toFloat()
+            setColor(Color.TRANSPARENT)
+        }
+        setOnFocusChangeListener { _, focused ->
+            background = GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(if(focused) 0x664A6580 else Color.TRANSPARENT)
+            }
+        }
+        setPadding(dp(11), dp(6), dp(11), dp(6))
+        minHeight = dp(46)
+        setOnClickListener { action(); scheduleHide() }
+    }
+
+    private fun createControls(): LinearLayout {
+        val root = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(35), dp(25), dp(35), dp(24))
+            setBackgroundColor(Color.TRANSPARENT)
+        }
+        val top = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setBackgroundColor(0x99060D16.toInt())
+        }
+        top.addView(control("‹") { finish() }.apply { contentDescription = "Back to library" })
+        titleText = TextView(this).apply {
+            text = title
+            setTextColor(Color.WHITE)
+            textSize = 19f
+            setPadding(dp(15), 0, 0, 0)
+            maxLines = 1
+            ellipsize = android.text.TextUtils.TruncateAt.END
+        }
+        top.addView(titleText, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
+            gravity = Gravity.CENTER_VERTICAL
+        })
+        root.addView(top)
+        root.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
+        val bottom = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(16), dp(13), dp(16), dp(12))
+            setBackgroundColor(0xDD060D16.toInt())
+        }
+        val progressRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        elapsed = TextView(this).apply { text = "0:00";setTextColor(Color.WHITE);textSize=14f }
+        totalTime = TextView(this).apply { text = "0:00";setTextColor(Color.WHITE);textSize=14f }
+        timeline = SeekBar(this).apply {
+            max = 1000
+            progressTintList = android.content.res.ColorStateList.valueOf(0xFFA3D4FF.toInt())
+            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFD7E8FC.toInt())
+            setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
+                private var dragging = false
+                override fun onStartTrackingTouch(bar: SeekBar?) { dragging=true;showChrome() }
+                override fun onStopTrackingTouch(bar: SeekBar?) {
+                    dragging=false
+                    val duration = currentDuration()
+                    if(duration>0) seekTo(duration*(bar?.progress ?: 0)/1000.0)
+                }
+                override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
+                    if(fromUser && !dragging) {
+                        val duration = currentDuration()
+                        if(duration>0) seekTo(duration*progress/1000.0)
+                    }
+                }
+            })
+        }
+        progressRow.addView(elapsed)
+        progressRow.addView(timeline, LinearLayout.LayoutParams(0, dp(40), 1f))
+        progressRow.addView(totalTime)
+        bottom.addView(progressRow)
+        val buttons = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        playButton = control("❚❚") {
+            val p = player
+            if(p?.isPlaying==true) p.pause() else p?.play()
+            refreshControls()
+        }
+        playButton.contentDescription = "Play or pause"
+        buttons.addView(playButton)
+        buttons.addView(control("↶ 10") { seekTo(currentPosition()-10) }.apply { contentDescription = "Rewind ten seconds" })
+        buttons.addView(control("10 ↷") { seekTo(currentPosition()+10) }.apply { contentDescription = "Forward ten seconds" })
+        buttons.addView(control("CC") { showCaptions() })
+        buttons.addView(control("✓") { toggleWatched() }.apply { contentDescription = "Mark watched or unwatched" })
+        buttons.addView(control("ⓘ") { showDiagnostics() }.apply { contentDescription = "Playback diagnostics" })
+        bottom.addView(buttons)
+        root.addView(bottom)
+        return root
+    }
+
+    private fun currentDuration(): Double {
+        if(durationSeconds>0 && durationSeconds.isFinite())return durationSeconds
+        val value = player?.duration ?: C.TIME_UNSET
+        return if(value>0 && value!=C.TIME_UNSET)value/1000.0 else 0.0
+    }
+
+    private fun currentPosition() = (
+        ((player?.currentPosition ?: 0L).coerceAtLeast(0L) / 1000.0) +
+        if(hlsMode)hlsOffset else 0.0
+    ).coerceAtLeast(0.0)
+
+    private fun fmt(seconds: Double): String {
+        val v = seconds.toLong().coerceAtLeast(0)
+        val h = v / 3600
+        val m = v % 3600 / 60
+        val sec = v % 60
+        return if(h>0) "%d:%02d:%02d".format(h,m,sec)
+               else "%d:%02d".format(m,sec)
+    }
+
+    private fun refreshControls() {
+        if(!::timeline.isInitialized) return
+        val duration = currentDuration()
+        val position = currentPosition().coerceAtMost(if(duration>0)duration else Double.MAX_VALUE)
+        if(!timeline.isPressed && !timeline.hasFocus() && duration>0)
+            timeline.progress = (position/duration*1000).toInt().coerceIn(0,1000)
+        elapsed.text = fmt(position)
+        totalTime.text = fmt(duration)
+        playButton.text = if(player?.isPlaying==true)"❚❚" else "▶"
+    }
+
+    private fun seekTo(seconds: Double) {
+        val position = seconds.coerceIn(0.0,if(currentDuration()>0)currentDuration() else 1e7)
+        if(hlsMode){
+            val previous = session
+            session = null
+            previous?.let { token ->
+                network.execute { try{request("/api/stream/hls/$token","DELETE")}catch(_:Exception){} }
+            }
+            startHls(position)
+        } else player?.seekTo((position*1000).toLong())
+        showChrome()
+    }
+
+    private fun showChrome() {
+        if(::chrome.isInitialized)chrome.visibility=View.VISIBLE
+        scheduleHide()
+    }
+    private fun scheduleHide() {
+        handler.removeCallbacks(hideChrome)
+        if(player?.isPlaying==true)handler.postDelayed(hideChrome,3500)
+    }
+
+    private fun showDiagnostics() {
+        val p=player
+        val messageText = "Playback: "+(if(hlsMode)"HLS transcoding" else "Direct play")+
+            "\nState: "+(p?.playbackState ?: -1)+
+            "\nPosition: "+fmt(currentPosition())+
+            "\nServer: "+server+
+            "\nSession: "+(if(session!=null)"Active" else "None")
+        AlertDialog.Builder(this).setTitle("Playback diagnostics")
+            .setMessage(messageText).setPositiveButton("Close",null).show()
+    }
+
+    private fun toggleWatched() {
+        val next = !completed
+        network.execute {
+            try {
+                val url=URL(resolveUrl("/api/watch/$mediaId/watched"))
+                val connection=url.openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod="PUT"
+                    connection.connectTimeout=5000
+                    connection.readTimeout=5000
+                    connection.doOutput=true
+                    connection.setRequestProperty("Content-Type","application/json")
+                    connection.outputStream.use {
+                        it.write(JSONObject().put("watched",next).toString().toByteArray())
+                    }
+                    if(connection.responseCode !in 200..299)throw IllegalStateException("HTTP "+connection.responseCode)
+                    handler.post {completed=next;showMessage(if(next)"Marked watched" else "Marked unwatched")}
+                }finally{connection.disconnect()}
+            }catch(error:Exception){
+                handler.post {showMessage("Could not update watched status: "+error.message)}
+            }
+        }
+    }
+
+    private fun showCaptions() {
+        showChrome()
+        network.execute {
+            try {
+                val data=request("/api/stream/subtitles/$mediaId")
+                val tracks=data.optJSONArray("tracks")
+                val labels=mutableListOf("Off")
+                val ids=mutableListOf<String?>(null)
+                if(tracks!=null)for(i in 0 until tracks.length()){
+                    val item=tracks.optJSONObject(i) ?: continue
+                    labels.add(item.optString("label","Subtitles"))
+                    ids.add(item.optString("id"))
+                }
+                handler.post {
+                    if(shuttingDown)return@post
+                    AlertDialog.Builder(this).setTitle("Subtitles")
+                        .setSingleChoiceItems(labels.toTypedArray(),ids.indexOf(selectedCaption).coerceAtLeast(0)){dialog,index->
+                            selectedCaption=ids[index]
+                            applyCaption()
+                            dialog.dismiss()
+                        }.setNegativeButton("Cancel",null).show()
+                }
+            }catch(error:Exception){handler.post{showMessage("Subtitles unavailable: "+error.message)}}
+        }
+    }
+
+    private fun applyCaption() {
+        val current=player?.currentMediaItem ?: return
+        val position=player?.currentPosition ?: 0L
+        val subtitle=selectedCaption?.let{ id->
+            MediaItem.SubtitleConfiguration.Builder(
+                android.net.Uri.parse(resolveUrl("/api/stream/subtitles/$mediaId/$id.vtt"+
+                    if(hlsMode)"?start=$hlsOffset" else "")))
+                .setMimeType(MimeTypes.TEXT_VTT)
+                .setLanguage("en")
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                .build()
+        }
+        val updated=MediaItem.Builder().setUri(current.localConfiguration?.uri ?: return)
+            .setMimeType(current.localConfiguration?.mimeType)
+            .setSubtitleConfigurations(if(subtitle==null)emptyList() else listOf(subtitle))
+            .build()
+        player?.setMediaItem(updated)
+        player?.prepare()
+        player?.seekTo(position)
+        player?.playWhenReady=true
+    }
+
+    private fun loadNextEpisode() {
+        network.execute {
+            try {
+                val data=request("/api/tv/next?media_id=$mediaId")
+                val next=data.optJSONObject("next")
+                val settings=request("/api/settings/playback")
+                handler.post {
+                    autoPlayNext=settings.optBoolean("auto_play_next",false)
+                    if(next!=null){
+                        nextMediaId=next.optInt("media_id").takeIf{it>0}
+                        nextTitle=next.optString("title","Next Episode")
+                    }
+                }
+            }catch(_:Exception){}
+        }
+    }
+
+    private fun showNextEpisode() {
+        val next=nextMediaId ?: return
+        AlertDialog.Builder(this).setTitle("Up next")
+            .setMessage(nextTitle)
+            .setPositiveButton("Play Next"){_,_->
+                startActivity(intent.putExtra("media_id",next).putExtra("title",nextTitle))
+                finish()
+            }.setNegativeButton("Cancel",null).show()
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if(event.keyCode==KeyEvent.KEYCODE_BACK)return super.dispatchKeyEvent(event)
+        if(event.action==KeyEvent.ACTION_DOWN && ::chrome.isInitialized &&
+            chrome.visibility!=View.VISIBLE){
+            showChrome()
+            return true
+        }
+        return super.dispatchKeyEvent(event)
     }
 
     private fun showMessage(text: String) {
@@ -141,9 +454,10 @@ class PlayerActivity : ComponentActivity() {
         network.execute {
             try {
                 val info = request("/api/watch/$mediaId/status")
-                val resume = if (info.optBoolean("watched", false)) 0.0
+                val resume = if (intent.getBooleanExtra("restart", false) || info.optBoolean("watched", false)) 0.0
                     else info.optDouble("position_seconds", 0.0).coerceAtLeast(0.0)
                 durationSeconds = info.optDouble("duration_seconds", 0.0)
+                completed = info.optBoolean("watched",false)
                 val mode = info.optString("mode", "")
                 val streamUrl = info.optString("stream_url", "")
                 if (mode == "direct" && streamUrl.isNotBlank()) {
@@ -243,6 +557,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onStop() {
         handler.removeCallbacks(checkpoint)
+        handler.removeCallbacks(uiRefresh)
+        handler.removeCallbacks(hideChrome)
         saveProgress(false)
         player?.pause()
         super.onStop()
@@ -253,12 +569,16 @@ class PlayerActivity : ComponentActivity() {
         if (player != null) {
             handler.removeCallbacks(checkpoint)
             handler.postDelayed(checkpoint, 15_000)
+            handler.removeCallbacks(uiRefresh)
+            handler.post(uiRefresh)
         }
     }
 
     override fun onDestroy() {
         shuttingDown = true
         handler.removeCallbacks(checkpoint)
+        handler.removeCallbacks(uiRefresh)
+        handler.removeCallbacks(hideChrome)
         player?.release()
         player = null
         session?.let { token ->
