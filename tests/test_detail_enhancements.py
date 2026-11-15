@@ -70,11 +70,31 @@ class DetailEnhancementTests(unittest.TestCase):
              patch.object(metadata,"_call",return_value=data) as call:
             result=movies._movie_extras({"tmdb_id":321})
         self.assertEqual(call.call_count,1)
-        self.assertEqual(call.call_args.kwargs["query"]["append_to_response"],"credits,reviews")
+        self.assertEqual(call.call_args.kwargs["query"]["append_to_response"],"credits,reviews,videos")
         self.assertEqual(result["cast"][0]["name"],"Actor")
         self.assertEqual(result["reviews"][0]["source"],"TMDB")
         self.assertEqual(result["tmdb_rating"],8.1)
         self.assertTrue(put.called)
+
+    def test_movie_trailer_id_requires_valid_youtube_key(self):
+        with patch.object(movies, "_movie_path", return_value=(
+            {"title": "Example", "year": 2024}, Path("/media/Example.mkv"), Path("/media"))), \
+             patch.object(movies, "_local_nfo", return_value={}), \
+             patch.object(movies, "_local_poster", return_value=None), \
+             patch.object(movies, "register_remote", return_value=None), \
+             patch.object(movies, "register_radarr", return_value=None), \
+             patch.object(movies, "_movie_extras", return_value={}), \
+             patch.object(movies, "db") as db_mock:
+            from unittest.mock import MagicMock
+            manager=MagicMock()
+            manager.__enter__.return_value.execute.return_value.fetchone.return_value=None
+            db_mock.return_value=manager
+            sample={"title":"Example","year":2024,"youtube_trailer_id":"aBcD1234_-X"}
+            result=movies._details(1,"example:2024",snapshot=[sample])
+            self.assertEqual(result["trailer_key"],"aBcD1234_-X")
+            sample["youtube_trailer_id"]="https://evil.invalid/example"
+            result=movies._details(1,"example:2024",snapshot=[sample])
+            self.assertIsNone(result["trailer_key"])
 
     def test_no_tmdb_token_returns_no_invented_ratings_or_reviews(self):
         with patch.object(metadata,"token_status",return_value=False):
