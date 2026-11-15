@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One-Eyed Willie · Home</title>
+<link rel="stylesheet" href="/assets/ui.css">
+<script defer src="/assets/shell.js"></script>
+<style>
+.shelf{margin-top:36px}.shelf:first-of-type{margin-top:0}
+.shelf-title{font-size:1.24rem;letter-spacing:-.025em;margin:0}.shelf-desc{color:var(--muted);font-size:.82rem;margin:4px 0 0}
+.shelf-track{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,193px);gap:18px;overflow-x:auto;padding:4px 2px 18px;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scrollbar-color:#40516b transparent}
+.shelf-track .tile{scroll-snap-align:start}.shelf-track .tile h3{margin-top:10px}
+.shelf-empty{margin-top:13px;min-height:156px;padding:24px 28px;border:1px dashed #35465a;border-radius:14px;background:linear-gradient(130deg,#161c26,#11161e);display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.shelf-empty h3{font-size:1.03rem;margin:0 0 5px}.shelf-empty p{margin:0;color:var(--muted);max-width:570px;font-size:.89rem}
+.progress-track{height:4px;border-radius:4px;background:#2c394b;margin-top:9px;overflow:hidden}.progress-fill{height:100%;background:#a3d4ff;border-radius:4px}
+.shelf-action{font-size:.84rem;color:#b4d6ff;font-weight:650}.page-lead{max-width:650px;color:#9aa9bc}
+@media(max-width:620px){.shelf{margin-top:31px}.shelf-track{grid-auto-columns:minmax(145px,42%);gap:12px}.shelf-empty{padding:19px}.shelf-title{font-size:1.1rem}}
+</style></head>
+<body data-page="home">
+<div class="app-shell">
+  <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+  <div class="workspace">
+    <header class="topbar"><div class="breadcrumbs" id="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+    <main class="content">
+      <div class="page-head">
+        <div><p class="eyebrow">Your media</p><h1>Home</h1><p class="page-lead">Your movies and shows, all in one place.</p></div>
+        <div class="stats" aria-label="Library totals">
+          <div class="stat"><strong id="movie-count">—</strong><span>Movies</span></div>
+          <div class="stat"><strong id="show-count">—</strong><span>TV Shows</span></div>
+        </div>
+      </div>
+      <p id="status" class="status-line" role="status">Loading library…</p>
+      <section class="shelf" aria-labelledby="continue-heading">
+        <div class="section-heading"><div><h2 id="continue-heading" class="shelf-title">Continue Watching</h2><p class="shelf-desc">Unfinished movies and TV episodes</p></div></div>
+        <div id="continue-watching"></div>
+      </section>
+      <section class="shelf" aria-labelledby="movies-heading">
+        <div class="section-heading"><div><h2 id="movies-heading" class="shelf-title">Recently Added Movies</h2><p class="shelf-desc">Latest titles indexed in your movie library</p></div><a href="/movies" class="shelf-action">View all movies</a></div>
+        <div id="recent-movies"></div>
+      </section>
+      <section class="shelf" aria-labelledby="tv-heading">
+        <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2><p class="shelf-desc">Latest series indexed in your TV library</p></div><a href="/tv" class="shelf-action">View all shows</a></div>
+        <div id="recent-tv"></div>
+      </section>
+      <p class="note">Titles currently use clean text covers. Posters and metadata will appear when metadata matching is implemented.</p>
+    </main>
+  </div>
+</div>
+<script>
+const byId=id=>document.getElementById(id);
+function tile(item, watching=false){
+  const article=document.createElement('article');article.className='tile';
+  const link=document.createElement('a');link.className='tile-button';
+  link.href=(item.kind==='movies'?'/movies':'/tv')+'?search='+encodeURIComponent(item.title);
+  link.setAttribute('aria-label','Browse '+item.title);
+  const cover=document.createElement('div');
+  let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
+  cover.className='cover cover--'+(hash%6);
+  const top=document.createElement('div');top.className='cover-top';
+  const type=document.createElement('span');type.className='media-type';type.textContent=item.kind==='movies'?'MOVIE':'SERIES';top.appendChild(type);
+  const initial=document.createElement('div');initial.className='cover-initial';initial.setAttribute('aria-hidden','true');initial.textContent=item.title.trim().slice(0,1).toUpperCase()||'W';
+  const coverTitle=document.createElement('div');coverTitle.className='cover-title';coverTitle.textContent=item.title;
+  cover.append(top,initial,coverTitle);
+  const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
+  const meta=document.createElement('div');meta.className='tile-meta';meta.textContent=(item.year?item.year+' · ':'')+(item.subtitle||'');
+  link.append(cover,title,meta);
+  if(watching){
+    const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');
+    const percent=Math.max(0,Math.min(100,Number(item.progress_percent)||0));
+    bar.setAttribute('aria-label','Watched progress');bar.setAttribute('aria-valuemin','0');bar.setAttribute('aria-valuemax','100');bar.setAttribute('aria-valuenow',String(percent));
+    const fill=document.createElement('div');fill.className='progress-fill';fill.style.width=percent+'%';bar.appendChild(fill);link.append(bar);
+  }
+  article.appendChild(link);return article;
+}
+function shelf(id,items,emptyTitle,emptyDescription,watching=false){
+ const target=byId(id);target.replaceChildren();
+ if(!Array.isArray(items)||!items.length){
+  const empty=document.createElement('div');empty.className='shelf-empty';
+  const title=document.createElement('h3');title.textContent=emptyTitle;
+  const info=document.createElement('p');info.textContent=emptyDescription;
+  empty.append(title,info);target.appendChild(empty);return;
+ }
+ const track=document.createElement('div');track.className='shelf-track';
+ for(const item of items)track.appendChild(tile(item,watching));target.appendChild(track);
+}
+async function load(){
+  try{
+    const response=await fetch('/api/home',{cache:'no-store'});
+    if(!response.ok)throw Error('Server returned '+response.status);
+    const data=await response.json();
+    byId('movie-count').textContent=Number(data.totals?.movies||0).toLocaleString();
+    byId('show-count').textContent=Number(data.totals?.tv||0).toLocaleString();
+    shelf('continue-watching',data.continue_watching,'Nothing in progress yet','Unfinished movies and TV episodes will appear here after playback progress is recorded. Playback support is still being built.',true);
+    shelf('recent-movies',data.recent_movies,'No movies indexed yet','Add a movie library in Settings → Libraries and scan it.');
+    shelf('recent-tv',data.recent_tv,'No TV shows indexed yet','Add a TV library in Settings → Libraries and scan it.');
+    byId('status').textContent='';
+  }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
+}
+load();
+</script></body></html>

@@ -27,7 +27,22 @@ def db():
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout=30000")
     connection.execute("CREATE TABLE IF NOT EXISTS libraries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, path TEXT NOT NULL UNIQUE, last_scanned TEXT)")
-    connection.execute("CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL, size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, FOREIGN KEY(library_id) REFERENCES libraries(id))")
+    connection.execute("CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL, size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(library_id) REFERENCES libraries(id))")
+    # Preserve first-seen dates on every rescan, including after upgrades from v0.4.
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(media)")}
+    if "added_at" not in columns:
+        connection.execute("ALTER TABLE media ADD COLUMN added_at TEXT")
+        # Existing entries have no recorded first-seen time; migration time is the honest baseline.
+        connection.execute("UPDATE media SET added_at=CURRENT_TIMESTAMP WHERE added_at IS NULL")
+    connection.execute("""CREATE TABLE IF NOT EXISTS playback_progress (
+        media_id INTEGER PRIMARY KEY,
+        position_seconds REAL NOT NULL,
+        duration_seconds REAL NOT NULL,
+        completed INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS media_added_idx ON media(added_at DESC)")
+    connection.execute("CREATE INDEX IF NOT EXISTS playback_updated_idx ON playback_progress(updated_at DESC)")
     connection.commit()
     return connection
 
@@ -86,6 +101,7 @@ def delete_library(library_id: int):
         existing = connection.execute("SELECT id FROM libraries WHERE id=?", (library_id,)).fetchone()
         if not existing:
             raise HTTPException(404, "Library not found")
+        connection.execute("DELETE FROM playback_progress WHERE media_id IN (SELECT id FROM media WHERE library_id=?)", (library_id,))
         connection.execute("DELETE FROM media WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
     return {"removed": True, "media_files_deleted": False}
@@ -129,6 +145,7 @@ def scan_library(library_id: int):
                 existing = connection.execute("SELECT path FROM media WHERE library_id=?", (library_id,)).fetchall()
                 for row in existing:
                     if row["path"] not in seen:
+                        connection.execute("DELETE FROM playback_progress WHERE media_id IN (SELECT id FROM media WHERE library_id=? AND path=?)", (library_id, row["path"]))
                         connection.execute("DELETE FROM media WHERE library_id=? AND path=?", (library_id, row["path"]))
             now = datetime.now(timezone.utc).isoformat()
             connection.execute("UPDATE libraries SET last_scanned=? WHERE id=?", (now, library_id))
