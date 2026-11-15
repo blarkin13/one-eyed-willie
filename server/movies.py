@@ -173,6 +173,7 @@ def _snapshot():
                 "runtime": film.get("runtime"),
                 "genres": film.get("genres") if isinstance(film.get("genres"), list) else [],
                 "imdb_id": film.get("imdbId"),
+                "youtube_trailer_id": film.get("youTubeTrailerId") or "",
                 "tmdb_id": film.get("tmdbId"),
                 "ratings": {name: {"value": value.get("value"), "votes": value.get("votes")}
                             for name, value in (film.get("ratings") or {}).items()
@@ -303,7 +304,7 @@ def _movie_extras(radarr):
             return cached
         details = _call("movie/" + str(tmdb_id),
                         query={"language": "en-US",
-                               "append_to_response": "credits,reviews"})
+                               "append_to_response": "credits,reviews,videos"})
         if details is None:
             return {}
         credits = details.get("credits") or {}
@@ -324,7 +325,15 @@ def _movie_extras(radarr):
                 "excerpt": str(review.get("content") or "")[:850],
                 "source": "TMDB",
             })
+        videos = (details or {}).get("videos") or {}
+        trailer = next((
+            str(v.get("key")) for v in videos.get("results", [])
+            if isinstance(v, dict) and v.get("site") == "YouTube"
+            and v.get("type") == "Trailer"
+            and re.fullmatch(r"[A-Za-z0-9_-]{11}", str(v.get("key") or ""))
+        ), None)
         extras = {
+            "trailer_key": trailer,
             "cast": cast, "reviews": user_reviews,
             "tagline": str((details or {}).get("tagline") or "")[:250],
             "release_date": (details or {}).get("release_date"),
@@ -366,6 +375,12 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "ratings": radarr.get("ratings") or {},
         "studio": radarr.get("studio") or "",
         "certification": radarr.get("certification") or "",
+        "trailer_key": (
+            radarr.get("youtube_trailer_id")
+            if re.fullmatch(r"[A-Za-z0-9_-]{11}",
+                            str(radarr.get("youtube_trailer_id") or ""))
+            else extras.get("trailer_key")
+        ),
         "library_id": library_id, "key": key, "title": parsed["title"],
         "media_id": entry["id"] if entry else None,
         "watched": bool(entry and entry["completed"]),
