@@ -197,5 +197,3 @@ body[data-page="home"] .workspace>.content{padding-top:24px}
  .sidebar .brand-name,.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:none!important}
 }
 
-/* Full original logo on expanded desktop rail, never the browser favicon. */
-@media (min-width:701px) and (max-width:520px){.sidebar:hover,.sidebar:focus-within{width:100vw}}
