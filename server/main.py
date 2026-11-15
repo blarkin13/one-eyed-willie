@@ -7,6 +7,7 @@ from server.catalog import catalog, start_background_scans
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.home import router as home_router
+from server.playback import router as playback_router
 from server.artwork import router as artwork_router
 from server.movies import router as movies_router
 from server.arr import router as arr_router
@@ -22,11 +23,12 @@ async def lifespan(app: FastAPI):
         stop.set()
         thread.join(timeout=5)
 
-app = FastAPI(title="One-Eyed Willie", version="0.10.3", lifespan=lifespan)
+app = FastAPI(title="One-Eyed Willie", version="0.11.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
 app.include_router(remote_config_router)
 app.include_router(home_router)
+app.include_router(playback_router)
 app.include_router(artwork_router)
 app.include_router(movies_router)
 app.include_router(arr_router)
@@ -35,7 +37,7 @@ app.include_router(metadata_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "application": "one-eyed-willie", "version": "0.10.3"}
+    return {"status": "ok", "application": "one-eyed-willie", "version": "0.11.0"}
 
 @app.get("/api/catalog")
 def get_catalog(
@@ -85,6 +87,17 @@ def brand_logo():
 @app.get("/assets/shell.js")
 def ui_shell():
     return FileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript")
+
+@app.get("/assets/player.js")
+def player_script():
+    return FileResponse(Path(__file__).with_name("player.js"), media_type="text/javascript")
+
+
+@app.get("/watch/{media_id}")
+def watch_page(media_id: int):
+    return FileResponse(Path(__file__).with_name("watch.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-store"})
+
 
 @app.get("/settings/libraries")
 def library_settings():
