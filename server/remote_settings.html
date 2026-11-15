@@ -1,83 +1,105 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie — Remote Access</title>
+<title>One-Eyed Willie · Remote Access</title>
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
 <style>
-:root{color-scheme:dark;background:#0e1015;color:#eff1f5;font:16px system-ui,-apple-system,sans-serif}
-*{box-sizing:border-box}body{margin:0}
-header{padding:20px 4vw;border-bottom:1px solid #303541;display:flex;align-items:center;gap:18px;flex-wrap:wrap}
-.brand{font-size:1.25rem;font-weight:750;letter-spacing:-.03em}
-nav{display:flex;gap:18px;margin-left:auto;flex-wrap:wrap}
-a{color:#a5acb8;text-decoration:none}a:hover,a[aria-current=page]{color:#fff}
-main{max-width:980px;margin:auto;padding:40px 22px}
-h1{font-size:2rem;letter-spacing:-.04em;margin:0 0 6px}h2{font-size:1.1rem;margin:0 0 9px}
-p{color:#aab2c0;line-height:1.5}label{display:block;margin:18px 0 6px;font-weight:600;font-size:.92rem}
-input{display:block;width:100%;background:#10141b;color:#fff;border:1px solid #50586a;border-radius:10px;padding:12px 14px;font:inherit}
-input:focus{outline:2px solid #8fb8ff;outline-offset:1px}
-button{border:0;border-radius:10px;padding:11px 17px;background:#e7ebf2;color:#171a20;font-weight:650;font:inherit;cursor:pointer}
-button:disabled{opacity:.6;cursor:wait}
-.card{background:#191d25;border:1px solid #303744;border-radius:15px;padding:23px;margin:19px 0}
-.muted{color:#a5acb8;font-size:.9rem}.status{display:flex;gap:10px;align-items:flex-start;padding:13px 16px;background:#25212a;border:1px solid #554456;border-radius:10px;color:#f2d5dd}
-.pair{display:grid;grid-template-columns:1fr 1fr;gap:14px}.value{background:#10141b;border:1px solid #343b4a;border-radius:10px;padding:13px;overflow-wrap:anywhere}
-small{display:block;color:#aab2c0;margin-top:7px;line-height:1.45}.actions{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin-top:23px}
-#message{min-height:1.5em;color:#a4c9ff}#message.error{color:#ffb1b1}
-ol{line-height:1.85;color:#c3cbd6;padding-left:20px}
-footer{text-align:center;color:#7f8896;font-size:.8rem;padding:35px}
-@media(max-width:600px){main{padding:26px 17px}.pair{grid-template-columns:1fr}nav{width:100%;margin-left:0}}
+.remote-columns{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:20px;align-items:start}.remote-columns .form-card{margin:0 0 20px;max-width:none}
+#connection-status{font-size:.9rem}.field-label{font-size:.78rem;color:#93a4b9;margin:0 0 6px}.note-list{padding-left:19px;color:#b7c4d5;line-height:1.8;font-size:.88rem}
+#message{font-size:.88rem}.status-panel{margin-bottom:25px}.detail-value{user-select:all}
+@media(max-width:880px){.remote-columns{grid-template-columns:1fr}}
 </style></head>
-<body>
-<header><span class="brand">One-Eyed Willie</span><nav>
-<a href="/">Library</a><a href="/settings/libraries">Libraries</a>
-<a href="/settings/remote" aria-current="page">Remote Access</a></nav></header>
-<main>
-<h1>Remote Access</h1>
-<p>Configure how your browser and future Android TV app will find your server when you're away from home.</p>
-<div class="status" role="status"><strong>Setup required</strong><span id="connection-status">Remote access has not been verified or enabled.</span></div>
-<form id="settings-form" class="card">
-<h2>Connection details</h2>
-<label for="public-ip">Home public IP address</label>
-<input id="public-ip" type="text" inputmode="decimal" maxlength="45" placeholder="e.g. 203.0.113.20" autocomplete="off" spellcheck="false">
-<small>The address your router uses on the internet. This may change if your ISP assigns a new address.</small>
-<label for="public-url">Public app address (optional)</label>
-<input id="public-url" type="url" maxlength="300" placeholder="https://one-eyed-willie.example.workers.dev" spellcheck="false">
-<small>The address you want to open remotely. A Cloudflare Worker can provide a public entry point, but must still reach the NUC securely.</small>
-<div class="actions"><button type="submit" id="save">Save settings</button><span id="message" role="status"></span></div>
-</form>
-<div class="card">
-<h2>Connection plan</h2>
-<div class="pair">
-<div><div class="muted">Local connection</div><div class="value">Direct to NUC · port 8787</div></div>
-<div><div class="muted">Secure origin hostname</div><div class="value" id="origin">Enter a public IP above</div></div>
-</div>
-<p class="muted">The origin hostname uses free IP-based DNS. It is not active until HTTPS is configured and the router forwards port 443 to your NUC.</p>
-</div>
-<div class="card">
-<h2>Finish remote access</h2>
-<ol>
-<li>Save your public IP and desired public URL above.</li>
-<li>Configure HTTPS and a strong password on the NUC.</li>
-<li>Forward <strong>TCP 443</strong> on Google Wifi to the NUC. Do not forward 8787.</li>
-<li>Connect the public entry point to the HTTPS origin.</li>
-<li>Test from cellular data before marking remote access working.</li>
-</ol>
-<p class="muted">Saving these details does not open router ports, deploy a Worker, or expose your server. Connection status will remain pending until remote access is verified.</p>
-</div>
-</main><footer>One-Eyed Willie · Personal media server</footer>
+<body data-page="remote"><div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace">
+ <header class="topbar"><div class="breadcrumbs" id="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+ <main class="content">
+  <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Remote Access</h1><p>Manage the addresses used to reach One-Eyed Willie inside and outside your home.</p></div></div>
+  <div class="status-panel" role="status"><span class="server-dot" aria-hidden="true"></span><span id="connection-status">Checking saved connection settings…</span></div>
+  <div class="remote-columns">
+   <div>
+    <form id="settings-form" class="form-card">
+     <h2>Connection details</h2>
+     <p>Your connection settings stay on this server.</p>
+     <label for="public-ip">Home public IP address</label>
+     <input id="public-ip" type="text" inputmode="decimal" maxlength="45" placeholder="Your router's public IPv4" autocomplete="off" spellcheck="false">
+     <small>Your ISP may change this address. Changing it here does not automatically reconfigure your router or Worker.</small>
+     <label for="public-url">Remote web address</label>
+     <input id="public-url" type="url" maxlength="300" placeholder="https://one-eyed-willie.example.workers.dev" spellcheck="false">
+     <small>This is the public browser address; the secure origin still needs HTTPS and authentication.</small>
+     <div class="form-actions"><button id="save" type="submit" class="primary-button">Save settings</button><span id="message" role="status"></span></div>
+    </form>
+    <div class="form-card">
+     <h2>Connection endpoints</h2>
+     <div class="detail-grid">
+      <div><div class="field-label">Home network</div><div class="detail-value">NUC · port 8787</div></div>
+      <div><div class="field-label">HTTPS origin</div><div class="detail-value" id="origin">Enter public IP</div></div>
+     </div>
+     <p>For Android TV, the eventual client will try the local address first and use a secure remote connection when away from home.</p>
+    </div>
+   </div>
+   <div>
+    <div class="form-card">
+     <h2>Test your connection</h2>
+     <p>Open your remote address on another network, such as your phone with Wi-Fi turned off.</p>
+     <a class="primary-button" id="open-remote" href="#" target="_blank" rel="noopener noreferrer" hidden>Open remote site</a>
+     <p id="test-note" class="muted">Save a remote URL to enable this link.</p>
+    </div>
+    <div class="form-card">
+     <h2>Network setup</h2>
+     <ol class="note-list">
+      <li>Google Wifi forwards TCP 443 to the NUC's HTTPS proxy.</li>
+      <li>A strong password protects remote browser access.</li>
+      <li>Never forward port 8787 publicly.</li>
+      <li>Video playback and Android TV pairing are separate upcoming features.</li>
+     </ol>
+     <p>Changing IP addresses here doesn't automatically alter Cloudflare or HTTPS certificates.</p>
+    </div>
+   </div>
+  </div>
+ </main>
+</div></div>
 <script>
 const el=id=>document.getElementById(id);
 const ip=el('public-ip'),url=el('public-url');
-function origin(){let s=ip.value.trim();el('origin').textContent=/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)?s.replaceAll('.','-')+'.sslip.io':'Enter a public IP above'}
-ip.addEventListener('input',origin);
+function origin(){
+ const s=ip.value.trim();
+ el('origin').textContent=/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)?s.replaceAll('.','-')+'.sslip.io':'Enter public IP';
+}
 function message(value,error=false){el('message').textContent=value;el('message').className=error?'error':''}
-async function load(){try{
-let r=await fetch('/api/remote/settings',{cache:'no-store'});if(!r.ok)throw Error('Unable to retrieve settings');
-let d=await r.json();ip.value=d.public_ip||'';url.value=d.public_url||'';
-el('connection-status').textContent=d.status;origin()
-}catch(e){message(e.message,true)}}
-el('settings-form').addEventListener('submit',async event=>{event.preventDefault();el('save').disabled=true;message('Saving…');try{
-let r=await fetch('/api/remote/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_ip:ip.value,public_url:url.value})});
-if(!r.ok){let d=await r.json().catch(()=>({}));let detail=d.detail;throw Error(typeof detail==='string'?detail:'Could not save settings')}
-let d=await r.json();ip.value=d.public_ip;url.value=d.public_url;origin();el('connection-status').textContent=d.status;message('Saved on this server. Remote access is not active yet.')
-}catch(e){message(e.message,true)}finally{el('save').disabled=false}});
+function remoteLink(value){
+ const link=el('open-remote');
+ try{
+  const parsed=new URL(value);
+  if(parsed.protocol==='https:'){link.href=parsed.href;link.hidden=false;el('test-note').textContent='This opens a new browser tab. A successful sign-in confirms access.';return;}
+ }catch(_){}
+ link.hidden=true;link.removeAttribute('href');el('test-note').textContent='Save a valid HTTPS remote address to enable this link.';
+}
+function connectionText(data){
+ try{
+  const saved=new URL(data.public_url);
+  if(saved.host===location.host){el('connection-status').textContent='Connected through the configured remote address in this browser';return;}
+ }catch(_){}
+ el('connection-status').textContent='Settings saved locally. To check external access, use the remote site link on another network.';
+}
+async function load(){
+ try{
+  const r=await fetch('/api/remote/settings',{cache:'no-store'});
+  if(!r.ok)throw Error('Unable to load remote settings');
+  const d=await r.json();ip.value=d.public_ip||'';url.value=d.public_url||'';
+  origin();remoteLink(d.public_url);connectionText(d);
+ }catch(e){message(e.message,true);el('connection-status').textContent='Unable to verify saved settings';}
+}
+el('settings-form').addEventListener('submit',async event=>{
+ event.preventDefault();el('save').disabled=true;message('Saving…');
+ try{
+  const r=await fetch('/api/remote/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_ip:ip.value,public_url:url.value})});
+  if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(typeof d.detail==='string'?d.detail:'Unable to save settings');}
+  const d=await r.json();ip.value=d.public_ip;url.value=d.public_url;
+  origin();remoteLink(d.public_url);connectionText(d);message('Saved on this server.');
+ }catch(e){message(e.message,true)}
+ finally{el('save').disabled=false}
+});
+ip.addEventListener('input',origin);
 load();
 </script></body></html>
