@@ -256,7 +256,7 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         "network": meta.get("network"),
         "genres": meta.get("genres") or [],
         "trailer_key": meta.get("trailer_key"),
-        "library_id": library_id, "key": key, "title": show["title"],
+        "library_id": library_id, "key": key, "title": meta.get("title") or show["title"],
         "year": show["year"], "overview": meta.get("overview", ""),
         "poster_url": meta.get("poster_url"),
         "backdrop_url": meta.get("backdrop_url"),
@@ -297,7 +297,7 @@ def season_details(
             "runtime": episode_meta.get("runtime"),
         })
     result = {
-        "show": {"library_id": library_id, "key": key, "title": show["title"],
+        "show": {"library_id": library_id, "key": key, "title": meta.get("title") or show["title"],
                  "poster_url": meta.get("poster_url"), "overview": meta.get("overview", "")},
         "season": {**season,
                    "overview": detail.get("overview") or season["overview"],
@@ -329,7 +329,7 @@ def episode_details(media_id: int = Query(ge=1)):
     episode_meta = detail.get("episodes", {}).get(str(parsed["episode"]), {})
     result = {
         "id": media_id, "library_id": row["library_id"], "key": parsed["key"],
-        "show_title": show["title"], "season_number": parsed["season"],
+        "show_title": meta.get("title") or show["title"], "season_number": parsed["season"],
         "episode_number": parsed["episode"],
         "title": episode_meta.get("title") or
         ("Episode " + str(parsed["episode"]) if parsed["episode"] is not None else Path(row["path"]).name),
