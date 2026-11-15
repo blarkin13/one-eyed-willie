@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One-Eyed Willie · Explore More</title>
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+<style>
+.explore-search{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:25px 0 20px}
+.explore-search .search-box{flex:1;min-width:220px}.explore-search .search-box input{width:100%}
+.explore-search .primary-button{min-height:46px}
+.explore-results{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,210px),1fr));gap:22px}
+.explore-card{border:1px solid var(--line);border-radius:15px;padding:11px;background:#111a27;display:flex;flex-direction:column;min-width:0}
+.explore-card .cover{width:100%;aspect-ratio:2/3}
+.explore-card h3{margin:13px 3px 6px;font-size:1rem;line-height:1.3;overflow-wrap:anywhere}
+.explore-card .meta{font-size:.8rem;color:#a4b4c8;margin:0 3px 10px}
+.explore-card .overview{color:#adb9c9;font-size:.83rem;line-height:1.48;flex:1;margin:0 3px 18px;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:4;overflow:hidden}
+.explore-card .primary-button,.explore-card .secondary-button{width:100%;font-size:.84rem}
+.explore-hint{padding:30px;background:linear-gradient(130deg,#172434,#101927);border:1px solid #2a4056;border-radius:14px;color:#acbdcf;margin-top:20px}
+.explore-hint h2{margin:0 0 8px;font-size:1.2rem;color:#eef4fc}
+.explore-hint p{margin:0;line-height:1.6}
+#add-dialog label{display:block;margin:18px 0 7px;font-size:.88rem;font-weight:650}
+#add-dialog select{width:100%;background:#101a28;color:#e5effb;border:1px solid #3f536d;padding:11px;border-radius:9px;min-height:44px}
+#add-dialog .check-row{display:flex;gap:10px;align-items:flex-start;margin-top:18px;color:#dce8f4;font-size:.86rem}
+#add-dialog .check-row input{width:20px;height:20px;flex:none}
+#add-dialog .check-row label{margin:0;font-weight:450}
+@media(max-width:620px){.explore-search .primary-button{width:100%}.explore-results{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.explore-card{padding:8px}.explore-card .overview{-webkit-line-clamp:3}}
+</style></head>
+<body data-page="explore"><div class="app-shell">
+<aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
+<div class="workspace">
+<header class="topbar"><div class="breadcrumbs" id="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+<main class="content">
+<div class="page-head"><div><p class="eyebrow">Discover</p><h1>Explore More</h1>
+<p>Find movies and TV shows to add to Radarr or Sonarr. Your existing media library stays separate.</p></div>
+<a href="/settings/connections" class="secondary-button">Manage connections</a></div>
+<div class="filter-tabs" role="group" aria-label="Explore media type">
+<button type="button" id="movies-tab" aria-pressed="true">Movies</button>
+<button type="button" id="tv-tab" aria-pressed="false">TV Shows</button></div>
+<form id="search-form" class="explore-search">
+<label class="search-box"><input id="query" type="search" minlength="2" maxlength="100" required placeholder="Search for a movie…" aria-label="Search for a movie or TV show"></label>
+<button class="primary-button" id="search-button" type="submit">Search</button></form>
+<div id="status" class="status-line" role="status"></div>
+<div id="hint" class="explore-hint"><h2>Find something new</h2><p>Enter a title to search your connected media manager's catalog. Choose a result to add it to that manager. Existing titles will be marked as already added.</p></div>
+<div id="results" class="explore-results"></div>
+<p class="note">Adding a title registers it with Radarr or Sonarr; it does not provide or immediately play media files. Only add content you are authorized to obtain.</p>
+</main>
+</div></div>
+<dialog id="add-dialog" aria-labelledby="add-title">
+<div class="dialog-inner">
+<div class="dialog-heading"><div><p class="eyebrow">Add to media manager</p><h2 id="add-title">Add title</h2></div><button type="button" id="close" class="icon-button" aria-label="Cancel">×</button></div>
+<p id="add-description" class="muted">Choose the destination and quality settings from your existing media manager.</p>
+<form id="add-form">
+<label for="folder">Root folder</label><select id="folder" required></select>
+<label for="profile">Quality profile</label><select id="profile" required></select>
+<div class="check-row"><input type="checkbox" id="search-now"><label for="search-now">Request an immediate search using my media manager's configured services (optional)</label></div>
+<p id="add-message" class="message" role="status"></p>
+<div class="form-actions"><button type="submit" class="primary-button" id="confirm-add">Add to manager</button><button type="button" class="secondary-button" id="cancel">Cancel</button></div>
+</form></div></dialog>
+<script>
+const $=id=>document.getElementById(id);
+let provider='radarr',results=[],selected=null,searching=false;
+const dialog=$('add-dialog');
+async function fetchJson(path,opts={}){
+ const r=await fetch(path,{cache:'no-store',...opts});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'The request failed.');
+ return data;
+}
+function setProvider(id){
+ provider=id;
+ $('movies-tab').setAttribute('aria-pressed',String(id==='radarr'));
+ $('tv-tab').setAttribute('aria-pressed',String(id==='sonarr'));
+ $('query').placeholder=id==='radarr'?'Search for a movie…':'Search for a TV show…';
+ $('results').replaceChildren();$('status').textContent='';
+ $('hint').hidden=false;
+ const query=new URLSearchParams(location.search);query.set('type',id==='radarr'?'movies':'tv');history.replaceState(null,'',location.pathname+'?'+query);
+}
+$('movies-tab').onclick=()=>setProvider('radarr');
+$('tv-tab').onclick=()=>setProvider('sonarr');
+function render(items){
+ const grid=$('results');grid.replaceChildren();
+ for(const item of items){
+  const article=document.createElement('article');article.className='explore-card';
+  const cover=document.createElement('div');cover.className='cover';
+  const titleOnCover=document.createElement('div');titleOnCover.className='cover-title';titleOnCover.textContent=item.title;
+  if(item.poster_url?.startsWith('/api/artwork/')){
+    const img=document.createElement('img');img.src=item.poster_url;img.className='poster-image';img.alt=item.title+' poster';img.loading='lazy';cover.append(img);
+  }else cover.append(titleOnCover);
+  const title=document.createElement('h3');title.textContent=item.title;
+  const year=document.createElement('p');year.className='meta';year.textContent=item.year||'Release year unavailable';
+  const desc=document.createElement('p');desc.className='overview';desc.textContent=item.overview||'No description available.';
+  const button=document.createElement('button');button.type='button';
+  button.className=item.already_added?'secondary-button':'primary-button';
+  button.textContent=item.already_added?'Already in '+(provider==='radarr'?'Radarr':'Sonarr'):'Add to '+(provider==='radarr'?'Radarr':'Sonarr');
+  button.disabled=!!item.already_added;
+  button.addEventListener('click',()=>openAdd(item));
+  article.append(cover,title,year,desc,button);grid.append(article);
+ }
+}
+async function search(){
+ if(searching)return;
+ const q=$('query').value.trim();
+ if(q.length<2){$('status').textContent='Enter at least two characters.';return;}
+ searching=true;$('search-button').disabled=true;$('status').textContent='Searching '+(provider==='radarr'?'Radarr':'Sonarr')+'…';
+ $('hint').hidden=true;$('results').replaceChildren();
+ const current=provider;
+ try{
+  const data=await fetchJson('/api/arr/'+provider+'/lookup?q='+encodeURIComponent(q));
+  if(current!==provider)return;
+  results=data.items||[];render(results);
+  $('status').textContent=results.length?results.length+' results — select a title to add.':'No matching titles. Try a different search.';
+ }catch(e){
+  $('status').textContent=e.message;
+  $('hint').hidden=false;$('hint').querySelector('h2').textContent='Connection required';
+  $('hint').querySelector('p').textContent='Connect Radarr or Sonarr under Settings → Connections to use Explore More.';
+ }finally{searching=false;$('search-button').disabled=false;}
+}
+$('search-form').onsubmit=e=>{e.preventDefault();search();};
+async function openAdd(item){
+ selected={...item,provider};
+ $('add-title').textContent='Add '+item.title;
+ $('add-message').textContent='Loading destinations…';
+ $('folder').replaceChildren();$('profile').replaceChildren();
+ $('confirm-add').disabled=true;$('search-now').checked=false;
+ dialog.showModal();
+ try{
+  const data=await fetchJson('/api/arr/'+provider+'/options');
+  for(const folder of data.folders){
+    const option=document.createElement('option');option.value=folder.path;option.textContent=folder.label; $('folder').append(option);
+  }
+  for(const profile of data.profiles){
+    const option=document.createElement('option');option.value=String(profile.id);option.textContent=profile.name;$('profile').append(option);
+  }
+  if(!data.folders.length||!data.profiles.length)throw Error('Configure a root folder and quality profile in your media manager first.');
+  $('add-message').textContent='Nothing is searched or downloaded immediately unless you select the checkbox.';
+  $('confirm-add').disabled=false;
+ }catch(e){$('add-message').textContent=e.message;}
+}
+$('add-form').onsubmit=async event=>{
+ event.preventDefault();
+ if(!selected)return;
+ $('confirm-add').disabled=true;$('add-message').textContent='Adding title…';
+ try{
+  const target=selected.provider;
+  const body={external_id:selected.id,root_folder:$('folder').value,
+    quality_profile_id:Number($('profile').value),search_now:$('search-now').checked};
+  const result=await fetchJson('/api/arr/'+target+'/add',{
+   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  dialog.close();
+  $('status').textContent=result.title+' added to '+(target==='radarr'?'Radarr':'Sonarr')+'. '+result.note;
+  results=results.map(item=>item.id===selected.id?{...item,already_added:true}:item);
+  render(results);
+ }catch(e){$('add-message').textContent=e.message;$('confirm-add').disabled=false;}
+};
+$('close').onclick=()=>dialog.close();
+$('cancel').onclick=()=>dialog.close();
+const params=new URLSearchParams(location.search);
+if(params.get('type')==='tv')setProvider('sonarr');
+if(params.get('q')){$('query').value=params.get('q').slice(0,100);search();}
+</script></body></html>
