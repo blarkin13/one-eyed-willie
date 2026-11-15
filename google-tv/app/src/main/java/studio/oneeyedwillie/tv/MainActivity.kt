@@ -245,7 +245,7 @@ class MainActivity : ComponentActivity() {
               if (document.getElementById('oew-tv-remote-style')) return;
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
-              style.textContent=\`
+              style.textContent=`
                 a:focus-visible,button:focus-visible,input:focus-visible,
                 select:focus-visible,[tabindex="0"]:focus-visible {
                   outline:2px solid rgba(211,220,229,.85)!important;
@@ -258,7 +258,7 @@ class MainActivity : ComponentActivity() {
                 }
                 .tile:focus-within {transform:none!important}
                 * {scroll-margin:22px}
-              \`;
+              `;
               document.head.appendChild(style);
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
               const visible=node=>{
