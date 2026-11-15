@@ -18,7 +18,7 @@
 <p>Keep your libraries and local caches current, without changing the original media files.</p></div></div>
 <section class="form-card maintenance-panel" aria-labelledby="schedule-title">
 <h2 id="schedule-title">Automatic maintenance</h2>
-<p class="maintenance-note">The server checks for due work during its overnight maintenance window (3 AM Central time). Weekly tasks run once per week; metadata refresh tasks run once every three days. Missed work runs during the next maintenance window after the server comes back online. Jobs process limited batches to protect playback performance.</p>
+<p class="maintenance-note">The server checks for due work during its overnight maintenance window (3 AM Central time). Weekly tasks run once per week; metadata refresh tasks run once every three days. Preview generation runs daily. Missed work runs during the next maintenance window after the server comes back online. Jobs process limited batches to protect playback performance.</p>
 <div id="maintenance-options"><p id="loading-options" role="status">Loading maintenance settings…</p></div>
 <div class="maintenance-actions">
 <button class="primary-button" id="maintenance-save" type="button" disabled>Save settings</button>
@@ -41,7 +41,7 @@ const descriptions=[
  ['upgrade_media_analysis','Upgrade media analysis','Weekly','Read stream properties for up to 40 indexed files each maintenance run.'],
  ['refresh_library_metadata','Refresh library metadata periodically','Every 3 days','Refresh show and season metadata while preserving manually selected matches.'],
  ['extensive_media_analysis','Perform extensive media analysis','Weekly','Sample audio statistics for up to three files per run.'],
- ['video_preview_thumbnails','Enable video preview thumbnails','Weekly and on demand','Create six preview frames per video; generated in limited batches.']
+ ['video_preview_thumbnails','Enable video preview thumbnails','Daily and on demand','Create six preview frames per video; generated in limited batches.']
 ];
 const byId=id=>document.getElementById(id);
 const controls={};
