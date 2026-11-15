@@ -1,43 +1,135 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>One-Eyed Willie</title><style>
-:root{color-scheme:dark;background:#0c0f15;color:#f6f7fa;font:16px system-ui,-apple-system,sans-serif}*{box-sizing:border-box}
-body{margin:0}header{display:flex;align-items:center;gap:25px;padding:19px clamp(18px,4vw,70px);border-bottom:1px solid #283040;position:sticky;top:0;background:#0c0f15ee;backdrop-filter:blur(10px);z-index:2}
-.logo{font-weight:800;font-size:1.28rem;letter-spacing:-.035em}nav{display:flex;gap:17px;margin-left:auto}a{color:#aab4c5;text-decoration:none}a:hover,a.selected{color:white}main{max-width:1500px;margin:auto;padding:32px clamp(18px,4vw,70px)}
-h1{font-size:clamp(1.9rem,4vw,2.6rem);letter-spacing:-.045em;margin:14px 0 5px}p{color:#a8b1c2}
-.controls{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin:23px 0}
-input{background:#191f2b;border:1px solid #323d50;border-radius:10px;color:white;padding:12px 14px;min-width:min(100%,320px);font:inherit}
-button{background:#202a3a;color:white;border:1px solid #344358;border-radius:9px;padding:10px 16px;cursor:pointer;font:inherit}
-button[aria-pressed=true]{background:#dbe7ff;color:#111827;border-color:#dbe7ff}
-#items{display:grid;grid-template-columns:repeat(auto-fill,minmax(175px,1fr));gap:22px}
-.poster{aspect-ratio:2/3;background:linear-gradient(155deg,#263147,#151b28);border:1px solid #364257;border-radius:12px;display:flex;align-items:center;justify-content:center;text-align:center;padding:18px;font-weight:700;font-size:1.2rem;color:#becce0}
-.item h3{font-size:.96rem;margin:10px 0 3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sub{color:#939fb3;font-size:.82rem}
-details{background:#1b2230;border-radius:10px;margin-top:7px;padding:8px;font-size:.85rem}
-summary{cursor:pointer}.episodes{max-height:220px;overflow:auto;color:#b4c0d2}.episodes div{padding:6px 0;border-bottom:1px solid #30394b}
-.notice{padding:18px;background:#18202e;border:1px solid #2a3a50;border-radius:12px;color:#b6c4d7;margin:15px 0 25px}
-@media(max-width:550px){header{flex-wrap:wrap}nav{width:100%;margin:0}#items{grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}}
-</style></head><body>
-<header><span class="logo">One-Eyed Willie</span><nav><a href="/" class="selected">Library</a><a href="/settings/libraries">Settings</a></nav></header>
-<main><h1>Your Library</h1><p>Movies and TV shows cataloged from your local media drive.</p>
-<div class="controls"><div><button id="all" aria-pressed="true">All</button> <button id="movies">Movies</button> <button id="tv">TV Shows</button></div>
-<input type="search" id="search" aria-label="Search titles" placeholder="Search your library…"></div>
-<p id="status" role="status">Loading library…</p>
-<div id="items"></div>
-<div class="notice">Titles are currently grouped from filenames and folders. Automatic rescan runs every 5 minutes. Posters, summaries, and metadata matching are the next integration.</div>
-</main><script>
-const el=id=>document.getElementById(id),escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'}[c]));
-let filter='';
-for(let k of ['all','movies','tv'])el(k).onclick=()=>{filter=k==='all'?'':k;for(let x of ['all','movies','tv'])el(x).setAttribute('aria-pressed',String(x===k));load()};
-let timer;el('search').oninput=()=>{clearTimeout(timer);timer=setTimeout(load,200)};
-async function load(){
-const params=new URLSearchParams();if(filter)params.set('kind',filter);if(el('search').value)params.set('search',el('search').value);
-try{let r=await fetch('/api/catalog?'+params);if(!r.ok)throw Error('Server returned '+r.status);
-let data=await r.json();el('status').textContent=data.total+' titles'+(data.total>data.items.length?' (showing first '+data.items.length+')':'');
-let area=el('items');area.replaceChildren();
-for(let item of data.items){let card=document.createElement('article');card.className='item';
-const info=item.kind==='tv'?(item.files+' episodes/files · '+item.seasons.length+' seasons'):(item.files+' file'+(item.files===1?'':'s'));
-card.innerHTML='<div class="poster">'+escapeHTML(item.title)+'</div><h3 title="'+escapeHTML(item.title)+'">'+escapeHTML(item.title)+'</h3><div class="sub">'+(item.year||'')+' · '+escapeHTML(info)+'</div>';
-if(item.kind==='tv'&&item.episodes.length){let details=document.createElement('details');let summary=document.createElement('summary');summary.textContent='Episodes';details.appendChild(summary);
-let episodes=document.createElement('div');episodes.className='episodes';for(let ep of item.episodes){let row=document.createElement('div');row.textContent=(ep.season===null?'':('S'+String(ep.season).padStart(2,'0')))+(ep.episode===null?'':('E'+String(ep.episode).padStart(2,'0')))+' '+ep.filename;episodes.appendChild(row)}details.appendChild(episodes);card.appendChild(details)}
-area.appendChild(card)}
-}catch(e){el('status').textContent='Unable to load catalog: '+e.message}
-}load();
-</script></body></html>
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One-Eyed Willie · Browse</title>
+<link rel="stylesheet" href="/assets/ui.css">
+<script defer src="/assets/shell.js"></script>
+<style>
+.library-toolbar{margin:26px 0 20px}
+.count-label{color:#98a7ba;font-size:.88rem}
+.load-more-wrap{text-align:center;margin:34px 0}
+#more{min-width:178px}
+.detail-top{display:flex;gap:22px;align-items:flex-start}.detail-art{width:128px;aspect-ratio:2/3;border-radius:12px;background:linear-gradient(160deg,#354b61,#18202d);display:flex;align-items:center;justify-content:center;font-size:3.5rem;color:#b1c2d6;flex:none}.detail-metadata{flex:1;min-width:0}.detail-metadata p{color:var(--muted);margin:7px 0}
+@media(max-width:530px){.detail-art{width:90px;font-size:2.6rem}.detail-top{gap:13px}}
+</style></head>
+<body data-page="movies">
+<div class="app-shell">
+  <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+  <div class="workspace">
+    <header class="topbar"><div id="breadcrumbs" class="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+    <main class="content">
+      <div class="page-head"><div>
+        <p class="eyebrow" id="eyebrow">Your library</p>
+        <h1 id="page-title">Movies</h1>
+        <p id="page-description">Browse all the movies on your media server.</p>
+      </div></div>
+      <div class="toolbar library-toolbar">
+        <div class="filter-tabs" aria-label="Browse category">
+          <a class="filter-link" id="tab-movies" href="/movies">Movies</a>
+          <a class="filter-link" id="tab-tv" href="/tv">TV Shows</a>
+        </div>
+        <div class="tools">
+          <label class="search-box"><span class="sr-only">Search titles</span><input type="search" id="search" placeholder="Search titles…" maxlength="150" aria-label="Search titles"></label>
+          <label><span class="sr-only">Sort titles</span><select id="sort" class="sort-select" aria-label="Sort titles">
+            <option value="title">Title A–Z</option><option value="recent">Recently added</option><option value="year">Release year</option>
+          </select></label>
+        </div>
+      </div>
+      <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
+      <p id="status" class="status-line" role="status">Loading titles…</p>
+      <div id="items" aria-live="off"></div>
+      <div class="load-more-wrap"><button type="button" class="secondary-button" id="more" hidden>Load more</button></div>
+      <p class="note">Artwork and movie details will appear after metadata matching. Text covers are shown in the meantime.</p>
+    </main>
+  </div>
+</div>
+<dialog id="detail-dialog" aria-labelledby="detail-title">
+ <div class="dialog-inner">
+  <div class="dialog-heading">
+   <div><p class="eyebrow" id="detail-type">Library title</p><h2 id="detail-title"></h2></div>
+   <button type="button" class="icon-button" id="close-dialog" aria-label="Close details">×</button>
+  </div>
+  <div class="detail-top"><div class="detail-art" id="detail-art" aria-hidden="true"></div>
+   <div class="detail-metadata"><p id="detail-description"></p><p id="detail-year"></p><p class="dialog-placeholder">Playback is being built. You can browse your library and episodes now.</p></div>
+  </div>
+  <div id="episode-area" hidden><h3>Episodes</h3><ul class="episode-list" id="episode-list"></ul></div>
+ </div>
+</dialog>
+<script>
+const type=location.pathname==='/tv'?'tv':'movies';
+document.body.dataset.page=type;
+const $=id=>document.getElementById(id);
+const query=new URLSearchParams(location.search);
+let offset=0,total=0,requestId=0,loading=false;
+const PAGE_SIZE=60;
+const initialSearch=query.get('search')||'';
+$('search').value=initialSearch.slice(0,150);
+$('page-title').textContent=type==='movies'?'Movies':'TV Shows';
+$('page-description').textContent=type==='movies'?'Browse every movie in your collection.':'Browse all of your series and episodes.';
+$('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
+document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
+for(const [id,kind] of [['tab-movies','movies'],['tab-tv','tv']]){
+  const tab=$(id);tab.setAttribute('aria-current',type===kind?'page':'false');
+}
+const dialog=$('detail-dialog');$('close-dialog').onclick=()=>dialog.close();
+dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+function openDetails(item){
+ $('detail-type').textContent=item.kind==='movies'?'MOVIE':'TV SERIES';
+ $('detail-title').textContent=item.title;
+ $('detail-art').textContent=item.title.slice(0,1).toUpperCase();
+ $('detail-description').textContent=item.kind==='movies'?(item.files+' media file'+(item.files===1?'':'s')):(item.seasons.length+' season'+(item.seasons.length===1?'':'s')+' · '+item.files+' episodes/files');
+ $('detail-year').textContent=item.year?'Year: '+item.year:'';
+ const area=$('episode-area');area.hidden=item.kind!=='tv'||!item.episodes.length;
+ const episodes=$('episode-list');episodes.replaceChildren();
+ if(!area.hidden){
+  for(const ep of item.episodes){
+    const li=document.createElement('li');
+    const num=document.createElement('span');num.className='episode-number';
+    num.textContent=(ep.season==null?'':('S'+String(ep.season).padStart(2,'0')))+(ep.episode==null?'':('E'+String(ep.episode).padStart(2,'0')))||'Episode';
+    const name=document.createElement('span');name.className='episode-name';name.textContent=ep.filename;
+    li.append(num,name);episodes.appendChild(li);
+  }
+ }
+ dialog.showModal();
+}
+function createCard(item){
+ const article=document.createElement('article');article.className='tile';
+ const button=document.createElement('button');button.type='button';button.className='tile-button';button.setAttribute('aria-label','View '+item.title);
+ let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
+ const cover=document.createElement('div');cover.className='cover cover--'+(hash%6);
+ const top=document.createElement('div');top.className='cover-top';
+ const kind=document.createElement('span');kind.className='media-type';kind.textContent=type==='movies'?'MOVIE':'SERIES';top.append(kind);
+ const initial=document.createElement('div');initial.className='cover-initial';initial.setAttribute('aria-hidden','true');initial.textContent=item.title.slice(0,1).toUpperCase()||'W';
+ const coverTitle=document.createElement('div');coverTitle.className='cover-title';coverTitle.textContent=item.title;
+ cover.append(top,initial,coverTitle);
+ const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
+ const meta=document.createElement('div');meta.className='tile-meta';
+ meta.textContent=(item.year?item.year+' · ':'')+(item.kind==='tv'?item.seasons.length+' season'+(item.seasons.length===1?'':'s'):item.files+' file'+(item.files===1?'':'s'));
+ button.append(cover,title,meta);button.addEventListener('click',()=>openDetails(item));
+ article.append(button);return article;
+}
+async function load(reset=true){
+ if(loading&&!reset)return;
+ const thisRequest=++requestId;if(reset){offset=0;$('items').replaceChildren();}
+ loading=true;$('more').disabled=true;$('status').textContent='Loading titles…';
+ const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value,offset:String(offset),limit:String(PAGE_SIZE)});
+ try{
+  const response=await fetch('/api/catalog?'+params,{cache:'no-store'});if(!response.ok)throw Error('Server returned '+response.status);
+  const data=await response.json();if(thisRequest!==requestId)return;
+  total=data.total;const items=Array.isArray(data.items)?data.items:[];
+  for(const item of items)$('items').append(createCard(item));
+  offset+=items.length;
+  $('results-count').textContent=total.toLocaleString()+' title'+(total===1?'':'s');
+  $('status').textContent=total?('Showing '+offset.toLocaleString()+' of '+total.toLocaleString()):'';
+  if(!total){const empty=document.createElement('div');empty.className='empty';const h=document.createElement('h3');h.textContent='No titles found';const p=document.createElement('p');p.textContent=$('search').value?'Try another search.':'Add a library in Settings → Libraries and scan it.';empty.append(h,p);$('items').append(empty);}
+  $('more').hidden=offset>=total;
+ }catch(error){if(thisRequest===requestId)$('status').textContent='Unable to load titles: '+error.message;}
+ finally{if(thisRequest===requestId){loading=false;$('more').disabled=false;}}
+}
+let debounce;
+$('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(true),220)});
+$('sort').addEventListener('change',()=>load(true));
+$('more').onclick=()=>load(false);
+load();
+</script>
+</body></html>
