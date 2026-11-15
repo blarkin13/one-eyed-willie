@@ -85,7 +85,9 @@ function setWatchedButton(item){
  watchedButton.textContent=item.watched?'✓ Watched · mark unwatched':'Mark watched';
 }
 playButton.onclick=()=>{
- if(selectedMovie)WilliePlayer.open(selectedMovie.media_id,selectedMovie.title);
+ if(!selectedMovie)return;
+ dialog.close(); // A modal dialog is in the browser's top layer.
+ WilliePlayer.open(selectedMovie.media_id,selectedMovie.title);
 };
 watchedButton.onclick=async()=>{
  if(!selectedMovie)return;
