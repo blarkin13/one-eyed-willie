@@ -8,6 +8,8 @@ import asyncio
 import mimetypes
 import os
 import subprocess
+import json
+import math
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -51,6 +53,20 @@ def _item(media_id: int):
     return dict(row), safe
 
 
+def probe_duration(file: Path):
+    """Best-effort duration for streams whose fragmented MP4 timeline is infinite."""
+    try:
+        result = subprocess.run(
+            ["/usr/bin/ffprobe", "-v", "error", "-show_entries",
+             "format=duration", "-of", "json", str(file)],
+            capture_output=True, text=True, timeout=6, check=False,
+        )
+        seconds = float(json.loads(result.stdout).get("format", {}).get("duration", 0))
+        return seconds if math.isfinite(seconds) and 0 < seconds <= 10000000 else 0
+    except (OSError, ValueError, subprocess.TimeoutExpired, TypeError):
+        return 0
+
+
 @router.get("/{media_id}/status")
 def watch_status(media_id: int):
     row, file = _item(media_id)
@@ -64,7 +80,7 @@ def watch_status(media_id: int):
         "media_id": media_id,
         "watched": bool(progress and progress["completed"]),
         "position_seconds": progress["position_seconds"] if progress else 0,
-        "duration_seconds": progress["duration_seconds"] if progress else 0,
+        "duration_seconds": (progress["duration_seconds"] if progress and progress["duration_seconds"] else probe_duration(file)),
         "extension": file.suffix.lower(),
         "mode": "direct" if file.suffix.lower() in BROWSER_TYPES else "compatible",
         "stream_url": f"/api/watch/{media_id}/stream",
@@ -134,8 +150,8 @@ async def transcode_media(
     command = ["/usr/bin/ffmpeg", "-hide_banner", "-loglevel", "error", "-nostdin",
                "-ss", str(start), "-i", str(file),
                "-map", "0:v:0", "-map", "0:a:0?",
-               "-c:v", "libx264", "-preset", "ultrafast",
-               "-pix_fmt", "yuv420p", "-crf", "24",
+               "-c:v", "libx264", "-preset", "ultrafast", "-threads", "2",
+               "-pix_fmt", "yuv420p", "-crf", "25",
                "-c:a", "aac", "-b:a", "160k",
                "-movflags", "frag_keyframe+empty_moov+default_base_moof",
                "-f", "mp4", "pipe:1"]
