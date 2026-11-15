@@ -23,14 +23,17 @@ background:linear-gradient(150deg,#37495a,#141c29);object-fit:cover;box-shadow:0
 .movie-detail-data .movie-meta{font-size:.94rem;color:#afc0d1;display:flex;gap:11px;flex-wrap:wrap;margin:10px 0 18px}
 .movie-detail-data .movie-description{font-size:clamp(.94rem,1.2vw,1.08rem);line-height:1.72;max-width:770px;color:#c9d5e3;margin:14px 0 23px}
 .movie-detail-actions{display:flex;gap:11px;flex-wrap:wrap;margin:0 0 12px}
-.movie-detail-actions button{min-width:154px;min-height:49px;font-weight:650}
+.movie-detail-actions button{min-height:49px;font-weight:650}
+.movie-detail-actions .media-icon-action{min-width:0;width:56px;display:grid;place-items:center;padding:9px}
+.movie-detail-actions .media-icon-action[hidden]{display:none}
+.movie-detail-actions .media-icon-action svg{width:25px;height:25px}
 .movie-detail-progress{height:5px;border-radius:6px;background:#42566b;max-width:400px;margin:18px 0 8px;overflow:hidden}
 .movie-detail-progress span{height:100%;display:block;width:0;background:#b2cde8;border-radius:6px}
 .movie-detail-genres{font-size:.91rem;color:#a9c0d5;margin-top:17px}
 .movie-detail-credit{font-size:.82rem;margin:12px 0;color:#8097ac}
 #movie-status{margin:19px 0 8px;color:#c0d7ef}
 @media(max-width:700px){.movie-detail-hero{grid-template-columns:135px minmax(0,1fr);gap:16px;min-height:0}
-.movie-detail-data h1{font-size:1.8rem}.movie-detail-actions button{min-width:125px}
+.movie-detail-data h1{font-size:1.8rem}.movie-detail-actions .media-icon-action{width:52px}
 .movie-detail-data .movie-description{font-size:.88rem;line-height:1.48}}
 @media(max-width:510px){.movie-detail-hero{display:block}.movie-detail-poster{width:145px;max-height:220px;margin:0 0 20px}
 .movie-detail-hero::after{background:#0b1423d9}.movie-detail-data h1{font-size:2rem}}
@@ -52,7 +55,14 @@ background:linear-gradient(150deg,#37495a,#141c29);object-fit:cover;box-shadow:0
     <div id="movie-meta" class="movie-meta"></div>
     <p id="movie-description" class="movie-description"></p>
     <div class="movie-detail-actions">
-      <button id="play-movie" type="button" class="primary-button">▶ Play fullscreen</button>
+      <button id="play-movie" type="button" class="primary-button media-icon-action"
+        title="Play from beginning" aria-label="Play from beginning">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>
+      </button>
+      <button id="resume-movie" type="button" class="secondary-button media-icon-action" hidden
+        title="Resume from saved position" aria-label="Resume from saved position">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
+      </button>
       <button id="watched-movie" type="button" class="secondary-button">Mark watched</button>
     </div>
     <div id="progress-track" class="movie-detail-progress" hidden><span id="progress-fill"></span></div>
@@ -102,7 +112,8 @@ async function loadMovie(){
    watched.setAttribute('aria-pressed',String(!!movie.watched));
    const position=Number(movie.position_seconds)||0,duration=Number(movie.duration_seconds)||0;
    const partial=!movie.watched&&duration>0&&position>=30&&position<duration*.95;
-   $('play-movie').textContent=partial?'▶ Resume fullscreen':'▶ Play fullscreen';
+   $('resume-movie').hidden=!partial;
+   $('resume-movie').disabled=!movie.media_id;
    $('progress-track').hidden=!partial;
    if(partial){
      $('progress-fill').style.width=Math.min(100,100*position/duration)+'%';
@@ -113,7 +124,10 @@ async function loadMovie(){
  }catch(error){$('movie-status').textContent=error.message}
 }
 $('play-movie').addEventListener('click',()=>{
- if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title);
+ if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title,{restart:true});
+});
+$('resume-movie').addEventListener('click',()=>{
+ if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title,{restart:false});
 });
 $('watched-movie').addEventListener('click',async()=>{
  if(!movie?.media_id)return;
