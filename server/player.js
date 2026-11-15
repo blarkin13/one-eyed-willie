@@ -7,6 +7,7 @@
   let savedStatus = null;
   let timeOffset=0;
   let enteredFullscreen=false;
+  let hasStarted=false;
   const css = `
 .willie-player{position:fixed;inset:0;z-index:10000;background:#03060b;color:#edf4fb;
  display:flex;align-items:center;justify-content:center;font:16px system-ui,-apple-system,sans-serif}
@@ -34,7 +35,7 @@
   const progressUrl = '/api/playback/progress';
 
   async function saveProgress(force=false, ended=false) {
-    if(!current || !lastMediaId)return;
+    if(!current || !lastMediaId || !hasStarted)return;
     const video=current.querySelector('video');
     if(!video)return;
     const duration=Number(savedStatus?.duration_seconds)||video.duration;
@@ -59,7 +60,7 @@
     const video=container.querySelector('video');
     saveProgress(true);
     video.pause();video.removeAttribute('src');video.load();
-    current=null;lastMediaId=0;savedStatus=null;timeOffset=0;enteredFullscreen=false;
+    current=null;lastMediaId=0;savedStatus=null;timeOffset=0;enteredFullscreen=false;hasStarted=false;
     if(document.fullscreenElement===container)document.exitFullscreen().catch(()=>{});
     container.remove();
     document.dispatchEvent(new CustomEvent('willie:watch-updated'));
@@ -139,6 +140,7 @@
       if(current!==surface)document.removeEventListener('fullscreenchange',onFullscreenChange);
     };
     document.addEventListener('fullscreenchange',onFullscreenChange);
+    video.addEventListener('playing',()=>{hasStarted=true;});
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{saveProgress(true,true);watched.textContent='Mark unwatched';if(savedStatus)savedStatus.watched=true;document.dispatchEvent(new CustomEvent('willie:watch-updated'));});
