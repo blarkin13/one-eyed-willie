@@ -27,6 +27,17 @@ function el(tag,cls,text){
   if(text!==undefined&&text!==null)node.textContent=String(text);
   return node;
 }
+function watchIcon(watched){
+ return watched
+  ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
+  : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+}
+function updateWatchIcon(button,watched,scope='episode'){
+ const action=watched?'Mark '+scope+' unwatched':'Mark '+scope+' watched';
+ button.title=action;button.setAttribute('aria-label',action);
+ button.setAttribute('aria-pressed',String(!!watched));
+ button.innerHTML=watchIcon(watched);
+}
 function playbackButton(id,title,resume=false){
  const button=el('button',resume?'secondary-button media-icon-action':'primary-button media-icon-action');
  button.type='button';
@@ -74,15 +85,14 @@ function hero(title,overview,art,backdrop,year,subtitle){
  head.append(artNode,info);return head;
 }
 function bulkWatchedControl(data,scope){
- const button=el('button','icon-only-control');
+ const button=el('button','media-icon-action watch-icon-control');
  const allWatched=scope==='show'
    ?data.watched_count===data.episode_count
    :data.season.watched_count===data.season.episode_count;
  const updateLabel=watched=>{
    button.title=watched?'Mark all unwatched':'Mark all watched';
    button.setAttribute('aria-label',button.title);
-   button.textContent=watched?'↶':'✓';
-   button.setAttribute('aria-pressed',String(watched));
+   updateWatchIcon(button,watched,scope==='show'?'series':'season');
  };
  updateLabel(allWatched);
  button.onclick=async()=>{
@@ -102,7 +112,7 @@ function bulkWatchedControl(data,scope){
      button.after(note);setTimeout(()=>note.remove(),2500);
      if(scope==='season')view.querySelectorAll('.episode-actions button[aria-pressed]').forEach(control=>{
         control.setAttribute('aria-pressed',String(watched));
-        control.textContent=watched?'✓ Watched':'Mark watched';
+        updateWatchIcon(control,watched);
      });
    }catch(err){loading.textContent=err.message}
    finally{button.disabled=false}
@@ -173,17 +183,16 @@ async function renderSeason(){
   const controls=el('div','episode-actions');
   const play=playbackButton(episode.id,data.show.title+' · '+episode.title);
   const resume=canResume(episode)?playbackButton(episode.id,data.show.title+' · '+episode.title,true):null;
-  const watched=el('button','secondary-button',episode.watched?'✓ Watched':'Mark watched');
-  watched.type='button';watched.setAttribute('aria-pressed',String(!!episode.watched));
+  const watched=el('button','media-icon-action watch-icon-control');
+  watched.type='button';updateWatchIcon(watched,episode.watched);
   watched.onclick=async()=>{
     watched.disabled=true;
     try{
       const r=await fetch('/api/watch/'+episode.id+'/watched',{method:'PUT',
         headers:{'Content-Type':'application/json'},body:JSON.stringify({watched:!episode.watched})});
       if(!r.ok)throw Error('Status unavailable');
-      episode.watched=!episode.watched;watched.textContent=episode.watched?'✓ Watched':'Mark watched';
-      watched.setAttribute('aria-pressed',String(episode.watched));
-    }catch(_){watched.textContent='Try again'}
+      episode.watched=!episode.watched;updateWatchIcon(watched,episode.watched);
+    }catch(_){watched.title='Try again';}
     finally{watched.disabled=false;}
   };
   controls.append(play);if(resume)controls.append(resume);
@@ -209,8 +218,8 @@ async function renderEpisode(){
  const controls=el('div','episode-detail-actions');
  const play=playbackButton(data.id,data.show_title+' · '+data.title);
  const resume=canResume(data)?playbackButton(data.id,data.show_title+' · '+data.title,true):null;
- const watched=el('button','secondary-button',data.watched?'✓ Watched · mark unwatched':'Mark watched');
- watched.type='button';watched.setAttribute('aria-pressed',String(!!data.watched));
+ const watched=el('button','media-icon-action watch-icon-control');
+ watched.type='button';updateWatchIcon(watched,data.watched);
  watched.onclick=async()=>{
    watched.disabled=true;
    try{
@@ -218,9 +227,8 @@ async function renderEpisode(){
        method:'PUT',headers:{'Content-Type':'application/json'},
        body:JSON.stringify({watched:!data.watched})});
      if(!r.ok)throw Error('Unable to save status');
-     data.watched=!data.watched;watched.textContent=data.watched?'✓ Watched · mark unwatched':'Mark watched';
-     watched.setAttribute('aria-pressed',String(data.watched));
-   }catch(_){watched.textContent='Try again'}
+     data.watched=!data.watched;updateWatchIcon(watched,data.watched);
+   }catch(_){watched.title='Try again'}
    finally{watched.disabled=false}
  };
  controls.append(play);if(resume)controls.append(resume);
