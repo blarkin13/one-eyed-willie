@@ -346,3 +346,9 @@ body[data-page="tv"] .season-card{border:0;background:transparent}
   .workspace>.content,
   body[data-page="home"] .workspace>.content{padding-top:20px!important}
 }
+/* Ship logo and subtle original skull watermark behind poster collections. */
+.sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,.sidebar:focus-within .brand-logo-frame{width:58px;height:72px;flex:0 0 58px;overflow:visible}
+.sidebar .brand-logo,.sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{width:58px;height:72px;object-fit:contain;object-position:center;transform:none}
+#items,.shelf-track,.explore-grid,.movie-grid,.tv-grid{position:relative;isolation:isolate}
+#items::before,.shelf-track::before,.explore-grid::before,.movie-grid::before,.tv-grid::before{content:"";position:absolute;left:50%;top:50%;width:min(410px,66vw);aspect-ratio:1;transform:translate(-50%,-50%);background:url('/assets/logo.png') center / contain no-repeat;opacity:.055;pointer-events:none;z-index:-1}
+@media(max-width:700px){.sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,.sidebar:focus-within .brand-logo-frame{width:58px;height:72px;flex-basis:58px}.sidebar .brand-logo,.sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{width:58px;height:72px}}

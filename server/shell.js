@@ -32,12 +32,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
   brand.title='One-Eyed Willie';
-  // The logo is the supplied logo.png, not favicon.png. Its square canvas
-  // includes a tiny line of lettering below the skull; frame the skull here
-  // so it doesn't appear as a second, unreadable wordmark beside the title.
+  // Pirate ship logo; the original skull artwork remains the media watermark.
   const logoFrame=document.createElement('span');logoFrame.className='brand-logo-frame';
   logoFrame.setAttribute('aria-hidden','true');
-  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/logo.png';
+  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/ship-logo.png';
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
   const words=document.createElement('span');words.className='brand-name';words.textContent='One-eyed Willie';
@@ -60,11 +58,11 @@ document.addEventListener('DOMContentLoaded', () => {
       subnav.append(a);
     });target.append(subnav);
   }
-  const favicon=document.createElement('link');
-  favicon.rel='icon';
-  favicon.type='image/png';
-  favicon.href='/assets/favicon.png?v=3';
-  document.head.append(favicon);
+  if(!document.querySelector('link[rel~="icon"]')){
+    const favicon=document.createElement('link');
+    favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=3';
+    document.head.append(favicon);
+  }
   // Use Font Awesome Free when loaded; keep local SVGs when offline.
   if(document.fonts&&document.fonts.load){
     document.fonts.load('900 16px "Font Awesome 6 Free"').then(faces=>{
