@@ -22,22 +22,27 @@
 #add-dialog .check-row input{width:20px;height:20px;flex:none}
 #add-dialog .check-row label{margin:0;font-weight:450}
 @media(max-width:620px){.explore-search .primary-button{width:100%}.explore-results{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.explore-card{padding:8px}.explore-card .overview{-webkit-line-clamp:3}}
+.discovery-section{margin:34px 0}.discovery-section h2{font-size:1.35rem;margin:0 0 15px}.discovery-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(155px,195px);gap:16px;overflow-x:auto;scroll-snap-type:x proximity;padding:3px 0 15px}.discovery-row .explore-card{scroll-snap-align:start}.discovery-row .explore-card .overview{display:none}.discovery-row .explore-card .cover{border-radius:9px}.discovery-row .explore-card h3{font-size:.9rem}.discovery-row .explore-card .meta{font-size:.77rem}.section-empty{color:var(--muted)}.add-inline{display:grid;grid-template-columns:1fr 1fr;gap:13px}.add-inline label{margin-top:11px!important}.add-inline>div{min-width:0}.tag-options{display:flex;gap:9px;flex-wrap:wrap}.tag-options label{display:flex!important;gap:5px;align-items:center;margin:3px!important;font-weight:400!important}.tag-options input{width:auto!important}.discovery-row .explore-card button{margin-top:auto}@media(max-width:620px){.discovery-row{grid-auto-columns:minmax(145px,44%)}.add-inline{grid-template-columns:1fr}}
 </style></head>
 <body data-page="explore"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace">
 <main class="content">
 <div class="page-head"><div><p class="eyebrow">Discover</p><h1>Explore More</h1>
-<p>Find movies and TV shows to add to Radarr or Sonarr. Your existing media library stays separate.</p></div>
+<p id="explore-description">Discover movies to add to Radarr. Your local library stays separate.</p></div>
 <a href="/settings/connections" class="secondary-button">Manage connections</a></div>
-<div class="filter-tabs" role="group" aria-label="Explore media type">
-<button type="button" id="movies-tab" aria-pressed="true">Movies</button>
-<button type="button" id="tv-tab" aria-pressed="false">TV Shows</button></div>
+
 <form id="search-form" class="explore-search">
 <label class="search-box"><input id="query" type="search" minlength="2" maxlength="100" required placeholder="Search for a movie…" aria-label="Search for a movie or TV show"></label>
 <button class="primary-button" id="search-button" type="submit">Search</button></form>
 <div id="status" class="status-line" role="status"></div>
 <div id="hint" class="explore-hint"><h2>Find something new</h2><p>Enter a title to search your connected media manager's catalog. Choose a result to add it to that manager. Existing titles will be marked as already added.</p></div>
+<div id="discovery">
+<section class="discovery-section"><h2>Popular</h2><div id="popular" class="discovery-row"></div></section>
+<section class="discovery-section"><h2>New Releases</h2><div id="new" class="discovery-row"></div></section>
+<section class="discovery-section"><h2>Coming Soon</h2><div id="soon" class="discovery-row"></div></section>
+</div>
+<h2 id="search-heading" hidden>Search Results</h2>
 <div id="results" class="explore-results"></div>
 <p class="note">Adding a title registers it with Radarr or Sonarr and enables their normal monitoring; it does not immediately provide playable files. Only add content you are authorized to obtain.</p>
 </main>
@@ -49,6 +54,15 @@
 <form id="add-form">
 <label for="folder">Root folder</label><select id="folder" required></select>
 <label for="profile">Quality profile</label><select id="profile" required></select>
+<div id="sonarr-controls" hidden>
+<div class="add-inline"><div><label for="series-type">Series type</label><select id="series-type"><option value="standard">Standard</option><option value="daily">Daily</option><option value="anime">Anime</option></select></div>
+<div><label for="monitor">Monitor episodes</label><select id="monitor">
+<option value="all">All episodes</option><option value="future">Future episodes</option><option value="existing">Existing episodes</option><option value="missing">Missing episodes</option><option value="pilot">Pilot episode</option><option value="firstSeason">First season</option><option value="lastSeason">Last season</option><option value="latestSeason">Latest season</option><option value="none">None</option></select></div></div>
+<div class="check-row"><input type="checkbox" id="season-folder" checked><label for="season-folder">Create season folders</label></div>
+</div>
+<div id="radarr-controls"><label for="availability">Minimum availability</label><select id="availability">
+<option value="announced">Announced</option><option value="inCinemas">In cinemas</option><option value="released" selected>Released</option></select></div>
+<div id="tag-wrap" hidden><label>Tags</label><div id="tag-options" class="tag-options"></div></div>
 <div id="language-wrap" hidden><label for="language">Language profile (older Sonarr)</label>
 <select id="language"></select></div>
 <div class="check-row"><input type="checkbox" id="search-now"><label for="search-now">Request an immediate search using my media manager's configured services (optional)</label></div>
@@ -67,32 +81,32 @@ async function fetchJson(path,opts={}){
 }
 function setProvider(id){
  provider=id;
- $('movies-tab').setAttribute('aria-pressed',String(id==='radarr'));
- $('tv-tab').setAttribute('aria-pressed',String(id==='sonarr'));
+ document.title='One-Eyed Willie · Explore '+(id==='radarr'?'Movies':'TV Shows');
+ document.querySelector('.page-head h1').textContent='Explore '+(id==='radarr'?'Movies':'TV Shows');
+ $('explore-description').textContent=id==='radarr'?'Discover movies for Radarr.':'Discover TV shows for Sonarr.';
  $('query').placeholder=id==='radarr'?'Search for a movie…':'Search for a TV show…';
- $('results').replaceChildren();$('status').textContent='';
+ $('results').replaceChildren();$('status').textContent='';$('search-heading').hidden=true;
  $('hint').hidden=false;
  const query=new URLSearchParams(location.search);query.set('type',id==='radarr'?'movies':'tv');history.replaceState(null,'',location.pathname+'?'+query);
 }
-$('movies-tab').onclick=()=>setProvider('radarr');
-$('tv-tab').onclick=()=>setProvider('sonarr');
-function render(items){
- const grid=$('results');grid.replaceChildren();
+
+function render(items,container=$('results'),isDiscovery=false){
+ const grid=container;grid.replaceChildren();
  for(const item of items){
   const article=document.createElement('article');article.className='explore-card';
   const cover=document.createElement('div');cover.className='cover';
   const titleOnCover=document.createElement('div');titleOnCover.className='cover-title';titleOnCover.textContent=item.title;
-  if(item.poster_url?.startsWith('/api/artwork/')){
+  if(item.poster_url?.startsWith('/api/artwork/') || (isDiscovery && item.poster_url?.startsWith('https://image.tmdb.org/t/p/'))){
     const img=document.createElement('img');img.src=item.poster_url;img.className='poster-image';img.alt=item.title+' poster';img.loading='lazy';cover.append(img);
   }else cover.append(titleOnCover);
   const title=document.createElement('h3');title.textContent=item.title;
-  const year=document.createElement('p');year.className='meta';year.textContent=item.year||'Release year unavailable';
+  const year=document.createElement('p');year.className='meta';year.textContent=[item.year,item.rating?'★ '+Number(item.rating).toFixed(1):null,item.release_date].filter(Boolean).join(' · ')||'Release date unavailable';
   const desc=document.createElement('p');desc.className='overview';desc.textContent=item.overview||'No description available.';
   const button=document.createElement('button');button.type='button';
   button.className=item.already_added?'secondary-button':'primary-button';
   button.textContent=item.already_added?'Already in '+(provider==='radarr'?'Radarr':'Sonarr'):'Add to '+(provider==='radarr'?'Radarr':'Sonarr');
   button.disabled=!!item.already_added;
-  button.addEventListener('click',()=>openAdd(item));
+  button.addEventListener('click',()=>isDiscovery?resolveDiscovery(item):openAdd(item));
   article.append(cover,title,year,desc,button);grid.append(article);
  }
 }
@@ -106,11 +120,11 @@ async function search(){
  try{
   const data=await fetchJson('/api/arr/'+provider+'/lookup?q='+encodeURIComponent(q));
   if(current!==provider)return;
-  results=data.items||[];render(results);
+  results=data.items||[];render(results);$('search-heading').hidden=false;
   $('status').textContent=results.length?results.length+' results — select a title to add.':'No matching titles. Try a different search.';
  }catch(e){
   $('status').textContent=e.message;
-  $('hint').hidden=false;$('hint').querySelector('h2').textContent='Connection required';
+  $('hint').hidden=false;$('hint').querySelector('h2').textContent='Search unavailable';
   $('hint').querySelector('p').textContent='Connect Radarr or Sonarr under Settings → Connections to use Explore More.';
  }finally{searching=false;$('search-button').disabled=false;}
 }
@@ -120,6 +134,7 @@ async function openAdd(item){
  $('add-title').textContent='Add '+item.title;
  $('add-message').textContent='Loading destinations…';
  $('folder').replaceChildren();$('profile').replaceChildren();$('language').replaceChildren();$('language-wrap').hidden=true;
+ $('sonarr-controls').hidden=provider!=='sonarr';$('radarr-controls').hidden=provider!=='radarr';$('series-type').value='standard';$('monitor').value='all';$('season-folder').checked=true;$('availability').value='released';$('tag-options').replaceChildren();$('tag-wrap').hidden=true;
  $('confirm-add').disabled=true;$('search-now').checked=false;
  dialog.showModal();
  try{
@@ -137,6 +152,7 @@ async function openAdd(item){
       $('language').append(option);
     }
   }
+  if(data.tags?.length){$('tag-wrap').hidden=false;for(const tag of data.tags){const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.value=String(tag.id);label.append(input,document.createTextNode(tag.name));$('tag-options').append(label);}}
   if(!data.folders.length||!data.profiles.length)throw Error('Configure a root folder and quality profile in your media manager first.');
   $('add-message').textContent='No immediate search will run unless you select the checkbox. Normal monitoring may discover future releases.';
   $('confirm-add').disabled=false;
@@ -149,7 +165,10 @@ $('add-form').onsubmit=async event=>{
  try{
   const target=selected.provider;
   const body={external_id:selected.id,root_folder:$('folder').value,
-    quality_profile_id:Number($('profile').value),search_now:$('search-now').checked};
+    quality_profile_id:Number($('profile').value),search_now:$('search-now').checked,
+    tags:[...$('tag-options').querySelectorAll('input:checked')].map(x=>Number(x.value))};
+  if(target==='sonarr')Object.assign(body,{series_type:$('series-type').value,monitor:$('monitor').value,season_folder:$('season-folder').checked});
+  else body.minimum_availability=$('availability').value;
   if(!$('language-wrap').hidden)body.language_profile_id=Number($('language').value);
   const result=await fetchJson('/api/arr/'+target+'/add',{
    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
@@ -161,7 +180,37 @@ $('add-form').onsubmit=async event=>{
 };
 $('close').onclick=()=>dialog.close();
 $('cancel').onclick=()=>dialog.close();
+
+async function resolveDiscovery(item){
+ if(provider==='radarr'){openAdd(item);return;}
+ $('status').textContent='Finding '+item.title+' in Sonarr…';
+ try{
+  const data=await fetchJson('/api/arr/sonarr/lookup?q='+encodeURIComponent(item.title));
+  const matches=(data.items||[]).filter(x=>x.title.toLowerCase()===item.title.toLowerCase());
+  const found=matches.find(x=>x.year===item.year)||matches[0];
+  if(!found)throw Error('This series could not be matched in Sonarr. Search for it by title instead.');
+  if(found.already_added){$('status').textContent='Already in Sonarr: '+found.title;return;}
+  $('status').textContent='';openAdd(found);
+ }catch(e){$('status').textContent=e.message;}
+}
+async function loadDiscovery(){
+ for(const id of ['popular','new','soon'])$(id).textContent='Loading…';
+ try{
+  const current=provider;
+  const data=await fetchJson('/api/arr/'+provider+'/discover');
+  if(current!==provider)return;
+  if(!data.configured){$('hint').hidden=false;$('hint').querySelector('h2').textContent='Discovery setup';$('hint').querySelector('p').textContent=data.message; }
+  else $('hint').hidden=true;
+  for(const id of ['popular','new','soon']){
+   render(data.sections?.[id]||[],$(id),true);
+   if(!$(id).children.length)$(id).textContent='No titles available right now.';
+  }
+ }catch(e){$('status').textContent='Discovery unavailable: '+e.message;for(const id of ['popular','new','soon'])$(id).textContent='Unable to load this section.';}
+}
+
 const params=new URLSearchParams(location.search);
 if(params.get('type')==='tv')setProvider('sonarr');
+else setProvider('radarr');
+loadDiscovery();
 if(params.get('q')){$('query').value=params.get('q').slice(0,100);search();}
 </script></body></html>
