@@ -342,7 +342,7 @@ def _movie_extras(radarr):
         return extras
 
 
-def _details(library_id, key, snapshot=None):
+def _details(library_id, key, snapshot=None, *, enrich=True):
     parsed, video, root = _movie_path(library_id, key)
     radarr = _movie_match(parsed["title"], parsed["year"],
                            _snapshot() if snapshot is None else snapshot)
@@ -360,7 +360,7 @@ def _details(library_id, key, snapshot=None):
             "WHERE m.library_id=? AND m.path=? ORDER BY m.id LIMIT 1",
             (library_id, str(video)),
         ).fetchone()
-    extras = _movie_extras(radarr)
+    extras = _movie_extras(radarr) if enrich else {}
     return {
         **extras,
         "ratings": radarr.get("ratings") or {},
@@ -394,7 +394,7 @@ def movie_posters(batch: PosterBatch):
     entries = []
     for item in batch.items:
         try:
-            data = _details(item.library_id, item.key, snapshot=snapshot)
+            data = _details(item.library_id, item.key, snapshot=snapshot, enrich=False)
             entries.append({
                 "library_id": item.library_id,
                 "key": item.key,
