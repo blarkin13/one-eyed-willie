@@ -1,8 +1,4 @@
-"""Read-only home shelves and future-client playback progress tracking.
-
-Playback is not implemented yet. Progress updates are used by future clients;
-the dashboard never claims an item can play until streaming exists.
-"""
+"""Home shelves and local playback progress tracking."""
 from collections import OrderedDict
 from pathlib import Path
 
@@ -73,7 +69,7 @@ def home_shelves():
                     "kind": desc["kind"], "title": desc["title"],
                     "year": desc["year"], "subtitle": desc["subtitle"],
                     "library_id": desc["library_id"], "key": desc["key"],
-                    "added_at": row["added_at"],
+                    "media_id": row["id"], "added_at": row["added_at"],
                 }
 
         progress_rows = connection.execute(
@@ -111,7 +107,7 @@ def home_shelves():
             "movies": len(recent["movies"]),
             "tv": len(recent["tv"]),
         },
-        "playback_available": False,
+        "playback_available": True,
     }
 
 
