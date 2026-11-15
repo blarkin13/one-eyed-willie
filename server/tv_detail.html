@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One-Eyed Willie · TV Shows</title>
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+</head><body data-page="tv">
+<div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace">
+<header class="topbar"><div id="breadcrumbs" class="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+<main class="content" id="content">
+<a class="breadcrumb-link" id="back-link" href="/tv">← All TV Shows</a>
+<div id="loading" class="status-line" role="status">Loading TV library…</div>
+<div id="view"></div>
+<p class="note">Artwork and episode descriptions, when available, are supplied by TMDB. Video playback is not yet implemented.</p>
+</main>
+</div></div>
+<script>
+const params=new URLSearchParams(location.search);
+const state={library_id:Number(params.get('library_id')),key:params.get('key')||'',season_number:Number(params.get('season_number')),media_id:Number(params.get('media_id'))};
+const view=document.getElementById('view'),loading=document.getElementById('loading'),back=document.getElementById('back-link');
+const route=location.pathname.includes('/episode')?'episode':location.pathname.includes('/season')?'season':'show';
+const showHref=(id,key)=>'/tv/show?'+new URLSearchParams({library_id:String(id),key});
+const seasonHref=(id,key,season)=>'/tv/season?'+new URLSearchParams({library_id:String(id),key,season_number:String(season)});
+const episodeHref=id=>'/tv/episode?'+new URLSearchParams({media_id:String(id)});
+function el(tag,cls,text){
+  const node=document.createElement(tag);if(cls)node.className=cls;
+  if(text!==undefined&&text!==null)node.textContent=String(text);
+  return node;
+}
+function image(src,cls,alt){
+  const node=el('img',cls);node.alt=alt||'';
+  if(typeof src==='string'&&src.startsWith('https://image.tmdb.org/t/p/')){
+    node.src=src;node.loading='lazy';node.referrerPolicy='no-referrer';
+  }
+  return node;
+}
+function poster(url,alt){
+ if(url)return image(url,'hero-poster',alt);
+ const fallback=el('div','hero-poster');fallback.setAttribute('role','img');fallback.setAttribute('aria-label','Poster not available');
+ return fallback;
+}
+function notice(){
+ const div=el('div','metadata-notice');
+ div.append('For posters, descriptions, and episode stills, add a free TMDB read-access token in ');
+ const link=el('a','', 'Settings → Metadata');link.href='/settings/metadata';div.append(link,'.');
+ return div;
+}
+function hero(title,overview,art,backdrop,year,subtitle){
+ const head=el('section','media-hero');
+ if(backdrop)head.appendChild(image(backdrop,'hero-backdrop',''));
+ const artNode=poster(art,title+' poster');
+ const info=el('div','hero-info');info.append(el('p','eyebrow',subtitle||'TV SERIES'),el('h1','',title));
+ if(year)info.appendChild(el('p','muted',String(year)));
+ info.appendChild(el('p','',overview||'No description available for this title yet.'));
+ head.append(artNode,info);return head;
+}
+function coverCard(item,title,subtitle,href){
+ const article=el('article','season-card');
+ const a=el('a','tile-button');a.href=href;
+ const cover=el('div','cover');
+ if(item.poster_url)cover.append(image(item.poster_url,'poster-image',title+' poster'));
+ else{cover.append(el('div','cover-top'),el('div','cover-initial',(title||'S')[0]),el('div','cover-title',title))}
+ a.append(cover,el('h3','',title),el('p','',subtitle));article.append(a);return article;
+}
+function setBack(text,href){back.href=href;back.textContent='← '+text;}
+async function loadJson(url){
+ const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Unable to load details ('+response.status+')');
+ return response.json();
+}
+async function renderShow(){
+ if(!Number.isInteger(state.library_id)||!state.library_id||!state.key)throw Error('Select a TV show from the library.');
+ const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
+ setBack('All TV Shows','/tv');
+ document.title=data.title+' · One-Eyed Willie';
+ view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
+ const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
+ view.appendChild(heading);
+ const grid=el('div','season-grid');
+ for(const season of data.seasons){
+  if(season.number===null)continue;
+  grid.appendChild(coverCard(season,season.name,season.episode_count+' episode'+(season.episode_count===1?'':'s'),
+    seasonHref(data.library_id,data.key,season.number)));
+ }
+ view.appendChild(grid);
+ if(data.seasons.some(s=>s.number===null)){
+   const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
+   view.appendChild(note);
+ }
+ if(!data.metadata_available)view.appendChild(notice());
+}
+async function renderSeason(){
+ if(!Number.isInteger(state.season_number)||state.season_number<0||!state.key||!state.library_id)throw Error('Choose a season from the show page.');
+ const data=await loadJson('/api/tv/season?'+new URLSearchParams({library_id:state.library_id,key:state.key,season_number:state.season_number}));
+ setBack('Back to '+data.show.title,showHref(data.show.library_id,data.show.key));
+ document.title=data.season.name+' · '+data.show.title+' · One-Eyed Willie';
+ view.append(hero(data.show.title+' — '+data.season.name,data.season.overview,
+   data.season.poster_url,null,null,'TV SEASON'));
+ const heading=el('div','section-heading');heading.append(el('h2','','Episodes'),el('span','',data.episodes.length+' in your library'));view.appendChild(heading);
+ const list=el('div','episode-grid');
+ for(const episode of data.episodes){
+  const card=el('a','episode-card');card.href=episodeHref(episode.id);
+  if(episode.still_url)card.append(image(episode.still_url,'episode-still','Still from '+episode.title));
+  else{
+    const fallback=el('div','episode-still');fallback.setAttribute('role','img');fallback.setAttribute('aria-label','Episode still not available');card.append(fallback);
+  }
+  const detail=el('div','');
+  const tag=el('p','episode-meta',episode.episode===null?'Episode':'Episode '+episode.episode);
+  detail.append(tag,el('h3','',episode.title));
+  if(episode.air_date)detail.append(el('div','episode-meta',episode.air_date));
+  detail.append(el('p','episode-desc',episode.overview||'No episode description available yet.'));
+  card.append(detail);list.append(card);
+ }
+ view.appendChild(list);
+ if(!data.metadata_available)view.appendChild(notice());
+}
+async function renderEpisode(){
+ if(!Number.isInteger(state.media_id)||!state.media_id)throw Error('Choose an episode from its season.');
+ const data=await loadJson('/api/tv/episode?'+new URLSearchParams({media_id:state.media_id}));
+ setBack('Back to '+data.show_title, data.season_number===null?
+   showHref(data.library_id,data.key):seasonHref(data.library_id,data.key,data.season_number));
+ document.title=data.title+' · '+data.show_title+' · One-Eyed Willie';
+ view.append(el('p','eyebrow',data.show_title+' · Season '+(data.season_number??'?')+' · Episode '+(data.episode_number??'?')),
+   el('h1','episode-detail-title',data.title));
+ if(data.still_url)view.append(image(data.still_url,'episode-preview','Episode preview image'));
+ else{const preview=el('div','episode-preview');preview.setAttribute('role','img');preview.setAttribute('aria-label','Episode preview unavailable');view.append(preview);}
+ view.append(el('p','episode-summary',data.overview||'No episode description is available yet.'));
+ const meta=el('p','muted',[
+  data.air_date||null,data.runtime?data.runtime+' min':null
+ ].filter(Boolean).join(' · '));view.append(meta);
+ const playing=el('div','metadata-notice','This episode is indexed in your library. Playback and video-preview clips have not been implemented yet.');
+ view.append(playing);
+ if(!data.metadata_available)view.appendChild(notice());
+}
+(async()=>{
+ try{
+  if(route==='show')await renderShow();
+  else if(route==='season')await renderSeason();
+  else await renderEpisode();
+  loading.textContent='';
+ }catch(error){loading.textContent=error.message;}
+})();
+</script>
+</body></html>
