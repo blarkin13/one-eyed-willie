@@ -1,4 +1,5 @@
 @import url("https://fonts.googleapis.com/css2?family=Pirata+One&display=swap");
+@import url("https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css");
 
 :root{color-scheme:dark;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b0d12;color:#edf1f7;--bg:#0b0d12;--panel:#131820;--panel-2:#19202b;--line:#283241;--ink:#edf1f7;--muted:#98a5b7;--accent:#8ab9ed;--accent-sub:#1c3049;--radius:15px}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px}button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -63,3 +64,117 @@ dialog{background:#151b24;color:var(--ink);border:1px solid #405069;border-radiu
 .episode-detail-title{font-size:clamp(1.8rem,3vw,2.8rem);margin:10px 0 12px}
 @media(max-width:720px){.media-hero{grid-template-columns:105px minmax(0,1fr);gap:17px;padding:17px;min-height:0}.hero-info h1{font-size:1.55rem}.hero-info p{font-size:.86rem;line-height:1.45}.season-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:19px 13px}.episode-card{grid-template-columns:130px minmax(0,1fr);gap:13px;padding:11px}.episode-card .episode-desc{-webkit-line-clamp:2}.brand{font-size:1.39rem}}
 @media(max-width:470px){.media-hero{grid-template-columns:1fr}.hero-poster{max-width:150px}.episode-card{grid-template-columns:1fr}.episode-still{max-width:100%}}
+
+/* v0.10 — icon-first media shell. Font Awesome Free is optional: inline SVGs
+   remain functional offline. The app's media and interface text stay sans-serif. */
+:root{--bg:#080d16;--panel:#111a27;--panel-2:#172230;--line:#243244;--accent:#b2cde8}
+html,body{background:var(--bg)}
+.sidebar{position:fixed;inset:0 auto 0 0;box-sizing:border-box;z-index:30;width:82px;height:100vh;height:100dvh;
+  background:#0a121e;border-right:1px solid #243246;padding:14px 10px 18px;
+  display:flex;flex-direction:column;align-items:center;gap:12px;
+  transition:width .2s ease,box-shadow .2s ease}
+.sidebar:hover,.sidebar:focus-within{width:224px;align-items:stretch;box-shadow:16px 0 42px #01070ed9}
+.sidebar .brand{display:flex;align-items:center;justify-content:center;gap:12px;height:69px;width:100%;
+  padding:3px 8px 8px;margin:0;min-width:0;white-space:nowrap;border-bottom:1px solid #263141}
+.brand-logo{width:54px;height:54px;object-fit:contain;flex:none;filter:drop-shadow(0 0 7px #aec8e31b)}
+.brand-name{display:none;opacity:0;font:400 1.38rem/1.05 "Pirata One",Georgia,serif;letter-spacing:.01em;color:#e9eff9}
+.sidebar:hover .brand,.sidebar:focus-within .brand{justify-content:flex-start}
+.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:block;opacity:1}
+.sidebar .side-nav{width:100%;display:flex;flex-direction:column;gap:8px;padding:13px 0 0;overflow:visible}
+.sidebar .nav-link{display:flex;align-items:center;justify-content:center;width:100%;height:53px;min-height:53px;
+  border-radius:13px;padding:0 12px;gap:14px;color:#8e9eaf;position:relative;white-space:nowrap;
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:.92rem;font-weight:600}
+.sidebar .nav-link:hover{background:#1c2939;color:#eff6ff}
+.sidebar .nav-link[aria-current="page"]{background:#20344a;color:#edf6ff}
+.sidebar .nav-link[aria-current="page"]::before{content:"";position:absolute;left:0;top:13px;bottom:13px;
+  width:2px;border-radius:3px;background:#a1c6ed}
+.sidebar .nav-icon{width:24px;height:24px;display:grid;place-items:center;flex:none;font-size:1.12rem;color:inherit}
+.sidebar .nav-icon i{display:none;font-size:1.08rem}
+.sidebar .nav-icon .fa-fallback{width:22px;height:22px;display:block}
+.fontawesome-ready .sidebar .nav-icon i,.fontawesome-ready .topbar-action .nav-icon i{display:inline-block}
+.fontawesome-ready .sidebar .nav-icon .fa-fallback,.fontawesome-ready .topbar-action .nav-icon .fa-fallback{display:none}
+.sidebar .nav-text{display:none;opacity:0}
+.sidebar:hover .nav-link,.sidebar:focus-within .nav-link{justify-content:flex-start;padding-left:20px}
+.sidebar:hover .nav-text,.sidebar:focus-within .nav-text{display:inline;opacity:1}
+.sidebar .settings-shortcuts{display:none;width:100%;flex-direction:column;padding:4px 4px 4px 57px;gap:4px}
+.sidebar:hover .settings-shortcuts,.sidebar:focus-within .settings-shortcuts{display:flex}
+.settings-shortcuts a{color:#99aec4;font-size:.82rem;padding:6px 8px;border-radius:7px;white-space:nowrap}
+.settings-shortcuts a:hover,.settings-shortcuts a[aria-current="page"]{color:#e9f2fb;background:#21344a}
+.sidebar .nav-label,.sidebar .sidebar-foot,.sidebar .nav-glyph{display:none}
+.workspace{margin-left:82px;min-width:0}
+.topbar,.app-topbar{height:62px;min-height:62px;background:rgba(8,13,22,.94);backdrop-filter:blur(15px);
+  border-bottom:1px solid #1e2c3b;padding:0 clamp(20px,3.5vw,45px);display:flex;
+  justify-content:flex-end;align-items:center;gap:12px;position:sticky;top:0;z-index:8}
+.topbar-actions{margin-left:auto;display:flex;align-items:center;gap:7px}
+.topbar-action{display:grid;place-items:center;width:42px;height:42px;border-radius:11px;color:#b4c4d6}
+.topbar-action:hover,.topbar-action:focus-visible{background:#1d2d3f;color:#f1f7ff}
+.topbar-action .nav-icon{width:22px;height:22px;display:grid;place-items:center}
+.topbar-action .nav-icon i{display:none;font-size:1.08rem}
+.topbar-action .fa-fallback{height:21px;width:21px}
+.content{max-width:1740px;padding:24px clamp(22px,3.2vw,44px) 75px}
+body[data-page="home"] .content{padding-top:21px}
+body[data-page="home"] .shelf{margin-top:28px}
+body[data-page="home"] .shelf:first-of-type{margin-top:0}
+body[data-page="home"] .shelf .section-heading{margin:0 0 16px}
+body[data-page="home"] .shelf-title{font-size:1.19rem;font-weight:700;letter-spacing:-.025em}
+body[data-page="home"] .shelf-desc{display:none}
+body[data-page="home"] .shelf-track{grid-auto-columns:minmax(156px,190px);gap:17px;padding-bottom:13px}
+body[data-page="home"] .shelf-empty{min-height:82px;padding:18px 21px;background:#111a25;border-color:#2a3544}
+body[data-page="home"] .shelf-empty h3{margin:0;font-size:.89rem;font-weight:500;color:#91a3b8}
+body[data-page="home"] .shelf-empty p{display:none}
+body[data-page="home"] #status:empty{display:none}
+body[data-page="home"] #status{min-height:0}
+body[data-page="home"] .shelf-action{display:grid;place-items:center;width:34px;height:34px;
+  border-radius:9px;color:#b6cadf;font-weight:600;font-size:1rem;border:1px solid #25364b}
+body[data-page="home"] .shelf-action:hover{background:#1e2d40;color:#f4f7fc}
+body[data-page="home"] .shelf-action .fa-solid{display:none}
+body[data-page="home"] .shelf-action svg{width:18px;height:18px}
+.fontawesome-ready body[data-page="home"] .shelf-action .fa-solid{display:inline}
+.fontawesome-ready body[data-page="home"] .shelf-action svg{display:none}
+body[data-page="home"] .tile h3{margin-top:10px;font-size:.88rem}
+body[data-page="home"] .tile-meta{font-size:.76rem;color:#8798ab}
+body[data-page="home"] .cover{border-color:#324257;border-radius:11px}
+@media(max-width:980px){
+ .sidebar{position:fixed;inset:0 auto 0 0;max-width:none;min-width:0;border-right:1px solid #253244;flex-direction:column}
+ .sidebar:hover,.sidebar:focus-within{width:224px}
+ .sidebar .side-nav{flex-direction:column;gap:8px;overflow:visible}
+ .sidebar .nav-link{min-height:53px;padding:0 12px}
+ .sidebar .nav-icon{display:grid}
+ .workspace{margin-left:82px}
+ .topbar,.app-topbar{height:62px}
+ .content{padding-top:24px}
+}
+@media(max-width:700px){
+ .sidebar{position:fixed;inset:0 auto auto 0;width:77px!important;height:63px!important;
+   background:transparent!important;border:0!important;box-shadow:none!important;padding:5px 0 0 12px;
+   overflow:visible;z-index:32}
+ .sidebar:hover,.sidebar:focus-within{width:77px!important;align-items:center!important}
+ .sidebar .brand,.sidebar:hover .brand,.sidebar:focus-within .brand{height:53px;width:56px;min-width:56px;
+   padding:0!important;justify-content:center!important;border:0}
+ .sidebar .brand-logo{width:52px;height:52px}
+ .sidebar .brand-name,.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:none!important}
+ .sidebar .side-nav,.sidebar:hover .side-nav,.sidebar:focus-within .side-nav{
+   display:flex;flex-direction:row;align-items:center;justify-content:space-around;
+   position:fixed;inset:auto 0 0 0;box-sizing:border-box;width:100%;height:calc(66px + env(safe-area-inset-bottom,0px));
+   padding:7px max(8px,env(safe-area-inset-left,0px)) calc(7px + env(safe-area-inset-bottom,0px)) max(8px,env(safe-area-inset-right,0px));
+   background:#0b1521f5;backdrop-filter:blur(18px);border-top:1px solid #28384a;gap:2px;z-index:31;
+   overflow:visible}
+ .sidebar .nav-link,.sidebar:hover .nav-link,.sidebar:focus-within .nav-link{
+   height:49px;min-height:49px;max-width:76px;padding:0!important;display:grid;place-items:center;flex:1;
+   border-radius:12px;justify-content:center}
+ .sidebar .nav-link[aria-current=page]::before{left:21%;right:21%;top:auto;bottom:0;height:2px;width:auto}
+ .sidebar .nav-text,.sidebar:hover .nav-text,.sidebar:focus-within .nav-text{display:none!important}
+ .sidebar .settings-shortcuts,.sidebar:hover .settings-shortcuts,.sidebar:focus-within .settings-shortcuts{display:none!important}
+ .sidebar .nav-icon{width:23px;height:23px;display:grid!important}
+ .workspace{margin:0!important}
+ .topbar,.app-topbar{display:flex!important;position:sticky;top:0;z-index:8;height:64px;min-height:64px;
+   padding:0 18px 0 85px!important}
+ .content{padding:21px 17px calc(105px + env(safe-area-inset-bottom,0px))}
+ body[data-page=home] .content{padding-top:17px}
+ body[data-page=home] .shelf{margin-top:29px}
+ body[data-page=home] .shelf-track{grid-auto-columns:minmax(143px,44%);gap:12px}
+ body[data-page=home] .shelf-title{font-size:1.02rem}
+ body[data-page=home] .shelf-empty{min-height:70px;padding:15px}
+ .topbar-action{height:40px;width:40px}
+}
+@media(prefers-reduced-motion:reduce){.sidebar{transition:none}}
