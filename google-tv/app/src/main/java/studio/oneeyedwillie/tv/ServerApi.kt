@@ -9,7 +9,7 @@ import java.net.URLEncoder
 
 data class MediaEntry(
     val title: String, val key: String, val libraryId: Int, val kind: String,
-    val year: Int?, val mediaId: Int? = null, val progress: Int = 0
+    val year: Int?, val mediaId: Int? = null, val progress: Int = 0,\n    val posterUrl: String? = null
 )
 data class EpisodeEntry(val id: Int, val title: String)
 data class MediaDetails(val description: String, val artwork: String?, val backdrop: String?, val genres: String)
@@ -37,7 +37,7 @@ class ServerApi(rawUrl: String) {
     private fun entry(o: JSONObject): MediaEntry = MediaEntry(
         o.getString("title"), o.getString("key"), o.getInt("library_id"),
         o.getString("kind"), if(o.isNull("year")) null else o.getInt("year"),
-        if(o.has("media_id")) o.optInt("media_id") else null, o.optInt("progress_percent", 0)
+        if(o.has("media_id")) o.optInt("media_id") else null, o.optInt("progress_percent", 0),\n        o.optString("poster_url").takeIf { it.startsWith("/api/artwork/") }?.let { base + it }
     )
     suspend fun ping() = get("/health").optString("status") == "ok"
     suspend fun home(): List<Pair<String, List<MediaEntry>>> {
