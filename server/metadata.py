@@ -188,7 +188,7 @@ def show_metadata_by_id(tmdb_id):
         "genres": [g.get("name") for g in details.get("genres", []) if isinstance(g, dict) and g.get("name")],
         "network": ", ".join(n.get("name") for n in details.get("networks", []) if isinstance(n, dict) and n.get("name")),
         "tmdb_id": tmdb_id,
-        "title": details.get("name") or title,
+        "title": details.get("name") or str(tmdb_id),
         "overview": details.get("overview") or "",
         "poster_url": image_url(details.get("poster_path")),
         "backdrop_url": image_url(details.get("backdrop_path"), "w780"),
