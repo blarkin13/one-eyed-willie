@@ -161,8 +161,10 @@ body[data-page="home"] .cover{border-color:#324257;border-radius:11px}
  .sidebar:hover,.sidebar:focus-within{width:77px!important;align-items:center!important}
  .sidebar .brand,.sidebar:hover .brand,.sidebar:focus-within .brand{height:53px;min-height:53px;width:56px;min-width:56px;
    padding:0!important;justify-content:center!important;border:0}
- .sidebar .brand-logo-frame{width:53px;height:53px;flex-basis:53px}
- .sidebar .brand-logo{width:74px;height:74px}
+ .sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,.sidebar:focus-within .brand-logo-frame{
+   width:53px;height:53px;flex-basis:53px}
+ .sidebar .brand-logo,.sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{
+   width:74px;height:74px}
  .sidebar .brand-name,.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:none!important}
  .sidebar .side-nav,.sidebar:hover .side-nav,.sidebar:focus-within .side-nav{
    display:flex;flex-direction:row;align-items:center;justify-content:space-around;
