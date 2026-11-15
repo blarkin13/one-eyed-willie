@@ -246,20 +246,96 @@ class MainActivity : ComponentActivity() {
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
               style.textContent=`
-                a:focus-visible,button:focus-visible,input:focus-visible,
-                select:focus-visible,[tabindex="0"]:focus-visible {
-                  outline:2px solid rgba(211,220,229,.85)!important;
-                  outline-offset:2px!important;
+                /* Only the poster is highlighted; never outline the title/meta. */
+                .tile-button:focus-visible,.tile-button:focus,
+                .tile-button:hover {outline:none!important;box-shadow:none!important}
+                .tile-button:focus-visible .cover,.tile-button:focus .cover {
+                  outline:2px solid #ccdae6!important;outline-offset:4px!important;
+                  border-color:#a1b6c7!important;
+                  transform:none!important;box-shadow:0 9px 28px #0008!important;
                 }
-                .tile-button:focus-visible .cover {
-                  transform:none!important;
-                  box-shadow:0 4px 14px #0005!important;
-                  border-color:#b6c2ce!important;
+                .tile-button:hover .cover{transform:none!important}
+                .tile:focus-within{transform:none!important}
+                a:not(.tile-button):focus-visible,button:focus-visible,
+                input:focus-visible,select:focus-visible,[tabindex="0"]:focus-visible{
+                  outline:2px solid #b7c7d6!important;outline-offset:2px!important
                 }
-                .tile:focus-within {transform:none!important}
-                * {scroll-margin:22px}
+                /* TV mode is cinematic and uses 4 roomy posters across. */
+                .workspace{margin-left:0!important;position:relative;z-index:1}
+                .workspace>.content,body[data-page="tv"] .workspace>.content,
+                body[data-page="home"] .workspace>.content {
+                  max-width:none!important;
+                  padding-left:clamp(36px,5vw,95px)!important;
+                  padding-right:clamp(36px,5vw,95px)!important
+                }
+                #items{grid-template-columns:repeat(4,minmax(0,1fr))!important;
+                  gap:38px 30px!important}
+                .shelf-track{grid-auto-columns:clamp(210px,21vw,285px)!important;gap:26px!important}
+                /* Hide navigation completely until remote focus enters the rail. */
+                .sidebar,.sidebar:hover{
+                  position:fixed!important;inset:0 auto 0 0!important;
+                  width:85px!important;height:100vh!important;
+                  transform:translateX(-110%)!important;
+                  transition:transform .16s ease!important;
+                  background:#0d1520f5!important;z-index:50!important;
+                  box-shadow:none!important
+                }
+                .sidebar:focus-within{transform:translateX(0)!important;
+                  width:85px!important;box-shadow:12px 0 35px #0009!important}
+                .sidebar .brand,.sidebar:hover .brand,.sidebar:focus-within .brand{
+                  width:100%!important;min-width:0!important}
+                .sidebar .side-nav,.sidebar:hover .side-nav,
+                .sidebar:focus-within .side-nav{align-items:center!important}
+                .sidebar .nav-link,.sidebar:hover .nav-link,
+                .sidebar:focus-within .nav-link{width:54px!important;
+                  min-width:54px!important;justify-content:center!important;
+                  padding:0!important}
+                .sidebar .nav-text,.sidebar:focus-within .nav-text{display:none!important}
+                .sidebar .settings-shortcuts{display:none!important}
+                .workspace,.topbar,.content{background:transparent!important}
+                body{background:#080d16!important}
+                *{scroll-margin:26px}
+                @media(max-width:1100px){
+                  #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+                }
+                @media(max-width:720px){
+                  #items{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+                }
               `;
               document.head.appendChild(style);
+
+              // Poster art becomes a dim, blurred full-screen ambience as the
+              // user moves through cards. The poster itself remains opaque.
+              const backdrop=document.createElement('div');
+              backdrop.id='oew-tv-artwork-backdrop';
+              Object.assign(backdrop.style,{
+                position:'fixed',inset:'-50px',zIndex:'0',
+                pointerEvents:'none',opacity:'.22',
+                backgroundPosition:'center',backgroundSize:'cover',
+                backgroundRepeat:'no-repeat',filter:'blur(44px) brightness(.5)',
+                transition:'opacity .25s ease'
+              });
+              document.body.prepend(backdrop);
+              const setArtwork=node=>{
+                const tile=node?.closest?.('.tile');
+                if(!tile)return;
+                const poster=tile.querySelector('.cover .poster-image');
+                if(poster?.getAttribute('src')){
+                  const source=poster.getAttribute('src');
+                  // Do not allow a remote URL or an external metadata image.
+                  if(source.startsWith('/')&&!source.startsWith('//'))
+                    backdrop.style.backgroundImage='url("'+source.replaceAll('"','%22')+'")';
+                }else{
+                  backdrop.style.backgroundImage='url("/assets/poster-placeholder.jpg")';
+                }
+              };
+              document.addEventListener('focusin',event=>setArtwork(event.target),true);
+              document.addEventListener('mouseover',event=>setArtwork(event.target),{passive:true});
+              const posterObserver=new MutationObserver(()=>{
+                const active=document.activeElement;
+                if(active?.closest?.('.tile'))setArtwork(active);
+              });
+              posterObserver.observe(document.body,{childList:true,subtree:true});
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
               const visible=node=>{
                 if (!node.isConnected || node.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
