@@ -228,6 +228,43 @@ def _normalized_results(name, records, library_ids):
     return result
 
 
+DISCOVERY_SECTIONS = {
+    "radarr": {"popular": "movie/popular", "new": "movie/now_playing", "soon": "movie/upcoming"},
+    "sonarr": {"popular": "tv/popular", "new": "tv/on_the_air", "soon": "tv/airing_today"},
+}
+
+
+@router.get("/{name}/discover")
+def discover(name: str):
+    """Library-specific TMDB discovery, separate from playable local media."""
+    _provider(name)
+    from . import metadata
+    if not metadata.token_status():
+        return {"provider": name, "configured": False, "sections": {},
+                "message": "Add a TMDB token in Settings → Metadata to enable discovery."}
+    sections = {}
+    for key, endpoint in DISCOVERY_SECTIONS[name].items():
+        data = metadata._call(endpoint, query={"language": "en-US", "page": 1, "region": "US"})
+        items = []
+        for item in (data.get("results", []) if isinstance(data, dict) else [])[:20]:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), int):
+                continue
+            date = item.get("release_date" if name == "radarr" else "first_air_date") or ""
+            title = str(item.get("title" if name == "radarr" else "name") or "")[:180]
+            if not title:
+                continue
+            items.append({
+                "id": item["id"], "title": title,
+                "overview": str(item.get("overview") or "")[:900],
+                "year": int(date[:4]) if len(date) >= 4 and date[:4].isdigit() else None,
+                "release_date": date, "rating": item.get("vote_average"),
+                "poster_url": metadata.image_url(item.get("poster_path")),
+                "source": "TMDB",
+            })
+        sections[key] = items
+    return {"provider": name, "configured": True, "sections": sections}
+
+
 @router.get("/{name}/lookup")
 def lookup(name: str, q: str = Query(min_length=2, max_length=100)):
     _provider(name)
