@@ -138,12 +138,10 @@ function render(items,container=$('results'),isDiscovery=false){
   const title=document.createElement('h3');title.textContent=item.title;
   const year=document.createElement('p');year.className='meta';year.textContent=[item.year,item.rating?'★ '+Number(item.rating).toFixed(1):null,item.release_date].filter(Boolean).join(' · ')||'Release date unavailable';
   const desc=document.createElement('p');desc.className='overview';desc.textContent=item.overview||'No description available.';
-  const button=document.createElement('button');button.type='button';
-  button.className=item.already_added?'secondary-button':'primary-button';
-  button.textContent=item.already_added?'Already in '+(provider==='radarr'?'Radarr':'Sonarr'):'Add to '+(provider==='radarr'?'Radarr':'Sonarr');
-  button.disabled=!!item.already_added;
-  button.addEventListener('click',()=>isDiscovery?resolveDiscovery(item):openAdd(item));
-  article.append(cover,title,year,desc,button);grid.append(article);
+  const trigger=document.createElement('button');trigger.type='button';trigger.className='detail-trigger';trigger.setAttribute('aria-label','View details for '+item.title);
+  trigger.append(cover,title,year,desc);
+  trigger.addEventListener('click',()=>showDetail(item,isDiscovery));
+  article.append(trigger);grid.append(article);
  }
 }
 async function search(){
