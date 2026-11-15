@@ -249,6 +249,18 @@ class MainActivity : ComponentActivity() {
                 /* Only the poster is highlighted; never outline the title/meta. */
                 .tile-button:focus-visible,.tile-button:focus,
                 .tile-button:hover {outline:none!important;box-shadow:none!important}
+                /* Library page rules use !important on every focused link;
+                   override those too so only the poster has a border. */
+                body[data-page="movies"] .tile-button:focus-visible,
+                body[data-page="tv"] .tile-button:focus-visible,
+                body[data-page="home"] .tile-button:focus-visible{
+                  outline:0!important;outline-offset:0!important;
+                  box-shadow:none!important
+                }
+                .tile-button:focus-visible h3,.tile-button:focus h3,
+                .tile-button:focus-visible .tile-meta,.tile-button:focus .tile-meta{
+                  outline:0!important;box-shadow:none!important
+                }
                 .tile-button:focus-visible .cover,.tile-button:focus .cover {
                   outline:2px solid #ccdae6!important;outline-offset:4px!important;
                   border-color:#a1b6c7!important;
@@ -279,7 +291,7 @@ class MainActivity : ComponentActivity() {
                   padding:7px!important
                 }
                 body[data-page="explore"] .explore-results{
-                  grid-template-columns:repeat(4,minmax(0,1fr))!important
+                  grid-template-columns:repeat(5,minmax(0,1fr))!important
                 }
                                 /* TV mode is cinematic and uses 4 roomy posters across. */
                 .workspace{margin-left:0!important;position:relative;z-index:1}
@@ -289,9 +301,14 @@ class MainActivity : ComponentActivity() {
                   padding-left:clamp(36px,5vw,95px)!important;
                   padding-right:clamp(36px,5vw,95px)!important
                 }
-                #items{grid-template-columns:repeat(4,minmax(0,1fr))!important;
-                  gap:38px 30px!important}
-                .shelf-track{grid-auto-columns:clamp(210px,21vw,285px)!important;gap:26px!important}
+                #items{grid-template-columns:repeat(5,minmax(0,1fr))!important;
+                  gap:32px 20px!important}
+                /* Fit five comfortable posters across TV WebView's CSS viewport.
+                   Android TV often reports ~960 CSS px even on a 1080p set. */
+                .shelf-track{grid-auto-columns:clamp(145px,18vw,218px)!important;
+                  gap:19px!important}
+                .discovery-row{grid-auto-columns:clamp(145px,18vw,218px)!important;
+                  gap:19px!important}
                 /* Hide navigation completely until remote focus enters the rail. */
                 .sidebar,.sidebar:hover{
                   position:fixed!important;inset:0 auto 0 0!important;
@@ -346,11 +363,11 @@ class MainActivity : ComponentActivity() {
                 body.oew-tv-backdrop-active .movie-grid::before,
                 body.oew-tv-backdrop-active .tv-grid::before{display:none!important}
                 *{scroll-margin:26px}
-                @media(max-width:1100px){
-                  #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
+                @media(max-width:750px){
+                  #items{grid-template-columns:repeat(4,minmax(0,1fr))!important}
                 }
-                @media(max-width:720px){
-                  #items{grid-template-columns:repeat(2,minmax(0,1fr))!important}
+                @media(max-width:520px){
+                  #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
                 }
               `;
               document.head.appendChild(style);
@@ -467,22 +484,67 @@ class MainActivity : ComponentActivity() {
                 return r.width>3&&r.height>3;
               };
               const focusables=()=>[...document.querySelectorAll(selector)].filter(visible);
+              const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href]';
+              const firstContent=()=>[...document.querySelectorAll(contentSelector)].find(visible);
+              const menuLinks=()=>[...document.querySelectorAll('#app-nav .nav-link')].filter(node=>node.isConnected);
+              const focusItem=node=>{
+                if(!node)return false;
+                node.focus({preventScroll:true});
+                node.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+                return true;
+              };
+              // Loading shelves populate asynchronously. Once the first real
+              // poster exists, focus it instead of leaving focus in the rail.
+              let initialFocusFinished=false,remoteUsed=false;
+              const tryInitialFocus=()=>{
+                if(initialFocusFinished||remoteUsed)return;
+                const first=firstContent();
+                if(!first)return;
+                initialFocusFinished=focusItem(first);
+                initialObserver.disconnect();
+              };
+              const initialObserver=new MutationObserver(tryInitialFocus);
+              initialObserver.observe(document.body,{childList:true,subtree:true});
+              requestAnimationFrame(tryInitialFocus);
+              setTimeout(tryInitialFocus,350);
+              setTimeout(()=>initialObserver.disconnect(),10000);
               const move=direction=>{
+                remoteUsed=true;
                 const nodes=focusables();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
+                const inMenu=active?.closest?.('#app-nav');
+                const first=firstContent();
+                if(inMenu && direction==='right'){
+                  return focusItem(first||nodes.find(node=>!node.closest('#app-nav')));
+                }
+                if(inMenu && direction==='left')return true;
                 if(!nodes.includes(active)){
-                  const first=nodes.find(node=>node.matches('.tile-button,.nav-link[aria-current="page"]'))||nodes[0];
-                  first.focus({preventScroll:true});
-                  first.scrollIntoView({block:'nearest',inline:'nearest'});
-                  return true;
+                  return focusItem(first||nodes.find(node=>!node.closest('#app-nav'))||nodes[0]);
+                }
+                if(direction==='left' && first && !inMenu){
+                  // A collapsed rail is off-screen. Give it a deliberate
+                  // directional entry only at the left edge of the content.
+                  const rect=active.getBoundingClientRect();
+                  const peers=[...document.querySelectorAll(contentSelector)].filter(visible);
+                  const sameRowLeft=peers.some(node=>{
+                    if(node===active)return false;
+                    const r=node.getBoundingClientRect();
+                    return r.right<=rect.left+3 &&
+                      Math.min(r.bottom,rect.bottom)>Math.max(r.top,rect.top);
+                  });
+                  if(!sameRowLeft){
+                    const activeMenu=menuLinks().find(node=>node.getAttribute('aria-current')==='page')
+                      ||menuLinks()[0];
+                    return focusItem(activeMenu);
+                  }
                 }
                 const from=active.getBoundingClientRect();
                 const centerX=from.left+from.width/2,centerY=from.top+from.height/2;
                 const horizontal=direction==='left'||direction==='right';
                 let winner=null,best=Infinity;
                 for(const node of nodes){
-                  if(node===active)continue;
+                  if(node===active || node.closest('#app-nav'))continue;
                   const r=node.getBoundingClientRect();
                   const dx=r.left+r.width/2-centerX,dy=r.top+r.height/2-centerY;
                   const forward=direction==='right'?dx>2:direction==='left'?dx< -2:
