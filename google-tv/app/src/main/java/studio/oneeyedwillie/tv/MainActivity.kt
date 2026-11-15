@@ -325,8 +325,10 @@ class MainActivity : ComponentActivity() {
                 }
                 /* Android TV resolves genuine metadata backdrops independently,
                    so it also works before a server-side shell update deploys. */
-                .willie-hover-backdrop{display:none!important}
-                .oew-tv-cinematic-backdrop{position:fixed;inset:0;z-index:0;
+                /* Keep the server's own working backdrop visible. */
+                .willie-hover-backdrop{display:block!important}
+                body:has(.willie-hover-backdrop-layer.is-visible) .oew-tv-cinematic-backdrop{opacity:0!important}
+                .oew-tv-cinematic-backdrop{position:fixed;inset:0;z-index:1;
                   overflow:hidden;pointer-events:none;background:#080d16}
                 .oew-tv-cinematic-image{position:absolute;inset:-3%;
                   background-position:center 28%;background-size:cover;
@@ -337,7 +339,7 @@ class MainActivity : ComponentActivity() {
                   inset:0;background:
                   linear-gradient(90deg,#080d16aa 0%,#080d163d 45%,#080d1645 100%),
                   linear-gradient(0deg,#080d16cc 0%,#080d1638 45%,#080d1654 100%)}
-                body>.app-shell{position:relative;z-index:1;background:transparent!important}
+                body>.app-shell{position:relative;z-index:2;background:transparent!important}
                 body.oew-tv-backdrop-active #items::before,
                 body.oew-tv-backdrop-active .shelf-track::before,
                 body.oew-tv-backdrop-active .explore-grid::before,
@@ -372,9 +374,23 @@ class MainActivity : ComponentActivity() {
               const lookupBackdrop=async element=>{
                 const direct=element.dataset.hoverBackdrop;
                 if(validBackdrop(direct))return direct;
-                const kind=element.dataset.hoverKind;
-                const id=element.dataset.hoverLibraryId;
-                const key=element.dataset.hoverKey;
+                let kind=element.dataset.hoverKind;
+                let id=element.dataset.hoverLibraryId;
+                let key=element.dataset.hoverKey;
+                // Older deployed server pages may lack the data-hover fields.
+                // Recover the same metadata identity from the card detail URL.
+                if(!kind||!id||!key){
+                  const link=element.matches('a[href]')?element:
+                    element.querySelector('a[href*="library_id="]');
+                  if(link){
+                    const href=new URL(link.getAttribute('href'),location.href);
+                    if(href.pathname==='/movie'||href.pathname==='/tv/show'){
+                      kind=href.pathname==='/movie'?'movies':'tv';
+                      id=href.searchParams.get('library_id');
+                      key=href.searchParams.get('key');
+                    }
+                  }
+                }
                 if(!['movies','tv'].includes(kind)||!/^[0-9]+$/.test(id||'')||!key)
                   return null;
                 const identity=kind+'|'+id+'|'+key;
@@ -418,8 +434,11 @@ class MainActivity : ComponentActivity() {
                 image.onerror=()=>{if(serial===backdropSerial)clearBackdrop()};
                 image.src=url;
               };
-              const locateBackdrop=target=>target instanceof Element?
-                target.closest('[data-hover-kind],[data-hover-backdrop]'):null;
+              const locateBackdrop=target=>{
+                if(!(target instanceof Element))return null;
+                return target.closest('[data-hover-kind],[data-hover-backdrop]')||
+                  target.closest('.tile-button,.detail-trigger');
+              };
               document.addEventListener('focusin',event=>{
                 setBackdropTarget(locateBackdrop(event.target));
               },true);
