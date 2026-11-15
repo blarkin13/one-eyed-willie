@@ -41,16 +41,36 @@
         <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2><p class="shelf-desc">Latest series indexed in your TV library</p></div><a href="/tv" class="shelf-action">View all shows</a></div>
         <div id="recent-tv"></div>
       </section>
-      <p class="note">Titles currently use clean text covers. Posters and metadata will appear when metadata matching is implemented.</p>
+      <p class="note">Titles currently use clean text covers. TV posters and summaries come from optional TMDB metadata configured in Settings → Metadata.</p>
     </main>
   </div>
 </div>
 <script>
 const byId=id=>document.getElementById(id);
+const posterJobs=[];let activePosters=0;
+function loadPoster(cover,item){
+  posterJobs.push({cover,item});nextPoster();
+}
+function nextPoster(){
+  while(activePosters<3&&posterJobs.length){
+    const {cover,item}=posterJobs.shift();activePosters++;
+    const query=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+    fetch('/api/tv/poster?'+query,{cache:'no-store'})
+      .then(response=>response.ok?response.json():null)
+      .then(data=>{
+        if(!data?.poster_url?.startsWith('https://image.tmdb.org/t/p/'))return;
+        if(!cover.isConnected)return;
+        const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
+        img.src=data.poster_url;img.loading='lazy';img.referrerPolicy='no-referrer';cover.append(img);
+      }).catch(()=>{}).finally(()=>{activePosters--;nextPoster()});
+  }
+}
 function tile(item, watching=false){
   const article=document.createElement('article');article.className='tile';
   const link=document.createElement('a');link.className='tile-button';
-  link.href=(item.kind==='movies'?'/movies':'/tv')+'?search='+encodeURIComponent(item.title);
+  link.href=item.kind==='tv'&&item.library_id&&item.key
+    ?'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
+    :'/movies?search='+encodeURIComponent(item.title);
   link.setAttribute('aria-label','Browse '+item.title);
   const cover=document.createElement('div');
   let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
@@ -63,6 +83,7 @@ function tile(item, watching=false){
   const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
   const meta=document.createElement('div');meta.className='tile-meta';meta.textContent=(item.year?item.year+' · ':'')+(item.subtitle||'');
   link.append(cover,title,meta);
+  if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
   if(watching){
     const bar=document.createElement('div');bar.className='progress-track';bar.setAttribute('role','progressbar');
     const percent=Math.max(0,Math.min(100,Number(item.progress_percent)||0));
