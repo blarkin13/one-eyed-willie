@@ -13,7 +13,8 @@ import sqlite3
 import subprocess
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -46,7 +47,7 @@ DEFAULTS = {
     "upgrade_media_analysis": True,
     "refresh_library_metadata": True,
     "extensive_media_analysis": True,
-    "video_preview_thumbnails": False,
+    "video_preview_thumbnails": True,
 }
 CADENCE = {
     "optimize_database": WEEK,
@@ -59,9 +60,8 @@ CADENCE = {
     "extensive_media_analysis": WEEK,
     "video_preview_thumbnails": WEEK,
 }
-# The periodic task waits until 3 AM UTC, avoiding regular evening playback;
-# due operations remain eligible if the NUC was powered down at that time.
-MAINTENANCE_HOUR_UTC = 9
+# Run at 3 AM North Texas time, including daylight-saving transitions.
+MAINTENANCE_ZONE = ZoneInfo("America/Chicago")
 
 
 class Settings(BaseModel):
@@ -73,7 +73,7 @@ class Settings(BaseModel):
     upgrade_media_analysis: bool = True
     refresh_library_metadata: bool = True
     extensive_media_analysis: bool = True
-    video_preview_thumbnails: bool = False
+    video_preview_thumbnails: bool = True
 
 
 def _tables(conn):
@@ -103,7 +103,7 @@ def get_settings():
                    conn.execute("SELECT task,last_completed,last_result FROM maintenance_status")}
     return {"settings": settings(), "cadence_seconds": CADENCE,
             "last_runs": records, "running": WORKING.locked(),
-            "next_window": "Sunday 03:00 America/Chicago (approximate; server uses UTC 09:00)"}
+            "next_window": "Overnight 03:00 America/Chicago; each task runs when its cadence is due"}
 
 
 @router.put("/settings")
@@ -373,8 +373,8 @@ def maintenance_loop(stop):
     # First run at the next scheduled maintenance hour; do not saturate
     # disks or CPU immediately after a server restart.
     while not stop.wait(60):
-        utc = datetime.now(timezone.utc)
-        if utc.hour == MAINTENANCE_HOUR_UTC:
+        local = datetime.now(MAINTENANCE_ZONE)
+        if local.hour == 3:
             run_due()
 
 
@@ -385,6 +385,35 @@ def run_maintenance():
     threading.Thread(target=run_due, kwargs={"force": True}, daemon=True,
                      name="manual-maintenance").start()
     return {"started": True}
+
+
+def _run_previews_only():
+    if not WORKING.acquire(blocking=False):
+        return False
+    try:
+        result = _run_task("video_preview_thumbnails")
+        with db() as conn:
+            _tables(conn)
+            conn.execute("INSERT INTO maintenance_status(task,last_completed,last_result) VALUES(?,?,?) "
+                         "ON CONFLICT(task) DO UPDATE SET last_completed=excluded.last_completed,last_result=excluded.last_result",
+                         ("video_preview_thumbnails", int(time.time()), result))
+        return True
+    except Exception:
+        logger.exception("Preview generation failed")
+        return False
+    finally:
+        WORKING.release()
+
+
+@router.post("/previews/generate")
+def start_preview_generation():
+    if not settings()["video_preview_thumbnails"]:
+        raise HTTPException(409, "Enable previews in maintenance settings first")
+    if WORKING.locked():
+        raise HTTPException(409, "Maintenance or previews are already running")
+    threading.Thread(target=_run_previews_only, daemon=True,
+                     name="preview-generation").start()
+    return {"started": True, "limit": MAX_PREVIEWS}
 
 
 @router.get("/preview/{media_id}")
