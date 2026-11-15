@@ -114,7 +114,7 @@ def show_metadata(title, year=None):
     """Only exact-normalized title matches, avoiding incorrect posters for similar shows."""
     if not token_status():
         return {}
-    key = "tv:" + _simple(title) + ":" + str(year or "")
+    key = "tv:v2:" + _simple(title) + ":" + str(year or "")
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
