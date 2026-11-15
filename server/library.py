@@ -101,6 +101,7 @@ def delete_library(library_id: int):
         existing = connection.execute("SELECT id FROM libraries WHERE id=?", (library_id,)).fetchone()
         if not existing:
             raise HTTPException(404, "Library not found")
+        connection.execute("DELETE FROM playback_progress WHERE media_id IN (SELECT id FROM media WHERE library_id=?)", (library_id,))
         connection.execute("DELETE FROM media WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
     return {"removed": True, "media_files_deleted": False}
@@ -144,6 +145,7 @@ def scan_library(library_id: int):
                 existing = connection.execute("SELECT path FROM media WHERE library_id=?", (library_id,)).fetchall()
                 for row in existing:
                     if row["path"] not in seen:
+                        connection.execute("DELETE FROM playback_progress WHERE media_id IN (SELECT id FROM media WHERE library_id=? AND path=?)", (library_id, row["path"]))
                         connection.execute("DELETE FROM media WHERE library_id=? AND path=?", (library_id, row["path"]))
             now = datetime.now(timezone.utc).isoformat()
             connection.execute("UPDATE libraries SET last_scanned=? WHERE id=?", (now, library_id))
