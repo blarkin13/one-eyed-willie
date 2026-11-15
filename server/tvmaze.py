@@ -92,38 +92,49 @@ def show_metadata(title, year=None):
             return {}
         show = matches[0]
         show_id = show.get("id")
-        if not isinstance(show_id, int):
-            return {}
-        raw_seasons = _get("/shows/" + str(show_id) + "/seasons")
-        if not isinstance(raw_seasons, list):
-            raw_seasons = []
-        seasons = [
-            {
-                "number": s.get("number"),
-                "name": s.get("name") or "Season " + str(s.get("number")),
-                "overview": plain(s.get("summary")),
-                "poster_url": image_url(s.get("image")) or image_url(show.get("image")),
-                "episode_count": s.get("episodeOrder") or 0,
-            }
-            for s in raw_seasons if isinstance(s, dict) and isinstance(s.get("number"), int)
-        ]
-        provider_url = show.get("url")
-        result = {
-            "tvmaze_id": show_id,
-            "title": show.get("name") or title,
-            "overview": plain(show.get("summary")),
-            "poster_url": image_url(show.get("image")),
-            "backdrop_url": None,
-            "seasons": seasons,
-            "source": "TVmaze",
-            "rating": (show.get("rating") or {}).get("average"),
-            "status": show.get("status"),
-            "network": (show.get("network") or show.get("webChannel") or {}).get("name"),
-            "genres": show.get("genres") or [],
-            "source_url": provider_url if isinstance(provider_url, str) and provider_url.startswith("https://www.tvmaze.com/shows/") else "https://www.tvmaze.com/",
-        }
-        _cache_put(key, result)
+        result = show_metadata_by_id(show_id)
+        if result:
+            _cache_put(key, result)
         return result
+
+def show_metadata_by_id(show_id):
+    """Fetch an explicit TVmaze show without fuzzy matching."""
+    if not isinstance(show_id, int) or show_id <= 0:
+        return {}
+    show = _get("/shows/" + str(show_id))
+    if not isinstance(show, dict) or show.get("id") != show_id:
+        return {}
+    raw_seasons = _get("/shows/" + str(show_id) + "/seasons")
+    if not isinstance(raw_seasons, list):
+        raw_seasons = []
+    seasons = [
+        {
+            "number": s.get("number"),
+            "name": s.get("name") or "Season " + str(s.get("number")),
+            "overview": plain(s.get("summary")),
+            "poster_url": image_url(s.get("image")) or image_url(show.get("image")),
+            "episode_count": s.get("episodeOrder") or 0,
+        }
+        for s in raw_seasons if isinstance(s, dict) and isinstance(s.get("number"), int)
+    ]
+    provider_url = show.get("url")
+    result = {
+        "tvmaze_id": show_id,
+        "title": show.get("name") or str(show_id),
+        "overview": plain(show.get("summary")),
+        "poster_url": image_url(show.get("image")),
+        "backdrop_url": None,
+        "seasons": seasons,
+        "source": "TVmaze",
+        "rating": (show.get("rating") or {}).get("average"),
+        "status": show.get("status"),
+        "network": (show.get("network") or show.get("webChannel") or {}).get("name"),
+        "genres": show.get("genres") or [],
+        "source_url": provider_url if isinstance(provider_url, str) and provider_url.startswith("https://www.tvmaze.com/shows/") else "https://www.tvmaze.com/",
+    }
+
+    return result
+
 
 def season_metadata(show_id, number):
     if not isinstance(show_id, int) or not isinstance(number, int):
