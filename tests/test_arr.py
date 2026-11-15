@@ -151,6 +151,31 @@ class ArrConnectionTests(unittest.TestCase):
         self.assertEqual(set(shows["sections"]), {"popular", "new", "soon"})
         self.assertNotIn("api_key", str(shows))
 
+    def test_discovery_detail_includes_rich_metadata_without_credentials(self):
+        from server import metadata
+        sample = {
+            "id": 123, "title": "Example Film", "overview": "An adventure.",
+            "vote_average": 8.2, "poster_path": "/film.jpg",
+            "genres": [{"name": "Adventure"}], "release_date": "2026-11-01",
+            "credits": {"cast": [{"name": "Actor", "character": "Hero"}]},
+            "videos": {"results": [{"site": "YouTube", "type": "Trailer", "key": "abcdefghijk"}]},
+            "reviews": {"results": [{"author": "Reviewer", "content": "Enjoyed it"}]},
+        }
+        with patch.object(metadata, "token_status", return_value=True), \
+             patch.object(metadata, "_call", return_value=sample):
+            result = arr.discovery_detail("radarr", tmdb_id=123, title="", year=0)
+        self.assertTrue(result["available"])
+        self.assertEqual(result["title"], "Example Film")
+        self.assertEqual(result["cast"][0]["name"], "Actor")
+        self.assertEqual(result["trailer_key"], "abcdefghijk")
+        self.assertNotIn("api_key", str(result))
+
+    def test_discovery_detail_without_tmdb_is_graceful(self):
+        from server import metadata
+        with patch.object(metadata, "token_status", return_value=False):
+            result = arr.discovery_detail("sonarr", tmdb_id=123, title="", year=0)
+        self.assertFalse(result["available"])
+
     def test_add_movie_requests_search_only_when_checked(self):
         setting = {"url": "http://192.168.86.29:7878", "api_key": "secret"}
         options = {"folders": [{"path": "/movies", "label": "/movies"}],
