@@ -42,9 +42,10 @@ def indexed_urls(entries):
 
 
 def attach_posters(items):
+    from .artwork import thumbnail_url
     posters = indexed_urls(items)
     for item in items:
-        item["poster_url"] = posters.get((item["kind"], item["library_id"], item["key"]))
+        item["poster_url"] = thumbnail_url(posters.get((item["kind"], item["library_id"], item["key"])))
     return items
 
 
