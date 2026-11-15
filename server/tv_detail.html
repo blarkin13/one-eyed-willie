@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · TV Shows</title>
-<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script><script defer src="/assets/player.js"></script>
 </head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -82,7 +82,7 @@ async function renderShow(){
  const grid=el('div','season-grid');
  for(const season of data.seasons){
   if(season.number===null)continue;
-  grid.appendChild(coverCard(season,season.name,season.episode_count+' episode'+(season.episode_count===1?'':'s'),
+  grid.appendChild(coverCard(season,season.name,season.watched_count+' / '+season.episode_count+' watched',
     seasonHref(data.library_id,data.key,season.number)));
  }
  view.appendChild(grid);
@@ -113,7 +113,25 @@ async function renderSeason(){
   detail.append(tag,el('h3','',episode.title));
   if(episode.air_date)detail.append(el('div','episode-meta',episode.air_date));
   detail.append(el('p','episode-desc',episode.overview||'No episode description available yet.'));
-  card.append(detail);list.append(card);
+  card.append(detail);
+  const row=el('div','episode-entry');row.append(card);
+  const controls=el('div','episode-actions');
+  const play=el('button','primary-button','▶ Play');
+  play.type='button';play.addEventListener('click',()=>WilliePlayer.open(episode.id,data.show.title+' · '+episode.title));
+  const watched=el('button','secondary-button',episode.watched?'✓ Watched':'Mark watched');
+  watched.type='button';watched.setAttribute('aria-pressed',String(!!episode.watched));
+  watched.onclick=async()=>{
+    watched.disabled=true;
+    try{
+      const r=await fetch('/api/watch/'+episode.id+'/watched',{method:'PUT',
+        headers:{'Content-Type':'application/json'},body:JSON.stringify({watched:!episode.watched})});
+      if(!r.ok)throw Error('Status unavailable');
+      episode.watched=!episode.watched;watched.textContent=episode.watched?'✓ Watched':'Mark watched';
+      watched.setAttribute('aria-pressed',String(episode.watched));
+    }catch(_){watched.textContent='Try again'}
+    finally{watched.disabled=false;}
+  };
+  controls.append(play,watched);row.append(controls);list.append(row);
  }
  view.appendChild(list);
  if(!data.metadata_available)view.appendChild(notice());
@@ -132,8 +150,24 @@ async function renderEpisode(){
  const meta=el('p','muted',[
   data.air_date||null,data.runtime?data.runtime+' min':null
  ].filter(Boolean).join(' · '));view.append(meta);
- const playing=el('div','metadata-notice','This episode is indexed in your library. Playback and video-preview clips have not been implemented yet.');
- view.append(playing);
+ const controls=el('div','episode-detail-actions');
+ const play=el('button','primary-button','▶ Play fullscreen');play.type='button';
+ play.onclick=()=>WilliePlayer.open(data.id,data.show_title+' · '+data.title);
+ const watched=el('button','secondary-button',data.watched?'✓ Watched · mark unwatched':'Mark watched');
+ watched.type='button';watched.setAttribute('aria-pressed',String(!!data.watched));
+ watched.onclick=async()=>{
+   watched.disabled=true;
+   try{
+     const r=await fetch('/api/watch/'+data.id+'/watched',{
+       method:'PUT',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({watched:!data.watched})});
+     if(!r.ok)throw Error('Unable to save status');
+     data.watched=!data.watched;watched.textContent=data.watched?'✓ Watched · mark unwatched':'Mark watched';
+     watched.setAttribute('aria-pressed',String(data.watched));
+   }catch(_){watched.textContent='Try again'}
+   finally{watched.disabled=false}
+ };
+ controls.append(play,watched);view.append(controls);
  if(!data.metadata_available)view.appendChild(notice());
 }
 (async()=>{
