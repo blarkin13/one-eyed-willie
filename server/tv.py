@@ -28,9 +28,9 @@ def show_metadata(title, year=None):
 def provider_season(meta, number):
     if meta.get("source") == "TVmaze":
         return tvmaze_season_metadata(meta.get("tvmaze_id"), number)
-    if meta.get("source") == "TMDB":
-        return season_metadata(meta.get("tmdb_id"), number)
-    return {}
+    if meta.get("source") == "Sonarr":
+        return {}
+    return season_metadata(meta.get("tmdb_id"), number)
 
 
 router = APIRouter(prefix="/api/tv")
