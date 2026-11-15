@@ -56,14 +56,14 @@ Open **Settings → Connections → OpenSubtitles** to paste and verify an API k
 ## Scheduled maintenance and video previews
 
 Open **Settings → Maintenance** to configure background tasks. The server checks for
-due jobs during the **3 AM Central** maintenance window, respecting DST, and retains
+due jobs during the **4 AM Central** maintenance window, respecting DST, and retains
 last completion/result in its SQLite database across deployments.
 
 | Task | Cadence |
 | --- | --- |
 | Optimize SQLite database | Weekly |
 | Remove old generated maintenance bundles | Weekly |
-| Prune stale app-managed artwork, VTT conversion and HLS cache | Weekly |
+| Prune stale VTT conversion and HLS cache | Weekly |
 | Expire outdated cached metadata | Every 3 days |
 | Rescan all libraries | Weekly (existing background incremental scans also continue) |
 | Analyze codec, format, duration and resolution | Weekly; up to 40 files per batch |
