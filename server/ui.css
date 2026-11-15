@@ -202,3 +202,16 @@ body[data-page="home"] .workspace>.content{padding-top:24px}
  .sidebar .brand-name,.sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:none!important}
 }
 
+
+/* Playback controls and compact watched indicators. */
+.tile{position:relative}
+.watched-badge{position:absolute;top:9px;right:9px;z-index:4;border-radius:8px;
+  padding:6px 9px;background:#092819e8;color:#c2f7d8;border:1px solid #4b9d6d;
+  font:600 .72rem/1.2 system-ui,-apple-system,sans-serif;pointer-events:none}
+.episode-entry{position:relative;border:1px solid #283a4c;background:#111a27;border-radius:13px;padding:0;overflow:hidden}
+.episode-entry .episode-card{border:0;border-radius:0}
+.episode-entry .episode-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end;
+  padding:0 15px 13px}
+.episode-actions button,.episode-detail-actions button{min-height:42px;cursor:pointer}
+.episode-detail-actions{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
+@media(max-width:700px){.episode-entry .episode-actions{padding:0 10px 12px}}
