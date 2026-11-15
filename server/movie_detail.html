@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Movie · One-Eyed Willie</title>
+<link rel="icon" type="image/png" href="/assets/favicon.png?v=3">
+<link rel="stylesheet" href="/assets/ui.css">
+<script defer src="/assets/shell.js"></script>
+<script defer src="/assets/player.js"></script>
+<style>
+.movie-back{display:inline-flex;align-items:center;gap:9px;color:#b8d2ec;font-size:.92rem;margin:0 0 20px}
+.movie-back:hover{color:#fff}
+.movie-detail-hero{position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(190px,260px) minmax(0,1fr);
+  align-items:center;gap:clamp(20px,3.6vw,48px);padding:clamp(20px,3vw,40px);
+  background:#121d2b;border:1px solid #283b50;border-radius:19px;overflow:hidden;min-height:400px}
+.movie-detail-hero::after{content:"";position:absolute;inset:0;
+ background:linear-gradient(90deg,#0b1423f2 0%,#0a1421c9 58%,#0b1523c8);z-index:-1}
+.movie-detail-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.30;z-index:-2}
+.movie-detail-poster{aspect-ratio:2/3;width:100%;max-height:390px;border-radius:13px;border:1px solid #536982;
+background:linear-gradient(150deg,#37495a,#141c29);object-fit:cover;box-shadow:0 20px 46px #0009}
+.movie-detail-data h1{font-size:clamp(2.1rem,4vw,4rem);letter-spacing:-.045em;line-height:1.06;margin:4px 0 14px}
+.movie-detail-data .movie-meta{font-size:.94rem;color:#afc0d1;display:flex;gap:11px;flex-wrap:wrap;margin:10px 0 18px}
+.movie-detail-data .movie-description{font-size:clamp(.94rem,1.2vw,1.08rem);line-height:1.72;max-width:770px;color:#c9d5e3;margin:14px 0 23px}
+.movie-detail-actions{display:flex;gap:11px;flex-wrap:wrap;margin:0 0 12px}
+.movie-detail-actions button{min-width:154px;min-height:49px;font-weight:650}
+.movie-detail-progress{height:5px;border-radius:6px;background:#42566b;max-width:400px;margin:18px 0 8px;overflow:hidden}
+.movie-detail-progress span{height:100%;display:block;width:0;background:#b2cde8;border-radius:6px}
+.movie-detail-genres{font-size:.91rem;color:#a9c0d5;margin-top:17px}
+.movie-detail-credit{font-size:.82rem;margin:12px 0;color:#8097ac}
+#movie-status{margin:19px 0 8px;color:#c0d7ef}
+@media(max-width:700px){.movie-detail-hero{grid-template-columns:135px minmax(0,1fr);gap:16px;min-height:0}
+.movie-detail-data h1{font-size:1.8rem}.movie-detail-actions button{min-width:125px}
+.movie-detail-data .movie-description{font-size:.88rem;line-height:1.48}}
+@media(max-width:510px){.movie-detail-hero{display:block}.movie-detail-poster{width:145px;max-height:220px;margin:0 0 20px}
+.movie-detail-hero::after{background:#0b1423d9}.movie-detail-data h1{font-size:2rem}}
+</style></head>
+<body data-page="movies">
+<div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<a class="movie-back" href="/movies">← Movies</a>
+<p id="movie-status" role="status">Loading movie…</p>
+<section class="movie-detail-hero" id="movie-detail" hidden>
+  <img id="backdrop" class="movie-detail-backdrop" alt="" hidden>
+  <img id="poster" class="movie-detail-poster" alt="" hidden>
+  <div id="poster-placeholder" class="movie-detail-poster" role="img"
+       aria-label="No poster available"></div>
+  <div class="movie-detail-data">
+    <p class="eyebrow">MOVIE</p>
+    <h1 id="movie-title"></h1>
+    <div id="movie-meta" class="movie-meta"></div>
+    <p id="movie-description" class="movie-description"></p>
+    <div class="movie-detail-actions">
+      <button id="play-movie" type="button" class="primary-button">▶ Play fullscreen</button>
+      <button id="watched-movie" type="button" class="secondary-button">Mark watched</button>
+    </div>
+    <div id="progress-track" class="movie-detail-progress" hidden><span id="progress-fill"></span></div>
+    <p id="progress-label" class="muted"></p>
+    <p id="movie-genres" class="movie-detail-genres"></p>
+    <p id="movie-credit" class="movie-detail-credit"></p>
+    <p><a id="imdb-link" class="text-link" hidden rel="noopener noreferrer" target="_blank">View on IMDb</a></p>
+  </div>
+</section>
+</main></div></div>
+<script>
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);
+const library_id=Number(params.get('library_id'));
+const key=params.get('key')||'';
+let movie=null;
+async function loadMovie(){
+ if(!Number.isInteger(library_id)||library_id<1||!key||key.length>300){
+   $('movie-status').textContent='Choose a movie from your library.';return;
+ }
+ try{
+   const query=new URLSearchParams({library_id:String(library_id),key});
+   const response=await fetch('/api/movies/details?'+query,{cache:'no-store'});
+   if(!response.ok)throw Error('Movie not available ('+response.status+')');
+   movie=await response.json();
+   $('movie-title').textContent=movie.title;
+   document.title=movie.title+' · One-Eyed Willie';
+   $('movie-description').textContent=movie.overview||'No description available for this movie yet.';
+   $('movie-meta').textContent=[
+     movie.year||null,movie.runtime?movie.runtime+' min':null,
+     movie.watched?'✓ Watched':null].filter(Boolean).join('  ·  ');
+   $('movie-genres').textContent=(movie.genres||[]).join('  ·  ');
+   $('movie-credit').textContent=movie.metadata_source?'Metadata: '+movie.metadata_source:'';
+   for(const [id,url] of [['poster',movie.poster_url],['backdrop',movie.backdrop_url]]){
+     const node=$(id);
+     if(typeof url==='string'&&url.startsWith('/api/artwork/')){
+       node.src=url;node.hidden=false;
+       if(id==='poster')$('poster-placeholder').hidden=true;
+     }else{node.hidden=true;if(id==='poster')$('poster-placeholder').hidden=false}
+   }
+   const imdb=$('imdb-link');
+   if(movie.imdb_url?.startsWith('https://www.imdb.com/title/')){
+     imdb.href=movie.imdb_url;imdb.hidden=false;
+   }else imdb.hidden=true;
+   const watched=$('watched-movie');
+   watched.textContent=movie.watched?'✓ Watched — mark unwatched':'Mark watched';
+   watched.setAttribute('aria-pressed',String(!!movie.watched));
+   const position=Number(movie.position_seconds)||0,duration=Number(movie.duration_seconds)||0;
+   const partial=!movie.watched&&duration>0&&position>=30&&position<duration*.95;
+   $('play-movie').textContent=partial?'▶ Resume fullscreen':'▶ Play fullscreen';
+   $('progress-track').hidden=!partial;
+   if(partial){
+     $('progress-fill').style.width=Math.min(100,100*position/duration)+'%';
+     $('progress-label').textContent=Math.round(position/60)+' of '+Math.round(duration/60)+' minutes';
+   }else $('progress-label').textContent='';
+   $('play-movie').disabled=!movie.media_id;
+   $('movie-detail').hidden=false;$('movie-status').textContent='';
+ }catch(error){$('movie-status').textContent=error.message}
+}
+$('play-movie').addEventListener('click',()=>{
+ if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title);
+});
+$('watched-movie').addEventListener('click',async()=>{
+ if(!movie?.media_id)return;
+ const button=$('watched-movie');button.disabled=true;
+ try{
+   const response=await fetch('/api/watch/'+movie.media_id+'/watched',{
+     method:'PUT',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({watched:!movie.watched})});
+   if(!response.ok)throw Error('Could not save watch status');
+   await loadMovie();
+ }catch(error){$('movie-status').textContent=error.message}
+ finally{button.disabled=false}
+});
+document.addEventListener('willie:watch-updated',loadMovie);
+loadMovie();
+</script></body></html>
