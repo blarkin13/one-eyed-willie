@@ -1,0 +1,12 @@
+# Optional Intel GPU transcoding overlay; never required for ordinary updates.
+# Check /dev/dri/renderD128 on the NUC and set WILLIE_RENDER_GID to its group ID.
+# Example: WILLIE_RENDER_GID=$(stat -c '%g' /dev/dri/renderD128)
+# docker compose -f compose.remote.yaml -f compose.gpu.yaml up -d --build
+services:
+  one-eyed-willie:
+    devices:
+      - /dev/dri/renderD128:/dev/dri/renderD128
+    group_add:
+      - "${WILLIE_RENDER_GID:?Set WILLIE_RENDER_GID to the render device GID}"
+    environment:
+      WILLIE_HW_ACCEL: vaapi
