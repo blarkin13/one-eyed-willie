@@ -39,8 +39,8 @@ class PosterIndexTests(unittest.TestCase):
 
     def test_batch_prefetch_saves_validated_index_and_respects_retry(self):
         identity = ("tv", 2, "test show:")
-        with patch.object(poster_index, "_collect", return_value={identity: ("Test Show", None)}), \\
-             patch.object(poster_index, "_resolve", return_value="/api/artwork/" + "b" * 64) as resolve, \\
+        with patch.object(poster_index, "_collect", return_value={identity: ("Test Show", None)}), \
+             patch.object(poster_index, "_resolve", return_value="/api/artwork/" + "b" * 64) as resolve, \
              patch.object(poster_index, "_prepare") as prepare:
             self.assertEqual(poster_index.prepare_batch(8), 1)
             self.assertEqual(poster_index.prepare_batch(8), 0)
