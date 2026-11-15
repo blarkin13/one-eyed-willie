@@ -60,7 +60,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
       method:'PUT',headers:{'Content-Type':'application/json'},
       body:JSON.stringify({media_id:mediaId,duration_seconds:duration,
         position_seconds:Math.min(duration,playerPosition(video)),
-        completed:done||playerPosition(video)>=duration*.95}),keepalive:force});
+        completed:done||Boolean(status?.watched)||playerPosition(video)>=duration*.95}),keepalive:force});
     }catch(_){}
   }
   function close(){
