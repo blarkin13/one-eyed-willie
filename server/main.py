@@ -32,7 +32,7 @@ async def lifespan(app: FastAPI):
         cleanup_stop.set()
         cleanup_thread.join(timeout=3)
 
-app = FastAPI(title="One-Eyed Willie", version="0.13.0", lifespan=lifespan)
+app = FastAPI(title="One-Eyed Willie", version="0.14.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
 app.include_router(remote_config_router)
@@ -48,7 +48,21 @@ app.include_router(metadata_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "application": "one-eyed-willie", "version": "0.13.0"}
+    return {"status": "ok", "application": "one-eyed-willie", "version": "0.14.0"}
+
+@app.get("/api/catalog/all")
+def get_entire_catalog(
+    kind: str | None = None,
+    search: str = Query("", max_length=150),
+    sort: str = Query("title"),
+):
+    if kind not in ("movies", "tv"):
+        return {"total": 0, "items": []}
+    if sort not in ("title", "recent", "year"):
+        sort = "title"
+    # The catalog is indexed locally and returned once; artwork loads lazily.
+    return catalog(kind, search, limit=1_000_000, sort=sort)
+
 
 @app.get("/api/catalog")
 def get_catalog(
