@@ -158,11 +158,16 @@ class MainActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
                 if (uri.scheme == "oewtv" && uri.host == "play") {
-                    uri.path?.trim('/')?.toIntOrNull()?.takeIf { it > 0 }?.let { play(it) }
+                    uri.path?.trim('/')?.toIntOrNull()?.takeIf { it > 0 }?.let {
+                        play(it, uri.getQueryParameter("restart") == "1",
+                            uri.getQueryParameter("title").orEmpty())
+                    }
                     return true
                 }
                 if (uri.path?.matches(Regex("/watch/[0-9]+")) == true && sameOrigin(uri.toString())) {
-                    uri.lastPathSegment?.toIntOrNull()?.let { play(it) }
+                    uri.lastPathSegment?.toIntOrNull()?.let {
+                        play(it, uri.getQueryParameter("restart") == "1", "Now Playing")
+                    }
                     return true
                 }
                 // External metadata links may not navigate the embedded trusted browser.
@@ -185,11 +190,13 @@ class MainActivity : ComponentActivity() {
             actual.port == saved.port && actual.userInfo == null
     } catch (_: Exception) { false }
 
-    private fun play(mediaId: Int) {
+    private fun play(mediaId: Int, restart: Boolean = false, title: String = "") {
         if (mediaId <= 0) return
         startActivity(Intent(this, PlayerActivity::class.java)
             .putExtra("url", "$origin/api/playback/$mediaId/stream")
             .putExtra("media_id", mediaId)
+            .putExtra("restart", restart)
+            .putExtra("title", title.take(160))
             .putExtra("server", origin))
     }
 
@@ -234,14 +241,27 @@ class MainActivity : ComponentActivity() {
     companion object {
         private val TV_REMOTE_SCRIPT = """
             (() => {
-              if (window.WilliePlayer && !window.WilliePlayer.__androidTv) {
-                window.WilliePlayer.open = id => {
-                  const mediaId=Number(id);
-                  if (Number.isInteger(mediaId) && mediaId > 0)
-                    location.href='oewtv://play/' + mediaId;
-                };
+              // Intercept every existing Play/Resume entry point even if the
+              // deferred server player.js loads after this WebView callback.
+              const nativeOpen=(id,title,options={})=>{
+                const mediaId=Number(id);
+                if(!Number.isInteger(mediaId)||mediaId<=0)return;
+                const query=new URLSearchParams();
+                if(options?.restart)query.set('restart','1');
+                if(title)query.set('title',String(title).slice(0,160));
+                location.href='oewtv://play/'+mediaId+'?'+query.toString();
+              };
+              const installPlayerHook=()=>{
+                if(!window.WilliePlayer)window.WilliePlayer={open:nativeOpen,close:()=>{}};
+                else window.WilliePlayer.open=nativeOpen;
                 window.WilliePlayer.__androidTv=true;
-              }
+              };
+              installPlayerHook();
+              let hookRetries=0;
+              const hookTimer=setInterval(()=>{
+                installPlayerHook();
+                if(++hookRetries>=24)clearInterval(hookTimer);
+              },250);
               if (document.getElementById('oew-tv-remote-style')) return;
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
