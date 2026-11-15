@@ -73,7 +73,7 @@ def _valid_year(first_aired, target):
         return False
 
 def show_metadata(title, year=None):
-    key = "tvmaze:show:" + _simple(title) + ":" + str(year or "")
+    key = "tvmaze:show:v2:" + _simple(title) + ":" + str(year or "")
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
