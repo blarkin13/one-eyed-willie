@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 from . import movies
 from .artwork import register_remote
 from .metadata import _simple
+from .library import db
+import time
 
 router = APIRouter(prefix="/api/arr")
 SONARR_FILE = Path(os.environ.get("SONARR_CONFIG_PATH", "/data/sonarr-settings.json"))
@@ -299,3 +301,83 @@ def add(name: str, selection: AddInput):
         "id": result.get("id"), "search_requested": selection.search_now,
         "note": "Added to the media manager. Files appear in One-Eyed Willie only after they're obtained and indexed.",
     }
+
+
+
+def sonarr_metadata(title, year=None):
+    """Use Sonarr's existing series catalog as another source for TV information.
+
+    This read is cached server-side for six hours; it does not contact Sonarr for
+    every show tile. Returns no passwords, LAN paths or private API URLs.
+    """
+    setting = _sonarr_settings()
+    if not setting:
+        return {}
+    with LOCK:
+        with db() as conn:
+            conn.execute("""CREATE TABLE IF NOT EXISTS sonarr_snapshot (
+                id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL,
+                fetched_at INTEGER NOT NULL, source_url TEXT NOT NULL
+            )""")
+            row = conn.execute(
+                "SELECT payload,fetched_at,source_url FROM sonarr_snapshot WHERE id=1"
+            ).fetchone()
+        cached = None
+        if row and row["source_url"] == setting["url"]:
+            try:
+                cached = json.loads(row["payload"])
+            except (ValueError, TypeError):
+                pass
+        if cached is not None and time.time() - row["fetched_at"] < 6 * 60 * 60:
+            series = cached
+        else:
+            try:
+                current = _request("sonarr", setting, "series")
+                if not isinstance(current, list):
+                    current = None
+            except HTTPException:
+                current = None
+            if current is None:
+                series = cached or []
+            else:
+                series = []
+                for item in current:
+                    if not isinstance(item, dict):
+                        continue
+                    image = next((im for im in item.get("images", [])
+                                  if isinstance(im, dict) and im.get("coverType") == "poster"), {})
+                    series.append({
+                        "title": item.get("title") or "",
+                        "year": item.get("year"),
+                        "overview": item.get("overview") or "",
+                        "tvdb_id": item.get("tvdbId"),
+                        "poster_url": image.get("remoteUrl"),
+                        "seasons": [
+                            {"number": s.get("seasonNumber"), "name": "Season " +
+                             str(s.get("seasonNumber")), "overview": ""}
+                            for s in item.get("seasons", []) if isinstance(s, dict) and
+                            isinstance(s.get("seasonNumber"), int)
+                        ],
+                    })
+                with db() as conn:
+                    conn.execute(
+                        "INSERT INTO sonarr_snapshot(id,payload,fetched_at,source_url) "
+                        "VALUES(1,?,?,?) ON CONFLICT(id) DO UPDATE SET "
+                        "payload=excluded.payload,fetched_at=excluded.fetched_at,"
+                        "source_url=excluded.source_url",
+                        (json.dumps(series), int(time.time()), setting["url"]),
+                    )
+        key = _simple(title)
+        matches = [s for s in series if _simple(s.get("title")) == key]
+        if year:
+            matches = [s for s in matches if not s.get("year") or
+                       abs(int(s["year"]) - int(year)) <= 1]
+        if len(matches) != 1:
+            return {}
+        found = matches[0]
+        return {
+            "title": found["title"], "overview": found["overview"],
+            "poster_url": found.get("poster_url"),
+            "seasons": found.get("seasons") or [],
+            "source": "Sonarr",
+        }
