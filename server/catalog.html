@@ -25,6 +25,11 @@
 .alpha-nav button{min-width:18px;min-height:19px;font-size:10px}
 #items{padding-right:15px}}
 .explore-icon-link{display:grid;place-items:center;width:44px;height:44px;border:1px solid #40536b;border-radius:11px;color:#cde4fa;background:#172536;flex:none;transition:background .15s,color .15s}.explore-icon-link:hover,.explore-icon-link:focus-visible{background:#29415b;color:#fff}.explore-icon-link svg{width:23px;height:23px}
+
+body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=tv] :is(a,button,input,select):focus-visible{
+ outline:3px solid #d7edff!important;outline-offset:4px;box-shadow:0 0 0 7px #5898d24a!important
+}
+.tile-button:focus-visible .cover{outline:3px solid #d7edff;outline-offset:3px}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -225,6 +230,42 @@ async function load(){
  }catch(error){if(thisRequest===requestId)$('status').textContent='Unable to load titles: '+error.message}
  finally{if(thisRequest===requestId)loading=false}
 }
+/* Spatial arrow navigation for keyboard, television D-pad and remote controls. */
+function remoteCatalogMove(key){
+ const selectors='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled])';
+ const targets=[...document.querySelector('.workspace').querySelectorAll(selectors)].filter(el=>{
+   if(el.closest('[hidden]'))return false;
+   const r=el.getBoundingClientRect();return r.width>0&&r.height>0;
+ });
+ if(!targets.length)return false;
+ const active=document.activeElement;
+ if(!targets.includes(active)){(document.getElementById('explore-library')||targets[0]).focus();return true;}
+ const r=active.getBoundingClientRect(),x=r.left+r.width/2,y=r.top+r.height/2;
+ const [dx,dy]={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[key];
+ let closest=null,score=Infinity;
+ for(const candidate of targets){
+   if(candidate===active)continue;
+   const rect=candidate.getBoundingClientRect(),cx=rect.left+rect.width/2-x,cy=rect.top+rect.height/2-y;
+   const forward=cx*dx+cy*dy,side=Math.abs(cx*dy-cy*dx);
+   if(forward<=3)continue;
+   const value=forward+side*2.75;
+   if(value<score){score=value;closest=candidate;}
+ }
+ if(!closest)return false;
+ closest.focus({preventScroll:true});closest.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+ return true;
+}
+document.addEventListener('keydown',event=>{
+ if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey)return;
+ const focused=document.activeElement;
+ if(focused?.matches('input,textarea,[contenteditable="true"]'))return;
+ if(focused?.matches('select')){
+   if(event.key==='ArrowLeft'||event.key==='ArrowRight')return;
+   event.preventDefault();remoteCatalogMove(event.key);return;
+ }
+ if(remoteCatalogMove(event.key))event.preventDefault();
+});
+
 let debounce;
 $('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(),220)});
 $('sort').addEventListener('change',()=>load(true));
