@@ -116,6 +116,10 @@ def show_metadata(title, year=None):
             "backdrop_url": None,
             "seasons": seasons,
             "source": "TVmaze",
+            "rating": (show.get("rating") or {}).get("average"),
+            "status": show.get("status"),
+            "network": (show.get("network") or show.get("webChannel") or {}).get("name"),
+            "genres": show.get("genres") or [],
             "source_url": provider_url if isinstance(provider_url, str) and provider_url.startswith("https://www.tvmaze.com/shows/") else "https://www.tvmaze.com/",
         }
         _cache_put(key, result)
@@ -146,3 +150,30 @@ def season_metadata(show_id, number):
                 "episodes": metadata_episodes}
         _cache_put(key, data)
         return data
+
+def show_cast(show_id):
+    """Public keyless TVmaze cast endpoint, cached to avoid repeated lookups."""
+    if not isinstance(show_id, int) or show_id <= 0:
+        return []
+    key = "tvmaze:cast:" + str(show_id)
+    with LOCK:
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached
+        raw = _get("/shows/" + str(show_id) + "/cast")
+        if not isinstance(raw, list):
+            return []
+        cast = []
+        for entry in raw[:18]:
+            person = entry.get("person") or {}
+            character = entry.get("character") or {}
+            if not isinstance(person, dict) or not isinstance(character, dict):
+                continue
+            name = str(person.get("name") or "")[:90]
+            if not name:
+                continue
+            cast.append({"name": name,
+                         "character": str(character.get("name") or "")[:90],
+                         "photo_url": image_url(person.get("image"), "medium")})
+        _cache_put(key, cast)
+        return cast
