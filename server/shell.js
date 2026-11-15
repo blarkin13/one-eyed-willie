@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const target = document.getElementById('app-nav');
   if (!target) return;
   const page = document.body.dataset.page || 'home';
-  const active = ['libraries', 'remote'].includes(page) ? 'settings' : page;
+  const active = ['libraries', 'remote', 'metadata'].includes(page) ? 'settings' : page;
   const navItems = [
     ['home', '/', '⌂', 'Home'],
     ['movies', '/movies', '▣', 'Movies'],
@@ -47,7 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const subs = document.createElement('nav');
     subs.className = 'side-nav';
     subs.setAttribute('aria-label', 'Settings navigation');
-    [['libraries','/settings/libraries','Libraries'],['remote','/settings/remote','Remote Access']].forEach(([id,href,title])=>{
+    [['libraries','/settings/libraries','Libraries'],['remote','/settings/remote','Remote Access'],['metadata','/settings/metadata','Metadata']].forEach(([id,href,title])=>{
       const link=document.createElement('a');
       link.className='nav-link';
       link.href=href;
@@ -65,7 +65,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const breadcrumb = document.getElementById('breadcrumbs');
   if (breadcrumb) {
-    const labels={home:'Home',movies:'Movies',tv:'TV Shows',libraries:'Settings / Libraries',remote:'Settings / Remote Access'};
+    const labels={home:'Home',movies:'Movies',tv:'TV Shows',libraries:'Settings / Libraries',remote:'Settings / Remote Access',metadata:'Settings / Metadata'};
     breadcrumb.textContent = 'One-Eyed Willie / ';
     const strong=document.createElement('strong');
     strong.textContent=labels[page]||'Home';
