@@ -193,6 +193,32 @@ class MainActivity : ComponentActivity() {
             .putExtra("server", origin))
     }
 
+    /**
+     * WebView's native spatial navigation and page-level JavaScript navigation
+     * must never both process one D-pad key. Dispatch exactly one focus move
+     * on ACTION_DOWN; consume ACTION_UP as well so WebView cannot jump twice.
+     */
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val direction = when (event.keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT -> "left"
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "right"
+            KeyEvent.KEYCODE_DPAD_UP -> "up"
+            KeyEvent.KEYCODE_DPAD_DOWN -> "down"
+            else -> null
+        }
+        val web = browser
+        if (direction != null && web != null) {
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                web.evaluateJavascript(
+                    "window.__willieTvMove && window.__willieTvMove('$direction')",
+                    null
+                )
+            }
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
+
     private fun installRemoteNavigation(view: WebView) {
         // These are TV-specific focus affordances; the page/layout itself stays
         // 100% the live server version, including all future server updates.
@@ -209,48 +235,82 @@ class MainActivity : ComponentActivity() {
         private val TV_REMOTE_SCRIPT = """
             (() => {
               if (window.WilliePlayer && !window.WilliePlayer.__androidTv) {
-                window.WilliePlayer.open = (id) => {
-                  if (Number.isInteger(Number(id)) && Number(id) > 0)
-                    location.href = 'oewtv://play/' + Number(id);
+                window.WilliePlayer.open = id => {
+                  const mediaId=Number(id);
+                  if (Number.isInteger(mediaId) && mediaId > 0)
+                    location.href='oewtv://play/' + mediaId;
                 };
-                window.WilliePlayer.__androidTv = true;
+                window.WilliePlayer.__androidTv=true;
               }
               if (document.getElementById('oew-tv-remote-style')) return;
-              const style = document.createElement('style');
-              style.id = 'oew-tv-remote-style';
-              style.textContent = ':focus-visible{outline:3px solid #fff!important;outline-offset:4px!important;scroll-margin:90px} .tile:focus-within{transform:scale(1.035);z-index:2}';
-              document.head.appendChild(style);
-              let last = null;
-              document.addEventListener('focusin', e => {
-                if (e.target !== last) {
-                  e.target.scrollIntoView?.({block:'nearest',inline:'nearest',behavior:'smooth'});
-                  last=e.target;
+              const style=document.createElement('style');
+              style.id='oew-tv-remote-style';
+              style.textContent=\`
+                a:focus-visible,button:focus-visible,input:focus-visible,
+                select:focus-visible,[tabindex="0"]:focus-visible {
+                  outline:2px solid rgba(211,220,229,.85)!important;
+                  outline-offset:2px!important;
                 }
-              }, true);
-              document.addEventListener('keydown', event => {
-                if (!['ArrowDown','ArrowUp','ArrowLeft','ArrowRight'].includes(event.key)) return;
-                const active = document.activeElement;
-                if (active?.matches('input, textarea, select, [contenteditable=true]')) return;
-                const candidates = [...document.querySelectorAll('a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),[tabindex="0"]')]
-                  .filter(node => {
-                    const r=node.getBoundingClientRect(), css=getComputedStyle(node);
-                    return r.width>0 && r.height>0 && css.visibility!=='hidden' && css.display!=='none';
-                  });
-                if (!candidates.length) return;
-                if (!candidates.includes(active)) { candidates[0].focus(); event.preventDefault(); return }
-                const r = active.getBoundingClientRect(), cx=r.left+r.width/2,cy=r.top+r.height/2;
-                let winner=null, best=Infinity;
-                for (const node of candidates) {
-                  if(node===active) continue;
-                  const b=node.getBoundingClientRect(), dx=b.left+b.width/2-cx,dy=b.top+b.height/2-cy;
-                  const forward=event.key==='ArrowRight'?dx>3:event.key==='ArrowLeft'?dx< -3:event.key==='ArrowDown'?dy>3:dy< -3;
+                .tile-button:focus-visible .cover {
+                  transform:none!important;
+                  box-shadow:0 4px 14px #0005!important;
+                  border-color:#b6c2ce!important;
+                }
+                .tile:focus-within {transform:none!important}
+                * {scroll-margin:22px}
+              \`;
+              document.head.appendChild(style);
+              const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
+              const visible=node=>{
+                if (!node.isConnected || node.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
+                const style=getComputedStyle(node);
+                if(style.display==='none'||style.visibility==='hidden'||style.pointerEvents==='none')return false;
+                const r=node.getBoundingClientRect();
+                return r.width>3&&r.height>3;
+              };
+              const focusables=()=>[...document.querySelectorAll(selector)].filter(visible);
+              const move=direction=>{
+                const nodes=focusables();
+                if(!nodes.length)return false;
+                const active=document.activeElement;
+                if(!nodes.includes(active)){
+                  const first=nodes.find(node=>node.matches('.tile-button,.nav-link[aria-current="page"]'))||nodes[0];
+                  first.focus({preventScroll:true});
+                  first.scrollIntoView({block:'nearest',inline:'nearest'});
+                  return true;
+                }
+                const from=active.getBoundingClientRect();
+                const centerX=from.left+from.width/2,centerY=from.top+from.height/2;
+                const horizontal=direction==='left'||direction==='right';
+                let winner=null,best=Infinity;
+                for(const node of nodes){
+                  if(node===active)continue;
+                  const r=node.getBoundingClientRect();
+                  const dx=r.left+r.width/2-centerX,dy=r.top+r.height/2-centerY;
+                  const forward=direction==='right'?dx>2:direction==='left'?dx< -2:
+                                direction==='down'?dy>2:dy< -2;
                   if(!forward)continue;
-                  const primary=event.key==='ArrowRight'||event.key==='ArrowLeft'?Math.abs(dx):Math.abs(dy);
-                  const secondary=event.key==='ArrowRight'||event.key==='ArrowLeft'?Math.abs(dy):Math.abs(dx);
-                  const score=primary+secondary*2;
+                  const axis=Math.abs(horizontal?dx:dy);
+                  const lateral=Math.abs(horizontal?dy:dx);
+                  const overlap=horizontal?
+                    Math.min(from.bottom,r.bottom)-Math.max(from.top,r.top):
+                    Math.min(from.right,r.right)-Math.max(from.left,r.left);
+                  // Stay on the same shelf/column instead of skipping diagonally.
+                  const score=axis+lateral*(overlap>0?2:5)+
+                    (overlap>0?0:Math.max(from.width,from.height)*0.3);
                   if(score<best){best=score;winner=node}
                 }
-                if(winner){event.preventDefault();winner.focus()}
+                if(!winner)return true;
+                winner.focus({preventScroll:true});
+                winner.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+                return true;
+              };
+              window.__willieTvMove=move;
+              // The Android Activity alone owns directional key handling. Do
+              // not also install a document keydown listener: that double-moves.
+              document.addEventListener('focusin',event=>{
+                if(!visible(event.target))return;
+                event.target.scrollIntoView?.({block:'nearest',inline:'nearest'});
               },true);
             })();
         """.trimIndent()
