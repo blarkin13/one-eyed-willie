@@ -4,7 +4,6 @@
 <title>One-Eyed Willie · Browse</title>
 <link rel="stylesheet" href="/assets/ui.css">
 <script defer src="/assets/shell.js"></script>
-<script defer src="/assets/player.js"></script>
 <style>
 .library-toolbar{margin:26px 0 20px}
 .count-label{color:#98a7ba;font-size:.88rem}
@@ -43,22 +42,7 @@
     </main>
   </div>
 </div>
-<dialog id="detail-dialog" aria-labelledby="detail-title">
- <div class="dialog-inner">
-  <div class="dialog-heading">
-   <div><p class="eyebrow" id="detail-type">Library title</p><h2 id="detail-title"></h2></div>
-   <button type="button" class="icon-button" id="close-dialog" aria-label="Close details">×</button>
-  </div>
-  <div class="detail-top"><div class="detail-art" id="detail-art" aria-hidden="true"></div>
-   <div class="detail-metadata"><p id="detail-description"></p><p id="detail-year"></p><p id="detail-extra"></p><p id="detail-links"></p>
-   <div class="library-actions" style="margin-top:17px">
-     <button type="button" class="primary-button" id="detail-play">▶ Play fullscreen</button>
-     <button type="button" class="secondary-button" id="detail-watched">Mark watched</button>
-   </div></div>
-  </div>
-  <div id="episode-area" hidden><h3>Episodes</h3><ul class="episode-list" id="episode-list"></ul></div>
- </div>
-</dialog>
+
 <script>
 const type=location.pathname==='/tv'?'tv':'movies';
 document.body.dataset.page=type;
@@ -76,67 +60,6 @@ document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
 for(const [id,kind] of [['tab-movies','movies'],['tab-tv','tv']]){
   const tab=$(id);tab.setAttribute('aria-current',type===kind?'page':'false');
 }
-const dialog=$('detail-dialog');$('close-dialog').onclick=()=>dialog.close();
-dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
-let detailsRequest=0;
-let selectedMovie=null;
-const playButton=$('detail-play'),watchedButton=$('detail-watched');
-function setWatchedButton(item){
- watchedButton.textContent=item.watched?'✓ Watched · mark unwatched':'Mark watched';
-}
-playButton.onclick=()=>{
- if(!selectedMovie)return;
- dialog.close(); // A modal dialog is in the browser's top layer.
- WilliePlayer.open(selectedMovie.media_id,selectedMovie.title);
-};
-watchedButton.onclick=async()=>{
- if(!selectedMovie)return;
- watchedButton.disabled=true;
- try{
-   const next=!selectedMovie.watched;
-   const response=await fetch('/api/watch/'+selectedMovie.media_id+'/watched',{
-     method:'PUT',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({watched:next})});
-   if(!response.ok)throw Error('Unable to save watched status');
-   selectedMovie.watched=next;setWatchedButton(selectedMovie);
-   load(true);
- }catch(err){$('detail-extra').textContent=err.message}
- finally{watchedButton.disabled=false;}
-};
-document.addEventListener('willie:watch-updated',()=>load(true));
-function openDetails(item){
- const current=++detailsRequest;
- selectedMovie=item;
- setWatchedButton(item);
- playButton.disabled=!item.media_id;
- $('detail-type').textContent='MOVIE';
- $('detail-title').textContent=item.title;
- $('detail-art').replaceChildren(document.createTextNode(item.title.slice(0,1).toUpperCase()));
- $('detail-description').textContent='Loading movie information…';
- $('detail-year').textContent=item.year?'Released '+item.year:'';
- $('detail-extra').textContent='';
- $('detail-links').replaceChildren();
- $('episode-area').hidden=true;
- dialog.showModal();
- const params=new URLSearchParams({library_id:String(item.library_id),key:item.key});
- fetch('/api/movies/details?'+params,{cache:'no-store'})
-   .then(response=>{if(!response.ok)throw Error('Movie details unavailable');return response.json()})
-   .then(data=>{
-    if(current!==detailsRequest||!dialog.open)return;
-    $('detail-description').textContent=data.overview||'No description available yet. Place movie.nfo and poster.jpg beside the movie or connect Radarr under Settings → Metadata.';
-    $('detail-year').textContent=(data.year?'Released '+data.year:'')+(data.runtime?' · '+data.runtime+' min':'');
-    $('detail-extra').textContent=(data.genres||[]).join(' · ');
-    if(data.poster_url?.startsWith('/api/artwork/')){
-      const poster=document.createElement('img');poster.src=data.poster_url;poster.alt=data.title+' poster';poster.loading='lazy';
-      poster.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:12px';
-      $('detail-art').replaceChildren(poster);
-    }
-    if(data.imdb_url?.startsWith('https://www.imdb.com/title/')){
-      const link=document.createElement('a');link.className='text-link';link.textContent='View on IMDb';link.href=data.imdb_url;link.target='_blank';link.rel='noopener noreferrer';$('detail-links').append(link);
-    }
-   }).catch(error=>{if(current===detailsRequest)$('detail-description').textContent=error.message});
-}
-
 // Movie posters are looked up in one request per page; actual image bytes are
 // downloaded once and cached privately on the NUC.
 const moviePosterJobs=[];
@@ -194,10 +117,11 @@ function runPosterQueue(){
 }
 function createCard(item){
  const article=document.createElement('article');article.className='tile';
- const button=document.createElement(type==='tv'?'a':'button');
- if(type==='movies')button.type='button';
- else button.href='/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
- button.className='tile-button';button.setAttribute('aria-label','View '+item.title);
+ const button=document.createElement('a');
+ button.href=type==='movies'
+   ?'/movie?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
+   :'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
+ button.className='tile-button';button.setAttribute('aria-label','View details for '+item.title);
  let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
  const cover=document.createElement('div');cover.className='cover cover--'+(hash%6);
  const top=document.createElement('div');top.className='cover-top';
@@ -213,7 +137,6 @@ function createCard(item){
    const flag=document.createElement('span');flag.className='watched-badge';flag.textContent='✓ Watched';
    flag.setAttribute('aria-label','Watched');article.append(flag);
  }
- if(type==='movies')button.addEventListener('click',()=>openDetails(item));
  article.append(button);
  if(type==='tv')observePoster(article,cover,item);
  else moviePosterJobs.push({cover,item});
