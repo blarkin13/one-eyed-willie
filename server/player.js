@@ -6,7 +6,6 @@
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
   let chromeTimer=null;
-  let pointerInside=false;
   function revealChrome(){
     if(!current)return;
     current.classList.remove('willie-chrome-hidden');
@@ -14,8 +13,7 @@
     const video=current.querySelector('video');
     if(video&&!video.paused&&!video.ended){
       chromeTimer=setTimeout(()=>{
-        if(current&&!video.paused&&!video.ended&&!pointerInside&&
-           !current.contains(document.activeElement))current.classList.add('willie-chrome-hidden');
+        if(current&&!video.paused&&!video.ended&&!pointerInside)current.classList.add('willie-chrome-hidden');
       },2200);
     }
   }
