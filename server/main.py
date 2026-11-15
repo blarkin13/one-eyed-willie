@@ -11,6 +11,7 @@ from server.home import router as home_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
 from server.plex_import import router as plex_router
+from server.sabnzbd import router as sabnzbd_router
 from server.subtitles import router as subtitles_router
 from server.subtitle_provider import router as subtitle_provider_router
 from server.hls import router as hls_router, init_cache, cleanup_loop
@@ -57,6 +58,7 @@ app.include_router(home_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
 app.include_router(plex_router)
+app.include_router(sabnzbd_router)
 app.include_router(subtitle_provider_router)
 app.include_router(subtitles_router)
 app.include_router(hls_router)

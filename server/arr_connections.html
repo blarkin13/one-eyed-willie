@@ -17,6 +17,12 @@
 .connection-help{color:#9aacc2;line-height:1.65;font-size:.86rem}
 .integration-state{font-size:.78rem;color:#a1b8d0;letter-spacing:.03em}
 .integration-state.on{color:#92d9b4}
+.sab-list{display:grid;gap:8px;margin-top:9px}
+.sab-entry{display:flex;justify-content:space-between;gap:12px;border-bottom:1px solid var(--line);padding:9px 0;align-items:baseline}
+.sab-entry strong{overflow-wrap:anywhere;font-size:.88rem}
+.sab-entry span{color:var(--muted);font-size:.8rem;text-align:right;flex-shrink:0}
+.sab-entry:focus-visible{outline:2px solid #b2cde8}
+@media(max-width:600px){.sab-entry{flex-direction:column;gap:4px}.sab-entry span{text-align:left}}
 </style></head>
 <body data-page="connections"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -40,6 +46,31 @@
 <p id="os-message" class="message" role="status"></p>
 </form></section>
 
+<section class="connection-card" aria-labelledby="sab-heading" style="margin-top:18px;max-width:900px">
+<div class="connection-head"><h2 id="sab-heading">SABnzbd</h2><span id="sab-state" class="integration-state">Checking…</span></div>
+<p class="connection-kind">Monitor your Usenet download queue and recent history. Pause or resume downloads without leaving One-Eyed Willie.</p>
+<p id="sab-summary" class="connection-state" role="status">Checking connection…</p>
+<form id="sab-form">
+<label for="sab-url">SABnzbd local address</label>
+<input id="sab-url" type="url" required placeholder="http://192.168.86.29:8080" autocomplete="off">
+<label for="sab-key">SABnzbd API key</label>
+<input id="sab-key" type="password" minlength="12" maxlength="256" required autocomplete="off" spellcheck="false" placeholder="Config → General → API Key">
+<p class="connection-help">In SABnzbd, open Config → General and copy the full <strong>API Key</strong>, not the NZB Key. Use the local address reachable from this server. Your key stays in the server's private configuration and is never displayed.</p>
+<div class="form-actions"><button type="submit" class="primary-button" id="sab-connect">Connect SABnzbd</button><button type="button" class="danger-button" id="sab-disconnect">Disconnect</button></div>
+</form>
+<div id="sab-dashboard" hidden>
+<div class="form-actions" style="margin-top:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+<button type="button" class="secondary-button" id="sab-refresh">Refresh</button>
+<button type="button" class="secondary-button" id="sab-pause">Pause downloads</button>
+<button type="button" class="secondary-button" id="sab-resume">Resume downloads</button>
+</div>
+<p id="sab-queue-summary" class="connection-state"></p>
+<h3>Download queue</h3><div id="sab-queue" class="sab-list"></div>
+<h3 style="margin-top:20px">Recent history</h3><div id="sab-history" class="sab-list"></div>
+</div>
+<p id="sab-message" class="message" role="status"></p>
+<p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. One-Eyed Willie only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
+</section>
 <section class="connection-card" aria-labelledby="plex-heading" style="margin-top:18px;max-width:760px">
 <div class="connection-head"><h2 id="plex-heading">Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Import watched movies and episodes from your local Plex server into One-Eyed Willie.</p>
@@ -219,6 +250,75 @@ $('plex-import').addEventListener('click',async()=>{
  finally{$('plex-import').disabled=false}
 });
 refreshPlex();
+
+
+function sabRow(target,name,meta){
+ const row=document.createElement('div');row.className='sab-entry';
+ const left=document.createElement('strong');left.textContent=name||'Unnamed download';
+ const right=document.createElement('span');right.textContent=meta;
+ row.append(left,right);target.append(row);
+}
+async function sabRefresh(){
+ const queue=$('sab-queue'),history=$('sab-history');
+ try{
+  const data=await fetchJson('/api/sabnzbd/status',{cache:'no-store'});
+  queue.replaceChildren();history.replaceChildren();
+  const q=data.queue||{};
+  $('sab-queue-summary').textContent=(q.paused?'Paused':'Downloading')+
+    ' · '+(q.total||'0')+' queued · '+(q.speed||'0')+' · '+(q.timeleft||'—')+' remaining';
+  $('sab-pause').disabled=!!q.paused;
+  $('sab-resume').disabled=!q.paused;
+  for(const item of q.items||[])
+   sabRow(queue,item.name,[item.status,item.percent?item.percent+'%':'',item.timeleft].filter(Boolean).join(' · '));
+  if(!queue.children.length)sabRow(queue,'No queued downloads','');
+  for(const item of data.history||[])
+   sabRow(history,item.name,[item.status,item.category].filter(Boolean).join(' · '));
+  if(!history.children.length)sabRow(history,'No recent history','');
+  $('sab-message').textContent='';
+ }catch(error){$('sab-message').textContent=error.message}
+}
+async function sabConnection(){
+ try{
+  const setting=await fetchJson('/api/sabnzbd/settings',{cache:'no-store'});
+  $('sab-state').textContent=setting.connected?'Connected':'Not connected';
+  $('sab-state').className='integration-state'+(setting.connected?' on':'');
+  $('sab-summary').textContent=setting.connected?'Connected to '+setting.address:'Connect SABnzbd to monitor your download queue.';
+  if(setting.address)$('sab-url').value=setting.address;
+  $('sab-disconnect').disabled=!setting.connected;
+  $('sab-dashboard').hidden=!setting.connected;
+  if(setting.connected)await sabRefresh();
+ }catch(error){$('sab-summary').textContent=error.message}
+}
+$('sab-form').addEventListener('submit',async event=>{
+ event.preventDefault();$('sab-connect').disabled=true;$('sab-message').textContent='Testing SABnzbd connection…';
+ try{
+  await fetchJson('/api/sabnzbd/settings',{method:'PUT',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({url:$('sab-url').value.trim(),api_key:$('sab-key').value.trim()})});
+  $('sab-key').value='';$('sab-message').textContent='SABnzbd connected.';
+  await sabConnection();
+ }catch(error){$('sab-message').textContent=error.message}
+ finally{$('sab-connect').disabled=false}
+});
+$('sab-disconnect').onclick=async()=>{
+ if(!confirm('Disconnect SABnzbd? Downloads will continue normally in SABnzbd.'))return;
+ try{
+  await fetchJson('/api/sabnzbd/settings',{method:'DELETE'});
+  $('sab-message').textContent='SABnzbd disconnected.';await sabConnection();
+ }catch(error){$('sab-message').textContent=error.message}
+};
+$('sab-refresh').onclick=sabRefresh;
+for(const action of ['pause','resume']){
+ $('sab-'+action).onclick=async()=>{
+  const button=$('sab-'+action);button.disabled=true;$('sab-message').textContent='Updating SABnzbd queue…';
+  try{
+   await fetchJson('/api/sabnzbd/queue',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action})});
+   await sabRefresh();
+  }catch(error){$('sab-message').textContent=error.message}
+  finally{button.disabled=false}
+ };
+}
+sabConnection();
 
 build();refresh();
 </script></body></html>
