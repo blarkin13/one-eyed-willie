@@ -2,7 +2,6 @@
 import shutil
 import subprocess
 import unittest
-import xml.etree.ElementTree as ET
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -44,12 +43,27 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn('id="overview-tv"', page)
         self.assertIn("loadOverview()", page)
 
-    def test_logo_is_valid_svg_and_served(self):
-        root = ET.parse(SERVER / "logo.svg").getroot()
-        self.assertEqual(root.tag, "{http://www.w3.org/2000/svg}svg")
-        self.assertTrue(list(root))
-        self.assertIn('/assets/logo.svg', (SERVER / "shell.js").read_text())
-        self.assertIn('/assets/logo.svg', (SERVER / "main.py").read_text())
+    def test_uploaded_logo_and_favicon_are_served(self):
+        for filename in ("logo.png", "favicon.png"):
+            file = SERVER / filename
+            self.assertTrue(file.is_file())
+            self.assertEqual(file.read_bytes()[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+            self.assertIn("/assets/" + filename, (SERVER / "shell.js").read_text())
+            self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
+
+    def test_there_is_no_top_header_or_magnifier(self):
+        for page in ("dashboard.html", "catalog.html", "index.html",
+                     "remote_settings.html", "metadata_settings.html",
+                     "arr_connections.html", "explore.html", "tv_detail.html"):
+            text = (SERVER / page).read_text()
+            self.assertNotIn('class="topbar"', text, page)
+            self.assertNotIn('id="breadcrumbs"', text, page)
+        shell = (SERVER / "shell.js").read_text()
+        self.assertNotIn("fa-magnifying-glass", shell)
+        self.assertNotIn("topbar-actions", shell)
+        self.assertNotIn("topbar-action", shell)
+        self.assertIn(".topbar,.app-topbar{display:none!important}",
+                      (SERVER / "ui.css").read_text())
 
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
