@@ -215,3 +215,12 @@ body[data-page="home"] .workspace>.content{padding-top:24px}
 .episode-actions button,.episode-detail-actions button{min-height:42px;cursor:pointer}
 .episode-detail-actions{display:flex;gap:12px;flex-wrap:wrap;margin:20px 0}
 @media(max-width:700px){.episode-entry .episode-actions{padding:0 10px 12px}}
+
+/* Compact accessible icon-only Play and Resume actions. */
+.media-icon-action{width:52px;min-width:0!important;min-height:48px;padding:8px!important;
+ display:inline-grid;place-items:center;vertical-align:middle;cursor:pointer}
+.media-icon-action svg{width:25px;height:25px;display:block}
+.media-icon-action:hover svg{transform:scale(1.06)}
+.episode-actions .media-icon-action,.episode-detail-actions .media-icon-action{min-width:0;width:50px}
+.media-icon-action:focus-visible{outline:2px solid #b2cde8;outline-offset:3px}
+@media(prefers-reduced-motion:reduce){.media-icon-action:hover svg{transform:none}}
