@@ -159,7 +159,7 @@ body[data-page="home"] .cover{border-color:#324257;border-radius:11px}
    background:transparent!important;border:0!important;box-shadow:none!important;padding:5px 0 0 12px;
    overflow:visible;z-index:32}
  .sidebar:hover,.sidebar:focus-within{width:77px!important;align-items:center!important}
- .sidebar .brand,.sidebar:hover .brand,.sidebar:focus-within .brand{height:53px;width:56px;min-width:56px;
+ .sidebar .brand,.sidebar:hover .brand,.sidebar:focus-within .brand{height:53px;min-height:53px;width:56px;min-width:56px;
    padding:0!important;justify-content:center!important;border:0}
  .sidebar .brand-logo-frame{width:53px;height:53px;flex-basis:53px}
  .sidebar .brand-logo{width:74px;height:74px}
