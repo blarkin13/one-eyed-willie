@@ -64,7 +64,7 @@ def _base_url(raw):
             raise ValueError
         if parsed.path not in ("", "/") or not parsed.port:
             raise ValueError
-        if host not in ("host.docker.internal", "radarr"):
+        if host not in ("host.docker.internal", "radarr", "sonarr"):
             address = ipaddress.ip_address(host)
             if not isinstance(address, ipaddress.IPv4Address):
                 raise ValueError
