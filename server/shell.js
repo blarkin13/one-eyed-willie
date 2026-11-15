@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
-  const inSettings=['libraries','remote','metadata','connections'].includes(page);
+  const inSettings=['libraries','remote','metadata','connections','maintenance'].includes(page);
   const active=inSettings?'settings':page;
   const navItems=[
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
@@ -52,7 +52,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if(inSettings){
     const subnav=document.createElement('nav');subnav.className='settings-shortcuts';
     subnav.setAttribute('aria-label','Settings sections');
-    [['libraries','/settings/libraries','Libraries'],['remote','/settings/remote','Remote Access'],['metadata','/settings/metadata','Metadata'],['connections','/settings/connections','Connections']].forEach(([id,href,name])=>{
+    [['libraries','/settings/libraries','Libraries'],['remote','/settings/remote','Remote Access'],['metadata','/settings/metadata','Metadata'],['connections','/settings/connections','Connections'],['maintenance','/settings/maintenance','Maintenance']].forEach(([id,href,name])=>{
       const a=document.createElement('a');a.href=href;a.title=name;a.textContent=name;
       if(page===id)a.setAttribute('aria-current','page');
       subnav.append(a);
