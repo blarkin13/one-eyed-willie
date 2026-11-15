@@ -229,7 +229,7 @@ def merged_show(library_id: int, show_key: str):
 @router.get("/poster")
 def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show = local_show(library_id, key)
-    metadata = show_metadata(show["title"], show["year"], library_id, show_key)
+    metadata = show_metadata(show["title"], show["year"], library_id, key)
     result = {
         "poster_url": metadata.get("poster_url"),
         "overview": metadata.get("overview", ""),
