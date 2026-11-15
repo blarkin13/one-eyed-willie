@@ -137,18 +137,20 @@ def show_metadata(title, year=None):
             _cache_put(key, {})
             return {}
         tmdb_id = matches[0].get("id")
-        metadata = show_metadata_by_id(tmdb_id)
+        metadata = show_metadata_by_id(tmdb_id, fallback=matches[0])
         if metadata:
             _cache_put(key, metadata)
         return metadata
 
-def show_metadata_by_id(tmdb_id):
+def show_metadata_by_id(tmdb_id, fallback=None):
     """Read a selected TV series by provider ID, bypassing title matching."""
     if not token_status() or not isinstance(tmdb_id, int) or tmdb_id <= 0:
         return {}
     details = _call("tv/" + str(tmdb_id), query={
         "language": "en-US", "append_to_response": "videos,credits,reviews"
     })
+    if not isinstance(details, dict):
+        details = fallback
     if not isinstance(details, dict) or details.get("id") != tmdb_id:
         return {}
     seasons = []
