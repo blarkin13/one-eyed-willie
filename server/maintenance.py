@@ -13,8 +13,8 @@ import sqlite3
 import subprocess
 import threading
 import time
-from datetime import datetime
-from zoneinfo import ZoneInfo
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -61,7 +61,11 @@ CADENCE = {
     "video_preview_thumbnails": 86400,
 }
 # Run at 3 AM North Texas time, including daylight-saving transitions.
-MAINTENANCE_ZONE = ZoneInfo("America/Chicago")
+try:
+    MAINTENANCE_ZONE = ZoneInfo("America/Chicago")
+except ZoneInfoNotFoundError:
+    MAINTENANCE_ZONE = timezone(timedelta(hours=-6))
+    logger.warning("System time-zone data unavailable; using fixed Central Standard Time")
 
 
 class Settings(BaseModel):
@@ -135,6 +139,7 @@ def _next_media_batch(task, count):
         total = conn.execute("SELECT COUNT(*) FROM media").fetchone()[0]
         row = conn.execute("SELECT offset FROM maintenance_cursor WHERE task=?", (task,)).fetchone()
         offset = (row["offset"] if row else 0) % max(1, total)
+        count = min(count, total)
         batch = _media_rows(count, offset)
         if len(batch) < count and total > len(batch):
             batch += _media_rows(count-len(batch), 0)
