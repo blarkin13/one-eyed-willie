@@ -51,3 +51,45 @@ The optional credentials are passed through both Docker Compose modes. Without a
 ### OpenSubtitles settings
 
 Open **Settings → Connections → OpenSubtitles** to paste and verify an API key, with an optional account bearer token for provider downloads. The server saves credentials only under `/data/opensubtitles-settings.json` with restricted file permissions, never returns credential values, and applies changes immediately without restarting Docker. Environment-provided keys remain a fallback and are indicated as such in Settings; a Settings-saved key takes precedence. Removing a Settings-saved key falls back to the environment key if one exists. Previously downloaded subtitles remain available.
+
+
+## Scheduled maintenance and video previews
+
+Open **Settings → Maintenance** to configure background tasks. The server checks for
+due jobs during the **3 AM Central** maintenance window, respecting DST, and retains
+last completion/result in its SQLite database across deployments.
+
+| Task | Cadence |
+| --- | --- |
+| Optimize SQLite database | Weekly |
+| Remove old generated maintenance bundles | Weekly |
+| Prune stale app-managed artwork, VTT conversion and HLS cache | Weekly |
+| Expire outdated cached metadata | Every 3 days |
+| Rescan all libraries | Weekly (existing background incremental scans also continue) |
+| Analyze codec, format, duration and resolution | Weekly; up to 40 files per batch |
+| Refresh show/season metadata on next use | Every 3 days |
+| Sample audio loudness (extensive analysis) | Weekly; up to 3 files per batch |
+| Generate video preview thumbnails | Daily, or via **Generate video previews now**; up to 4 video sets per batch |
+
+Preview generation defaults **on** and uses FFmpeg to extract up to six 320px
+JPEG frames per video into `/data/maintenance/previews`. The player displays
+them when seeking on the progress bar. Generated images never modify source
+videos and aren't served until the indexed video ID and file fingerprint match.
+Heavy analysis and thumbnail jobs run sequentially at reduced process priority
+and use bounded sample durations. Full-library completion requires multiple
+batches; the task cursor advances across the library.
+
+All task enable/disable settings, completion times and cursor positions persist
+in SQLite. **Run maintenance now** executes enabled jobs without waiting for
+the maintenance window. Only directories managed by One-Eyed Willie are
+eligible for cleanup. Downloaded subtitle files, playback history, manual metadata
+matches, and the read-only media drive are never deleted. The generated
+maintenance-bundles directory is currently empty in a normal installation;
+the bundle cleanup option safely does nothing until the app creates bundles.
+Provider cache refresh only expires entries and does not guarantee external
+sources have new data.
+
+This app does not have Plex's full deep-video-analysis engine or its seek
+thumbnail index format. Its extensive analysis currently samples audio loudness;
+it does not perform whole-file scene detection, intros, credits, or loudness
+normalization. GPU/CPU use and throughput vary by the NUC's hardware.
