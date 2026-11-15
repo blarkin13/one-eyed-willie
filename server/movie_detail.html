@@ -83,8 +83,14 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
  .movie-detail-poster{max-height:200px;width:130px}
  .movie-detail-data{margin-top:20px}}
 .movie-detail-actions .media-icon-action[hidden]{display:none!important}
-.trailer-embed{width:min(100%,1100px);aspect-ratio:16/9;background:#000}
+.trailer-embed{width:100%;max-width:560px;aspect-ratio:16/9;background:#101925;position:relative;overflow:hidden;border-radius:8px}
 .trailer-embed iframe{width:100%;height:100%;border:0;display:block}
+.trailer-preview{position:relative;width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:#162537;border:0;color:#fff;cursor:pointer}
+.trailer-preview img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.trailer-preview .trailer-play-icon{position:relative;z-index:1;width:64px;height:46px;display:grid;place-items:center;background:#e9f1fc;color:#132235;border-radius:10px;font-size:27px;box-shadow:0 6px 28px #0008}
+.trailer-fallback{margin:9px 0 0;font-size:.87rem;color:#aabdd0}
+.trailer-fallback a{color:#c1dcf4;text-decoration:underline;text-underline-offset:3px}
+@media(max-width:700px){.trailer-embed{max-width:100%}}
 .metadata-hint{color:#94aabd;font-size:.95rem;line-height:1.7;margin:3px 0 18px}
 .metadata-hint a{text-decoration:underline;text-underline-offset:3px;color:#c2dfff}
 </style></head>
@@ -137,10 +143,11 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
   </div>
   <section id="trailer-section" class="movie-block" hidden>
     <h2>Trailer</h2><div id="trailer-embed" class="trailer-embed"></div>
+    <p class="trailer-fallback"><a id="trailer-external" target="_blank" rel="noopener noreferrer">Watch trailer on YouTube</a> if the embedded player is unavailable.</p>
   </section>
   <section id="cast-section" class="movie-block">
     <h2>Cast</h2><p id="cast-unavailable" class="metadata-hint" hidden>Cast information isn't available from the connected movie metadata. <a href="/settings/metadata">Connect TMDB in Settings → Metadata</a> to enable cast and community reviews.</p>
-    <h2>Cast</h2><div id="cast-list" class="movie-cast"></div>
+    <div id="cast-list" class="movie-cast"></div>
   </section>
   <section id="reviews-section" class="movie-block">
     <p id="reviews-unavailable" class="metadata-hint" hidden>No community reviews are available for this movie from the connected metadata source.</p>
@@ -200,7 +207,7 @@ async function loadMovie(){
    const trailer=$('trailer-movie');
    trailer.hidden=!/^[A-Za-z0-9_-]{11}$/.test(movie.trailer_key||'');
    $('trailer-section').hidden=trailer.hidden;
-   $('trailer-embed').replaceChildren();
+   renderTrailerPreview();
    renderExtras(movie);
    $('movie-detail').hidden=false;$('expanded').hidden=false;$('movie-status').textContent='';
  }catch(error){$('movie-status').textContent=error.message}
@@ -261,17 +268,37 @@ function renderExtras(data){
    article.append(author,excerpt);reviews.append(article);
  }
 }
+function renderTrailerPreview(){
+ const holder=$('trailer-embed');holder.replaceChildren();
+ const key=movie?.trailer_key||'';
+ if(!/^[A-Za-z0-9_-]{11}$/.test(key))return;
+ const watchUrl='https://www.youtube.com/watch?v='+key;
+ $('trailer-external').href=watchUrl;
+ const preview=document.createElement('button');preview.type='button';
+ preview.className='trailer-preview';preview.title='Play trailer';
+ preview.setAttribute('aria-label','Play '+movie.title+' trailer');
+ const poster=document.createElement('img');
+ poster.alt='';poster.loading='lazy';poster.referrerPolicy='no-referrer';
+ poster.src='https://i.ytimg.com/vi/'+key+'/hqdefault.jpg';
+ const play=document.createElement('span');play.className='trailer-play-icon';
+ play.textContent='▶';play.setAttribute('aria-hidden','true');
+ preview.append(poster,play);
+ preview.onclick=()=>{
+   const frame=document.createElement('iframe');
+   frame.title=movie.title+' trailer';
+   frame.referrerPolicy='strict-origin-when-cross-origin';
+   frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+   frame.allowFullscreen=true;
+   frame.src='https://www.youtube-nocookie.com/embed/'+key+'?autoplay=1&playsinline=1';
+   holder.replaceChildren(frame);
+ };
+ holder.append(preview);
+}
 $('trailer-movie').addEventListener('click',()=>{
  if(!/^[A-Za-z0-9_-]{11}$/.test(movie?.trailer_key||''))return;
- const holder=$('trailer-embed');holder.replaceChildren();
- const frame=document.createElement('iframe');
- frame.title=movie.title+' official trailer';frame.loading='lazy';
- frame.referrerPolicy='strict-origin-when-cross-origin';
- frame.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture; fullscreen';
- frame.allowFullscreen=true;
- frame.src='https://www.youtube-nocookie.com/embed/'+movie.trailer_key+'?autoplay=1';
- holder.append(frame);
- $('trailer-section').scrollIntoView({behavior:'smooth',block:'start'});
+ $('trailer-section').scrollIntoView({behavior:'smooth',block:'center'});
+ const button=$('trailer-embed').querySelector('.trailer-preview');
+ if(button)button.click();
 });
 $('play-movie').addEventListener('click',()=>{
  if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title,{restart:true});
