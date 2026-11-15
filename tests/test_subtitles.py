@@ -72,7 +72,7 @@ class SubtitlesTests(unittest.TestCase):
     def test_start_offset_is_applied_on_resume(self):
         def ffmpeg(args, **kwargs):
             self.assertIn("-ss", args)
-            self.assertIn("120.0", args)
+            self.assertIn(str(120), args)
             Path(args[-1]).write_text("WEBVTT\n")
             return SimpleNamespace(returncode=0)
         with patch.object(subtitles.subprocess, "run", side_effect=ffmpeg), \
