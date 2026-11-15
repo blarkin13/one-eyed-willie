@@ -11,7 +11,7 @@
 <a class="breadcrumb-link" id="back-link" href="/tv">← All TV Shows</a>
 <div id="loading" class="status-line" role="status">Loading TV library…</div>
 <div id="view"></div>
-<p class="note">TV artwork and episode descriptions load automatically from TVmaze. Optional TMDB is also supported. Video playback is not yet implemented.</p>
+<p class="note">TV artwork and episode descriptions load automatically from TVmaze and connected metadata providers.</p>
 </main>
 </div></div>
 <script>
@@ -26,6 +26,21 @@ function el(tag,cls,text){
   const node=document.createElement(tag);if(cls)node.className=cls;
   if(text!==undefined&&text!==null)node.textContent=String(text);
   return node;
+}
+function playbackButton(id,title,resume=false){
+ const button=el('button',resume?'secondary-button media-icon-action':'primary-button media-icon-action');
+ button.type='button';
+ const label=resume?'Resume from saved position':'Play from beginning';
+ button.setAttribute('aria-label',label);button.title=label;
+ button.innerHTML=resume
+  ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>'
+  : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+ button.addEventListener('click',()=>WilliePlayer.open(id,title,{restart:!resume}));
+ return button;
+}
+function canResume(item){
+ const p=Number(item.position_seconds)||0,d=Number(item.duration_seconds)||0;
+ return !item.watched&&d>0&&p>=30&&p<d*.95;
 }
 function image(src,cls,alt){
   const node=el('img',cls);node.alt=alt||'';
@@ -116,8 +131,8 @@ async function renderSeason(){
   card.append(detail);
   const row=el('div','episode-entry');row.append(card);
   const controls=el('div','episode-actions');
-  const play=el('button','primary-button','▶ Play');
-  play.type='button';play.addEventListener('click',()=>WilliePlayer.open(episode.id,data.show.title+' · '+episode.title));
+  const play=playbackButton(episode.id,data.show.title+' · '+episode.title);
+  const resume=canResume(episode)?playbackButton(episode.id,data.show.title+' · '+episode.title,true):null;
   const watched=el('button','secondary-button',episode.watched?'✓ Watched':'Mark watched');
   watched.type='button';watched.setAttribute('aria-pressed',String(!!episode.watched));
   watched.onclick=async()=>{
@@ -131,7 +146,8 @@ async function renderSeason(){
     }catch(_){watched.textContent='Try again'}
     finally{watched.disabled=false;}
   };
-  controls.append(play,watched);row.append(controls);list.append(row);
+  controls.append(play);if(resume)controls.append(resume);
+  controls.append(watched);row.append(controls);list.append(row);
  }
  view.appendChild(list);
  if(!data.metadata_available)view.appendChild(notice());
@@ -151,8 +167,8 @@ async function renderEpisode(){
   data.air_date||null,data.runtime?data.runtime+' min':null
  ].filter(Boolean).join(' · '));view.append(meta);
  const controls=el('div','episode-detail-actions');
- const play=el('button','primary-button','▶ Play fullscreen');play.type='button';
- play.onclick=()=>WilliePlayer.open(data.id,data.show_title+' · '+data.title);
+ const play=playbackButton(data.id,data.show_title+' · '+data.title);
+ const resume=canResume(data)?playbackButton(data.id,data.show_title+' · '+data.title,true):null;
  const watched=el('button','secondary-button',data.watched?'✓ Watched · mark unwatched':'Mark watched');
  watched.type='button';watched.setAttribute('aria-pressed',String(!!data.watched));
  watched.onclick=async()=>{
@@ -167,7 +183,8 @@ async function renderEpisode(){
    }catch(_){watched.textContent='Try again'}
    finally{watched.disabled=false}
  };
- controls.append(play,watched);view.append(controls);
+ controls.append(play);if(resume)controls.append(resume);
+ controls.append(watched);view.append(controls);
  if(!data.metadata_available)view.appendChild(notice());
 }
 (async()=>{
