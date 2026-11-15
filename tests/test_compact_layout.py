@@ -116,6 +116,22 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("WilliePlayer.open", home)
         self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
 
+    def test_trailer_has_clickable_preview_and_external_fallback(self):
+        movie = (SERVER / "movie_detail.html").read_text()
+        tv = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("max-width:560px", movie)
+        self.assertIn("max-width:560px", tv)
+        self.assertIn("trailer-preview", movie)
+        self.assertIn("tv-trailer-preview", tv)
+        self.assertIn("i.ytimg.com/vi/", movie)
+        self.assertIn("i.ytimg.com/vi/", tv)
+        self.assertIn("https://www.youtube.com/watch?v=", movie)
+        self.assertIn("https://www.youtube.com/watch?v=", tv)
+        self.assertIn("youtube-nocookie.com/embed/", movie)
+        self.assertIn("youtube-nocookie.com/embed/", tv)
+        self.assertIn("frame.allowFullscreen=true", movie)
+        self.assertIn("frame.allowFullscreen=true", tv)
+
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
         for path in ("/movies", "/tv", "/explore", "/settings/libraries"):
