@@ -50,6 +50,26 @@ class PosterIndexTests(unittest.TestCase):
         poster_index.attach_posters(items)
         self.assertTrue(items[0]["poster_url"].endswith("b" * 64))
 
+    def test_tv_posters_are_prioritized_before_movies(self):
+        movie=("movies", 1, "movie:2023")
+        show=("tv", 2, "series:")
+        work={movie: ("Movie", 2023), show: ("Series", None)}
+        calls=[]
+        with patch.object(poster_index, "_collect", return_value=work), \
+             patch.object(poster_index, "_resolve", side_effect=lambda kind, lib, key, title, year: (
+                 calls.append(kind) or "/api/artwork/" + "d"*64
+             )), patch.object(poster_index, "_prepare"):
+            poster_index.prepare_batch(1)
+        self.assertEqual(calls, ["tv"])
+
+    def test_detail_page_poster_is_reused_by_home(self):
+        digest="e"*64
+        poster_index.remember("tv", 2, "series:", "/api/artwork/"+digest)
+        entries=[{"kind":"tv","library_id":2,"key":"series:"}]
+        with patch.object(poster_index, "_resolve", side_effect=AssertionError("must not search provider")):
+            poster_index.attach_posters(entries)
+        self.assertEqual(entries[0]["poster_url"], "/api/artwork/thumb/"+digest)
+
     def test_invalidate_only_targeted_record(self):
         identities = [("tv", 2, "one:"), ("tv", 2, "two:")]
         with library.db() as conn:
