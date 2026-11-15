@@ -29,6 +29,9 @@ class MaintenanceTests(unittest.TestCase):
         self.assertTrue(original["settings"]["video_preview_thumbnails"])
         self.assertEqual(original["cadence_seconds"]["refresh_local_metadata"], 3*86400)
         self.assertEqual(original["cadence_seconds"]["optimize_database"], 7*86400)
+        self.assertEqual(original["maintenance_hour"], 4)
+        self.assertEqual(original["timezone"], "America/Chicago")
+        self.assertIn("04:00", original["next_window"])
         values = {key: False for key in maintenance.DEFAULTS}
         values["update_all_libraries"] = True
         response = maintenance.update_settings(maintenance.Settings(**values))
