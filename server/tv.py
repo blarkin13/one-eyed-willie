@@ -11,7 +11,6 @@ from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tv
 
 def show_metadata(title, year=None):
     """Use optional TMDB credentials when present, else automatic keyless TVmaze."""
-    from .metadata import token_status
     if token_status():
         tmdb = tmdb_show_metadata(title, year)
         if tmdb:
@@ -184,5 +183,5 @@ def episode_details(media_id: int = Query(ge=1)):
         "runtime": episode_meta.get("runtime"),
         "filename": Path(row["path"]).name,
         "playback_available": False,
-        "metadata_available": token_status(),
+        "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
