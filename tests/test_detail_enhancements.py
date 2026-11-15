@@ -96,6 +96,17 @@ class DetailEnhancementTests(unittest.TestCase):
             result=movies._details(1,"example:2024",snapshot=[sample])
             self.assertIsNone(result["trailer_key"])
 
+    def test_movie_title_year_exact_lookup_without_radarr_id(self):
+        result={"results":[
+            {"id":111,"title":"A Film Extended","original_title":"Other","release_date":"2019-01-01"},
+            {"id":222,"title":"A Film","original_title":"A Film","release_date":"2020-02-01"}]}
+        with patch.object(metadata,"token_status",return_value=True), \
+             patch.object(metadata,"_cache_get",return_value=None), \
+             patch.object(metadata,"_cache_put") as put, \
+             patch.object(metadata,"_call",return_value=result):
+            self.assertEqual(movies._tmdb_id_for_title("A Film",2020),222)
+        self.assertTrue(put.called)
+
     def test_no_tmdb_token_returns_no_invented_ratings_or_reviews(self):
         with patch.object(metadata,"token_status",return_value=False):
             result=movies._movie_extras({"tmdb_id":321})
