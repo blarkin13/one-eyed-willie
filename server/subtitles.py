@@ -13,7 +13,7 @@ import tempfile
 import threading
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import FileResponse
 
 from .playback import _item
@@ -94,7 +94,7 @@ def list_subtitles(media_id: int):
 
 
 @router.get("/{media_id}/{track_id}.vtt")
-def subtitle_file(media_id: int, track_id: str):
+def subtitle_file(media_id: int, track_id: str, start: float = Query(0, ge=0, le=10000000)):
     _, video = _item(media_id)
     match = TRACK.fullmatch(track_id)
     if not match:
@@ -115,8 +115,9 @@ def subtitle_file(media_id: int, track_id: str):
         selected = ["-i", str(video), "-map", f"0:{streams[index]['stream_index']}"]
         salt = f"embedded:{streams[index]['stream_index']}"
     stat = video.stat()
+    start = round(start, 2)
     digest = hashlib.sha256(
-        f"{video.resolve()}:{stat.st_mtime_ns}:{stat.st_size}:{salt}".encode()
+        f"{video.resolve()}:{stat.st_mtime_ns}:{stat.st_size}:{salt}:{start}".encode()
     ).hexdigest()
     dest = CACHE / (digest + ".vtt")
     with LOCK:
@@ -127,6 +128,7 @@ def subtitle_file(media_id: int, track_id: str):
             try:
                 result = subprocess.run(
                     ["/usr/bin/ffmpeg", "-nostdin", "-v", "error", "-y",
+                     *(["-ss", str(start)] if start else []),
                      *selected, "-c:s", "webvtt", "-f", "webvtt", temp],
                     capture_output=True, timeout=35, check=False,
                 )
