@@ -100,6 +100,18 @@ $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
 // The description is replaced by rotating film/TV trivia below.
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
 document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
+const selectedLibraryId=Number(query.get('library_id'));
+if(Number.isInteger(selectedLibraryId)&&selectedLibraryId>0){
+ fetch('/api/libraries',{cache:'no-store'}).then(response=>response.ok?response.json():[])
+ .then(libraries=>{
+   const found=Array.isArray(libraries)?libraries.find(lib=>lib.id===selectedLibraryId&&lib.kind===type):null;
+   if(!found){$('status').textContent='Library not found. Choose another library in the sidebar.';return}
+   const name=String(found.name||'Library');
+   $('page-title').textContent=name;
+   $('section-title').textContent='All '+name;
+   document.title='One-Eyed Willie · '+name;
+ }).catch(()=>{});
+}
 
 
 /* Open Trivia DB film (11) and television (14): one batch per category,
@@ -320,6 +332,7 @@ async function load(){
  const thisRequest=++requestId;
  loading=true;$('status').textContent='Loading titles…';
  const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value});
+ if(Number.isInteger(selectedLibraryId)&&selectedLibraryId>0)params.set('library_id',String(selectedLibraryId));
  try{
   const response=await fetch('/api/catalog/all?'+params,{cache:'no-store'});
   if(!response.ok)throw Error('Server returned '+response.status);

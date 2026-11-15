@@ -77,13 +77,14 @@ def get_entire_catalog(
     kind: str | None = None,
     search: str = Query("", max_length=150),
     sort: str = Query("title"),
+    library_id: int | None = Query(None, ge=1),
 ):
     if kind not in ("movies", "tv"):
         return {"total": 0, "items": []}
     if sort not in ("title", "recent", "year"):
         sort = "title"
     # The catalog is indexed locally and returned once; artwork loads lazily.
-    return catalog(kind, search, limit=1_000_000, sort=sort)
+    return catalog(kind, search, limit=1_000_000, sort=sort, library_id=library_id)
 
 
 @app.get("/api/catalog")
@@ -93,12 +94,13 @@ def get_catalog(
     sort: str = Query("title"),
     offset: int = Query(0, ge=0),
     limit: int = Query(60, ge=1, le=100),
+    library_id: int | None = Query(None, ge=1),
 ):
     if kind not in (None, "movies", "tv"):
         return {"total": 0, "items": []}
     if sort not in ("title", "recent", "year"):
         sort = "title"
-    return catalog(kind, search, limit=limit, offset=offset, sort=sort)
+    return catalog(kind, search, limit=limit, offset=offset, sort=sort, library_id=library_id)
 
 @app.get("/")
 def home():

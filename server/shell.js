@@ -49,6 +49,29 @@ document.addEventListener('DOMContentLoaded', () => {
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
+  // Each configured library has its own entry in addition to the combined Movies/TV views.
+  // Read from the live server so newly created libraries appear without hardcoded names.
+  fetch('/api/libraries',{cache:'no-store'}).then(response=>{
+    if(!response.ok)throw Error('Libraries unavailable');
+    return response.json();
+  }).then(libraries=>{
+    if(!Array.isArray(libraries))return;
+    const selected=new URLSearchParams(location.search).get('library_id');
+    for(const library of libraries){
+      if(!Number.isInteger(library.id)||!['movies','tv'].includes(library.kind))continue;
+      const name=String(library.name||'').trim().slice(0,80);
+      if(!name)continue;
+      const url=new URLSearchParams({library_id:String(library.id)});
+      const link=document.createElement('a');
+      link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+url;
+      link.title=name;link.setAttribute('aria-label',name+' library');
+      link.className='nav-link library-nav-link';
+      if(selected===String(library.id)&&(page==='movies'||page==='tv'))link.setAttribute('aria-current','page');
+      link.append(glyph(library.kind==='tv'?'fa-tv':'fa-film',library.kind==='tv'?'tv':'film'));
+      const caption=document.createElement('span');caption.className='nav-text';caption.textContent=name;link.append(caption);
+      nav.append(link);
+    }
+  }).catch(()=>{});
   if(inSettings){
     const subnav=document.createElement('nav');subnav.className='settings-shortcuts';
     subnav.setAttribute('aria-label','Settings sections');

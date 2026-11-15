@@ -49,7 +49,7 @@ def episode_info(path, root):
             "episode": int(match.group(2)) if match else None}
 
 
-def catalog(kind=None, search="", limit=60, offset=0, sort="title"):
+def catalog(kind=None, search="", limit=60, offset=0, sort="title", library_id=None):
     with db() as conn:
         libs = conn.execute("SELECT id,kind,path FROM libraries").fetchall()
         groups = {}
@@ -60,7 +60,7 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title"):
             "SELECT media_id FROM playback_progress WHERE completed=0 AND position_seconds>=30"
         )}
         for lib in libs:
-            if kind and lib["kind"] != kind:
+            if (kind and lib["kind"] != kind) or (library_id is not None and lib["id"] != library_id):
                 continue
             rows = conn.execute("SELECT id,path,size,added_at FROM media WHERE library_id=? ORDER BY path", (lib["id"],)).fetchall()
             for row in rows:

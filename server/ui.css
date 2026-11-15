@@ -390,3 +390,8 @@ body:has(.willie-hover-backdrop-layer.is-visible) .shelf-track::before,
 body:has(.willie-hover-backdrop-layer.is-visible) .explore-grid::before,
 body:has(.willie-hover-backdrop-layer.is-visible) .movie-grid::before,
 body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
+
+/* Additional user-created libraries stay reachable in the compact sidebar. */
+.sidebar .side-nav{min-height:0;overflow-y:auto;overflow-x:hidden;scrollbar-width:thin;overscroll-behavior:contain}
+.sidebar .library-nav-link{flex-shrink:0}
+.sidebar .library-nav-link .nav-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
