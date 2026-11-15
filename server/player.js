@@ -162,7 +162,8 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
         const ip=String(data.public_ip||'').split('.').map(Number);
         if(ip.length!==4||ip.some(x=>!Number.isInteger(x)||x<0||x>255))
           throw Error('Server address unavailable');
-        location.href='https://'+ip.join('-')+'.sslip.io/watch/'+id;
+        location.href='https://'+ip.join('-')+'.sslip.io/watch/'+id+
+          (options.restart?'?restart=1':'');
       }).catch(()=>alert('Open the protected direct NUC address for video playback.'));
       return;
     }
