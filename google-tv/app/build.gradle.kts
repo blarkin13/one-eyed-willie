@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "studio.oneeyedwillie.tv"
-    compileSdk = 35
+    compileSdk = 36
     defaultConfig {
         applicationId = "studio.oneeyedwillie.tv"
         minSdk = 26
