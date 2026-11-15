@@ -19,7 +19,7 @@ from threading import RLock
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from .artwork import MEDIA_ROOT, register_local, register_remote
+from .artwork import MEDIA_ROOT, register_local, register_remote, register_radarr
 from .catalog import movie_info
 from .library import db
 from .metadata import _simple
@@ -174,8 +174,10 @@ def _snapshot():
                 "genres": film.get("genres") if isinstance(film.get("genres"), list) else [],
                 "imdb_id": film.get("imdbId"),
                 "tmdb_id": film.get("tmdbId"),
-                "poster_url": art.get("remoteUrl") or art.get("url"),
-                "backdrop_url": backdrop.get("remoteUrl") or backdrop.get("url"),
+                "poster_url": art.get("remoteUrl"),
+                "poster_internal": art.get("url"),
+                "backdrop_url": backdrop.get("remoteUrl"),
+                "backdrop_internal": backdrop.get("url"),
             })
         with db() as conn:
             _snapshot_table(conn)
@@ -284,8 +286,10 @@ def _details(library_id, key, snapshot=None):
     radarr = _movie_match(parsed["title"], parsed["year"],
                            _snapshot() if snapshot is None else snapshot)
     nfo = _local_nfo(video, root)
-    poster_url = _local_poster(video, root) or register_remote(radarr.get("poster_url"))
-    backdrop_url = register_remote(radarr.get("backdrop_url"))
+    poster_url = (_local_poster(video, root) or register_remote(radarr.get("poster_url"))
+                  or register_radarr(radarr.get("poster_internal")) )
+    backdrop_url = (register_remote(radarr.get("backdrop_url"))
+                    or register_radarr(radarr.get("backdrop_internal")) )
     imdb_id = nfo.get("imdb_id") or radarr.get("imdb_id")
     imdb_id = imdb_id if isinstance(imdb_id, str) and IMDB_ID.fullmatch(imdb_id) else None
     return {
