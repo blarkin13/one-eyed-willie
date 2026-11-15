@@ -52,6 +52,9 @@ def home_shelves():
     watching = OrderedDict()
     with db() as connection:
         libs = {row["id"]: row for row in connection.execute("SELECT id,kind,path FROM libraries")}
+        watched_ids = {r["media_id"] for r in connection.execute(
+            "SELECT media_id FROM playback_progress WHERE completed=1"
+        )}
         rows = connection.execute(
             "SELECT id,library_id,path,added_at FROM media "
             "ORDER BY added_at DESC, id DESC"
@@ -69,7 +72,8 @@ def home_shelves():
                     "kind": desc["kind"], "title": desc["title"],
                     "year": desc["year"], "subtitle": desc["subtitle"],
                     "library_id": desc["library_id"], "key": desc["key"],
-                    "media_id": row["id"], "added_at": row["added_at"],
+                    "media_id": row["id"], "watched": row["id"] in watched_ids,
+                    "added_at": row["added_at"],
                 }
 
         progress_rows = connection.execute(
