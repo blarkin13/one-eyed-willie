@@ -54,6 +54,23 @@
 .explore-trailer{width:100%;max-width:740px;aspect-ratio:16/9;border:0;border-radius:10px}
 @media(max-width:650px){.explore-hero{grid-template-columns:110px minmax(0,1fr);padding:21px;gap:17px}.explore-info h1{font-size:1.85rem}.explore-info p{font-size:.89rem;line-height:1.5}}
 @media(max-width:460px){.explore-hero{display:block}.explore-poster{max-width:135px;margin-bottom:20px}.explore-cast,.explore-seasons{grid-auto-columns:112px}.explore-cast img,.explore-seasons img{width:112px}}
+
+/* Television remote and keyboard focus treatment. */
+body[data-page=explore] :is(a,button,input,select):focus-visible{
+ outline:3px solid #d7edff!important;outline-offset:4px;
+ box-shadow:0 0 0 7px #5898d24a!important;
+}
+body[data-page=explore] .detail-trigger:focus-visible .cover{outline:3px solid #d7edff;outline-offset:3px}
+body[data-page=explore] button,body[data-page=explore] select{min-height:48px}
+body[data-page=explore] .discovery-row{scroll-padding-inline:18px}
+body[data-page=explore] #add-dialog{width:min(600px,calc(100vw - 24px));max-height:min(88vh,850px);overflow-y:auto;overscroll-behavior:contain}
+body[data-page=explore] #add-dialog .dialog-inner{padding:clamp(16px,3vw,30px)}
+body[data-page=explore] #add-dialog .check-row{min-height:46px;align-items:center}
+body[data-page=explore] #add-dialog .check-row input{width:24px;height:24px}
+body[data-page=explore] #tag-options label{padding:9px;border-radius:8px;min-height:44px}
+body[data-page=explore] .remote-help{font-size:.84rem;color:#b8cce0;margin:10px 0 16px}
+body[data-page=explore] #add-dialog .form-actions{position:sticky;bottom:-1px;background:#101a28;padding:14px 0 5px;z-index:2}
+@media(max-width:620px){body[data-page=explore] #add-dialog .form-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}}
 </style></head>
 <body data-page="explore"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
@@ -66,6 +83,7 @@
 <form id="search-form" class="explore-search">
 <label class="search-box"><input id="query" type="search" minlength="2" maxlength="100" required placeholder="Search for a movie…" aria-label="Search for a movie or TV show"></label>
 <button class="primary-button" id="search-button" type="submit">Search</button></form>
+<p class="remote-help">Remote: arrows to navigate · OK to select · Back to return. Use ◀ ▶ to change a form choice.</p>
 <div id="status" class="status-line" role="status"></div>
 <div id="hint" class="explore-hint"><h2>Find something new</h2><p>Enter a title to search your connected media manager's catalog. Choose a result to add it to that manager. Existing titles will be marked as already added.</p></div>
 <div id="discovery">
@@ -87,6 +105,7 @@
 <div class="dialog-inner">
 <div class="dialog-heading"><div><p class="eyebrow">Add to media manager</p><h2 id="add-title">Add title</h2></div><button type="button" id="close" class="icon-button" aria-label="Cancel">×</button></div>
 <p id="add-description" class="muted">Choose the destination and quality settings from your existing media manager.</p>
+<p class="remote-help">Remote: ▲ ▼ between fields · ◀ ▶ change a selected option · OK to confirm · Back to cancel.</p>
 <form id="add-form">
 <label for="folder">Root folder</label><select id="folder" required></select>
 <label for="profile">Quality profile</label><select id="profile" required></select>
@@ -109,6 +128,7 @@
 const $=id=>document.getElementById(id);
 let provider='radarr',results=[],selected=null,searching=false;
 const dialog=$('add-dialog');
+let previousDetailFocus=null,previousDialogFocus=null;
 async function fetchJson(path,opts={}){
  const r=await fetch(path,{cache:'no-store',...opts});
  const data=await r.json().catch(()=>({}));
@@ -165,12 +185,15 @@ function restoreExplore(){
  $('explore-detail').hidden=true;$('browse-area').hidden=false;
  detailSelection=null;document.title='One-Eyed Willie · Explore '+(provider==='radarr'?'Movies':'TV Shows');
  window.scrollTo({top:0,behavior:'instant'});
+ if(previousDetailFocus?.isConnected)previousDetailFocus.focus({preventScroll:true});
 }
 $('detail-back').onclick=restoreExplore;
 async function showDetail(item,isDiscovery){
+ previousDetailFocus=document.activeElement;
  detailSelection={item,isDiscovery,provider};
  $('browse-area').hidden=true;$('explore-detail').hidden=false;
  $('detail-status').textContent='Loading title information…';$('detail-body').replaceChildren();
+ $('detail-back').focus({preventScroll:true});
  window.scrollTo({top:0,behavior:'instant'});
  let extra={};
  try{
@@ -272,6 +295,7 @@ async function search(){
 }
 $('search-form').onsubmit=e=>{e.preventDefault();search();};
 async function openAdd(item){
+ previousDialogFocus=document.activeElement;
  selected={...item,provider};
  $('add-title').textContent='Add '+item.title;
  $('add-message').textContent='Loading destinations…';
@@ -279,6 +303,7 @@ async function openAdd(item){
  $('sonarr-controls').hidden=provider!=='sonarr';$('radarr-controls').hidden=provider!=='radarr';$('series-type').value='standard';$('monitor').value='all';$('season-folder').checked=true;$('availability').value='released';$('tag-options').replaceChildren();$('tag-wrap').hidden=true;
  $('confirm-add').disabled=true;$('search-now').checked=false;
  dialog.showModal();
+ $('folder').focus({preventScroll:true});
  try{
   const data=await fetchJson('/api/arr/'+provider+'/options');
   for(const folder of data.folders){
@@ -323,6 +348,7 @@ $('add-form').onsubmit=async event=>{
 };
 $('close').onclick=()=>dialog.close();
 $('cancel').onclick=()=>dialog.close();
+dialog.addEventListener('close',()=>{if(previousDialogFocus?.isConnected)previousDialogFocus.focus({preventScroll:true});});
 
 async function resolveDiscovery(item){
  if(provider==='radarr'){openAdd(item);return;}
@@ -350,6 +376,71 @@ async function loadDiscovery(){
   }
  }catch(e){$('status').textContent='Discovery unavailable: '+e.message;for(const id of ['popular','new','soon'])$(id).textContent='Unable to load this section.';}
 }
+
+
+/* D-pad spatial navigation for TV/browser remotes; native Enter/OK activates controls.
+   In a form, vertical arrows move fields and horizontal arrows change select choices. */
+const REMOTE_FOCUS='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled])';
+function remoteCandidates(scope){
+ return [...scope.querySelectorAll(REMOTE_FOCUS)].filter(el=>{
+   if(el.closest('[hidden]')||el.getAttribute('aria-hidden')==='true')return false;
+   const rect=el.getBoundingClientRect();
+   return rect.width>0&&rect.height>0;
+ });
+}
+function remoteMove(key){
+ const scope=dialog.open?dialog:document.querySelector('.workspace');
+ const targets=remoteCandidates(scope);
+ if(!targets.length)return false;
+ const active=document.activeElement;
+ if(!targets.includes(active)){targets[0].focus();return true;}
+ const rect=active.getBoundingClientRect();
+ const cx=rect.left+rect.width/2,cy=rect.top+rect.height/2;
+ const direction={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[key];
+ const [dx,dy]=direction;
+ let chosen=null,best=Infinity;
+ for(const el of targets){
+   if(el===active)continue;
+   const r=el.getBoundingClientRect(),x=r.left+r.width/2-cx,y=r.top+r.height/2-cy;
+   const along=x*dx+y*dy,across=Math.abs(x*dy-y*dx);
+   if(along<=3)continue;
+   // Prefer the same row/column, then the nearest reasonable target.
+   const score=along+across*2.75;
+   if(score<best){best=score;chosen=el;}
+ }
+ if(!chosen)return false;
+ chosen.focus({preventScroll:true});
+ chosen.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+ return true;
+}
+document.addEventListener('keydown',event=>{
+ const key=event.key;
+ if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Backspace','BrowserBack','GoBack'].includes(key))return;
+ if(event.altKey||event.ctrlKey||event.metaKey)return;
+ const active=document.activeElement;
+ const editing=active?.matches('input[type="text"],input[type="search"],textarea,[contenteditable="true"]');
+ if(editing)return;
+ if(key==='Escape'||key==='BrowserBack'||key==='GoBack'||(key==='Backspace'&&!editing)){
+   if(dialog.open){event.preventDefault();dialog.close();return;}
+   if(!$('explore-detail').hidden){event.preventDefault();restoreExplore();return;}
+   if(key!=='Escape'){event.preventDefault();location.href=provider==='sonarr'?'/tv':'/movies';}
+   return;
+ }
+ if(!key.startsWith('Arrow'))return;
+ if(dialog.open&&active?.matches('select')&&(key==='ArrowLeft'||key==='ArrowRight')){
+   event.preventDefault();
+   const delta=key==='ArrowRight'?1:-1;
+   const options=[...active.options].filter(opt=>!opt.disabled);
+   const index=options.indexOf(active.selectedOptions[0]);
+   if(options.length){active.value=options[Math.min(options.length-1,Math.max(0,index+delta))].value;active.dispatchEvent(new Event('change',{bubbles:true}));}
+   return;
+ }
+ if(dialog.open&&active?.matches('select')&&(key==='ArrowUp'||key==='ArrowDown')){
+   event.preventDefault();remoteMove(key);return;
+ }
+ if(dialog.open&&active?.matches('input[type="checkbox"]')&&(key==='ArrowLeft'||key==='ArrowRight'))return;
+ if(remoteMove(key))event.preventDefault();
+});
 
 const params=new URLSearchParams(location.search);
 if(params.get('type')==='tv')setProvider('sonarr');
