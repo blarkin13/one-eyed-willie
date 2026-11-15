@@ -378,8 +378,15 @@ body[data-page="tv"] .season-card{border:0;background:transparent}
 body[data-page="home"],body[data-page="movies"],body[data-page="tv"],body[data-page="explore"]{background:#080d16}
 .willie-hover-backdrop{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;isolation:isolate;background:#080d16}
 .willie-hover-backdrop-layer{position:absolute;inset:-3%;background-position:center 28%;background-size:cover;background-repeat:no-repeat;opacity:0;transform:scale(1.045);transition:opacity .6s ease,transform 1.4s ease;will-change:opacity}
-.willie-hover-backdrop-layer.is-visible{opacity:.48;transform:scale(1)}
-.willie-hover-backdrop::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,#080d16e9 0%,#080d16b3 40%,#080d16aa 100%),linear-gradient(0deg,#080d16ed 0%,#080d1699 40%,#080d1699 78%,#080d16de 100%)}
+.willie-hover-backdrop-layer.is-visible{opacity:.92;transform:scale(1)}
+.willie-hover-backdrop::after{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,#080d16aa 0%,#080d163d 45%,#080d1645 100%),linear-gradient(0deg,#080d16cc 0%,#080d1638 45%,#080d1654 100%)}
 body:has(.willie-hover-backdrop)>.app-shell{position:relative;z-index:1;background:transparent}
 @media(prefers-reduced-motion:reduce){.willie-hover-backdrop-layer{transition:none;transform:none!important}}
 @media(max-width:650px){.willie-hover-backdrop-layer{background-position:center 24%}.willie-hover-backdrop::after{background:#080d16ca}}
+
+/* Hide the skull collection watermark only while a title backdrop is visible. */
+body:has(.willie-hover-backdrop-layer.is-visible) #items::before,
+body:has(.willie-hover-backdrop-layer.is-visible) .shelf-track::before,
+body:has(.willie-hover-backdrop-layer.is-visible) .explore-grid::before,
+body:has(.willie-hover-backdrop-layer.is-visible) .movie-grid::before,
+body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
