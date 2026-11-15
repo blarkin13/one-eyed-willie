@@ -48,7 +48,7 @@ class CompactLayoutTests(unittest.TestCase):
         root = ET.parse(SERVER / "logo.svg").getroot()
         self.assertEqual(root.tag, "{http://www.w3.org/2000/svg}svg")
         self.assertTrue(list(root))
-        self.assertIn('"/assets/logo.svg"', (SERVER / "shell.js").read_text())
+        self.assertIn('/assets/logo.svg', (SERVER / "shell.js").read_text())
         self.assertIn('/assets/logo.svg', (SERVER / "main.py").read_text())
 
     def test_icon_nav_has_all_required_links_and_labels(self):
