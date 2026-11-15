@@ -28,7 +28,7 @@
 <p id="maintenance-status" role="status" class="message"></p>
 </section>
 <section class="form-card maintenance-panel"><h2>Performance and storage</h2>
-<p class="maintenance-note">Quick media analysis reads video and audio stream properties with FFprobe. Extensive media analysis samples the audio of up to three videos per maintenance run. Preview generation extracts six 320-pixel images per video, with at most four new preview sets in each scheduled run. Previews appear when hovering or seeking on the video timeline. Analysis and preview files are kept in the private server data directory, not on your read-only media drive.</p>
+<p class="maintenance-note">Quick media analysis reads video and audio stream properties with FFprobe. Extensive media analysis samples black frames, silence and loudness from the first minute of up to three videos per maintenance run. Preview generation extracts six 320-pixel images per video, with at most four new preview sets in each scheduled run. Previews appear when hovering or seeking on the video timeline. Analysis and preview files are kept in the private server data directory, not on your read-only media drive.</p>
 <p class="maintenance-note">Old bundle cleanup is limited to generated One-Eyed Willie maintenance bundles. Cache cleanup removes stale generated artwork, WebVTT derivatives, and expired HLS sessions; it preserves downloaded subtitle files and manually corrected metadata matches. Database optimization preserves library and playback history.</p>
 </section></main></div></div>
 <script>
@@ -40,7 +40,7 @@ const descriptions=[
  ['update_all_libraries','Update all libraries','Weekly','Scan each library for added, changed and removed files.'],
  ['upgrade_media_analysis','Upgrade media analysis','Weekly','Read stream properties for up to 40 indexed files each maintenance run.'],
  ['refresh_library_metadata','Refresh library metadata periodically','Every 3 days','Refresh show and season metadata while preserving manually selected matches.'],
- ['extensive_media_analysis','Perform extensive media analysis','Weekly','Sample audio statistics for up to three files per run.'],
+ ['extensive_media_analysis','Perform extensive media analysis','Weekly','Sample video black segments and audio silence/loudness for up to three files per run.'],
  ['video_preview_thumbnails','Enable video preview thumbnails','Daily and on demand','Create six preview frames per video; generated in limited batches.']
 ];
 const byId=id=>document.getElementById(id);
