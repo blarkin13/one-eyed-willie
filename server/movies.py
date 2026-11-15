@@ -301,12 +301,13 @@ def _movie_extras(radarr):
         cached = _cache_get(key)
         if cached is not None:
             return cached
-        details = _call("movie/" + str(tmdb_id), query={"language": "en-US"})
-        credits = _call("movie/" + str(tmdb_id) + "/credits", query={"language": "en-US"})
-        reviews = _call("movie/" + str(tmdb_id) + "/reviews",
-                        query={"language": "en-US", "page": 1})
-        if details is None and credits is None and reviews is None:
+        details = _call("movie/" + str(tmdb_id),
+                        query={"language": "en-US",
+                               "append_to_response": "credits,reviews"})
+        if details is None:
             return {}
+        credits = details.get("credits") or {}
+        reviews = details.get("reviews") or {}
         cast = []
         for person in (credits or {}).get("cast", [])[:15]:
             if not isinstance(person, dict):
