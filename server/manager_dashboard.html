@@ -79,6 +79,9 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
 .manager-system-card small{color:#aec2d5;line-height:1.5;overflow-wrap:anywhere}
 .manager-section-message{min-height:1.3rem;margin:9px 0;color:#b7d0e5}
 @media(max-width:760px){.manager-episode{grid-template-columns:1fr}.manager-episode-actions{justify-content:flex-start}.manager-release{flex-direction:column;align-items:flex-start}}
+.manager-series-link{display:block;color:#eaf3ff;font-weight:750;text-decoration:none;font-size:.98rem;line-height:1.45}
+.manager-series-link:hover,.manager-series-link:focus-visible{color:#b7e0ff;text-decoration:underline;text-underline-offset:4px}
+.manager-series-link:focus-visible{outline:2px solid #b6d9f4;outline-offset:3px;border-radius:3px}
 </style>
 </head><body data-page="services"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -126,6 +129,7 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
  <a id="manager-add" href="/explore?type=movies" class="secondary-button">Find and add titles</a></div>
  <div class="manager-filter"><input id="manager-search" type="search" placeholder="Filter managed titles…" aria-label="Filter titles">
  <select id="manager-filter" aria-label="Filter monitoring"><option value="all">All titles</option><option value="monitored">Monitored</option><option value="missing">Missing files</option><option value="unmonitored">Not monitored</option></select></div>
+ <p id="manager-library-help" class="manager-note" hidden>Open a series title or choose <strong>Seasons & episodes</strong> to monitor and search individual episodes.</p>
  <div id="manager-library" class="manager-library"></div>
 </section>
 </section>
@@ -148,6 +152,7 @@ $('manager-description').textContent=managerName==='radarr'
 $('total-label').textContent=managerName==='radarr'?'Movies':'Series';
 $('missing-label').textContent=managerName==='radarr'?'Movies missing files':'Series with missing episodes';
 $('library-heading').textContent=managerName==='radarr'?'Managed movies':'Managed series';
+$('manager-library-help').hidden=managerName!=='sonarr';
 $('manager-add').href='/explore?type='+(managerName==='radarr'?'movies':'tv');
 $('tab-'+managerName).setAttribute('aria-current','page');
 let activeData=null,waiting=false;
@@ -192,7 +197,13 @@ function showLibrary(){
   count++;
   const row=document.createElement('article');row.className='manager-item';
   const heading=document.createElement('div');
-  const title=document.createElement('strong');title.textContent=entry.title;
+  const title=document.createElement(managerName==='sonarr'?'a':'strong');
+  title.textContent=entry.title;
+  if(managerName==='sonarr'){
+    title.href='/sonarr/series/'+entry.id;
+    title.className='manager-series-link';
+    title.setAttribute('aria-label','Open '+entry.title+' seasons and episodes');
+  }
   const subtitle=document.createElement('span');subtitle.className='manager-subtitle';
   subtitle.textContent=[entry.year,entry.subtitle].filter(Boolean).join(' · ');
   const status=document.createElement('span');status.className='manager-status';
@@ -259,7 +270,7 @@ function showLibrary(){
        body:JSON.stringify({action:'refresh',item_id:entry.id})},
       'Metadata refresh queued in '+label+'.');
   });
-  const detailsButton=newButton('Details',()=>openDetails(entry.id));
+  const detailsButton=newButton(managerName==='sonarr'?'Seasons & episodes':'Details',()=>openDetails(entry.id));
   actions.append(detailsButton,monitorButton,searchButton,refreshButton);
   row.append(heading,select,actions,message);
   list.append(row);
@@ -507,6 +518,10 @@ async function loadDetails(itemId){
  }catch(error){setDetailMessage(error.message)}
 }
 async function openDetails(itemId){
+ if(managerName==='sonarr'){
+  location.href='/sonarr/series/'+itemId;
+  return;
+ }
  activeDetail=itemId;
  $('manager-detail-title').textContent='Title details';
  $('manager-detail-body').replaceChildren();

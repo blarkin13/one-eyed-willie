@@ -184,6 +184,56 @@ def title_detail(name: str, item_id: int = Path(gt=0)):
         }
     return fields
 
+class EpisodeBulkChange(BaseModel):
+    action: str
+    episode_ids: list[int] = Field(min_length=1, max_length=400)
+
+
+@router.post("/sonarr/series/{series_id}/episodes/bulk")
+def bulk_episodes(series_id: int = Path(gt=0), change: EpisodeBulkChange = None):
+    """Change monitoring or search only verified episodes belonging to a Sonarr series."""
+    if change is None or change.action not in ("monitor", "unmonitor", "search"):
+        raise HTTPException(422, "Choose Monitor, Unmonitor or Search.")
+    episode_ids = change.episode_ids
+    if not episode_ids or len(set(episode_ids)) != len(episode_ids) or any(
+        not isinstance(item, int) or isinstance(item, bool) or item <= 0 for item in episode_ids
+    ):
+        raise HTTPException(422, "Select unique valid episode IDs.")
+    setting = _provider("sonarr")
+    series = _request("sonarr", setting, "series/" + str(series_id))
+    if not isinstance(series, dict) or _positive_int(series.get("id")) != series_id:
+        raise HTTPException(404, "Series not found.")
+    episodes = _request("sonarr", setting, "episode", query={"seriesId": series_id})
+    if not isinstance(episodes, list):
+        raise HTTPException(502, "Sonarr did not return episode information.")
+    owned = {_positive_int(row.get("id")): row
+             for row in episodes if isinstance(row, dict) and
+             _positive_int(row.get("seriesId")) in (None, series_id)}
+    if not set(episode_ids).issubset(owned):
+        raise HTTPException(422, "One or more episodes do not belong to this series.")
+    if change.action == "search":
+        result = _request("sonarr", setting, "command", method="POST", payload={
+            "name": "EpisodeSearch", "episodeIds": episode_ids,
+        })
+        if not isinstance(result, dict):
+            raise HTTPException(502, "Sonarr did not confirm the episode search.")
+        return {"queued": True, "action": "search", "count": len(episode_ids),
+                "command_id": _positive_int(result.get("id"))}
+    monitored = change.action == "monitor"
+    # Sonarr v3/v5 support bulk monitoring via PUT /episode/monitor.
+    _request("sonarr", setting, "episode/monitor", method="PUT",
+             payload={"episodeIds": episode_ids, "monitored": monitored})
+    verified = _request("sonarr", setting, "episode", query={"seriesId": series_id})
+    if not isinstance(verified, list):
+        raise HTTPException(502, "Sonarr did not confirm the monitoring change.")
+    statuses = {_positive_int(row.get("id")): bool(row.get("monitored"))
+                for row in verified if isinstance(row, dict)}
+    updated = [item for item in episode_ids if statuses.get(item) is monitored]
+    if len(updated) != len(episode_ids):
+        raise HTTPException(502, "Sonarr did not confirm monitoring for all selected episodes. Refresh to review their status.")
+    return {"action": change.action, "count": len(updated), "monitored": monitored}
+
+
 class EpisodeChange(BaseModel):
     monitored: bool
 

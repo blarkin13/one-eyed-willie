@@ -38,7 +38,7 @@ def _request(name, settings, resource, method="GET", payload=None, query=None):
     indexed = len(parts) == 2 and parts[0] in (
         "movie", "series", "episode", "queue"
     ) and parts[1].isdigit() and int(parts[1]) > 0
-    read_allowed = resource in read_only or indexed
+    read_allowed = resource in read_only or indexed or (name == "sonarr" and resource == "episode/monitor")
     if not read_allowed:
         raise ValueError("Resource not permitted")
     if name == "radarr" and parts[0] in ("series", "episode", "episodefile"):
@@ -46,10 +46,12 @@ def _request(name, settings, resource, method="GET", payload=None, query=None):
     if name == "sonarr" and parts[0] == "movie":
         raise ValueError("Resource not permitted")
     if method == "GET":
-        if indexed and parts[0] == "queue":
+        if resource == "episode/monitor" or (indexed and parts[0] == "queue"):
             raise ValueError("Method not permitted")
     elif method == "PUT":
-        if not indexed or parts[0] not in ("movie", "series", "episode"):
+        if resource == "episode/monitor" and name == "sonarr":
+            pass
+        elif not indexed or parts[0] not in ("movie", "series", "episode"):
             raise ValueError("Method not permitted")
     elif method == "POST":
         if resource not in ("command", "release"):

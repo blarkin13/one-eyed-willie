@@ -217,6 +217,15 @@ def manager_dashboard_page():
     return FileResponse(Path(__file__).with_name("manager_dashboard.html"), media_type="text/html")
 
 
+@app.get("/sonarr/series/{series_id}")
+def sonarr_series_page(series_id: int):
+    if series_id <= 0:
+        from fastapi import HTTPException
+        raise HTTPException(404, "Series not found")
+    return FileResponse(Path(__file__).with_name("sonarr_series.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/sabnzbd")
 def sabnzbd_dashboard_page():
     return FileResponse(Path(__file__).with_name("sab_dashboard.html"), media_type="text/html")
