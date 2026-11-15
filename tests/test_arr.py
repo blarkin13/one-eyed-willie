@@ -117,9 +117,9 @@ class ArrConnectionTests(unittest.TestCase):
         def request(name, settings, resource, **kwargs):
             sent.append(kwargs["payload"])
             return {"title": "Severance", "id": 900}
-        with patch.object(arr, "_settings", return_value=setting), \\
-             patch.object(arr, "options", return_value=opts), \\
-             patch.object(arr, "_get", side_effect=get), \\
+        with patch.object(arr, "_settings", return_value=setting), \
+             patch.object(arr, "options", return_value=opts), \
+             patch.object(arr, "_get", side_effect=get), \
              patch.object(arr, "_request", side_effect=request):
             arr.add("sonarr", arr.AddInput(external_id=379481, root_folder="/tv",
                 quality_profile_id=4, series_type="anime", monitor="future",
@@ -130,7 +130,7 @@ class ArrConnectionTests(unittest.TestCase):
         self.assertEqual(sent[0]["tags"], [9])
 
     def test_invalid_sonarr_monitor_is_rejected(self):
-        with patch.object(arr, "_settings", return_value={"url": "http://192.168.86.29:8989"}), \\
+        with patch.object(arr, "_settings", return_value={"url": "http://192.168.86.29:8989"}), \
              patch.object(arr, "options", return_value={"folders": [{"path": "/tv"}], "profiles": [{"id": 4}]}):
             with self.assertRaises(HTTPException):
                 arr.add("sonarr", arr.AddInput(external_id=379481, root_folder="/tv",
@@ -142,7 +142,7 @@ class ArrConnectionTests(unittest.TestCase):
             return {"results": [{"id": 55, "title": "Film", "name": "Show",
                         "release_date": "2027-01-10", "first_air_date": "2027-01-10",
                         "overview": "A description", "vote_average": 7.5}]}
-        with patch.object(metadata, "token_status", return_value=True), \\
+        with patch.object(metadata, "token_status", return_value=True), \
              patch.object(metadata, "_call", side_effect=fake_call):
             movies = arr.discover("radarr")
             shows = arr.discover("sonarr")
