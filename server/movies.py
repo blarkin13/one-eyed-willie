@@ -174,6 +174,13 @@ def _snapshot():
                 "genres": film.get("genres") if isinstance(film.get("genres"), list) else [],
                 "imdb_id": film.get("imdbId"),
                 "tmdb_id": film.get("tmdbId"),
+                "ratings": {name: {"value": value.get("value"), "votes": value.get("votes")}
+                            for name, value in (film.get("ratings") or {}).items()
+                            if name in ("imdb", "tmdb", "rottenTomatoes", "metacritic")
+                            and isinstance(value, dict)},
+                "studio": film.get("studio") or "",
+                "certification": film.get("certification") or "",
+                "original_language": film.get("originalLanguage") or {},
                 "poster_url": art.get("remoteUrl"),
                 "poster_internal": art.get("url"),
                 "backdrop_url": backdrop.get("remoteUrl"),
@@ -281,6 +288,59 @@ def _local_nfo(video_path, root):
     return {}
 
 
+def _movie_extras(radarr):
+    """Optional, cached TMDB cast and user reviews; never scrape review sites."""
+    tmdb_id = radarr.get("tmdb_id")
+    if not isinstance(tmdb_id, int) or tmdb_id <= 0:
+        return {}
+    from .metadata import token_status, _call, _cache_get, _cache_put, image_url, LOCK as META_LOCK
+    if not token_status():
+        return {}
+    key = "movie-extras:" + str(tmdb_id)
+    with META_LOCK:
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached
+        details = _call("movie/" + str(tmdb_id), query={"language": "en-US"})
+        credits = _call("movie/" + str(tmdb_id) + "/credits", query={"language": "en-US"})
+        reviews = _call("movie/" + str(tmdb_id) + "/reviews",
+                        query={"language": "en-US", "page": 1})
+        if details is None and credits is None and reviews is None:
+            return {}
+        cast = []
+        for person in (credits or {}).get("cast", [])[:15]:
+            if not isinstance(person, dict):
+                continue
+            cast.append({"name": str(person.get("name") or "")[:90],
+                         "character": str(person.get("character") or "")[:90],
+                         "photo": register_remote(image_url(person.get("profile_path"), "w185"))})
+        user_reviews = []
+        for review in (reviews or {}).get("results", [])[:4]:
+            if not isinstance(review, dict):
+                continue
+            user_reviews.append({
+                "author": str(review.get("author") or "TMDB contributor")[:80],
+                "excerpt": str(review.get("content") or "")[:850],
+                "source": "TMDB",
+            })
+        extras = {
+            "cast": cast, "reviews": user_reviews,
+            "tagline": str((details or {}).get("tagline") or "")[:250],
+            "release_date": (details or {}).get("release_date"),
+            "budget": (details or {}).get("budget"),
+            "revenue": (details or {}).get("revenue"),
+            "production_companies": [
+                str(studio.get("name") or "")[:100]
+                for studio in (details or {}).get("production_companies", [])[:5]
+                if isinstance(studio, dict)
+            ],
+            "tmdb_rating": (details or {}).get("vote_average"),
+            "tmdb_votes": (details or {}).get("vote_count"),
+        }
+        _cache_put(key, extras)
+        return extras
+
+
 def _details(library_id, key, snapshot=None):
     parsed, video, root = _movie_path(library_id, key)
     radarr = _movie_match(parsed["title"], parsed["year"],
@@ -299,7 +359,12 @@ def _details(library_id, key, snapshot=None):
             "WHERE m.library_id=? AND m.path=? ORDER BY m.id LIMIT 1",
             (library_id, str(video)),
         ).fetchone()
+    extras = _movie_extras(radarr)
     return {
+        **extras,
+        "ratings": radarr.get("ratings") or {},
+        "studio": radarr.get("studio") or "",
+        "certification": radarr.get("certification") or "",
         "library_id": library_id, "key": key, "title": parsed["title"],
         "media_id": entry["id"] if entry else None,
         "watched": bool(entry and entry["completed"]),
