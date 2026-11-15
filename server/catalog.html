@@ -284,7 +284,10 @@ function createCard(item){
    flag.setAttribute('aria-label','Watched');article.append(flag);
  }
  article.append(button);
- if(type==='tv')observePoster(article,cover,item);
+ if(item.poster_url?.startsWith('/api/artwork/')){
+   const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
+   img.loading='lazy';img.decoding='async';img.src=item.poster_url;cover.append(img);
+ }else if(type==='tv')observePoster(article,cover,item);
  else moviePosterJobs.push({cover,item});
  return article;
 }
