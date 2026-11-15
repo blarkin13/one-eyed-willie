@@ -33,7 +33,7 @@
     if(captions){captions.remove();captions=null}
     if(!current||!captionsSelect)return;
     const value=captionsSelect.value;
-    if(!/^(external|embedded)-[0-9]{1,3}$/.test(value))return;
+    if(!/^(?:external|embedded)-[0-9]{1,3}$|^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(?:-[a-z]{2})?$/.test(value))return;
     const video=current.querySelector('video');
     const track=document.createElement('track');
     track.kind='subtitles';track.label=captionsSelect.selectedOptions[0].textContent;
@@ -64,7 +64,11 @@ opacity:0;transition:opacity .15s}
 .willie-subtitle-menu{position:absolute;right:25px;bottom:90px;background:var(--panel,#171b20);border:1px solid var(--line,#535b64);border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:13px;width:min(360px,calc(100vw - 40px))}
 .willie-subtitle-menu[hidden]{display:none}
 .willie-subtitle-menu a{color:var(--ink,#fff);font-size:14px;text-decoration:none;padding:9px}
-.willie-subtitle-menu a:focus-visible{outline:2px solid var(--accent,#fff)}
+.willie-provider-search,.willie-subtitle-result{width:100%;text-align:left;background:transparent;color:var(--ink,#fff);border:0;border-radius:8px;padding:11px 10px;cursor:pointer;font:inherit}
+.willie-provider-search:hover,.willie-subtitle-result:hover,.willie-provider-search:focus-visible,.willie-subtitle-result:focus-visible{background:#ffffff25;outline:2px solid var(--accent,#fff)}
+.willie-subtitle-results{max-height:35vh;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.willie-subtitle-menu{max-height:75vh;overflow-y:auto}
+.willie-subtitle-menu .willie-subtitle-select{max-width:none;width:100%}
 
 .willie-subtitle-select{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
 color:#fff;padding:10px 12px;font:inherit;max-width:180px;cursor:pointer}
@@ -234,7 +238,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     cc.setAttribute('aria-label','Subtitles');cc.title='Subtitles';
     cc.hidden=false;
     const off=document.createElement('option');off.value='';off.textContent='CC Off';cc.append(off);
-    cc.onchange=syncCaptions;
+    cc.onchange=()=>{syncCaptions();subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');revealChrome();concealChromeSoon()};
     const watch=document.createElement('button');setIcon(watch,'watched','Mark watched');watch.setAttribute('aria-pressed','false');
     watch.onclick=async()=>{
       try{
@@ -255,10 +259,52 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const subtitles=document.createElement('button');setIcon(subtitles,'subtitle','Subtitles');
     subtitles.setAttribute('aria-expanded','false');
     const subtitleMenu=document.createElement('div');subtitleMenu.className='willie-subtitle-menu';subtitleMenu.hidden=true;
-    const searchLink=document.createElement('a');searchLink.textContent='Search for missing subtitles';
-    searchLink.href='https://www.opensubtitles.org/en/search2/sublanguageid-all/moviename-'+encodeURIComponent(title||'');
-    searchLink.target='_blank';searchLink.rel='noopener noreferrer';
-    subtitleMenu.append(cc,searchLink);
+    const language=document.createElement('select');language.className='willie-subtitle-select';
+    language.setAttribute('aria-label','Subtitle search language');
+    for(const [code,label] of [['en','English'],['es','Spanish'],['fr','French'],['de','German'],['it','Italian'],['pt','Portuguese'],['ja','Japanese'],['ko','Korean']]){
+      const option=document.createElement('option');option.value=code;option.textContent=label;language.append(option);
+    }
+    const searchLink=document.createElement('button');searchLink.type='button';
+    searchLink.className='willie-provider-search';searchLink.textContent='Search subtitles';
+    const results=document.createElement('div');results.className='willie-subtitle-results';
+    results.setAttribute('aria-live','polite');
+    const reloadTracks=async(selected)=>{
+      const info=await requestJson('/api/stream/subtitles/'+id);
+      cc.replaceChildren(off);
+      for(const item of info.tracks||[]){
+        if(!/^(?:external|embedded)-[0-9]{1,3}$|^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(?:-[a-z]{2})?$/.test(item.id))continue;
+        const option=document.createElement('option');option.value=item.id;
+        option.textContent=String(item.label||'Subtitles').slice(0,80);cc.append(option);
+      }
+      if(selected){cc.value=selected;syncCaptions();}
+    };
+    searchLink.onclick=async()=>{
+      results.replaceChildren();results.textContent='Searching OpenSubtitles…';
+      searchLink.disabled=true;
+      try{
+        const data=await requestJson('/api/stream/subtitles/'+id+'/search?language='+encodeURIComponent(language.value));
+        results.replaceChildren();
+        if(!data.results?.length){results.textContent='No subtitle matches found.';return;}
+        for(const item of data.results){
+          const choice=document.createElement('button');choice.type='button';choice.className='willie-subtitle-result';
+          choice.textContent=item.release+' · '+item.language+(item.hearing_impaired?' · SDH':'');
+          choice.onclick=async()=>{
+            choice.disabled=true;choice.textContent='Downloading subtitle…';
+            try{
+              const result=await requestJson('/api/stream/subtitles/'+id+'/download?language='+encodeURIComponent(language.value),{
+                method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file_id:item.file_id})
+              });
+              await reloadTracks(result.track_id);
+              subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');
+              message('Subtitle downloaded and enabled.');revealChrome();concealChromeSoon();
+            }catch(error){choice.textContent=error.message;choice.disabled=false;}
+          };
+          results.append(choice);
+        }
+      }catch(error){results.textContent=error.message;}
+      finally{searchLink.disabled=false;}
+    };
+    subtitleMenu.append(cc,language,searchLink,results);
     subtitles.onclick=()=>{subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
     const playPause=document.createElement('button');setIcon(playPause,'pause','Pause');
     playPause.onclick=()=>video.paused?video.play().catch(()=>{}):video.pause();
@@ -341,16 +387,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     requestJson('/api/watch/'+id+'/status').then(data=>{
       if(current!==surface)return;
       status=data;watch.setAttribute('aria-pressed',String(data.watched));watch.title=data.watched?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
-      requestJson('/api/stream/subtitles/'+id).then(info=>{
-        if(current!==surface)return;
-        for(const item of info.tracks||[]){
-          if(!/^(external|embedded)-[0-9]{1,3}$/.test(item.id))continue;
-          const option=document.createElement('option');option.value=item.id;
-          option.textContent='CC '+String(item.label||'Subtitles').slice(0,80);
-          cc.append(option);
-        }
-        // Keep subtitle search accessible even without local tracks.
-      }).catch(()=>{});
+      reloadTracks().catch(()=>{});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
       if(data.mode==='direct'){
         playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
