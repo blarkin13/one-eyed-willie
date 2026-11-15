@@ -39,6 +39,7 @@ class AddInput(BaseModel):
     root_folder: str = Field(min_length=1, max_length=1024)
     quality_profile_id: int = Field(gt=0)
     search_now: bool = False
+    language_profile_id: int | None = Field(default=None, gt=0)
 
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
@@ -89,7 +90,7 @@ def _request(name, settings, resource, *, method="GET", query=None, payload=None
     api = _version(name, settings)
     allowed = {
         "movie", "series", "movie/lookup", "series/lookup",
-        "rootfolder", "qualityprofile",
+        "rootfolder", "qualityprofile", "languageprofile",
     }
     if resource not in allowed:
         raise ValueError("Unsupported API resource")
@@ -242,11 +243,23 @@ def options(name: str):
     profiles = _get(name, "qualityprofile")
     if not isinstance(folders, list) or not isinstance(profiles, list):
         raise HTTPException(502, "Could not retrieve folders and profiles")
+    languages = []
+    if name == "sonarr" and _version(name, _settings(name)) == "v3":
+        try:
+            language_response = _get(name, "languageprofile")
+            if isinstance(language_response, list):
+                languages = [{"id": x["id"], "name": x.get("name") or "Language"}
+                             for x in language_response if isinstance(x, dict) and
+                             isinstance(x.get("id"), int)]
+        except HTTPException:
+            # Sonarr v4 retains /api/v3 but no longer has language profiles.
+            pass
     return {
         "folders": [{"path": x["path"], "label": x.get("name") or x["path"]}
                     for x in folders if isinstance(x, dict) and isinstance(x.get("path"), str)],
         "profiles": [{"id": x["id"], "name": x.get("name") or "Profile"}
                      for x in profiles if isinstance(x, dict) and isinstance(x.get("id"), int)],
+        "languages": languages,
     }
 
 
@@ -262,6 +275,9 @@ def add(name: str, selection: AddInput):
     profiles = {x["id"] for x in opts["profiles"]}
     if selection.root_folder not in paths or selection.quality_profile_id not in profiles:
         raise HTTPException(422, "Select an existing root folder and quality profile")
+    languages = {x["id"] for x in opts.get("languages", [])}
+    if languages and selection.language_profile_id not in languages:
+        raise HTTPException(422, "Select an existing Sonarr language profile")
     owned = _get(name, "movie" if name == "radarr" else "series")
     if any(_id(name, item) == selection.external_id for item in owned if isinstance(item, dict)):
         raise HTTPException(409, "This title is already in your " + name.title() + " library")
@@ -285,6 +301,8 @@ def add(name: str, selection: AddInput):
                         "addOptions": {"searchForMovie": selection.search_now}})
         endpoint = "movie"
     else:
+        if languages:
+            payload["languageProfileId"] = selection.language_profile_id
         payload.update({
             "tvdbId": selection.external_id,
             "seasonFolder": True,
@@ -296,6 +314,16 @@ def add(name: str, selection: AddInput):
         })
         endpoint = "series"
     result = _request(name, setting, endpoint, method="POST", payload=payload)
+    # Invalidate only the connected manager's snapshot after a successful add.
+    with db() as conn:
+        if name == "radarr":
+            movies._snapshot_table(conn)
+            conn.execute("DELETE FROM radarr_snapshot")
+        else:
+            conn.execute("""CREATE TABLE IF NOT EXISTS sonarr_snapshot (
+                id INTEGER PRIMARY KEY CHECK(id=1), payload TEXT NOT NULL,
+                fetched_at INTEGER NOT NULL, source_url TEXT NOT NULL)""")
+            conn.execute("DELETE FROM sonarr_snapshot")
     return {
         "added": True, "provider": name, "title": result.get("title") or payload["title"],
         "id": result.get("id"), "search_requested": selection.search_now,
