@@ -24,6 +24,7 @@ LOCK = threading.RLock()
 EXTENSIONS = {".srt", ".vtt", ".ass", ".ssa"}
 TEXT_CODECS = {"subrip", "ass", "ssa", "mov_text", "webvtt", "text"}
 TRACK = re.compile(r"^(external|embedded)-([0-9]{1,3})$")
+DOWNLOADED = re.compile(r"^downloaded-([1-9][0-9]{0,11})-([a-z]{2,3}(?:-[a-z]{2})?)$")
 MAX_SOURCE_BYTES = 16 * 1024 * 1024
 MAX_VTT_BYTES = 12 * 1024 * 1024
 
@@ -85,6 +86,8 @@ def subtitle_list(media_id):
         {"id": f"embedded-{i}", "label": entry["label"], "kind": "embedded"}
         for i, entry in enumerate(_embedded(video))
     )
+    from .subtitle_provider import _cached
+    items.extend(_cached(media_id, video))
     return {"tracks": items}
 
 
@@ -97,11 +100,21 @@ def list_subtitles(media_id: int):
 def subtitle_file(media_id: int, track_id: str, start: float = Query(0, ge=0, le=10000000)):
     _, video = _item(media_id)
     match = TRACK.fullmatch(track_id)
-    if not match:
+    downloaded = DOWNLOADED.fullmatch(track_id)
+    if not match and not downloaded:
         raise HTTPException(404, "Subtitle track unavailable")
-    kind, index_str = match.groups()
+    kind, index_str = match.groups() if match else ("downloaded", "0")
     index = int(index_str)
-    if kind == "external":
+    if kind == "downloaded":
+        from .subtitle_provider import _cache_prefix
+        file_id, language = downloaded.groups()
+        root = CACHE / "opensubtitles"
+        source = root / f"{_cache_prefix(media_id, video)}-{file_id}-{language}.srt"
+        if source.is_symlink() or not source.is_file() or source.stat().st_size > MAX_SOURCE_BYTES:
+            raise HTTPException(404, "Downloaded subtitle unavailable")
+        selected = ["-i", str(source), "-map", "0:s:0"]
+        salt = f"{source.resolve()}:{source.stat().st_mtime_ns}:{source.stat().st_size}"
+    elif kind == "external":
         files = _sidecars(video)
         if index >= len(files):
             raise HTTPException(404, "Subtitle track unavailable")
