@@ -143,7 +143,17 @@
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{saveProgress(true,true);watched.textContent='Mark unwatched';if(savedStatus)savedStatus.watched=true;document.dispatchEvent(new CustomEvent('willie:watch-updated'));});
     video.addEventListener('error',()=>{
-      setMessage('This format could not play in your browser. Try a supported MP4/WebM or compatibility mode.');
+      if(savedStatus?.mode==='direct' && !video.dataset.compatTried){
+        // A .mp4 filename can still contain HEVC/unsupported audio codecs.
+        video.dataset.compatTried='true';
+        skip.hidden=false;timeOffset=Math.max(0,video.currentTime||0);
+        video.src=savedStatus.compatible_url+
+          (timeOffset>5?'?start='+encodeURIComponent(timeOffset):'');
+        setMessage('Switching to compatibility playback…');
+        video.play().then(()=>setMessage('')).catch(()=>setMessage('Press Play to start'));
+      } else {
+        setMessage('This file could not be played. Check the media format or server transcoding.');
+      }
     });
     try{
       const response=await fetch(statusUrl(id),{cache:'no-store'});
