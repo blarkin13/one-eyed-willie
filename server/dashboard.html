@@ -58,7 +58,7 @@ function nextPoster(){
     fetch('/api/tv/poster?'+query,{cache:'no-store'})
       .then(response=>response.ok?response.json():null)
       .then(data=>{
-        if(!(data?.poster_url?.startsWith('https://image.tmdb.org/t/p/')||data?.poster_url?.startsWith('https://static.tvmaze.com/uploads/images/')))return;
+        if(!(data?.poster_url?.startsWith('/api/artwork/')))return;
         if(!cover.isConnected)return;
         const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
         img.src=data.poster_url;img.loading='lazy';img.referrerPolicy='no-referrer';cover.append(img);

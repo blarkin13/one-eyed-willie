@@ -64,7 +64,11 @@ export default {
         return blocked();
       }
       const resultHeaders = new Headers(response.headers);
-      resultHeaders.set("cache-control", "no-store");
+      const isArtwork = url.pathname.startsWith("/api/artwork/") &&
+        response.ok && /^image\//i.test(response.headers.get("content-type") || "");
+      // Browser-private image caching, while Cloudflare edge caching remains off.
+      resultHeaders.set("cache-control",
+        isArtwork ? "private, max-age=604800" : "no-store");
       const location = resultHeaders.get("location");
       if (location) {
         try {

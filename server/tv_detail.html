@@ -30,7 +30,7 @@ function el(tag,cls,text){
 }
 function image(src,cls,alt){
   const node=el('img',cls);node.alt=alt||'';
-  if(typeof src==='string'&&(src.startsWith('https://image.tmdb.org/t/p/')||src.startsWith('https://static.tvmaze.com/uploads/images/'))){
+  if(typeof src==='string'&&src.startsWith('/api/artwork/')){
     node.src=src;node.loading='lazy';node.referrerPolicy='no-referrer';
   }
   return node;

@@ -74,9 +74,13 @@ def _cache_get(key):
         row = conn.execute(
             "SELECT payload, fetched_at FROM metadata_cache WHERE cache_key=?", (key,)
         ).fetchone()
-    if row and time.time() - row["fetched_at"] < CACHE_SECONDS:
+    if row:
         try:
-            return json.loads(row["payload"])
+            result = json.loads(row["payload"])
+            # Retry an unmatched title soon; don't hide new provider artwork for 30 days.
+            ttl = 12 * 60 * 60 if not result else CACHE_SECONDS
+            if time.time() - row["fetched_at"] < ttl:
+                return result
         except ValueError:
             pass
     return None

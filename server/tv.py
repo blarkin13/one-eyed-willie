@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from .catalog import episode_info
 from .library import db
+from .artwork import localize, local_show_poster
 from .metadata import show_metadata as tmdb_show_metadata, season_metadata, token_status
 from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tvmaze_season_metadata
 
@@ -97,17 +98,20 @@ def merged_show(library_id: int, show_key: str):
 def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show = local_show(library_id, key)
     metadata = show_metadata(show["title"], show["year"])
-    return {
+    result = {
         "poster_url": metadata.get("poster_url"),
         "overview": metadata.get("overview", ""),
         "metadata_available": bool(metadata), "metadata_source": metadata.get("source"), "source_url": metadata.get("source_url"),
     }
+    result = localize(result)
+    result["poster_url"] = local_show_poster(library_id, key) or result["poster_url"]
+    return result
 
 
 @router.get("/show")
 def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show, meta, seasons = merged_show(library_id, key)
-    return {
+    result = {
         "library_id": library_id, "key": key, "title": show["title"],
         "year": show["year"], "overview": meta.get("overview", ""),
         "poster_url": meta.get("poster_url"),
@@ -116,6 +120,9 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         "episode_count": len(show["episodes"]),
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
+    result = localize(result)
+    result["poster_url"] = local_show_poster(library_id, key) or result["poster_url"]
+    return result
 
 
 @router.get("/season")
@@ -143,7 +150,7 @@ def season_details(
             "air_date": episode_meta.get("air_date", ""),
             "runtime": episode_meta.get("runtime"),
         })
-    return {
+    result = {
         "show": {"library_id": library_id, "key": key, "title": show["title"],
                  "poster_url": meta.get("poster_url"), "overview": meta.get("overview", "")},
         "season": {**season,
@@ -152,6 +159,9 @@ def season_details(
         "episodes": entries,
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
+    result = localize(result)
+    result["show"]["poster_url"] = local_show_poster(library_id, key) or result["show"]["poster_url"]
+    return result
 
 
 @router.get("/episode")
@@ -171,7 +181,7 @@ def episode_details(media_id: int = Query(ge=1)):
     show, meta, _ = merged_show(row["library_id"], parsed["key"])
     detail = provider_season(meta, parsed["season"]) if parsed["season"] is not None else {}
     episode_meta = detail.get("episodes", {}).get(str(parsed["episode"]), {})
-    return {
+    result = {
         "id": media_id, "library_id": row["library_id"], "key": parsed["key"],
         "show_title": show["title"], "season_number": parsed["season"],
         "episode_number": parsed["episode"],
@@ -185,3 +195,4 @@ def episode_details(media_id: int = Query(ge=1)):
         "playback_available": False,
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
+    return localize(result)
