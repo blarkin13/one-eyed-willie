@@ -47,7 +47,7 @@ class CompactLayoutTests(unittest.TestCase):
         for filename in ("logo.png", "favicon.png"):
             file = SERVER / filename
             self.assertTrue(file.is_file())
-            self.assertEqual(file.read_bytes()[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+            self.assertEqual(file.read_bytes()[:8], bytes([137,80,78,71,13,10,26,10]))
             self.assertIn("/assets/" + filename, (SERVER / "shell.js").read_text())
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
 
