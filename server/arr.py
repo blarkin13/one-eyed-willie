@@ -271,6 +271,64 @@ def discover(name: str):
     return {"provider": name, "configured": True, "sections": sections}
 
 
+@router.get("/{name}/detail")
+def discovery_detail(name: str, tmdb_id: int = Query(0, ge=0), title: str = Query("", max_length=180), year: int = Query(0, ge=0, le=2100)):
+    """Rich display-only metadata; never reveals private manager settings."""
+    _provider(name)
+    from . import metadata
+    if not metadata.token_status():
+        return {"available": False, "message": "Configure TMDB in Settings → Metadata to see additional details."}
+    category = "movie" if name == "radarr" else "tv"
+    if not tmdb_id:
+        if len(title.strip()) < 2:
+            raise HTTPException(422, "A title or TMDB ID is required")
+        found = metadata._call("search/" + category, query={"query": title, "include_adult": "false", "language": "en-US"})
+        matches = (found or {}).get("results") or []
+        key = metadata._simple(title)
+        candidates = [m for m in matches if isinstance(m, dict) and
+                      (metadata._simple(m.get("title") or m.get("name")) == key or
+                       metadata._simple(m.get("original_title") or m.get("original_name")) == key)]
+        if year:
+            candidates = [m for m in candidates if not (m.get("release_date") or m.get("first_air_date")) or
+                          abs(int((m.get("release_date") or m.get("first_air_date"))[:4]) - year) <= 1]
+        if not candidates:
+            return {"available": False, "message": "No matching detailed metadata found."}
+        tmdb_id = candidates[0].get("id") or 0
+    data = metadata._call(category + "/" + str(tmdb_id),
+                          query={"language": "en-US", "append_to_response": "videos,credits,reviews"})
+    if not isinstance(data, dict) or not data.get("id"):
+        return {"available": False, "message": "Detailed metadata is currently unavailable."}
+    videos = (data.get("videos") or {}).get("results") or []
+    import re
+    trailer = next((v.get("key") for v in videos if isinstance(v, dict) and
+                    v.get("site") == "YouTube" and v.get("type") == "Trailer" and
+                    re.fullmatch(r"[A-Za-z0-9_-]{11}", str(v.get("key") or ""))), None)
+    cast = [{"name": str(p.get("name") or "")[:100], "character": str(p.get("character") or "")[:100],
+             "photo_url": metadata.image_url(p.get("profile_path"), "w185")}
+            for p in (data.get("credits") or {}).get("cast", [])[:20] if isinstance(p, dict) and p.get("name")]
+    reviews = [{"author": str(v.get("author") or "TMDB contributor")[:100],
+                "excerpt": str(v.get("content") or "")[:900]}
+               for v in (data.get("reviews") or {}).get("results", [])[:5] if isinstance(v, dict) and v.get("content")]
+    seasons = [{"number": s.get("season_number"), "name": str(s.get("name") or "")[:100],
+                "episodes": s.get("episode_count"), "poster_url": metadata.image_url(s.get("poster_path"))}
+               for s in data.get("seasons", []) if isinstance(s, dict)] if name == "sonarr" else []
+    return {
+        "available": True, "title": str(data.get("title") or data.get("name") or "")[:180],
+        "overview": str(data.get("overview") or "")[:2000],
+        "tagline": str(data.get("tagline") or "")[:250],
+        "poster_url": metadata.image_url(data.get("poster_path")),
+        "backdrop_url": metadata.image_url(data.get("backdrop_path"), "w1280"),
+        "rating": data.get("vote_average"), "vote_count": data.get("vote_count"),
+        "genres": [g.get("name") for g in data.get("genres", []) if isinstance(g, dict) and g.get("name")],
+        "release_date": data.get("release_date") or data.get("first_air_date"),
+        "status": data.get("status"), "runtime": data.get("runtime"),
+        "network": ", ".join(n.get("name") for n in data.get("networks", []) if isinstance(n, dict) and n.get("name")),
+        "studio": ", ".join(n.get("name") for n in data.get("production_companies", [])[:3] if isinstance(n, dict) and n.get("name")),
+        "seasons": seasons, "cast": cast, "reviews": reviews, "trailer_key": trailer,
+        "source": "TMDB",
+    }
+
+
 @router.get("/{name}/lookup")
 def lookup(name: str, q: str = Query(min_length=2, max_length=100)):
     _provider(name)
