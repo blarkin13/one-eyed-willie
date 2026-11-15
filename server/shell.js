@@ -60,7 +60,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   if(!document.querySelector('link[rel~="icon"]')){
     const favicon=document.createElement('link');
-    favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=3';
+    favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=4';
     document.head.append(favicon);
   }
   // Use Font Awesome Free when loaded; keep local SVGs when offline.

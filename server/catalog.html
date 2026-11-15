@@ -1,6 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
-<link rel="icon" type="image/png" href="/assets/favicon.png?v=3">
+<link rel="icon" type="image/png" href="/assets/favicon.png?v=4">
+<link rel="shortcut icon" href="/favicon.ico?v=4">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Browse</title>
 <link rel="stylesheet" href="/assets/ui.css">
@@ -43,10 +44,6 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
         <p id="page-description">Browse all the movies on your media server.</p>
       </div><a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a></div>
       <div class="toolbar library-toolbar">
-        <div class="filter-tabs" aria-label="Browse category">
-          <a class="filter-link" id="tab-movies" href="/movies">Movies</a>
-          <a class="filter-link" id="tab-tv" href="/tv">TV Shows</a>
-        </div>
         <div class="tools">
           <label class="search-box"><span class="sr-only">Search titles</span><input type="search" id="search" placeholder="Search titles…" maxlength="150" aria-label="Search titles"></label>
           <label><span class="sr-only">Sort titles</span><select id="sort" class="sort-select" aria-label="Sort titles">
@@ -78,9 +75,7 @@ $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
 $('page-description').textContent=type==='movies'?'Browse every movie in your collection.':'Browse all of your series and episodes.';
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
 document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
-for(const [id,kind] of [['tab-movies','movies'],['tab-tv','tv']]){
-  const tab=$(id);tab.setAttribute('aria-current',type===kind?'page':'false');
-}
+
 // Movie posters are looked up in one request per page; actual image bytes are
 // downloaded once and cached privately on the NUC.
 const moviePosterJobs=[];

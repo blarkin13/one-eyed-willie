@@ -116,10 +116,12 @@ def brand_logo_png():
                         headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/favicon.ico")
+@app.get("/favicon.png")
 @app.get("/assets/favicon.png")
 def favicon_png():
     return FileResponse(Path(__file__).with_name("favicon.png"), media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=604800"})
+                        headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/assets/logo.svg")
