@@ -29,6 +29,7 @@ def _describe(media, lib):
             return {
                 "kind": "movies", "title": info["title"], "year": info["year"],
                 "subtitle": str(info["year"]) if info["year"] else "Movie",
+                "library_id": lib["id"], "key": info["key"],
                 "group": (lib["id"], info["key"]),
             }
         info = episode_info(media["path"], lib["path"])
@@ -42,6 +43,7 @@ def _describe(media, lib):
         return {
             "kind": "tv", "title": info["title"], "year": info["year"],
             "subtitle": " · ".join(parts) if parts else "TV Show",
+            "library_id": lib["id"], "key": info["key"],
             "group": (lib["id"], info["key"]),
         }
     except (ValueError, OSError):
@@ -70,6 +72,7 @@ def home_shelves():
                 recent[desc["kind"]][key] = {
                     "kind": desc["kind"], "title": desc["title"],
                     "year": desc["year"], "subtitle": desc["subtitle"],
+                    "library_id": desc["library_id"], "key": desc["key"],
                     "added_at": row["added_at"],
                 }
 
@@ -90,6 +93,7 @@ def home_shelves():
             watching[desc["group"]] = {
                 "media_id": row["id"], "kind": desc["kind"],
                 "title": desc["title"], "year": desc["year"],
+                "library_id": desc["library_id"], "key": desc["key"],
                 "subtitle": desc["subtitle"],
                 "position_seconds": row["position_seconds"],
                 "duration_seconds": row["duration_seconds"],
