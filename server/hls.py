@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from .playback import _item, probe_duration
 
 router = APIRouter(prefix="/api/stream/hls")
+FFMPEG = "/usr/bin/ffmpeg"
 ROOT = Path(os.environ.get("HLS_CACHE_DIR", "/data/hls"))
 ACTIVE = {}
 LOCK = threading.RLock()
@@ -54,7 +55,7 @@ def hardware_available():
 
 
 def _command(file, directory, start, hardware=False):
-    args = ["/usr/bin/ffmpeg", "-hide_banner", "-nostdin", "-loglevel", "error",
+    args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
             "-re", "-ss", str(start), "-i", str(file), "-map", "0:v:0", "-map", "0:a:0?"]
     if hardware:
         # Decoding remains on CPU; Intel/VAAPI performs H.264 encoding.
@@ -130,7 +131,7 @@ def _get_session(token):
 @router.post("/start/{media_id}")
 def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000)):
     _, file = _item(media_id)
-    if not Path("/usr/bin/ffmpeg").exists():
+    if not os.path.isfile(FFMPEG):
         raise HTTPException(503, "Video transcoder is not installed")
     try:
         ROOT.mkdir(parents=True, exist_ok=True)
