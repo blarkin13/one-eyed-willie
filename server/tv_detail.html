@@ -3,7 +3,20 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · TV Shows</title>
 <link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script><script defer src="/assets/player.js"></script>
-</head><body data-page="tv">
+<style>
+body[data-page=tv] .tv-extras{padding:10px 0 28px}
+body[data-page=tv] .tv-extras h2{margin:30px 0 17px;font-size:1.45rem}
+.tv-facts{display:flex;gap:12px 28px;flex-wrap:wrap;color:#a9bdd3;margin-bottom:12px}
+.tv-rating{color:#dfedfc}
+.tv-cast{display:grid;grid-auto-flow:column;grid-auto-columns:125px;gap:18px;overflow-x:auto;padding-bottom:10px}
+.tv-cast-person{display:flex;flex-direction:column;gap:6px}
+.tv-actor-image{width:125px;height:170px;object-fit:cover;background:#1a2b3a;border-radius:6px}
+.tv-actor-placeholder{display:grid;place-items:center;color:#a5bcd6;font-size:2rem}
+.tv-cast-person strong{font-size:.89rem}.tv-cast-person span{font-size:.78rem;color:#9aabc0}
+.tv-trailer{max-width:950px;aspect-ratio:16/9;background:#101b29;display:grid;place-items:center}
+.tv-trailer iframe{display:block;width:100%;height:100%;border:0}
+.tv-trailer-launch{background:none;color:#d9ecfb;border:0;font-size:1rem;cursor:pointer}
+</style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace">
@@ -11,7 +24,7 @@
 <a class="breadcrumb-link" id="back-link" href="/tv">← All TV Shows</a>
 <div id="loading" class="status-line" role="status">Loading TV library…</div>
 <div id="view"></div>
-<p class="note">TV artwork and episode descriptions load automatically from TVmaze and connected metadata providers.</p>
+
 </main>
 </div></div>
 <script>
@@ -119,6 +132,45 @@ function bulkWatchedControl(data,scope){
  };
  return button;
 }
+function showExtras(data){
+ const section=el('section','tv-extras');
+ const facts=el('div','tv-facts');
+ const score=Number(data.rating);
+ if(Number.isFinite(score)&&score>0)facts.append(el('span','tv-rating','★ '+score.toFixed(1)+' / 10 · '+(data.metadata_source||'Provider')));
+ if(data.network)facts.append(el('span','tv-network',data.network));
+ if(Array.isArray(data.genres)&&data.genres.length)facts.append(el('span','tv-genres',data.genres.join(' · ')));
+ if(facts.childNodes.length)section.append(facts);
+ if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
+   const title=el('h2','','Trailer');
+   const trailer=el('div','tv-trailer');
+   const launch=el('button','tv-trailer-launch','▶ Watch trailer');
+   launch.type='button';
+   launch.onclick=()=>{
+     const frame=document.createElement('iframe');
+     frame.title=data.title+' trailer';frame.allowFullscreen=true;
+     frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+     frame.referrerPolicy='strict-origin-when-cross-origin';
+     frame.src='https://www.youtube-nocookie.com/embed/'+data.trailer_key+'?autoplay=1';
+     trailer.replaceChildren(frame);
+   };
+   trailer.append(launch);section.append(title,trailer);
+ }
+ const actors=Array.isArray(data.cast)?data.cast.filter(person=>person.name):[];
+ if(actors.length){
+   section.append(el('h2','','Cast'));
+   const grid=el('div','tv-cast');
+   for(const actor of actors){
+     const person=el('article','tv-cast-person');
+     if(actor.photo?.startsWith('/api/artwork/'))person.append(image(actor.photo,'tv-actor-image',''));
+     else person.append(el('div','tv-actor-image tv-actor-placeholder',actor.name[0]));
+     person.append(el('strong','',actor.name));
+     if(actor.character)person.append(el('span','',actor.character));
+     grid.append(person);
+   }
+   section.append(grid);
+ }
+ return section;
+}
 function coverCard(item,title,subtitle,href){
  const article=el('article','season-card');
  const a=el('a','tile-button');a.href=href;
@@ -140,6 +192,7 @@ async function renderShow(){
  view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
  const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'));
  view.append(showActions);
+ view.append(showExtras(data));
  const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
  view.appendChild(heading);
  const grid=el('div','season-grid');
