@@ -1,75 +1,86 @@
-/* Shared navigation for every One-Eyed Willie page. */
+/* Shared compact navigation and branding for every One-Eyed Willie page. */
 document.addEventListener('DOMContentLoaded', () => {
-  const target = document.getElementById('app-nav');
-  if (!target) return;
-  const page = document.body.dataset.page || 'home';
-  const active = ['libraries', 'remote', 'metadata', 'connections'].includes(page) ? 'settings' : page;
-  const navItems = [
-    ['home', '/', '⌂', 'Home'],
-    ['movies', '/movies', '▣', 'Movies'],
-    ['tv', '/tv', '▤', 'TV Shows'],
-    ['explore', '/explore', '⌕', 'Explore More'],
-    ['settings', '/settings/libraries', '⚙', 'Settings'],
+  const target=document.getElementById('app-nav');
+  if(!target)return;
+  const page=document.body.dataset.page||'home';
+  const inSettings=['libraries','remote','metadata','connections'].includes(page);
+  const active=inSettings?'settings':page;
+  const navItems=[
+    {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
+    {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
+    {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
+    {id:'explore',href:'/explore',name:'Explore More',fa:'fa-compass',fallback:'compass'},
+    {id:'settings',href:'/settings/libraries',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
-  const brand = document.createElement('a');
-  brand.className = 'brand';
-  brand.href = '/';
-  brand.innerHTML = '<span class="brand-mark" aria-hidden="true">W</span>One-Eyed Willie';
-  target.appendChild(brand);
-
-  const label = document.createElement('div');
-  label.className = 'nav-label';
-  label.textContent = 'Your library';
-  target.appendChild(label);
-
-  const nav = document.createElement('nav');
-  nav.className = 'side-nav';
-  nav.setAttribute('aria-label', 'Main navigation');
-  navItems.forEach(([id, href, glyph, title]) => {
-    const link = document.createElement('a');
-    link.href = href;
-    link.className = 'nav-link';
-    if (id === active) link.setAttribute('aria-current', 'page');
-    const icon = document.createElement('span');
-    icon.className = 'nav-glyph';
-    icon.setAttribute('aria-hidden', 'true');
-    icon.textContent = glyph;
-    link.append(icon, document.createTextNode(title));
-    nav.appendChild(link);
+  // Inline SVG fallbacks make every control usable without an external font.
+  const paths={
+    home:'<path d="M3 10.5 12 3l9 7.5V21h-6v-7H9v7H3z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
+    film:'<rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 4v16M17 4v16M3 9h4m-4 6h4m10-6h4m-4 6h4" stroke="currentColor" stroke-width="1.5" fill="none"/>',
+    tv:'<rect x="3" y="5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 21h6m-3-3v3m-5-11 3 3 6-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>',
+    compass:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
+    settings:'<path d="M12 3v2m0 14v2M4.9 4.9l1.5 1.5m11.2 11.2 1.5 1.5M3 12h2m14 0h2M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/>',
+    search:'<circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15.1 15.1 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+    chevron:'<path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+  };
+  function glyph(fa,svg){
+    const icon=document.createElement('span');icon.className='nav-icon';icon.setAttribute('aria-hidden','true');
+    const font=document.createElement('i');font.className='fa-solid '+fa;
+    const fallback=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    fallback.setAttribute('viewBox','0 0 24 24');fallback.classList.add('fa-fallback');
+    fallback.innerHTML=paths[svg];icon.append(font,fallback);
+    return icon;
+  }
+  // Logo anchors the upper-left corner on desktop and mobile.
+  const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
+  brand.title='One-Eyed Willie';
+  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/logo.svg';
+  image.alt='';image.width=54;image.height=54;
+  const words=document.createElement('span');words.className='brand-name';words.textContent='One-Eyed Willie';
+  brand.append(image,words);target.append(brand);
+  const nav=document.createElement('nav');nav.className='side-nav';nav.setAttribute('aria-label','Main navigation');
+  navItems.forEach(item=>{
+    const a=document.createElement('a');a.href=item.href;a.title=item.name;
+    a.className='nav-link';a.setAttribute('aria-label',item.name);
+    if(item.id===active)a.setAttribute('aria-current','page');
+    a.append(glyph(item.fa,item.fallback));
+    const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
+    nav.append(a);
+  });target.append(nav);
+  if(inSettings){
+    const subnav=document.createElement('nav');subnav.className='settings-shortcuts';
+    subnav.setAttribute('aria-label','Settings sections');
+    [['libraries','/settings/libraries','Libraries'],['remote','/settings/remote','Remote Access'],['metadata','/settings/metadata','Metadata'],['connections','/settings/connections','Connections']].forEach(([id,href,name])=>{
+      const a=document.createElement('a');a.href=href;a.title=name;a.textContent=name;
+      if(page===id)a.setAttribute('aria-current','page');
+      subnav.append(a);
+    });target.append(subnav);
+  }
+  // Existing page headers stay functional; their repetitive copy is removed.
+  const topbar=document.querySelector('.topbar');
+  if(topbar){
+    topbar.classList.add('app-topbar');
+    const breadcrumb=document.getElementById('breadcrumbs');
+    if(breadcrumb)breadcrumb.remove();
+    const oldStatus=topbar.querySelector('.server-pill');if(oldStatus)oldStatus.remove();
+    const actions=document.createElement('div');actions.className='topbar-actions';
+    const search=document.createElement('a');search.href='/movies?focus=search';
+    search.className='topbar-action';search.title='Search movies';search.setAttribute('aria-label','Search movies');
+    search.append(glyph('fa-magnifying-glass','search'));actions.append(search);
+    topbar.append(actions);
+  }
+  const favicon=document.createElement('link');favicon.rel='icon';favicon.type='image/svg+xml';favicon.href='/assets/logo.svg';
+  document.head.append(favicon);
+  // Use Font Awesome Free when loaded; keep local SVGs when offline.
+  if(document.fonts&&document.fonts.ready){
+    document.fonts.ready.then(()=>{
+      if(document.fonts.check('900 16px "Font Awesome 6 Free"')){
+        document.documentElement.classList.add('fontawesome-ready');
+      }
+    }).catch(()=>{});
+  }
+  // Make the hover-expanded icon rail keyboard-accessible too.
+  target.querySelectorAll('.nav-link').forEach(link=>{
+    link.addEventListener('focus',()=>target.classList.add('nav-focused'));
+    link.addEventListener('blur',()=>target.classList.remove('nav-focused'));
   });
-  target.appendChild(nav);
-
-  if (active === 'settings') {
-    const sublabel = document.createElement('div');
-    sublabel.className = 'nav-label';
-    sublabel.textContent = 'Settings';
-    sublabel.style.marginTop = '18px';
-    target.appendChild(sublabel);
-    const subs = document.createElement('nav');
-    subs.className = 'side-nav';
-    subs.setAttribute('aria-label', 'Settings navigation');
-    [['libraries','/settings/libraries','Libraries'],['remote','/settings/remote','Remote Access'],['metadata','/settings/metadata','Metadata'],['connections','/settings/connections','Connections']].forEach(([id,href,title])=>{
-      const link=document.createElement('a');
-      link.className='nav-link';
-      link.href=href;
-      link.textContent=title;
-      if(page===id)link.setAttribute('aria-current','page');
-      subs.appendChild(link);
-    });
-    target.appendChild(subs);
-  }
-
-  const foot = document.createElement('div');
-  foot.className = 'sidebar-foot';
-  foot.textContent = 'Personal media server';
-  target.appendChild(foot);
-
-  const breadcrumb = document.getElementById('breadcrumbs');
-  if (breadcrumb) {
-    const labels={home:'Home',movies:'Movies',tv:'TV Shows',libraries:'Settings / Libraries',remote:'Settings / Remote Access',metadata:'Settings / Metadata',connections:'Settings / Connections',explore:'Explore More'};
-    breadcrumb.textContent = 'One-Eyed Willie / ';
-    const strong=document.createElement('strong');
-    strong.textContent=labels[page]||'Home';
-    breadcrumb.appendChild(strong);
-  }
 });
