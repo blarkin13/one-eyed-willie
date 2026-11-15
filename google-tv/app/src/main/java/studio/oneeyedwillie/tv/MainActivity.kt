@@ -15,6 +15,7 @@ import android.widget.Button
 import android.widget.EditText
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -57,18 +58,25 @@ class MainActivity : ComponentActivity() {
     private fun showSetup(error: String = "") {
         browser?.destroy()
         browser = null
+        fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setBackgroundColor(Color.BLACK)
-            setPadding(64, 48, 64, 48)
+            setPadding(dp(28), dp(20), dp(28), dp(20))
         }
+        // Do not let the icon expand to match_parent or wrap its intrinsic size:
+        // that previously pushed the Connect button completely off the TV.
         val brand = ImageView(this).apply {
             setImageResource(R.drawable.tv_ship_icon)
-            adjustViewBounds = true
+            adjustViewBounds = false
             scaleType = ImageView.ScaleType.FIT_CENTER
-            layoutParams = LinearLayout.LayoutParams(192, 192)
+            contentDescription = "One-Eyed Willie pirate ship"
         }
+        root.addView(brand, LinearLayout.LayoutParams(dp(144), dp(144)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            bottomMargin = dp(12)
+        })
         val title = TextView(this).apply {
             text = "One-eyed Willie"
             textSize = 33f
@@ -110,13 +118,21 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        listOf(brand, title, help, input, connect, status).forEach {
+        listOf(title, help, input, connect, status).forEach {
             val p = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 20 }
+            ).apply { bottomMargin = dp(12) }
             root.addView(it, p)
         }
-        setContentView(root)
+        // Allow access to the address and Connect button even on low-resolution
+        // TVs with overscan or large system font sizes.
+        val scroll = ScrollView(this).apply {
+            isFillViewport = true
+            setBackgroundColor(Color.BLACK)
+            addView(root)
+        }
+        setContentView(scroll)
+        connect.requestFocus()
     }
 
     private fun showServer(server: String) {
