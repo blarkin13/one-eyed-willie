@@ -28,22 +28,36 @@ def _provider(name):
 
 def _request(name, settings, resource, method="GET", payload=None, query=None):
     """Only internal fixed API routes and methods are accepted."""
-    allowed = ("movie", "series", "queue", "history", "qualityprofile", "command")
+    read_only = {
+        "movie", "series", "queue", "history", "qualityprofile", "command",
+        "calendar", "wanted/missing", "wanted/cutoff", "blocklist",
+        "system/status", "health", "diskspace", "release", "episode",
+        "episodefile", "indexer", "downloadclient", "rootfolder", "tag",
+    }
     parts = resource.split("/")
-    if not parts or parts[0] not in allowed or len(parts) > 2:
+    indexed = len(parts) == 2 and parts[0] in (
+        "movie", "series", "episode", "queue"
+    ) and parts[1].isdigit() and int(parts[1]) > 0
+    read_allowed = resource in read_only or indexed
+    if not read_allowed:
         raise ValueError("Resource not permitted")
-    if len(parts) == 2 and (parts[0] not in ("movie", "series") or
-                            not parts[1].isdigit() or int(parts[1]) <= 0):
-        raise ValueError("Resource not permitted")
-    if name == "radarr" and parts[0] == "series":
+    if name == "radarr" and parts[0] in ("series", "episode", "episodefile"):
         raise ValueError("Resource not permitted")
     if name == "sonarr" and parts[0] == "movie":
         raise ValueError("Resource not permitted")
-    if method not in ("GET", "PUT", "POST"):
-        raise ValueError("Method not permitted")
-    if method == "POST" and resource != "command":
-        raise ValueError("Method not permitted")
-    if method == "PUT" and (len(parts) != 2 or parts[0] not in ("movie", "series")):
+    if method == "GET":
+        if indexed and parts[0] == "queue":
+            raise ValueError("Method not permitted")
+    elif method == "PUT":
+        if not indexed or parts[0] not in ("movie", "series", "episode"):
+            raise ValueError("Method not permitted")
+    elif method == "POST":
+        if resource not in ("command", "release"):
+            raise ValueError("Method not permitted")
+    elif method == "DELETE":
+        if not indexed or parts[0] not in ("movie", "series", "queue"):
+            raise ValueError("Method not permitted")
+    else:
         raise ValueError("Method not permitted")
     api_version = arr._version(name, settings)
     url = settings["url"] + "/api/" + api_version + "/" + resource

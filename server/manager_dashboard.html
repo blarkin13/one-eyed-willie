@@ -44,6 +44,41 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
 .manager-warning{padding:12px 16px;border:1px solid #62513c;border-radius:11px;color:#e6c8a2}
 @media(max-width:900px){.manager-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.manager-item{grid-template-columns:minmax(0,1fr) minmax(120px,170px)}.manager-item .manager-actions{grid-column:1/-1;justify-content:flex-start}}
 @media(max-width:520px){.manager-item{grid-template-columns:1fr;padding:15px;gap:10px}.manager-item .manager-actions{grid-column:auto}.manager-item select{width:100%}.manager-controls{width:100%}.manager-controls button{flex:1}.manager-stat-grid{gap:8px}.manager-stat{padding:12px}.manager-stat strong{font-size:1.35rem}}
+
+.manager-sections{display:flex;gap:8px;overflow-x:auto;scrollbar-width:thin;white-space:nowrap;padding:7px 0 14px;border-bottom:1px solid #304154;margin:8px 0 24px}
+.manager-sections button{padding:11px 15px;background:transparent;border:1px solid #3e526c;color:#bdcfe3;border-radius:9px;font:650 .9rem system-ui;cursor:pointer;flex:0 0 auto}
+.manager-sections button[aria-selected="true"]{background:#2c4a67;border-color:#a7c5e6;color:#fff}
+.manager-sections button:focus-visible{outline:2px solid #cbe6ff;outline-offset:3px}
+.manager-detail-dialog{width:min(1120px,calc(100vw - 22px));max-width:none;max-height:90vh;background:#0e1927;color:#eaf2ff;border:1px solid #526a85;border-radius:16px;padding:22px;overflow:auto}
+.manager-detail-dialog::backdrop{background:#020611dd}
+.manager-detail-heading{display:flex;align-items:flex-start;justify-content:space-between;gap:15px}
+.manager-detail-heading h2{margin:0;font-size:clamp(1.4rem,3vw,2.2rem)}
+.manager-detail-heading button{background:#253b54;border:1px solid #47647d;color:white;border-radius:10px;min-width:43px;min-height:43px;font-size:1.5rem;cursor:pointer}
+.manager-detail-overview{font-size:.94rem;line-height:1.7;color:#c1d0e0;max-width:920px}
+.manager-detail-meta{color:#b5c9dd;overflow-wrap:anywhere;margin:8px 0}
+.manager-detail-actions,.manager-episode-actions{display:flex;flex-wrap:wrap;gap:9px;margin:16px 0}
+.manager-detail-actions button,.manager-episode-actions button{border:1px solid #4b6786;color:#e8f4ff;background:#203a53;border-radius:9px;min-height:40px;padding:9px 13px;cursor:pointer;font-size:.85rem}
+.manager-detail-actions button:disabled,.manager-episode-actions button:disabled{opacity:.5}
+.manager-seasons{display:grid;gap:12px;margin-top:25px}
+.manager-season{border:1px solid #344a63;border-radius:12px;padding:12px 16px;background:#132438}
+.manager-season>summary{font-size:1.06rem;font-weight:720;cursor:pointer;padding:5px 0}
+.manager-episode{border-top:1px solid #2e4158;padding:10px 0;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:12px;align-items:center}
+.manager-episode strong{display:block;overflow-wrap:anywhere}
+.manager-episode small{display:block;color:#a9bdd1;line-height:1.5;margin-top:4px}
+.manager-episode-actions{margin:0}
+.manager-releases{margin:20px 0}
+.manager-release{padding:13px;border:1px solid #354c65;border-radius:10px;margin:9px 0;background:#15283b;display:flex;align-items:center;gap:14px;justify-content:space-between}
+.manager-release strong{font-size:.9rem;overflow-wrap:anywhere}
+.manager-release small{display:block;color:#aabed3;margin-top:5px}
+.manager-release button{background:#295475;color:#fff;border:1px solid #79a5ce;border-radius:8px;padding:10px 15px;cursor:pointer}
+.manager-release button:disabled{opacity:.5}
+.manager-events{display:grid;gap:10px;margin-top:15px}
+.manager-system-rows{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.manager-system-card{background:#17283b;border:1px solid #384f69;border-radius:12px;padding:15px}
+.manager-system-card strong{display:block}
+.manager-system-card small{color:#aec2d5;line-height:1.5;overflow-wrap:anywhere}
+.manager-section-message{min-height:1.3rem;margin:9px 0;color:#b7d0e5}
+@media(max-width:760px){.manager-episode{grid-template-columns:1fr}.manager-episode-actions{justify-content:flex-start}.manager-release{flex-direction:column;align-items:flex-start}}
 </style>
 </head><body data-page="services"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -68,9 +103,25 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
  <div class="manager-stat"><strong id="manager-missing">0</strong><span id="missing-label">Missing files</span></div>
  <div class="manager-stat"><strong id="manager-queued">0</strong><span>In queue</span></div>
 </div>
-<section class="manager-section"><h2>Activity queue</h2><div id="manager-queue" class="manager-rows"></div></section>
-<section class="manager-section"><h2>Recent history</h2><div id="manager-history" class="manager-rows"></div></section>
-<section class="manager-section">
+<nav class="manager-sections" id="manager-sections" role="tablist" aria-label="Radarr and Sonarr sections">
+<button type="button" role="tab" data-tab="library" aria-selected="true">Library</button>
+<button type="button" role="tab" data-tab="calendar" aria-selected="false">Calendar</button>
+<button type="button" role="tab" data-tab="missing" aria-selected="false">Wanted / Missing</button>
+<button type="button" role="tab" data-tab="cutoff" aria-selected="false">Cutoff unmet</button>
+<button type="button" role="tab" data-tab="queue" aria-selected="false">Queue</button>
+<button type="button" role="tab" data-tab="history" aria-selected="false">History</button>
+<button type="button" role="tab" data-tab="blocklist" aria-selected="false">Blocklist</button>
+<button type="button" role="tab" data-tab="system" aria-selected="false">System</button>
+</nav>
+<div id="manager-dynamic-section" hidden>
+<h2 id="manager-dynamic-title"></h2>
+<p class="manager-section-message" id="manager-section-status" role="status"></p>
+<div id="manager-dynamic-items" class="manager-events"></div>
+<div class="manager-controls"><button type="button" id="manager-more" class="secondary-button" hidden>More results</button></div>
+</div>
+<section class="manager-section" id="manager-queue-section" hidden><h2>Activity queue</h2><div id="manager-queue" class="manager-rows"></div></section>
+<section class="manager-section" id="manager-history-section" hidden><h2>Recent history</h2><div id="manager-history" class="manager-rows"></div></section>
+<section class="manager-section" id="manager-library-section">
  <div class="manager-list-head"><h2 id="library-heading">Managed titles</h2>
  <a id="manager-add" href="/explore?type=movies" class="secondary-button">Find and add titles</a></div>
  <div class="manager-filter"><input id="manager-search" type="search" placeholder="Filter managed titles…" aria-label="Filter titles">
@@ -78,6 +129,11 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
  <div id="manager-library" class="manager-library"></div>
 </section>
 </section>
+<dialog class="manager-detail-dialog" id="manager-detail-dialog" aria-labelledby="manager-detail-title">
+<div class="manager-detail-heading"><h2 id="manager-detail-title">Title details</h2>
+<button type="button" id="manager-detail-close" aria-label="Close details">×</button></div>
+<p class="manager-section-message" id="manager-detail-status" role="status"></p>
+<div id="manager-detail-body"></div></dialog>
 </main></div></div>
 <script>
 const managerName=location.pathname==='/sonarr'?'sonarr':'radarr';
@@ -203,7 +259,8 @@ function showLibrary(){
        body:JSON.stringify({action:'refresh',item_id:entry.id})},
       'Metadata refresh queued in '+label+'.');
   });
-  actions.append(monitorButton,searchButton,refreshButton);
+  const detailsButton=newButton('Details',()=>openDetails(entry.id));
+  actions.append(detailsButton,monitorButton,searchButton,refreshButton);
   row.append(heading,select,actions,message);
   list.append(row);
  }
@@ -223,6 +280,8 @@ async function refresh(){
   renderEvents('manager-history',activeData.history,'No recent activity.');
   showLibrary();
   $('manager-body').hidden=false;
+  if(currentTab==='library')showTab('library');
+  else showTab(currentTab);
   feedback('Connected to '+activeData.address+
     ((activeData.warnings||[]).length?' · '+activeData.warnings.join(' '):''));
  }catch(error){
@@ -243,5 +302,312 @@ $('manager-rss').onclick=async()=>{
  }catch(error){feedback(error.message)}
  finally{$('manager-rss').disabled=false}
 };
+
+/* Full manager workflow tabs and drill-downs. All text is displayed via textContent. */
+const tabs=['library','calendar','missing','cutoff','queue','history','blocklist','system'];
+let currentTab=new URLSearchParams(location.search).get('tab')||'library';
+if(!tabs.includes(currentTab))currentTab='library';
+let pageNumber=1,sectionRequest=0,activeDetail=null;
+const detailDialog=$('manager-detail-dialog');
+$('manager-detail-close').onclick=()=>detailDialog.close();
+detailDialog.addEventListener('click',event=>{if(event.target===detailDialog)detailDialog.close()});
+function textNode(tag,text,cls){
+ const element=document.createElement(tag);
+ element.textContent=String(text??'');
+ if(cls)element.className=cls;
+ return element;
+}
+function actionButton(title,handler,disabled=false){
+ const button=document.createElement('button');
+ button.type='button';button.textContent=title;button.disabled=disabled;
+ button.addEventListener('click',handler);return button;
+}
+function postJSON(url,object){
+ return api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(object)});
+}
+function putJSON(url,object){
+ return api(url,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(object)});
+}
+function sectionNote(text){$('manager-section-status').textContent=text}
+const tabLabels={library:'Managed library',calendar:'Upcoming calendar',missing:'Wanted / Missing',
+ cutoff:'Cutoff unmet',queue:'Download queue',history:'History',blocklist:'Blocklist',system:'System and integrations'};
+async function showTab(tab){
+ currentTab=tab;
+ for(const button of document.querySelectorAll('[data-tab]')){
+  button.setAttribute('aria-selected',String(button.dataset.tab===tab));
+  button.tabIndex=button.dataset.tab===tab?0:-1;
+ }
+ $('manager-library-section').hidden=tab!=='library';
+ $('manager-queue-section').hidden=true;
+ $('manager-history-section').hidden=true;
+ $('manager-dynamic-section').hidden=tab==='library';
+ history.replaceState(null,'',location.pathname+(tab==='library'?'':'?tab='+encodeURIComponent(tab)));
+ if(tab==='library')return;
+ $('manager-dynamic-title').textContent=tabLabels[tab];
+ const serial=++sectionRequest;
+ pageNumber=1;
+ const target=$('manager-dynamic-items');target.replaceChildren();
+ sectionNote('Loading '+tabLabels[tab]+'…');
+ $('manager-more').hidden=true;
+ await loadSection(tab,1,serial);
+}
+function bytes(n){
+ if(typeof n!=='number'||!Number.isFinite(n))return '—';
+ const units=['B','KB','MB','GB','TB'];
+ let i=0;while(n>=1024&&i<4){n/=1024;i++}
+ return n.toFixed(i>0?1:0)+' '+units[i];
+}
+function eventMeta(x){
+ return [x.date,x.status,x.subtitle,
+  Number.isInteger(x.season)?'S'+String(x.season).padStart(2,'0')+'E'+String(x.episode??0).padStart(2,'0'):null,
+  x.timeleft?x.timeleft+' remaining':null,x.message].filter(Boolean).join(' · ');
+}
+function feedbackRow(parent,text){
+ const p=textNode('p',text,'manager-empty');parent.append(p);
+}
+function systemCard(target,title,description){
+ const card=document.createElement('div');card.className='manager-system-card';
+ card.append(textNode('strong',title),textNode('small',description));
+ target.append(card);
+}
+function renderSystem(data,target){
+ target.classList.add('manager-system-rows');
+ const status=data.status||{};
+ systemCard(target,'Version',status.version||'Unavailable');
+ systemCard(target,'Operating system',status.osName||'Unavailable');
+ systemCard(target,'Branch',status.branch||'Unavailable');
+ for(const disk of data.diskspace||[]){
+  systemCard(target,'Storage: '+disk.path,bytes(disk.free)+' free of '+bytes(disk.total));
+ }
+ for(const item of data.health||[])systemCard(target,'Health: '+(item.type||'Notice'),item.message||'No details');
+ for(const item of data.clients||[])systemCard(target,'Download client: '+item.name,item.enabled?'Enabled':'Disabled');
+ for(const item of data.indexers||[])systemCard(target,'Indexer: '+item.name,item.enabled?'Enabled':'Disabled');
+}
+function commandForWanted(entry){
+ if(managerName==='sonarr'&&entry.id&&Number.isInteger(entry.season)){
+  return postJSON(endpoint+'/extended-command',{action:'episode',episode_id:entry.id});
+ }
+ if(entry.item_id){
+  return postJSON(endpoint+'/command',{action:'search',item_id:entry.item_id});
+ }
+ throw Error('Unable to identify the title to search.');
+}
+function renderSectionEntry(entry,tab,target){
+ const card=document.createElement('article');card.className='manager-event';
+ const title=entry.title||entry.subtitle||'Untitled';
+ card.append(textNode('strong',title));
+ const meta=eventMeta(entry);
+ if(meta)card.append(textNode('small',meta));
+ const actions=document.createElement('div');actions.className='manager-detail-actions';actions.style.margin='6px 0 0';
+ if(entry.item_id){
+  actions.append(actionButton('Details',()=>openDetails(entry.item_id)));
+ }
+ if(tab==='missing'||tab==='cutoff'){
+  actions.append(actionButton('Search',async()=>{
+   if(!confirm('Search indexers for '+title+'?'))return;
+   sectionNote('Starting search for '+title+'…');
+   try{await commandForWanted(entry);sectionNote('Search queued in '+label+'.')}
+   catch(error){sectionNote(error.message)}
+  }));
+ }
+ if(tab==='queue'&&entry.id){
+  actions.append(actionButton('Remove from queue',async()=>{
+   if(!confirm('Remove this entry from '+label+'\'s queue? The download client will be left untouched.'))return;
+   try{
+    await postJSON(endpoint+'/queue/'+entry.id+'/remove',{remove_from_client:false,blocklist:false});
+    sectionNote('Queue entry removed.');showTab('queue');
+   }catch(error){sectionNote(error.message)}
+  }));
+  actions.append(actionButton('Remove & blocklist',async()=>{
+   if(!confirm('Remove this download from the client AND blocklist the release in '+label+'? This cannot be undone automatically.'))return;
+   try{
+    await postJSON(endpoint+'/queue/'+entry.id+'/remove',{remove_from_client:true,blocklist:true});
+    sectionNote('Download removed and release blocklisted.');showTab('queue');
+   }catch(error){sectionNote(error.message)}
+  }));
+ }
+ if(actions.children.length)card.append(actions);
+ target.append(card);
+}
+async function loadSection(tab,page,serial){
+ try{
+  const data=await api(endpoint+'/section/'+tab+'?page='+page,{cache:'no-store'});
+  if(serial!==sectionRequest||tab!==currentTab)return;
+  const target=$('manager-dynamic-items');
+  target.classList.toggle('manager-system-rows',tab==='system');
+  if(page===1)target.replaceChildren();
+  if(data.unsupported){
+   feedbackRow(target,'This category is not provided by this version of '+label+'.');
+  }else if(tab==='system'){
+   renderSystem(data,target);
+  }else{
+   for(const item of data.items||[])renderSectionEntry(item,tab,target);
+   if(!target.children.length)feedbackRow(target,'Nothing to display.');
+  }
+  sectionNote(tab==='system'?'System information loaded.':'Showing '+(data.items||[]).length+(page>1?' additional':'')+' entries.');
+  $('manager-more').hidden=!data.has_more;
+  pageNumber=page;
+ }catch(error){if(serial===sectionRequest)sectionNote(error.message)}
+}
+$('manager-more').onclick=()=>{
+ if(currentTab==='library')return;
+ loadSection(currentTab,pageNumber+1,sectionRequest);
+};
+for(const button of document.querySelectorAll('[data-tab]')){
+ button.addEventListener('click',()=>showTab(button.dataset.tab));
+}
+function setDetailMessage(message){$('manager-detail-status').textContent=message}
+function makeDetailActions(parent){
+ const actions=document.createElement('div');actions.className='manager-detail-actions';
+ parent.append(actions);return actions;
+}
+async function detailCommand(action,body,success){
+ setDetailMessage('Sending request to '+label+'…');
+ try{
+  await postJSON(endpoint+'/'+action,body);setDetailMessage(success);return true;
+ }catch(error){setDetailMessage(error.message);return false}
+}
+async function loadDetails(itemId){
+ setDetailMessage('Loading title information…');
+ const container=$('manager-detail-body');container.replaceChildren();
+ try{
+  const data=await api(endpoint+'/details/'+itemId,{cache:'no-store'});
+  if(!detailDialog.open||activeDetail!==itemId)return;
+  $('manager-detail-title').textContent=data.title||'Title details';
+  if(data.overview)container.append(textNode('p',data.overview,'manager-detail-overview'));
+  const meta=[data.year,data.status,data.network,data.series_type,
+    (data.genres||[]).join(', ')].filter(Boolean).join(' · ');
+  if(meta)container.append(textNode('p',meta,'manager-detail-meta'));
+  if(data.path)container.append(textNode('p','Location: '+data.path,'manager-detail-meta'));
+  if(managerName==='radarr'){
+   const file=data.movie_file||{};
+   container.append(textNode('p',data.has_file?
+      'Movie file: '+(file.path||'Available')+' · '+bytes(file.size)
+      :'Movie file is missing.','manager-detail-meta'));
+  }
+  const actions=makeDetailActions(container);
+  const native=document.createElement('a');native.className='secondary-button';
+  native.href=data.external_url;native.target='_blank';native.rel='noopener noreferrer';
+  native.textContent='Open full '+label+' app';actions.append(native);
+  if(managerName==='radarr'){
+   actions.append(actionButton('Manual release search',()=>loadReleases(itemId,null,container)));
+  }
+  actions.append(actionButton('Search automatically',async()=>{
+    if(!confirm('Search indexers for '+data.title+'?'))return;
+    await detailCommand('command',{action:'search',item_id:itemId},'Search queued.');
+  }));
+  actions.append(actionButton('Remove from '+label,async()=>{
+    if(!confirm('Remove '+data.title+' from '+label+'? Media files will be kept.'))return;
+    if(!confirm('Confirm removal of '+data.title+' from the managed library. This changes '+label+' only.'))return;
+    const success=await detailCommand('items/'+itemId+'/remove',{preserve_files:true},'Removed from '+label+'. Files preserved.');
+    if(success){detailDialog.close();refresh()}
+  }));
+  if(managerName==='sonarr')renderSeasons(container,data);
+  setDetailMessage('');
+ }catch(error){setDetailMessage(error.message)}
+}
+async function openDetails(itemId){
+ activeDetail=itemId;
+ $('manager-detail-title').textContent='Title details';
+ $('manager-detail-body').replaceChildren();
+ if(!detailDialog.open)detailDialog.showModal();
+ await loadDetails(itemId);
+}
+function episodeLabel(ep){
+ const numbers=Number.isInteger(ep.season)?
+   'S'+String(ep.season).padStart(2,'0')+'E'+String(ep.episode??0).padStart(2,'0'):'Episode';
+ return numbers+' · '+(ep.title||'Untitled');
+}
+function renderSeasons(container,data){
+ const sections=document.createElement('section');sections.className='manager-seasons';
+ sections.append(textNode('h3','Seasons and episodes'));
+ const episodes=data.episodes||[];
+ const seasons=data.seasons?.length?data.seasons:
+   Array.from(new Set(episodes.map(ep=>ep.season))).filter(Number.isInteger)
+      .map(number=>({number,monitored:false}));
+ for(const season of seasons){
+  const group=document.createElement('details');group.className='manager-season';
+  if(season.number===1)group.open=true;
+  const summary=document.createElement('summary');
+  summary.textContent='Season '+season.number+' · '+(season.monitored?'Monitored':'Not monitored')+
+    (season.episode_count!=null?' · '+(season.file_count??0)+'/'+season.episode_count+' files':'');
+  group.append(summary);
+  const actions=makeDetailActions(group);
+  actions.append(actionButton(season.monitored?'Unmonitor season':'Monitor season',async()=>{
+   const desired=!season.monitored;setDetailMessage('Saving season monitoring…');
+   try{
+    const result=await putJSON(endpoint+'/series/'+data.id+'/seasons/'+season.number,{monitored:desired});
+    season.monitored=!!result.monitored;summary.textContent='Season '+season.number+' · '+(season.monitored?'Monitored':'Not monitored');
+    await loadDetails(data.id);
+   }catch(error){setDetailMessage(error.message)}
+  }));
+  actions.append(actionButton('Search season',async()=>{
+   if(!confirm('Search missing episodes in Season '+season.number+'?'))return;
+   await detailCommand('extended-command',{action:'season',series_id:data.id,season:season.number},'Season search queued.');
+  }));
+  const entries=episodes.filter(ep=>ep.season===season.number);
+  for(const ep of entries){
+   const row=document.createElement('div');row.className='manager-episode';
+   const info=document.createElement('div');
+   info.append(textNode('strong',episodeLabel(ep)));
+   info.append(textNode('small',[ep.air_date,ep.has_file?'File available':'Missing file',ep.monitored?'Monitored':'Not monitored'].filter(Boolean).join(' · ')));
+   if(ep.overview)info.append(textNode('small',ep.overview.slice(0,260)));
+   const buttons=document.createElement('div');buttons.className='manager-episode-actions';
+   buttons.append(actionButton(ep.monitored?'Unmonitor':'Monitor',async()=>{
+    try{
+     await putJSON(endpoint+'/episodes/'+ep.id,{monitored:!ep.monitored});
+     await loadDetails(data.id);
+    }catch(error){setDetailMessage(error.message)}
+   },!ep.id));
+   buttons.append(actionButton('Search',async()=>{
+    if(!confirm('Search indexers for '+episodeLabel(ep)+'?'))return;
+    await detailCommand('extended-command',{action:'episode',episode_id:ep.id},'Episode search queued.');
+   },!ep.id));
+   buttons.append(actionButton('Manual search',()=>loadReleases(data.id,ep.id,container),!ep.id));
+   row.append(info,buttons);group.append(row);
+  }
+  if(!entries.length)group.append(textNode('p','No episodes available for this season.','manager-empty'));
+  sections.append(group);
+ }
+ container.append(sections);
+}
+async function loadReleases(itemId,episodeId,container){
+ const old=container.querySelector('.manager-releases');
+ if(old)old.remove();
+ const block=document.createElement('section');block.className='manager-releases';
+ block.append(textNode('h3','Manual release search'));
+ const results=document.createElement('div');results.className='manager-events';
+ block.append(results);container.append(block);
+ results.append(textNode('p','Searching indexers…','manager-empty'));
+ setDetailMessage('');
+ try{
+  const query=new URLSearchParams({item_id:String(itemId)});
+  if(episodeId)query.set('episode_id',String(episodeId));
+  const data=await api(endpoint+'/releases?'+query,{cache:'no-store'});
+  if(activeDetail!==itemId||!detailDialog.open)return;
+  results.replaceChildren();
+  for(const release of data.items||[]){
+   const row=document.createElement('div');row.className='manager-release';
+   const info=document.createElement('div');
+   info.append(textNode('strong',release.title));
+   info.append(textNode('small',[release.indexer,release.quality,bytes(release.size),
+    release.age!=null?release.age+' days old':null,release.protocol].filter(Boolean).join(' · ')));
+   if(release.rejections?.length)info.append(textNode('small','Rejected: '+release.rejections.join(' · ')));
+   const grab=actionButton('Grab release',async()=>{
+    if(!confirm('Send '+release.title+' to the download client via '+label+'?'))return;
+    grab.disabled=true;setDetailMessage('Submitting selected release…');
+    try{
+     await postJSON(endpoint+'/releases/grab',{
+      item_id:itemId,episode_id:episodeId,guid:release.guid,indexer_id:release.indexer_id
+     });
+     setDetailMessage('Release sent to '+label+'.');
+    }catch(error){setDetailMessage(error.message);grab.disabled=false}
+   },!release.guid||!release.indexer_id);
+   row.append(info,grab);results.append(row);
+  }
+  if(!results.children.length)feedbackRow(results,'No releases were returned by the indexers.');
+ }catch(error){results.replaceChildren();feedbackRow(results,error.message)}
+}
+
 refresh();
 </script></body></html>
