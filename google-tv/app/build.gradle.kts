@@ -32,3 +32,9 @@ dependencies {
     implementation("androidx.media3:media3-ui:1.11.1")
     implementation("io.coil-kt:coil-compose:2.7.0")
 }
+
+tasks.register<Exec>("generateBrandAssets") {
+    workingDir = rootProject.projectDir
+    commandLine("python3", "scripts/create_brand_assets.py")
+}
+tasks.named("preBuild").configure { dependsOn("generateBrandAssets") }
