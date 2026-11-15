@@ -12,7 +12,7 @@ from .library import db
 
 log = logging.getLogger(__name__)
 LOCK = threading.Lock()
-BATCH = 8
+BATCH = 12
 RETRY_SECONDS = 3600
 
 
@@ -49,6 +49,23 @@ def attach_posters(items):
     return items
 
 
+def remember(kind, library_id, key, poster_url):
+    """Save poster data already resolved by a detail page for instant Home loading."""
+    if not isinstance(poster_url, str) or not poster_url.startswith("/api/artwork/"):
+        return
+    from .artwork import HEX
+    if not HEX.fullmatch(poster_url.rsplit("/", 1)[-1]):
+        return
+    with db() as conn:
+        _table(conn)
+        conn.execute(
+            "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at) "
+            "VALUES(?,?,?,?,?) ON CONFLICT(kind,library_id,show_key) DO UPDATE SET "
+            "poster_url=excluded.poster_url,checked_at=excluded.checked_at",
+            (kind, library_id, key, poster_url, int(time.time()))
+        )
+
+
 def invalidate(kind, library_id, key):
     with db() as conn:
         _table(conn)
@@ -61,7 +78,14 @@ def _collect():
     from .catalog import episode_info, movie_info
     with db() as conn:
         libs = {r["id"]: r for r in conn.execute("SELECT id,kind,path FROM libraries")}
-        media = conn.execute("SELECT library_id,path FROM media ORDER BY library_id,path")
+        # Prefetch TV first, newest additions first, so Home posters appear
+        # without waiting for every movie in the collection.
+        media = conn.execute("""
+            SELECT m.library_id,m.path FROM media m
+            JOIN libraries l ON l.id=m.library_id
+            ORDER BY CASE WHEN l.kind='tv' THEN 0 ELSE 1 END,
+                     m.added_at DESC,m.id DESC
+        """)
         found = {}
         for row in media:
             lib = libs.get(row["library_id"])
@@ -124,6 +148,8 @@ def prepare_batch(limit=BATCH):
                 if identity not in cached or (
                     not cached[identity]["poster_url"]
                     and now - cached[identity]["checked_at"] >= RETRY_SECONDS)]
+        # Keep TV first even for indexes populated before the priority change.
+        todo.sort(key=lambda task: task[0][0] != "tv")
         processed = 0
         for (kind, library_id, key), (title, year) in todo[:limit]:
             try:
@@ -165,4 +191,4 @@ def poster_loop(stop):
         except Exception:
             log.exception("Background poster indexing failed")
             completed = 0
-        stop.wait(25 if completed else 180)
+        stop.wait(15 if completed else 180)

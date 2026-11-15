@@ -241,6 +241,9 @@ def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_len
     }
     result = localize(result)
     result["poster_url"] = local_show_poster(library_id, key) or result["poster_url"]
+    if result["poster_url"]:
+        from .poster_index import remember
+        remember("tv", library_id, key, result["poster_url"])
     return result
 
 
@@ -272,6 +275,9 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
     }
     result = localize(result)
     result["poster_url"] = local_show_poster(library_id, key) or result["poster_url"]
+    if result["poster_url"]:
+        from .poster_index import remember
+        remember("tv", library_id, key, result["poster_url"])
     return result
 
 

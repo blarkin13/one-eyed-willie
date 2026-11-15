@@ -60,7 +60,7 @@ CADENCE = {
     "extensive_media_analysis": WEEK,
     "video_preview_thumbnails": 86400,
 }
-# Run at 3 AM North Texas time, including daylight-saving transitions.
+# Run at 4 AM Central time, including daylight-saving transitions.
 try:
     MAINTENANCE_ZONE = ZoneInfo("America/Chicago")
 except ZoneInfoNotFoundError:
@@ -107,7 +107,8 @@ def get_settings():
                    conn.execute("SELECT task,last_completed,last_result FROM maintenance_status")}
     return {"settings": settings(), "cadence_seconds": CADENCE,
             "last_runs": records, "running": WORKING.locked(),
-            "next_window": "Overnight 03:00 America/Chicago; each task runs when its cadence is due"}
+            "next_window": "04:00 America/Chicago (Central time), each enabled task when due",
+            "maintenance_hour": 4, "timezone": "America/Chicago"}
 
 
 @router.put("/settings")
@@ -403,7 +404,7 @@ def maintenance_loop(stop):
     # disks or CPU immediately after a server restart.
     while not stop.wait(60):
         local = datetime.now(MAINTENANCE_ZONE)
-        if local.hour == 3:
+        if local.hour == 4:
             run_due()
 
 
