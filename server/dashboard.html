@@ -5,6 +5,7 @@
 <link rel="icon" type="image/png" href="/assets/favicon.png?v=3">
 <link rel="stylesheet" href="/assets/ui.css">
 <script defer src="/assets/shell.js"></script>
+<script defer src="/assets/player.js"></script>
 <style>
 .shelf{margin-top:36px}.shelf:first-of-type{margin-top:0}
 .shelf-title{font-size:1.24rem;letter-spacing:-.025em;margin:0}.shelf-desc{color:var(--muted);font-size:.82rem;margin:4px 0 0}
@@ -85,7 +86,15 @@ function tile(item, watching=false){
   link.href=item.kind==='tv'&&item.library_id&&item.key
     ?'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
     :'/movies?search='+encodeURIComponent(item.title);
-  link.setAttribute('aria-label','Browse '+item.title);
+  link.setAttribute('aria-label',watching?'Resume '+item.title:'Browse '+item.title);
+  if(watching && item.media_id){
+    link.href='/watch/'+item.media_id;
+    link.addEventListener('click',event=>{
+      if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
+      event.preventDefault();
+      WilliePlayer.open(item.media_id,item.title+' · '+(item.subtitle||''));
+    });
+  }
   const cover=document.createElement('div');
   let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
   cover.className='cover cover--'+(hash%6);
@@ -97,6 +106,10 @@ function tile(item, watching=false){
   const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
   const meta=document.createElement('div');meta.className='tile-meta';meta.textContent=(item.year?item.year+' · ':'')+(item.subtitle||'');
   link.append(cover,title,meta);
+  if(item.watched){
+    const indicator=document.createElement('span');indicator.className='watched-badge';
+    indicator.textContent='✓ Watched';article.append(indicator);
+  }
   if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
   else if(item.kind==='movies'&&item.library_id&&item.key)moviePosterJobs.push({cover,item});
   if(watching){
@@ -131,5 +144,6 @@ async function load(){
     byId('status').textContent='';
   }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
 }
+document.addEventListener('willie:watch-updated',load);
 load();
 </script></body></html>
