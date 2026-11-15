@@ -32,6 +32,11 @@ class HLSTests(unittest.TestCase):
         self.patch_root = patch.object(hls, "ROOT", self.root / "hls")
         self.patch_root.start()
         self.addCleanup(self.patch_root.stop)
+        # CI does not have FFmpeg installed until Docker build; mock process
+        # creation while using a known executable for the availability guard.
+        executable = patch.object(hls, "FFMPEG", "/bin/true")
+        executable.start()
+        self.addCleanup(executable.stop)
         with hls.LOCK:
             hls.ACTIVE.clear()
         self.addCleanup(lambda: hls.ACTIVE.clear())
