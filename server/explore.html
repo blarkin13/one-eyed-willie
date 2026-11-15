@@ -63,6 +63,10 @@ body[data-page=explore] :is(a,button,input,select):focus-visible{
 body[data-page=explore] .detail-trigger:focus-visible .cover{outline:3px solid #d7edff;outline-offset:3px}
 body[data-page=explore] button,body[data-page=explore] select{min-height:48px}
 body[data-page=explore] .discovery-row{scroll-padding-inline:18px}
+.explore-trailer-preview{position:relative;display:grid;place-items:center;border:0;width:100%;height:100%;padding:0;background:#152436;cursor:pointer;overflow:hidden}
+.explore-trailer-preview img{position:absolute;width:100%;height:100%;object-fit:cover}
+.explore-trailer-preview span{position:relative;z-index:1;background:#ebf3fb;color:#14263a;border-radius:10px;font-size:27px;padding:8px 20px}
+.explore-trailer iframe{width:100%;height:100%;border:0}
 body[data-page=explore] #add-dialog{width:min(600px,calc(100vw - 24px));max-height:min(88vh,850px);overflow-y:auto;overscroll-behavior:contain}
 body[data-page=explore] #add-dialog .dialog-inner{padding:clamp(16px,3vw,30px)}
 body[data-page=explore] #add-dialog .check-row{min-height:46px;align-items:center}
@@ -250,9 +254,20 @@ async function showDetail(item,isDiscovery){
   addSection(expanded,'Seasons',gallery);
  }
  if(data.trailer_key&&/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key)){
-  const iframe=node('iframe','explore-trailer');iframe.src='https://www.youtube-nocookie.com/embed/'+data.trailer_key;
-  iframe.title=title+' trailer';iframe.loading='lazy';iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture';iframe.allowFullscreen=true;
-  addSection(expanded,'Trailer',iframe);
+  const trailer=node('div','explore-trailer');
+  const preview=node('button','explore-trailer-preview');
+  preview.type='button';preview.setAttribute('aria-label','Play trailer for '+title);
+  preview.title='Play trailer';
+  const thumb=node('img');thumb.src='https://i.ytimg.com/vi/'+data.trailer_key+'/hqdefault.jpg';
+  thumb.alt='';thumb.loading='lazy';preview.append(thumb,node('span','','▶'));
+  preview.onclick=()=>{
+   const iframe=node('iframe','explore-trailer');iframe.src='https://www.youtube-nocookie.com/embed/'+data.trailer_key+'?autoplay=1';
+   iframe.title=title+' trailer';iframe.loading='lazy';iframe.allow='autoplay; encrypted-media; picture-in-picture';iframe.allowFullscreen=true;
+   trailer.replaceChildren(iframe);
+   iframe.focus();
+  };
+  trailer.append(preview);
+  addSection(expanded,'Trailer',trailer);
  }
  if(Array.isArray(data.cast)&&data.cast.length){
   const gallery=node('div','explore-cast');
@@ -415,11 +430,12 @@ function remoteMove(key){
 }
 document.addEventListener('keydown',event=>{
  const key=event.key;
- if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Backspace','BrowserBack','GoBack'].includes(key))return;
+ if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Escape','Backspace','BrowserBack','GoBack','Enter'].includes(key))return;
  if(event.altKey||event.ctrlKey||event.metaKey)return;
  const active=document.activeElement;
  const editing=active?.matches('input[type="text"],input[type="search"],textarea,[contenteditable="true"]');
  if(editing)return;
+ if(key==='Enter' && active?.matches('input[type="checkbox"]')){event.preventDefault();active.click();return;}
  if(key==='Escape'||key==='BrowserBack'||key==='GoBack'||(key==='Backspace'&&!editing)){
    if(dialog.open){event.preventDefault();dialog.close();return;}
    if(!$('explore-detail').hidden){event.preventDefault();restoreExplore();return;}
@@ -438,7 +454,7 @@ document.addEventListener('keydown',event=>{
  if(dialog.open&&active?.matches('select')&&(key==='ArrowUp'||key==='ArrowDown')){
    event.preventDefault();remoteMove(key);return;
  }
- if(dialog.open&&active?.matches('input[type="checkbox"]')&&(key==='ArrowLeft'||key==='ArrowRight'))return;
+ if(dialog.open&&active?.matches('input[type="checkbox"]')&&(key==='ArrowLeft'||key==='ArrowRight')){event.preventDefault();active.click();return;}
  if(remoteMove(key))event.preventDefault();
 });
 
