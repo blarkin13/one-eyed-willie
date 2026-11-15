@@ -58,10 +58,15 @@ def _command(file, directory, start, hardware=False):
     args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
             "-re", "-ss", str(start), "-i", str(file), "-map", "0:v:0", "-map", "0:a:0?"]
     if hardware:
-        # Decoding remains on CPU; Intel/VAAPI performs H.264 encoding.
-        args += ["-vf", "scale=w=1280:h=720:force_original_aspect_ratio=decrease,"
-                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload",
-                 "-vaapi_device", "/dev/dri/renderD128", "-c:v", "h264_vaapi",
+        # Keep decoded surfaces on the GPU through scaling and H.264 encoding.
+        # Unsupported source codecs or VAAPI drivers fall back to software.
+        args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
+                "-hwaccel", "vaapi", "-hwaccel_device", "/dev/dri/renderD128",
+                "-hwaccel_output_format", "vaapi",
+                "-re", "-ss", str(start), "-i", str(file), "-map", "0:v:0", "-map", "0:a:0?"]
+        args += ["-vf", "scale_vaapi=w=1280:h=720:force_original_aspect_ratio=decrease:"
+                 "force_divisible_by=2:format=nv12",
+                 "-c:v", "h264_vaapi",
                  "-b:v", "2500k", "-maxrate", "3200k", "-bufsize", "5000k"]
     else:
         args += ["-vf", "scale=w=1280:h=720:force_original_aspect_ratio=decrease,"
@@ -159,7 +164,7 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000)):
             raise HTTPException(503, "Unable to start transcoder") from exc
         now = time.monotonic()
         session = Session(token, directory, process, now, now, media_id,
-                          "Intel VAAPI" if hardware else "CPU", probe_duration(file), start)
+                          "Intel VAAPI decode + encode" if hardware else "CPU", probe_duration(file), start)
         ACTIVE[token] = session
         return {"session": token,
                 "playlist": f"/api/stream/hls/{token}/index.m3u8",
@@ -174,7 +179,7 @@ def stream_status(token: str):
     code = session.process.poll()
     if code is not None and code != 0 and not playlist.exists():
         # Some driver/codec combinations cannot use VAAPI; restart with CPU.
-        if session.acceleration == "Intel VAAPI":
+        if session.acceleration == "Intel VAAPI decode + encode":
             with LOCK:
                 if ACTIVE.get(token) is session:
                     try:

@@ -11,7 +11,7 @@
     current.classList.remove('willie-chrome-hidden');
     clearTimeout(chromeTimer);
     const video=current.querySelector('video');
-    if(video&&!video.paused&&!video.ended){
+    if(video&&!video.paused&&!video.ended&&current.querySelector('.willie-subtitle-menu')?.hidden){
       chromeTimer=setTimeout(()=>{
         if(current&&!video.paused&&!video.ended)current.classList.add('willie-chrome-hidden');
       },2200);
@@ -21,7 +21,7 @@
     if(!current)return;
     clearTimeout(chromeTimer);
     const video=current.querySelector('video');
-    if(video&&!video.paused&&!video.ended){
+    if(video&&!video.paused&&!video.ended&&current.querySelector('.willie-subtitle-menu')?.hidden){
       chromeTimer=setTimeout(()=>{
         if(current&&!video.paused&&!video.ended)current.classList.add('willie-chrome-hidden');
       },2200);
@@ -33,7 +33,7 @@
     if(captions){captions.remove();captions=null}
     if(!current||!captionsSelect)return;
     const value=captionsSelect.value;
-    if(!/^(external|embedded)-[0-9]{1,3}$/.test(value))return;
+    if(!/^(?:external|embedded)-[0-9]{1,3}$|^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(?:-[a-z]{2})?$/.test(value))return;
     const video=current.querySelector('video');
     const track=document.createElement('track');
     track.kind='subtitles';track.label=captionsSelect.selectedOptions[0].textContent;
@@ -55,9 +55,21 @@ display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-
 background:linear-gradient(#020711df,transparent);display:flex;align-items:center;gap:10px;
 opacity:0;transition:opacity .15s}
 .willie-player:hover .willie-controls,.willie-player:focus-within .willie-controls{opacity:1}
-.willie-controls button{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
-color:#fff;padding:10px 13px;cursor:pointer;font:inherit}
-.willie-controls button:hover{background:#2a435f}
+.willie-controls button,.willie-toolbar button{background:transparent;border:0;border-radius:50%;width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink,#fff);padding:11px;cursor:pointer}
+.willie-controls button:hover,.willie-toolbar button:hover,.willie-controls button:focus-visible,.willie-toolbar button:focus-visible{background:#ffffff2c}
+.willie-controls button svg,.willie-toolbar button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.willie-bottom{position:absolute;bottom:0;left:0;right:0;z-index:5;background:linear-gradient(transparent,#000e 65%);padding:44px 25px 20px;transition:opacity .2s}
+.willie-toolbar{display:flex;justify-content:space-between;align-items:center}
+.willie-group{display:flex;align-items:center;gap:8px}
+.willie-subtitle-menu{position:absolute;right:25px;bottom:90px;background:var(--panel,#171b20);border:1px solid var(--line,#535b64);border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:13px;width:min(360px,calc(100vw - 40px))}
+.willie-subtitle-menu[hidden]{display:none}
+.willie-subtitle-menu a{color:var(--ink,#fff);font-size:14px;text-decoration:none;padding:9px}
+.willie-provider-search,.willie-subtitle-result{width:100%;text-align:left;background:transparent;color:var(--ink,#fff);border:0;border-radius:8px;padding:11px 10px;cursor:pointer;font:inherit}
+.willie-provider-search:hover,.willie-subtitle-result:hover,.willie-provider-search:focus-visible,.willie-subtitle-result:focus-visible{background:#ffffff25;outline:2px solid var(--accent,#fff)}
+.willie-subtitle-results{max-height:35vh;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px}
+.willie-subtitle-menu{max-height:75vh;overflow-y:auto}
+.willie-subtitle-menu .willie-subtitle-select{max-width:none;width:100%}
+
 .willie-subtitle-select{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
 color:#fff;padding:10px 12px;font:inherit;max-width:180px;cursor:pointer}
 .willie-subtitle-select option{background:#172636;color:#fff}
@@ -69,17 +81,17 @@ max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
 .willie-info:empty{display:none}
 .willie-player.willie-chrome-hidden{cursor:none}
 .willie-player.willie-chrome-hidden .willie-controls,
-.willie-player.willie-chrome-hidden .willie-timeline{opacity:0;pointer-events:none}
+.willie-player.willie-chrome-hidden .willie-bottom{opacity:0;pointer-events:none}
 .willie-player .willie-timeline{transition:opacity .2s ease}
 .willie-player .willie-info:not(:empty){opacity:1}
 .willie-player:not(.willie-chrome-hidden) .willie-controls{opacity:1}
-.willie-player:not(.willie-chrome-hidden) .willie-timeline{opacity:1}
-@media(prefers-reduced-motion:reduce){.willie-controls,.willie-timeline{transition:none}}
-.willie-timeline{position:absolute;bottom:9px;left:20px;right:20px;display:flex;
-align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius:12px;z-index:5}
-.willie-timeline input{flex:1;accent-color:#b2cde8;cursor:pointer}
+.willie-player:not(.willie-chrome-hidden) .willie-bottom{opacity:1}
+@media(prefers-reduced-motion:reduce){.willie-controls,.willie-bottom{transition:none}}
+.willie-timeline{display:flex;
+align-items:center;gap:12px;padding:10px 15px;z-index:5}
+.willie-timeline input{flex:1;accent-color:var(--accent,#e5e0d5);cursor:pointer}
 .willie-timeline span{font-size:12px;color:#bccddd;font-variant-numeric:tabular-nums}
-@media(hover:none){.willie-controls{opacity:1}}
+@media(hover:none){.willie-controls,.willie-bottom{opacity:1}}
 `;
   const style=document.createElement('style');style.textContent=css;document.head.append(style);
   const requestJson=async(url,opts={})=>{
@@ -180,9 +192,24 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
         hls.loadSource(url);
         hls.attachMedia(video);
       }
+      surface.dataset.engine=ready.engine||'Unknown';
       video.play().then(()=>message('')).catch(()=>message('Press Play to start the video.'));
     }catch(error){if(current===surface)message(error.message)}
     finally{switching=false}
+  }
+  const icons={
+    back:'<path d="m15 18-6-6 6-6"/><path d="M9 12h12"/>',
+    rewind:'<path d="M11 19 2 12l9-7v14ZM22 19l-9-7 9-7v14Z"/>',
+    forward:'<path d="m13 19 9-7-9-7v14ZM2 19l9-7-9-7v14Z"/>',
+    subtitle:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 12h5m-5 4h4m4-4h4m-5 4h5"/>',
+    watched:'<path d="M20 6 9 17l-5-5"/>',
+    play:'<path d="m8 5 12 7-12 7z"/>',
+    pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
+    info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6m0-10h.01"/>'
+  };
+  function setIcon(button,icon,label){
+    button.setAttribute('aria-label',label);button.title=label;
+    button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+icons[icon]+'</svg>';
   }
   function start(media, title, options={}){
     const id=Number(media);
@@ -203,22 +230,22 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     const video=document.createElement('video');video.className='willie-video';
     video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';
     const controls=document.createElement('div');controls.className='willie-controls';
-    const back=document.createElement('button');back.type='button';back.textContent='← Back';back.onclick=close;
+    const back=document.createElement('button');back.type='button';setIcon(back,'back','Back to library');back.onclick=close;
     const name=document.createElement('span');name.className='willie-title';name.textContent=title||'Now playing';
-    const backward=document.createElement('button');backward.textContent='−10s';
-    const forward=document.createElement('button');forward.textContent='+10s';
+    const backward=document.createElement('button');setIcon(backward,'rewind','Rewind 10 seconds');
+    const forward=document.createElement('button');setIcon(forward,'forward','Forward 10 seconds');
     const cc=document.createElement('select');cc.className='willie-subtitle-select';
     cc.setAttribute('aria-label','Subtitles');cc.title='Subtitles';
-    cc.hidden=true;
+    cc.hidden=false;
     const off=document.createElement('option');off.value='';off.textContent='CC Off';cc.append(off);
-    cc.onchange=syncCaptions;
-    const watch=document.createElement('button');watch.textContent='Mark watched';
+    cc.onchange=()=>{syncCaptions();subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');revealChrome();concealChromeSoon()};
+    const watch=document.createElement('button');setIcon(watch,'watched','Mark watched');watch.setAttribute('aria-pressed','false');
     watch.onclick=async()=>{
       try{
         const value=!status.watched;
         await requestJson('/api/watch/'+id+'/watched',{method:'PUT',
           headers:{'Content-Type':'application/json'},body:JSON.stringify({watched:value})});
-        status.watched=value;watch.textContent=value?'✓ Watched':'Mark watched';
+        status.watched=value;watch.setAttribute('aria-pressed',String(value));watch.title=value?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
         document.dispatchEvent(new CustomEvent('willie:watch-updated'));
       }catch(error){message(error.message)}
     };
@@ -229,7 +256,70 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
       else video.currentTime=Math.max(0,Math.min(video.duration||1e7,target));
     };
     backward.onclick=()=>seekBy(-10);forward.onclick=()=>seekBy(10);
-    controls.append(back,name,backward,forward,cc,watch);
+    const subtitles=document.createElement('button');setIcon(subtitles,'subtitle','Subtitles');
+    subtitles.setAttribute('aria-expanded','false');
+    const subtitleMenu=document.createElement('div');subtitleMenu.className='willie-subtitle-menu';subtitleMenu.hidden=true;
+    const language=document.createElement('select');language.className='willie-subtitle-select';
+    language.setAttribute('aria-label','Subtitle search language');
+    for(const [code,label] of [['en','English'],['es','Spanish'],['fr','French'],['de','German'],['it','Italian'],['pt','Portuguese'],['ja','Japanese'],['ko','Korean']]){
+      const option=document.createElement('option');option.value=code;option.textContent=label;language.append(option);
+    }
+    const searchLink=document.createElement('button');searchLink.type='button';
+    searchLink.className='willie-provider-search';searchLink.textContent='Search subtitles';
+    const results=document.createElement('div');results.className='willie-subtitle-results';
+    results.setAttribute('aria-live','polite');
+    const reloadTracks=async(selected)=>{
+      const info=await requestJson('/api/stream/subtitles/'+id);
+      cc.replaceChildren(off);
+      for(const item of info.tracks||[]){
+        if(!/^(?:external|embedded)-[0-9]{1,3}$|^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(?:-[a-z]{2})?$/.test(item.id))continue;
+        const option=document.createElement('option');option.value=item.id;
+        option.textContent=String(item.label||'Subtitles').slice(0,80);cc.append(option);
+      }
+      if(selected){cc.value=selected;syncCaptions();}
+    };
+    searchLink.onclick=async()=>{
+      results.replaceChildren();results.textContent='Searching OpenSubtitles…';
+      searchLink.disabled=true;
+      try{
+        const data=await requestJson('/api/stream/subtitles/'+id+'/search?language='+encodeURIComponent(language.value));
+        results.replaceChildren();
+        if(!data.results?.length){results.textContent='No subtitle matches found.';return;}
+        for(const item of data.results){
+          const choice=document.createElement('button');choice.type='button';choice.className='willie-subtitle-result';
+          choice.textContent=item.release+' · '+item.language+(item.hearing_impaired?' · SDH':'');
+          choice.onclick=async()=>{
+            choice.disabled=true;choice.textContent='Downloading subtitle…';
+            try{
+              const result=await requestJson('/api/stream/subtitles/'+id+'/download?language='+encodeURIComponent(language.value),{
+                method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({file_id:item.file_id})
+              });
+              await reloadTracks(result.track_id);
+              subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');
+              message('Subtitle downloaded and enabled.');revealChrome();concealChromeSoon();
+            }catch(error){choice.textContent=error.message;choice.disabled=false;}
+          };
+          results.append(choice);
+        }
+      }catch(error){results.textContent=error.message;}
+      finally{searchLink.disabled=false;}
+    };
+    subtitleMenu.append(cc,language,searchLink,results);
+    subtitles.onclick=()=>{subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
+    const playPause=document.createElement('button');setIcon(playPause,'pause','Pause');
+    playPause.onclick=()=>video.paused?video.play().catch(()=>{}):video.pause();
+    const diagnostics=document.createElement('button');setIcon(diagnostics,'info','Playback diagnostics');
+    diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':'HLS transcoding')+
+      ' · Server: '+(surface.dataset.engine||'Not reported')+
+      ' · Video: '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+
+      ' · Client GPU decoding depends on browser, device and codec.');
+    controls.append(back,name);
+    const bottom=document.createElement('div');bottom.className='willie-bottom';
+    const toolbar=document.createElement('div');toolbar.className='willie-toolbar';
+    const left=document.createElement('div');left.className='willie-group';
+    const right=document.createElement('div');right.className='willie-group';
+    left.append(playPause,backward,forward);right.append(subtitles,watch,diagnostics);
+    toolbar.append(left,right);bottom.append(toolbar,subtitleMenu);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
     const timeline=document.createElement('div');timeline.className='willie-timeline';
     const elapsed=document.createElement('span');elapsed.textContent='0:00:00';
@@ -237,7 +327,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     slider.setAttribute('aria-label','Playback position');
     const total=document.createElement('span');total.textContent='0:00:00';
     timeline.append(elapsed,slider,total);
-    surface.append(video,controls,info,timeline);
+    bottom.prepend(timeline);surface.append(video,controls,info,bottom);
     document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;captionsSelect=cc;
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
     surface.addEventListener('pointerdown',revealChrome);
@@ -257,7 +347,15 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
       if(current!==surface)document.removeEventListener('fullscreenchange',fullscreenChanged);
     };
     document.addEventListener('fullscreenchange',fullscreenChanged);
-    surface.addEventListener('keydown',e=>{if(e.key==='Escape'&&!document.fullscreenElement)close()});
+    surface.addEventListener('keydown',e=>{
+      if(e.key==='Escape'||e.key==='Backspace'){
+        if(!subtitleMenu.hidden){subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false')}
+        else if(!document.fullscreenElement)close();
+        e.preventDefault();
+      }else if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&e.target!==slider&&e.target!==cc){
+        seekBy(e.key==='ArrowLeft'?-10:10);e.preventDefault();
+      }
+    });
     slider.addEventListener('change',()=>{
       if(!status)return;
       const duration=Number(status.duration_seconds)||video.duration;
@@ -275,12 +373,12 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
         elapsed.textContent=formatTime(now);total.textContent=formatTime(duration);
       }
     },500);
-    video.addEventListener('playing',()=>{started=true;message('');concealChromeSoon()});
-    video.addEventListener('pause',()=>{revealChrome()});
+    video.addEventListener('playing',()=>{started=true;setIcon(playPause,'pause','Pause');message('');concealChromeSoon()});
+    video.addEventListener('pause',()=>{setIcon(playPause,'play','Play');revealChrome()});
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{saveProgress(true,true);if(status)status.watched=true;
-      watch.textContent='✓ Watched';document.dispatchEvent(new CustomEvent('willie:watch-updated'))});
+      watch.setAttribute('aria-pressed','true');watch.title='Mark unwatched';watch.setAttribute('aria-label',watch.title);document.dispatchEvent(new CustomEvent('willie:watch-updated'))});
     video.addEventListener('error',()=>{
       if(playbackMode==='direct')playHls(playerPosition(video));
       else message('Unable to decode HLS stream. Check FFmpeg and media format.');
@@ -288,20 +386,11 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     message('Opening video…');
     requestJson('/api/watch/'+id+'/status').then(data=>{
       if(current!==surface)return;
-      status=data;watch.textContent=data.watched?'✓ Watched':'Mark watched';
-      requestJson('/api/stream/subtitles/'+id).then(info=>{
-        if(current!==surface)return;
-        for(const item of info.tracks||[]){
-          if(!/^(external|embedded)-[0-9]{1,3}$/.test(item.id))continue;
-          const option=document.createElement('option');option.value=item.id;
-          option.textContent='CC '+String(item.label||'Subtitles').slice(0,80);
-          cc.append(option);
-        }
-        cc.hidden=cc.options.length===1;
-      }).catch(()=>{});
+      status=data;watch.setAttribute('aria-pressed',String(data.watched));watch.title=data.watched?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
+      reloadTracks().catch(()=>{});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
       if(data.mode==='direct'){
-        playbackMode='direct';video.src=data.stream_url;
+        playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
         if(resume>5)video.addEventListener('loadedmetadata',()=>{
           if(Number.isFinite(video.duration)&&resume<video.duration-4)video.currentTime=resume;
         },{once:true});

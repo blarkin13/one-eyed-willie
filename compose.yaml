@@ -6,6 +6,8 @@ services:
     restart: unless-stopped
     user: "1000:1000"
     environment:
+      OPENSUBTITLES_API_KEY: ${OPENSUBTITLES_API_KEY:-}
+      OPENSUBTITLES_TOKEN: ${OPENSUBTITLES_TOKEN:-}
       MEDIA_ROOT: /media
       DATABASE_PATH: /data/library.sqlite3
     ports:
