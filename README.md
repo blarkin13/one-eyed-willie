@@ -47,3 +47,7 @@ docker compose -f compose.remote.yaml -f compose.gpu.yaml up -d --build
 ```
 
 The optional credentials are passed through both Docker Compose modes. Without a key, local and embedded subtitles continue to function and the search panel shows a configuration message. Downloads stay in the private `/data/subtitles/opensubtitles` cache, never on the read-only media drive. Search/download uses OpenSubtitles' API and is subject to its account limits and provider availability. Downloads are restricted to HTTPS OpenSubtitles hosts; if the provider returns an unapproved external CDN host, that download is rejected rather than following an arbitrary URL. Verify provider responses with your account before relying on them.
+
+### OpenSubtitles settings
+
+Open **Settings → Connections → OpenSubtitles** to paste and verify an API key, with an optional account bearer token for provider downloads. The server saves credentials only under `/data/opensubtitles-settings.json` with restricted file permissions, never returns credential values, and applies changes immediately without restarting Docker. Environment-provided keys remain a fallback and are indicated as such in Settings; a Settings-saved key takes precedence. Removing a Settings-saved key falls back to the environment key if one exists. Previously downloaded subtitles remain available.

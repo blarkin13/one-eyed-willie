@@ -8,6 +8,7 @@ import json
 import os
 import re
 import tempfile
+import threading
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -24,21 +25,90 @@ BASE = "https://api.opensubtitles.com/api/v1"
 LANGUAGE = re.compile(r"^[a-z]{2,3}(?:-[a-z]{2})?$")
 MAX_DOWNLOAD = 8 * 1024 * 1024
 
+SETTINGS_PATH = Path(os.environ.get("OPENSUBTITLES_CONFIG_PATH", "/data/opensubtitles-settings.json"))
+SETTINGS_LOCK = threading.RLock()
+
+
+class SettingsRequest(BaseModel):
+    api_key: str = Field(min_length=8, max_length=300)
+    token: str = Field(default="", max_length=1500)
+
+
+def _saved_settings():
+    try:
+        data = json.loads(SETTINGS_PATH.read_text())
+        return data if isinstance(data, dict) else {}
+    except (OSError, ValueError):
+        return {}
+
+
+def _credentials():
+    # UI-managed credentials override old environment configuration.
+    with SETTINGS_LOCK:
+        saved = _saved_settings()
+    return (
+        str(saved.get("api_key") or os.environ.get("OPENSUBTITLES_API_KEY", "")).strip(),
+        str(saved.get("token") or os.environ.get("OPENSUBTITLES_TOKEN", "")).strip(),
+    )
+
+
+def _auth_headers(key, token=""):
+    headers = {"Api-Key": key, "User-Agent": "OneEyedWillie v0.14.2",
+               "Accept": "application/json"}
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    return headers
+
+
+@router.get("/settings")
+def settings_status():
+    key, token = _credentials()
+    with SETTINGS_LOCK:
+        saved = _saved_settings()
+    return {"configured": bool(key), "token_configured": bool(token),
+            "source": "settings" if saved.get("api_key") else
+                      "environment" if key else "none"}
+
+
+@router.put("/settings")
+def save_settings(data: SettingsRequest):
+    key, token = data.api_key.strip(), data.token.strip()
+    if not key or any(ch.isspace() for ch in key):
+        raise HTTPException(422, "Enter a valid OpenSubtitles API key")
+    # Verify credentials before replacing an existing working connection.
+    _json(BASE + "/subtitles?query=The+Matrix&languages=en",
+          _auth_headers(key, token))
+    with SETTINGS_LOCK:
+        SETTINGS_PATH.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(prefix=".opensubtitles-", dir=SETTINGS_PATH.parent)
+        try:
+            with os.fdopen(fd, "w") as stream:
+                json.dump({"api_key": key, "token": token}, stream)
+            os.chmod(temporary, 0o600)
+            os.replace(temporary, SETTINGS_PATH)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    return settings_status()
+
+
+@router.delete("/settings")
+def remove_settings():
+    with SETTINGS_LOCK:
+        SETTINGS_PATH.unlink(missing_ok=True)
+    return settings_status()
+
+
 
 class DownloadRequest(BaseModel):
     file_id: int = Field(gt=0)
 
 
 def _headers():
-    key = os.environ.get("OPENSUBTITLES_API_KEY", "").strip()
+    key, token = _credentials()
     if not key:
-        raise HTTPException(503, "OpenSubtitles API key is not configured on the server")
-    headers = {"Api-Key": key, "User-Agent": "OneEyedWillie v0.14.2",
-               "Accept": "application/json"}
-    token = os.environ.get("OPENSUBTITLES_TOKEN", "").strip()
-    if token:
-        headers["Authorization"] = "Bearer " + token
-    return headers
+        raise HTTPException(503, "OpenSubtitles API key is not configured. Add it in Settings → Connections.")
+    return _auth_headers(key, token)
 
 
 class _SafeRedirect(urllib.request.HTTPRedirectHandler):

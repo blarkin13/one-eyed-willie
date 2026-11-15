@@ -51,7 +51,7 @@ class CompactLayoutTests(unittest.TestCase):
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
         # The brand uses the current ship logo; the favicon stays in browser tabs.
         self.assertIn("image.src='/assets/ship-logo.png'", (SERVER / "shell.js").read_text())
-        self.assertIn("favicon.href='/assets/favicon.png?v=3'", (SERVER / "shell.js").read_text())
+        self.assertIn("favicon.href='/assets/favicon.png?v=4'", (SERVER / "shell.js").read_text())
 
     def test_there_is_no_top_header_or_magnifier(self):
         for page in ("dashboard.html", "catalog.html", "index.html",
@@ -87,8 +87,8 @@ class CompactLayoutTests(unittest.TestCase):
     def test_home_has_explicit_favicon(self):
         home = (SERVER / "dashboard.html").read_text()
         shell = (SERVER / "shell.js").read_text()
-        self.assertIn('<link rel="icon" type="image/png" href="/assets/favicon.png?v=3">', home)
-        self.assertIn("favicon.href='/assets/favicon.png?v=3'", shell)
+        self.assertIn('<link rel="icon" type="image/png" href="/assets/favicon.png?v=4">', home)
+        self.assertIn("favicon.href='/assets/favicon.png?v=4'", shell)
 
     def test_playback_controls_and_fullscreen_request(self):
         player = (SERVER / "player.js").read_text()
