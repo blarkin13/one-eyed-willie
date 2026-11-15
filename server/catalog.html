@@ -39,7 +39,7 @@
       <p id="status" class="status-line" role="status">Loading titles…</p>
       <div id="items" aria-live="off"></div>
       <div class="load-more-wrap"><button type="button" class="secondary-button" id="more" hidden>Load more</button></div>
-      <p class="note">Artwork and movie details will appear after metadata matching. Text covers are shown in the meantime.</p>
+      <p class="note">TV posters and descriptions load through optional TMDB metadata in Settings → Metadata. Without it, titles remain browsable with text covers.</p>
     </main>
   </div>
 </div>
@@ -92,9 +92,48 @@ function openDetails(item){
  }
  dialog.showModal();
 }
+
+// Artwork requests are intentionally lazy and capped to avoid rate limiting.
+const posterQueue=[];
+let posterActive=0;
+const observer='IntersectionObserver' in window?new IntersectionObserver(entries=>{
+ for(const entry of entries){
+  if(!entry.isIntersecting)continue;
+  observer.unobserve(entry.target);
+  entry.target._loadPoster?.();
+ }
+},{rootMargin:'260px'}):null;
+function observePoster(card,cover,item){
+ card._loadPoster=()=>{
+  posterQueue.push({card,cover,item});
+  runPosterQueue();
+ };
+ if(observer)observer.observe(card);
+ else card._loadPoster();
+}
+function runPosterQueue(){
+ while(posterActive<3&&posterQueue.length){
+  const job=posterQueue.shift();posterActive++;
+  const {card,cover,item}=job;
+  const q=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+  fetch('/api/tv/poster?'+q,{cache:'no-store'}).then(response=>{
+   if(!response.ok)throw Error('Poster request failed');
+   return response.json();
+  }).then(data=>{
+   if(!data.poster_url||!data.poster_url.startsWith('https://image.tmdb.org/t/p/'))return;
+   if(!card.isConnected)return;
+   const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
+   img.src=data.poster_url;img.loading='lazy';img.referrerPolicy='no-referrer';
+   cover.appendChild(img);
+  }).catch(()=>{}).finally(()=>{posterActive--;runPosterQueue()});
+ }
+}
 function createCard(item){
  const article=document.createElement('article');article.className='tile';
- const button=document.createElement('button');button.type='button';button.className='tile-button';button.setAttribute('aria-label','View '+item.title);
+ const button=document.createElement(type==='tv'?'a':'button');
+ if(type==='movies')button.type='button';
+ else button.href='/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
+ button.className='tile-button';button.setAttribute('aria-label','View '+item.title);
  let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
  const cover=document.createElement('div');cover.className='cover cover--'+(hash%6);
  const top=document.createElement('div');top.className='cover-top';
@@ -105,8 +144,11 @@ function createCard(item){
  const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
  const meta=document.createElement('div');meta.className='tile-meta';
  meta.textContent=(item.year?item.year+' · ':'')+(item.kind==='tv'?item.seasons.length+' season'+(item.seasons.length===1?'':'s'):item.files+' file'+(item.files===1?'':'s'));
- button.append(cover,title,meta);button.addEventListener('click',()=>openDetails(item));
- article.append(button);return article;
+ button.append(cover,title,meta);
+ if(type==='movies')button.addEventListener('click',()=>openDetails(item));
+ article.append(button);
+ if(type==='tv')observePoster(article,cover,item);
+ return article;
 }
 async function load(reset=true){
  if(loading&&!reset)return;
