@@ -44,7 +44,7 @@ class HomeDashboardTests(unittest.TestCase):
         self.assertEqual([t["title"] for t in data["recent_tv"]], ["Severance"])
         self.assertEqual(data["totals"], {"movies": 2, "tv": 1})
         self.assertEqual(data["continue_watching"], [])
-        self.assertFalse(data["playback_available"])
+        self.assertTrue(data["playback_available"])
 
     def test_unfinished_progress_and_completion(self):
         saved = update_playback(PlaybackUpdate(

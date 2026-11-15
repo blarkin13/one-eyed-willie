@@ -53,6 +53,12 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title"):
     with db() as conn:
         libs = conn.execute("SELECT id,kind,path FROM libraries").fetchall()
         groups = {}
+        completed_ids = {row["media_id"] for row in conn.execute(
+            "SELECT media_id FROM playback_progress WHERE completed=1"
+        )}
+        in_progress_ids = {row["media_id"] for row in conn.execute(
+            "SELECT media_id FROM playback_progress WHERE completed=0 AND position_seconds>=30"
+        )}
         for lib in libs:
             if kind and lib["kind"] != kind:
                 continue
@@ -70,18 +76,27 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title"):
                                    "key": parsed["key"], "title": parsed["title"],
                                    "year": parsed["year"], "files": 0, "seasons": set(),
                                    "added_at": row["added_at"],
+                                   "media_id": row["id"],
+                                   "watched_files": 0, "in_progress_files": 0,
                                    "episodes": []}
                 g = groups[key]
                 g["files"] += 1
+                if row["id"] in completed_ids:
+                    g["watched_files"] += 1
+                if row["id"] in in_progress_ids:
+                    g["in_progress_files"] += 1
                 if row["added_at"] and (not g["added_at"] or row["added_at"] > g["added_at"]):
                     g["added_at"] = row["added_at"]
                 if lib["kind"] == "tv":
                     if parsed["season"] is not None:
                         g["seasons"].add(parsed["season"])
                     g["episodes"].append({"id": row["id"], "season": parsed["season"],
-                                          "episode": parsed["episode"], "filename": Path(row["path"]).name})
+                                          "episode": parsed["episode"], "filename": Path(row["path"]).name,
+                                          "watched": row["id"] in completed_ids})
         results = []
         for group in groups.values():
+            group["watched"] = group["files"] > 0 and group["watched_files"] == group["files"]
+            group["partially_watched"] = group["watched_files"] > 0 or group["in_progress_files"] > 0
             group["seasons"] = sorted(group["seasons"])
             group["episodes"].sort(key=lambda e: (e["season"] if e["season"] is not None else 999,
                                                  e["episode"] if e["episode"] is not None else 999))

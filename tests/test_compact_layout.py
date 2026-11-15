@@ -90,6 +90,21 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn('<link rel="icon" type="image/png" href="/assets/favicon.png?v=3">', home)
         self.assertIn("favicon.href='/assets/favicon.png?v=3'", shell)
 
+    def test_playback_controls_and_fullscreen_request(self):
+        player = (SERVER / "player.js").read_text()
+        movie = (SERVER / "catalog.html").read_text()
+        tv = (SERVER / "tv_detail.html").read_text()
+        home = (SERVER / "dashboard.html").read_text()
+        self.assertIn("requestFullscreen", player)
+        self.assertIn("willie:watch-updated", player)
+        self.assertIn("/api/playback/progress", player)
+        self.assertIn("/api/watch/", player)
+        self.assertIn("detail-play", movie)
+        self.assertIn("detail-watched", movie)
+        self.assertIn("Play fullscreen", tv)
+        self.assertIn("WilliePlayer.open", home)
+        self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
+
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
         for path in ("/movies", "/tv", "/explore", "/settings/libraries"):
@@ -104,8 +119,8 @@ class CompactLayoutTests(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("node"), "Node.js not installed")
     def test_ui_javascript_syntax(self):
-        source_files = [SERVER / "shell.js"]
-        for path in (SERVER / "dashboard.html", SERVER / "catalog.html", SERVER / "index.html"):
+        source_files = [SERVER / "shell.js", SERVER / "player.js"]
+        for path in (SERVER / "dashboard.html", SERVER / "catalog.html", SERVER / "index.html", SERVER / "tv_detail.html", SERVER / "watch.html"):
             parser = Scripts()
             parser.feed(path.read_text())
             for script in parser.scripts:
