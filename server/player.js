@@ -13,7 +13,7 @@
     const video=current.querySelector('video');
     if(video&&!video.paused&&!video.ended){
       chromeTimer=setTimeout(()=>{
-        if(current&&!video.paused&&!video.ended&&!pointerInside)current.classList.add('willie-chrome-hidden');
+        if(current&&!video.paused&&!video.ended)current.classList.add('willie-chrome-hidden');
       },2200);
     }
   }
@@ -23,8 +23,7 @@
     const video=current.querySelector('video');
     if(video&&!video.paused&&!video.ended){
       chromeTimer=setTimeout(()=>{
-        if(current&&!video.paused&&!video.ended&&
-          !current.contains(document.activeElement))current.classList.add('willie-chrome-hidden');
+        if(current&&!video.paused&&!video.ended)current.classList.add('willie-chrome-hidden');
       },2200);
     }
   }
