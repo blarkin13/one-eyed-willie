@@ -100,6 +100,19 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
 .trailer-dialog-body iframe{width:100%;height:100%;border:0;display:block}
 .trailer-close{float:right;border:0;background:none;color:inherit;font-size:2rem;cursor:pointer}
 .trailer-youtube{display:inline-block;margin:12px 0 0}
+.movie-match-dialog{width:min(760px,calc(100vw - 28px));max-width:none;max-height:85vh;overflow-y:auto;background:#101a28;color:#e6f0fc;border:1px solid #3d536b;border-radius:13px;padding:24px}
+.movie-match-dialog::backdrop{background:#000b}
+.movie-match-heading{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.movie-match-heading h2{margin:0}
+.match-close{border:0;background:transparent;color:inherit;font-size:2rem;cursor:pointer}
+.movie-match-form{display:flex;gap:10px;margin:20px 0}
+.movie-match-form input{flex:1;min-width:0;padding:12px;background:#0b1421;border:1px solid #485b73;border-radius:9px;color:#fff}
+.movie-match-results{display:grid;gap:9px;margin:16px 0}
+.movie-match-choice{display:flex;align-items:flex-start;gap:15px;width:100%;text-align:left;border:1px solid #30435a;background:transparent;color:inherit;border-radius:9px;padding:9px;cursor:pointer}
+.movie-match-choice:hover,.movie-match-choice:focus-visible{background:#203249;border-color:#90b5d9}
+.movie-match-choice img{width:55px;aspect-ratio:2/3;object-fit:cover}
+.movie-match-choice span{display:grid;gap:5px}
+.movie-match-choice small{color:#a7bbcf;line-height:1.4}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -129,6 +142,10 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
       <button id="trailer-movie" type="button" class="secondary-button media-icon-action" hidden
         aria-label="Play trailer" title="Play trailer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
+      </button>
+      <button id="fix-match-movie" type="button" class="secondary-button media-icon-action"
+        title="Fix Match" aria-label="Fix movie metadata match">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h12M3 12h9M3 17h7M17 3v6m-3-3h6M18 13l3 3-7 6H11v-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>
       </button>
       <button id="watched-movie" type="button" class="secondary-button media-icon-action"
         title="Mark watched" aria-label="Mark watched">
@@ -165,6 +182,70 @@ const params=new URLSearchParams(location.search);
 const library_id=Number(params.get('library_id'));
 const key=params.get('key')||'';
 let movie=null;
+function openMovieMatch(){
+ const dialog=document.createElement('dialog');dialog.className='movie-match-dialog';
+ dialog.setAttribute('aria-label','Fix movie metadata match');
+ const title=document.createElement('h2');title.textContent='Fix Match';
+ const close=document.createElement('button');close.type='button';close.className='match-close';close.textContent='×';close.setAttribute('aria-label','Close');close.onclick=()=>dialog.close();
+ const heading=document.createElement('div');heading.className='movie-match-heading';heading.append(title,close);
+ const help=document.createElement('p');help.className='muted';help.textContent='Search TMDB and select the correct movie. Only metadata changes; your movie files are untouched.';
+ const form=document.createElement('form');form.className='movie-match-form';
+ const input=document.createElement('input');input.type='search';input.required=true;input.minLength=2;input.maxLength=120;input.placeholder='Search movie title';input.value=movie?.title||'';
+ const search=document.createElement('button');search.type='submit';search.className='primary-button';search.textContent='Search';form.append(input,search);
+ const message=document.createElement('p');message.className='muted';message.setAttribute('role','status');
+ const results=document.createElement('div');results.className='movie-match-results';
+ const reset=document.createElement('button');reset.type='button';reset.className='secondary-button';reset.textContent='Restore automatic match';reset.hidden=!movie?.manual_match;
+ reset.onclick=async()=>{
+   if(!confirm('Remove your manual movie match and restore automatic metadata?'))return;
+   reset.disabled=true;
+   try{
+     const q=new URLSearchParams({library_id:String(library_id),key});
+     const response=await fetch('/api/movies/match?'+q,{method:'DELETE'});
+     if(!response.ok)throw Error('Unable to restore automatic match');
+     location.reload();
+   }catch(e){message.textContent=e.message;reset.disabled=false}
+ };
+ async function find(event){
+   event?.preventDefault();if(!input.value.trim())return;
+   search.disabled=true;message.textContent='Searching TMDB…';results.replaceChildren();
+   try{
+     const q=new URLSearchParams({library_id:String(library_id),key,query:input.value.trim()});
+     const response=await fetch('/api/movies/match/search?'+q,{cache:'no-store'});
+     const data=await response.json();if(!response.ok)throw Error(data.detail||'Search unavailable');
+     if(!data.tmdb_connected)throw Error('Connect TMDB under Settings → Metadata to use Fix Match.');
+     if(!data.results?.length){message.textContent='No movies found. Try another title or year.';return}
+     message.textContent='Select the correct movie from '+data.results.length+' results.';
+     for(const item of data.results){
+       const choice=document.createElement('button');choice.type='button';choice.className='movie-match-choice';
+       if(item.poster_url?.startsWith('https://image.tmdb.org/')){
+         const img=document.createElement('img');img.src=item.poster_url;img.alt='';img.loading='lazy';choice.append(img);
+       }
+       const details=document.createElement('span');const name=document.createElement('strong');name.textContent=item.title;
+       const year=document.createElement('small');year.textContent=item.year||'Year unknown';
+       const overview=document.createElement('small');overview.textContent=item.overview||'';
+       details.append(name,year,overview);choice.append(details);
+       choice.onclick=async()=>{
+         choice.disabled=true;message.textContent='Saving movie match…';
+         try{
+           const q=new URLSearchParams({library_id:String(library_id),key});
+           const response=await fetch('/api/movies/match?'+q,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({tmdb_id:item.tmdb_id})});
+           const data=await response.json();if(!response.ok)throw Error(data.detail||'Unable to save match');
+           location.reload();
+         }catch(e){message.textContent=e.message;choice.disabled=false}
+       };
+       results.append(choice);
+     }
+   }catch(e){message.textContent=e.message}
+   finally{search.disabled=false}
+ }
+ form.onsubmit=find;
+ dialog.append(heading,help,form,message,results,reset);document.body.append(dialog);
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+ dialog.showModal();input.focus();find();
+}
+$('fix-match-movie').addEventListener('click',openMovieMatch);
+
 async function loadMovie(){
  if(!Number.isInteger(library_id)||library_id<1||!key||key.length>300){
    $('movie-status').textContent='Choose a movie from your library.';return;

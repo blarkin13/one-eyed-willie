@@ -129,5 +129,38 @@ class MovieMetadataTests(unittest.TestCase):
             movies.movie_details(library_id=1, key="other:2020")
 
 
+    def test_manual_movie_fix_match_overrides_wrong_metadata_and_restores(self):
+        from server import metadata
+        with patch.object(metadata, "token_status", return_value=True), \
+             patch.object(metadata, "_call", return_value={"id": 123, "title": "Arrival"}), \
+             patch.object(movies, "_snapshot", return_value=[]):
+            saved = movies.set_movie_match(1, "arrival:2016", movies.MovieMatchRequest(tmdb_id=123))
+            self.assertEqual(saved["tmdb_id"], 123)
+            self.assertEqual(movies._manual_movie_match(1, "arrival:2016"), 123)
+            with patch.object(movies, "_movie_extras", return_value={
+                "poster_url": "/api/artwork/manualposter", "overview": "Corrected story"
+            }) as extras:
+                detail = movies.movie_details(1, "arrival:2016")
+                self.assertEqual(detail["poster_url"], "/api/artwork/manualposter")
+                self.assertEqual(detail["overview"], "Corrected story")
+                self.assertEqual(detail["metadata_source"], "TMDB (manual match)")
+                extras.assert_called_once()
+            self.assertFalse(movies.clear_movie_match(1, "arrival:2016")["matched"])
+            self.assertIsNone(movies._manual_movie_match(1, "arrival:2016"))
+
+    def test_fix_match_search_requires_tmdb_and_does_not_guess(self):
+        from server import metadata
+        with patch.object(metadata, "token_status", return_value=False):
+            result = movies.movie_match_search(1, "arrival:2016", "Arrival")
+            self.assertEqual(result["results"], [])
+            self.assertFalse(result["tmdb_connected"])
+        with patch.object(metadata, "token_status", return_value=True), \
+             patch.object(metadata, "_call", return_value={"results": [
+                 {"id": 123, "title": "Arrival", "release_date": "2016-11-11"}
+             ]}):
+            result = movies.movie_match_search(1, "arrival:2016", "Arrival")
+            self.assertEqual(result["results"][0]["tmdb_id"], 123)
+
+
 if __name__ == "__main__":
     unittest.main()

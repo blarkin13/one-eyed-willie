@@ -365,6 +365,7 @@ def _movie_extras(radarr):
         ), None)
         extras = {
             "trailer_key": trailer,
+            "overview": str((details or {}).get("overview") or "")[:1200],
             "poster_url": register_remote(image_url(details.get("poster_path"), "w500")),
             "backdrop_url": register_remote(image_url(details.get("backdrop_path"), "w1280")),
             "cast": cast, "reviews": user_reviews,
@@ -382,6 +383,88 @@ def _movie_extras(radarr):
         }
         _cache_put(key, extras)
         return extras
+
+
+def _manual_movie_match(library_id, key):
+    with db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS movie_manual_matches "
+                     "(library_id INTEGER NOT NULL, movie_key TEXT NOT NULL, tmdb_id INTEGER NOT NULL, "
+                     "PRIMARY KEY (library_id,movie_key))")
+        row = conn.execute("SELECT tmdb_id FROM movie_manual_matches "
+                           "WHERE library_id=? AND movie_key=?", (library_id, key)).fetchone()
+    return row["tmdb_id"] if row else None
+
+
+class MovieMatchRequest(BaseModel):
+    tmdb_id: int = Field(gt=0)
+
+
+@router.get("/match/search")
+def movie_match_search(
+    library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300),
+    query: str = Query(min_length=2, max_length=120),
+):
+    _movie_path(library_id, key)
+    from .metadata import token_status, _call, image_url
+    if not token_status():
+        return {"results": [], "tmdb_connected": False}
+    data = _call("search/movie", query={"query": query, "language": "en-US",
+                                        "include_adult": "false"})
+    results = []
+    for item in (data or {}).get("results", [])[:20]:
+        if not isinstance(item, dict) or not isinstance(item.get("id"), int):
+            continue
+        results.append({
+            "tmdb_id": item["id"], "title": str(item.get("title") or "")[:120],
+            "year": str(item.get("release_date") or "")[:4],
+            "overview": str(item.get("overview") or "")[:300],
+            "poster_url": image_url(item.get("poster_path"), "w185"),
+        })
+    return {"results": results, "tmdb_connected": True}
+
+
+@router.put("/match")
+def set_movie_match(
+    library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300),
+    change: MovieMatchRequest = None,
+):
+    _movie_path(library_id, key)
+    from .metadata import _call, token_status
+    if not token_status():
+        raise HTTPException(409, "Connect TMDB under Settings → Metadata to fix movie matches.")
+    if change is None:
+        raise HTTPException(422, "Select a movie to match")
+    result = _call("movie/" + str(change.tmdb_id), query={"language": "en-US"})
+    if not isinstance(result, dict) or result.get("id") != change.tmdb_id:
+        raise HTTPException(422, "Selected movie could not be loaded from TMDB")
+    with db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS movie_manual_matches "
+                     "(library_id INTEGER NOT NULL, movie_key TEXT NOT NULL, tmdb_id INTEGER NOT NULL, "
+                     "PRIMARY KEY (library_id,movie_key))")
+        conn.execute("INSERT INTO movie_manual_matches(library_id,movie_key,tmdb_id) VALUES(?,?,?) "
+                     "ON CONFLICT(library_id,movie_key) DO UPDATE SET tmdb_id=excluded.tmdb_id",
+                     (library_id, key, change.tmdb_id))
+        conn.commit()
+    from .poster_index import invalidate
+    invalidate("movies", library_id, key)
+    return {"matched": True, "title": result.get("title"), "tmdb_id": change.tmdb_id}
+
+
+@router.delete("/match")
+def clear_movie_match(
+    library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300),
+):
+    _movie_path(library_id, key)
+    with db() as conn:
+        conn.execute("CREATE TABLE IF NOT EXISTS movie_manual_matches "
+                     "(library_id INTEGER NOT NULL, movie_key TEXT NOT NULL, tmdb_id INTEGER NOT NULL, "
+                     "PRIMARY KEY (library_id,movie_key))")
+        conn.execute("DELETE FROM movie_manual_matches WHERE library_id=? AND movie_key=?",
+                     (library_id, key))
+        conn.commit()
+    from .poster_index import invalidate
+    invalidate("movies", library_id, key)
+    return {"matched": False}
 
 
 def _details(library_id, key, snapshot=None, *, enrich=True):
@@ -402,11 +485,14 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
             "WHERE m.library_id=? AND m.path=? ORDER BY m.id LIMIT 1",
             (library_id, str(video)),
         ).fetchone()
-    if enrich and not radarr.get("tmdb_id"):
+    if enrich and not radarr.get("tmdb_id") and not _manual_movie_match(library_id, key):
         tmdb_id = _tmdb_id_for_title(parsed["title"], parsed["year"])
         if tmdb_id:
             radarr = {**radarr, "tmdb_id": tmdb_id}
-    extras = _movie_extras(radarr) if enrich else {}
+    manual_id = _manual_movie_match(library_id, key)
+    if manual_id:
+        radarr = {**radarr, "tmdb_id": manual_id}
+    extras = _movie_extras(radarr) if (enrich or manual_id) else {}
     return {
         **extras,
         "ratings": radarr.get("ratings") or {},
@@ -423,13 +509,14 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "watched": bool(entry and entry["completed"]),
         "position_seconds": entry["position_seconds"] if entry and entry["position_seconds"] else 0,
         "duration_seconds": entry["duration_seconds"] if entry and entry["duration_seconds"] else 0,
-        "year": parsed["year"], "poster_url": poster_url or extras.get("poster_url"),
-        "backdrop_url": backdrop_url or extras.get("backdrop_url"),
-        "overview": nfo.get("overview") or radarr.get("overview") or "",
+        "year": parsed["year"], "poster_url": (extras.get("poster_url") if manual_id else None) or poster_url or extras.get("poster_url"),
+        "backdrop_url": (extras.get("backdrop_url") if manual_id else None) or backdrop_url or extras.get("backdrop_url"),
+        "overview": (extras.get("overview") if manual_id else None) or nfo.get("overview") or radarr.get("overview") or "",
         "runtime": nfo.get("runtime") or radarr.get("runtime"),
         "genres": nfo.get("genres") or radarr.get("genres") or [],
         "imdb_url": "https://www.imdb.com/title/" + imdb_id + "/" if imdb_id else None,
-        "metadata_source": "Local movie files" if nfo else ("Radarr" if radarr else None),
+        "metadata_source": "TMDB (manual match)" if manual_id else ("Local movie files" if nfo else ("Radarr" if radarr else ("TMDB" if extras else None))),
+        "manual_match": manual_id,
     }
 
 
