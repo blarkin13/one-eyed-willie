@@ -138,7 +138,7 @@ def show_metadata(title, year=None):
             return {}
         item = matches[0]
         tmdb_id = item.get("id")
-        details = _call("tv/" + str(tmdb_id), query={"language": "en-US", "append_to_response": "videos"}) or item
+        details = _call("tv/" + str(tmdb_id), query={"language": "en-US", "append_to_response": "videos,credits,reviews"}) or item
         seasons = []
         for season in details.get("seasons", []):
             seasons.append({
@@ -155,7 +155,22 @@ def show_metadata(title, year=None):
             and isinstance(v.get("key"), str)
             and re.fullmatch(r"[A-Za-z0-9_-]{11}", v["key"])
         ), None)
+        cast = [
+            {"name": str(actor.get("name") or "")[:90],
+             "character": str(actor.get("character") or "")[:90],
+             "photo_url": image_url(actor.get("profile_path"), "w185")}
+            for actor in (details.get("credits") or {}).get("cast", [])[:18]
+            if isinstance(actor, dict) and actor.get("name")
+        ]
+        reviews = [
+            {"author": str(review.get("author") or "TMDB contributor")[:80],
+             "excerpt": str(review.get("content") or "")[:850], "source": "TMDB"}
+            for review in (details.get("reviews") or {}).get("results", [])[:4]
+            if isinstance(review, dict) and review.get("content")
+        ]
         metadata = {
+            "cast": cast,
+            "reviews": reviews,
             "trailer_key": trailer,
             "rating": details.get("vote_average"),
             "genres": [g.get("name") for g in details.get("genres", []) if isinstance(g, dict) and g.get("name")],
