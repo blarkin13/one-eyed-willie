@@ -71,9 +71,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const favicon=document.createElement('link');favicon.rel='icon';favicon.type='image/svg+xml';favicon.href='/assets/logo.svg';
   document.head.append(favicon);
   // Use Font Awesome Free when loaded; keep local SVGs when offline.
-  if(document.fonts&&document.fonts.ready){
-    document.fonts.ready.then(()=>{
-      if(document.fonts.check('900 16px "Font Awesome 6 Free"')){
+  if(document.fonts&&document.fonts.load){
+    document.fonts.load('900 16px "Font Awesome 6 Free"').then(faces=>{
+      if(faces.length&&faces.some(face=>face.status==='loaded')){
         document.documentElement.classList.add('fontawesome-ready');
       }
     }).catch(()=>{});
