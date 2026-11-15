@@ -71,7 +71,7 @@ html,body{background:var(--bg)}
   background:#0a121e;border-right:1px solid #243246;padding:12px 8px 18px;
   display:flex;flex-direction:column;align-items:center;gap:12px;
   transition:width .2s ease,box-shadow .2s ease}
-.sidebar:hover,.sidebar:focus-within{width:min(260px,calc(100vw - 12px));align-items:stretch;box-shadow:12px 0 30px #01070e99}
+.sidebar:hover,.sidebar:focus-within{width:min(240px,calc(100vw - 12px));align-items:stretch;box-shadow:12px 0 30px #01070e99}
 .sidebar .brand{display:flex;align-items:center;justify-content:center;gap:9px;
   height:66px;min-height:66px;width:100%;padding:0;margin:0;
   min-width:0;white-space:nowrap;border:0;overflow:hidden}
@@ -81,13 +81,13 @@ html,body{background:var(--bg)}
   clip-path:inset(0 0 15% 0);mix-blend-mode:screen;filter:none}
 .sidebar .brand-name{display:none;opacity:0;
   font-family:"Snell Roundhand","Snell Roundhand LT Std","Apple Chancery",cursive;
-  font-size:1.25rem;font-weight:400;font-style:normal;line-height:1.2;
+  font-size:1.14rem;font-weight:400;font-style:normal;line-height:1.2;
   letter-spacing:0;color:#f5f1e9;white-space:nowrap;min-width:0}
 .sidebar:hover .brand,.sidebar:focus-within .brand{
   min-height:72px;height:72px;justify-content:flex-start;
   padding:0 4px;border-bottom:1px solid #344253;gap:8px}
 .sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{
-  width:64px;height:64px;flex-basis:64px}
+  width:60px;height:60px;flex-basis:60px}
 .sidebar:hover .brand-name,.sidebar:focus-within .brand-name{display:block;opacity:1}
 .sidebar .side-nav{width:100%;display:flex;flex-direction:column;gap:8px;padding:13px 0 0;overflow:visible}
 .sidebar .nav-link{display:flex;align-items:center;justify-content:center;width:100%;height:53px;min-height:53px;
@@ -145,7 +145,7 @@ body[data-page="home"] .tile-meta{font-size:.76rem;color:#8798ab}
 body[data-page="home"] .cover{border-color:#324257;border-radius:11px}
 @media(max-width:980px){
  .sidebar{position:fixed;inset:0 auto 0 0;max-width:none;min-width:0;border-right:1px solid #253244;flex-direction:column}
- .sidebar:hover,.sidebar:focus-within{width:min(260px,calc(100vw - 12px))}
+ .sidebar:hover,.sidebar:focus-within{width:min(240px,calc(100vw - 12px))}
  .sidebar .side-nav{flex-direction:column;gap:8px;overflow:visible}
  .sidebar .nav-link{min-height:53px;padding:0 12px}
  .sidebar .nav-icon{display:grid}
