@@ -32,6 +32,21 @@ body[data-page=tv] .tv-extras h2{margin:30px 0 17px;font-size:1.45rem}
 .tv-trailer-dialog::backdrop{background:#000c}
 .tv-trailer-dialog iframe{width:100%;aspect-ratio:16/9;border:0;display:block;margin:12px 0}
 .tv-trailer-close{display:block;margin-left:auto;background:none;border:0;color:inherit;font-size:2rem;cursor:pointer}
+.tv-match-dialog{width:min(700px,calc(100vw - 24px));max-height:85dvh;background:var(--panel,#131820);color:var(--ink,#fff);border:1px solid var(--line,#354254);border-radius:14px;padding:22px}
+.tv-match-dialog::backdrop{background:#000b}
+.tv-match-head{display:flex;align-items:center;justify-content:space-between;gap:15px}
+.tv-match-head h2{margin:0;font-size:1.3rem}
+.tv-match-search{display:flex;gap:10px;margin:15px 0}
+.tv-match-search input{flex:1;min-width:0;padding:12px;background:var(--panel-2,#18202b);color:inherit;border:1px solid var(--line,#354254);border-radius:9px}
+.tv-match-results{max-height:47dvh;overflow-y:auto;display:flex;flex-direction:column;gap:8px}
+.tv-match-choice{display:flex;align-items:center;gap:12px;text-align:left;width:100%;padding:12px;border:1px solid var(--line,#354254);border-radius:10px;background:transparent;color:inherit;cursor:pointer}
+.tv-match-choice:hover,.tv-match-choice:focus-visible{background:var(--panel-2,#19202b)}
+.tv-match-choice img{width:48px;height:70px;object-fit:cover;border-radius:5px}
+.tv-match-choice strong,.tv-match-choice small{display:block}
+.tv-match-choice small{color:var(--muted,#aab);font-size:.85rem}
+.tv-match-message{color:var(--muted,#aab)}
+.tv-match-restore{background:transparent;color:inherit;border:0;text-decoration:underline;margin-top:12px;padding:8px}
+@media(max-width:560px){.tv-match-search{flex-wrap:wrap}.tv-match-search button{width:100%}}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -98,12 +113,91 @@ function credit(data){
  const div=el('p','muted');div.append('TV show information from ');
  const link=el('a','text-link','TVmaze');link.href=(typeof data.source_url==='string'&&data.source_url.startsWith('https://www.tvmaze.com/'))?data.source_url:'https://www.tvmaze.com/';link.target='_blank';link.rel='noopener noreferrer';div.append(link,'.');return div;
 }
+function matchButton(){
+ const button=el('button','media-icon-action');
+ button.type='button';button.title='Fix metadata match';button.setAttribute('aria-label','Fix metadata match');
+ button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h12M3 12h9M3 17h7M17 3v6m-3-3h6M18 13l3 3-7 6H11v-3z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+ button.onclick=()=>openMatchDialog();
+ return button;
+}
 function notice(){
  const div=el('div','metadata-notice');
- div.append('Automatic TVmaze metadata did not match this title. You can optionally try TMDB in ');
- const link=el('a','', 'Settings → Metadata');link.href='/settings/metadata';div.append(link,'.');
+ div.append('No automatic metadata match was found. ');
+ const fix=el('button','secondary-button','Fix Match');
+ fix.type='button';fix.onclick=()=>openMatchDialog();div.append(fix);
  return div;
 }
+function openMatchDialog(){
+ const dialog=el('dialog','tv-match-dialog');dialog.setAttribute('aria-label','Fix TV show metadata match');
+ const head=el('div','tv-match-head');
+ const heading=el('h2','','Fix Match');
+ const close=el('button','media-icon-action','×');close.type='button';close.title='Close';close.setAttribute('aria-label','Close matching');
+ close.onclick=()=>dialog.close();head.append(heading,close);
+ const description=el('p','muted','Search TMDB and TVmaze, then select the correct series. This updates metadata only; your media files stay unchanged.');
+ const form=el('form','tv-match-search');
+ const input=el('input');input.type='search';input.required=true;input.minLength=2;input.maxLength=120;
+ input.value=state.show_title||state.key.split(':')[0]||'';input.placeholder='Search TV show title';input.setAttribute('aria-label','Search show title');
+ const search=el('button','primary-button','Search');search.type='submit';form.append(input,search);
+ const message=el('p','tv-match-message');message.setAttribute('role','status');
+ const results=el('div','tv-match-results');
+ const restore=el('button','tv-match-restore','Restore automatic match');restore.type='button';
+ restore.onclick=async()=>{
+   if(!confirm('Remove your saved metadata match and try automatic matching again?'))return;
+   restore.disabled=true;
+   try{
+     const q=new URLSearchParams({library_id:String(state.library_id),key:state.key});
+     const r=await fetch('/api/tv/match?'+q,{method:'DELETE'});
+     if(!r.ok)throw Error('Unable to reset match');
+     location.reload();
+   }catch(error){message.textContent=error.message;restore.disabled=false;}
+ };
+ async function searchMatches(event){
+   if(event)event.preventDefault();
+   search.disabled=true;message.textContent='Searching TV providers…';results.replaceChildren();
+   try{
+     const q=new URLSearchParams({library_id:String(state.library_id),key:state.key,query:input.value.trim()});
+     const response=await fetch('/api/tv/match/search?'+q,{cache:'no-store'});
+     const data=await response.json();if(!response.ok)throw Error(data.detail||'Search unavailable');
+     if(!data.results.length){message.textContent='No matches found. Try another title or year.';return;}
+     message.textContent='Select the correct title from '+data.results.length+' results.';
+     for(const item of data.results){
+       const choice=el('button','tv-match-choice');choice.type='button';
+       if(item.poster_url&&/^https:\/\//.test(item.poster_url)){
+         const picture=el('img');picture.src=item.poster_url;picture.alt='';picture.loading='lazy';choice.append(picture);
+       }
+       const text=el('span');text.append(el('strong','',item.title||'Untitled'),el('small','',item.provider+' · '+(item.year||'Year unknown')));
+       if(item.overview)text.append(el('small','',item.overview.slice(0,180)));
+       choice.append(text);
+       choice.onclick=async()=>{
+         choice.disabled=true;message.textContent='Saving metadata match…';
+         try{
+           const target=new URLSearchParams({library_id:String(state.library_id),key:state.key});
+           const r=await fetch('/api/tv/match?'+target,{method:'PUT',headers:{'Content-Type':'application/json'},
+             body:JSON.stringify({provider:item.provider,provider_id:item.provider_id})});
+           const updated=await r.json();if(!r.ok)throw Error(updated.detail||'Could not save match');
+           location.reload();
+         }catch(error){message.textContent=error.message;choice.disabled=false;}
+       };
+       results.append(choice);
+     }
+   }catch(error){message.textContent=error.message;}
+   finally{search.disabled=false;}
+ }
+ form.onsubmit=searchMatches;
+ dialog.append(head,description,form,message,results,restore);
+ document.body.append(dialog);
+ dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.addEventListener('keydown',event=>{
+   if(!['ArrowDown','ArrowUp'].includes(event.key)||event.target===input)return;
+   const candidates=[input,search,...results.querySelectorAll('button'),restore,close];
+   const pos=candidates.indexOf(document.activeElement);
+   candidates[(pos+(event.key==='ArrowDown'?1:-1)+candidates.length)%candidates.length]?.focus();
+   event.preventDefault();
+ });
+ dialog.showModal();input.focus();searchMatches();
+}
+
 function hero(title,overview,art,backdrop,year,subtitle){
  const head=el('section','media-hero');
  if(backdrop)head.appendChild(image(backdrop,'hero-backdrop',''));
@@ -218,8 +312,9 @@ async function renderShow(){
  const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
  setBack('All TV Shows','/tv');
  document.title=data.title+' · One-Eyed Willie';
+ state.show_title=data.title;
  view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
- const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'));
+ const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'),matchButton());
  if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
    const trailer=el('button','media-icon-action tv-trailer-launch');
    trailer.type='button';trailer.title='Play trailer';trailer.setAttribute('aria-label','Play trailer');
@@ -250,9 +345,10 @@ async function renderSeason(){
  const data=await loadJson('/api/tv/season?'+new URLSearchParams({library_id:state.library_id,key:state.key,season_number:state.season_number}));
  setBack('Back to '+data.show.title,showHref(data.show.library_id,data.show.key));
  document.title=data.season.name+' · '+data.show.title+' · One-Eyed Willie';
+ state.show_title=data.show.title;
  view.append(hero(data.show.title+' — '+data.season.name,data.season.overview,
    data.season.poster_url,null,null,'TV SEASON'));
- const seasonActions=el('div','show-bulk-actions');seasonActions.append(bulkWatchedControl(data,'season'));
+ const seasonActions=el('div','show-bulk-actions');seasonActions.append(bulkWatchedControl(data,'season'),matchButton());
  view.append(seasonActions);
  const heading=el('div','section-heading');heading.append(el('h2','','Episodes'),el('span','',data.episodes.length+' in your library'));view.appendChild(heading);
  const list=el('div','episode-grid');
@@ -293,6 +389,7 @@ async function renderSeason(){
 async function renderEpisode(){
  if(!Number.isInteger(state.media_id)||!state.media_id)throw Error('Choose an episode from its season.');
  const data=await loadJson('/api/tv/episode?'+new URLSearchParams({media_id:state.media_id}));
+ state.library_id=data.library_id;state.key=data.key;state.show_title=data.show_title;
  setBack('Back to '+data.show_title, data.season_number===null?
    showHref(data.library_id,data.key):seasonHref(data.library_id,data.key,data.season_number));
  document.title=data.title+' · '+data.show_title+' · One-Eyed Willie';
@@ -321,7 +418,7 @@ async function renderEpisode(){
    finally{watched.disabled=false}
  };
  controls.append(play);if(resume)controls.append(resume);
- controls.append(watched);view.append(controls);
+ controls.append(watched,matchButton());view.append(controls);
  if(!data.metadata_available)view.appendChild(notice());
 }
 (async()=>{

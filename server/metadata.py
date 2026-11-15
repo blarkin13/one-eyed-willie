@@ -136,55 +136,69 @@ def show_metadata(title, year=None):
         if not matches:
             _cache_put(key, {})
             return {}
-        item = matches[0]
-        tmdb_id = item.get("id")
-        details = _call("tv/" + str(tmdb_id), query={"language": "en-US", "append_to_response": "videos,credits,reviews"}) or item
-        seasons = []
-        for season in details.get("seasons", []):
-            seasons.append({
-                "number": season.get("season_number"),
-                "name": season.get("name") or "Season " + str(season.get("season_number")),
-                "overview": season.get("overview") or "",
-                "poster_url": image_url(season.get("poster_path")),
-                "episode_count": season.get("episode_count"),
-            })
-        trailer = next((
-            v.get("key") for v in (details.get("videos") or {}).get("results", [])
-            if isinstance(v, dict) and v.get("site") == "YouTube"
-            and v.get("type") == "Trailer"
-            and isinstance(v.get("key"), str)
-            and re.fullmatch(r"[A-Za-z0-9_-]{11}", v["key"])
-        ), None)
-        cast = [
-            {"tmdb_id": actor.get("id"), "name": str(actor.get("name") or "")[:90],
-             "character": str(actor.get("character") or "")[:90],
-             "photo_url": image_url(actor.get("profile_path"), "w185")}
-            for actor in (details.get("credits") or {}).get("cast", [])[:18]
-            if isinstance(actor, dict) and actor.get("name")
-        ]
-        reviews = [
-            {"author": str(review.get("author") or "TMDB contributor")[:80],
-             "excerpt": str(review.get("content") or "")[:850], "source": "TMDB"}
-            for review in (details.get("reviews") or {}).get("results", [])[:4]
-            if isinstance(review, dict) and review.get("content")
-        ]
-        metadata = {
-            "cast": cast,
-            "reviews": reviews,
-            "trailer_key": trailer,
-            "rating": details.get("vote_average"),
-            "genres": [g.get("name") for g in details.get("genres", []) if isinstance(g, dict) and g.get("name")],
-            "network": ", ".join(n.get("name") for n in details.get("networks", []) if isinstance(n, dict) and n.get("name")),
-            "tmdb_id": tmdb_id,
-            "title": details.get("name") or title,
-            "overview": details.get("overview") or "",
-            "poster_url": image_url(details.get("poster_path")),
-            "backdrop_url": image_url(details.get("backdrop_path"), "w780"),
-            "seasons": seasons,
-            "source": "TMDB",
-        }
-        _cache_put(key, metadata)
+        tmdb_id = matches[0].get("id")
+        metadata = show_metadata_by_id(tmdb_id, fallback=matches[0])
+        if metadata:
+            _cache_put(key, metadata)
         return metadata
+
+def show_metadata_by_id(tmdb_id, fallback=None):
+    """Read a selected TV series by provider ID, bypassing title matching."""
+    if not token_status() or not isinstance(tmdb_id, int) or tmdb_id <= 0:
+        return {}
+    details = _call("tv/" + str(tmdb_id), query={
+        "language": "en-US", "append_to_response": "videos,credits,reviews"
+    })
+    if not isinstance(details, dict):
+        details = fallback
+    if not isinstance(details, dict) or details.get("id") != tmdb_id:
+        return {}
+    seasons = []
+    for season in details.get("seasons", []):
+        seasons.append({
+            "number": season.get("season_number"),
+            "name": season.get("name") or "Season " + str(season.get("season_number")),
+            "overview": season.get("overview") or "",
+            "poster_url": image_url(season.get("poster_path")),
+            "episode_count": season.get("episode_count"),
+        })
+    trailer = next((
+        v.get("key") for v in (details.get("videos") or {}).get("results", [])
+        if isinstance(v, dict) and v.get("site") == "YouTube"
+        and v.get("type") == "Trailer"
+        and isinstance(v.get("key"), str)
+        and re.fullmatch(r"[A-Za-z0-9_-]{11}", v["key"])
+    ), None)
+    cast = [
+        {"tmdb_id": actor.get("id"), "name": str(actor.get("name") or "")[:90],
+         "character": str(actor.get("character") or "")[:90],
+         "photo_url": image_url(actor.get("profile_path"), "w185")}
+        for actor in (details.get("credits") or {}).get("cast", [])[:18]
+        if isinstance(actor, dict) and actor.get("name")
+    ]
+    reviews = [
+        {"author": str(review.get("author") or "TMDB contributor")[:80],
+         "excerpt": str(review.get("content") or "")[:850], "source": "TMDB"}
+        for review in (details.get("reviews") or {}).get("results", [])[:4]
+        if isinstance(review, dict) and review.get("content")
+    ]
+    metadata = {
+        "cast": cast,
+        "reviews": reviews,
+        "trailer_key": trailer,
+        "rating": details.get("vote_average"),
+        "genres": [g.get("name") for g in details.get("genres", []) if isinstance(g, dict) and g.get("name")],
+        "network": ", ".join(n.get("name") for n in details.get("networks", []) if isinstance(n, dict) and n.get("name")),
+        "tmdb_id": tmdb_id,
+        "title": details.get("name") or str(tmdb_id),
+        "overview": details.get("overview") or "",
+        "poster_url": image_url(details.get("poster_path")),
+        "backdrop_url": image_url(details.get("backdrop_path"), "w780"),
+        "seasons": seasons,
+        "source": "TMDB",
+    }
+
+    return metadata
 
 
 def season_metadata(tmdb_id, season_number):

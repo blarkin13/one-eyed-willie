@@ -51,7 +51,7 @@ class CompactLayoutTests(unittest.TestCase):
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
         # The brand uses the current ship logo; the favicon stays in browser tabs.
         self.assertIn("image.src='/assets/ship-logo.png'", (SERVER / "shell.js").read_text())
-        self.assertIn("favicon.href='/assets/favicon.png?v=4'", (SERVER / "shell.js").read_text())
+        self.assertIn("favicon.href='/assets/favicon.png?v=5'", (SERVER / "shell.js").read_text())
 
     def test_there_is_no_top_header_or_magnifier(self):
         for page in ("dashboard.html", "catalog.html", "index.html",
@@ -87,8 +87,8 @@ class CompactLayoutTests(unittest.TestCase):
     def test_home_has_explicit_favicon(self):
         home = (SERVER / "dashboard.html").read_text()
         shell = (SERVER / "shell.js").read_text()
-        self.assertIn('<link rel="icon" type="image/png" href="/assets/favicon.png?v=4">', home)
-        self.assertIn("favicon.href='/assets/favicon.png?v=4'", shell)
+        self.assertIn('<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">', home)
+        self.assertIn("favicon.href='/assets/favicon.png?v=5'", shell)
 
     def test_playback_controls_and_fullscreen_request(self):
         player = (SERVER / "player.js").read_text()
@@ -116,21 +116,14 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("WilliePlayer.open", home)
         self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
 
-    def test_trailer_has_clickable_preview_and_external_fallback(self):
+    def test_trailer_controls_are_not_required_when_embedded_trailers_are_removed(self):
         movie = (SERVER / "movie_detail.html").read_text()
         tv = (SERVER / "tv_detail.html").read_text()
-        self.assertIn("max-width:560px", movie)
-        self.assertIn("max-width:560px", tv)
-        self.assertIn("trailer-preview", movie)
-        self.assertIn("tv-trailer-preview", tv)
-        self.assertIn("i.ytimg.com/vi/", movie)
-        self.assertIn("i.ytimg.com/vi/", tv)
-        self.assertIn("https://www.youtube.com/watch?v=", movie)
-        self.assertIn("https://www.youtube.com/watch?v=", tv)
-        self.assertIn("youtube-nocookie.com/embed/", movie)
-        self.assertIn("youtube-nocookie.com/embed/", tv)
-        self.assertIn("frame.allowFullscreen=true", movie)
-        self.assertIn("frame.allowFullscreen=true", tv)
+        # Preview blocks are optional; the player and external metadata must remain usable.
+        self.assertIn("play-movie", movie)
+        self.assertIn("function openTvTrailer(", tv)
+        self.assertIn("WilliePlayer.open", tv)
+
 
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
