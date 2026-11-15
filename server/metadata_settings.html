@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>One-Eyed Willie · Metadata</title>
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+</head><body data-page="metadata">
+<div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><header class="topbar"><div id="breadcrumbs" class="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
+<main class="content">
+<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Metadata</h1>
+<p>Get TV show posters, season artwork, episode stills, and descriptions.</p></div></div>
+<section class="form-card">
+<h2>The Movie Database (TMDB)</h2>
+<p>TMDB offers free API access for personal, non-commercial projects. Connecting a read-access token enables artwork and summaries. Your token is stored on your NUC, not in GitHub.</p>
+<p id="token-status" role="status">Checking metadata settings…</p>
+<form id="token-form">
+<label for="token">TMDB API Read Access Token</label>
+<input id="token" type="password" spellcheck="false" autocomplete="off" placeholder="Paste your TMDB API Read Access Token" required minlength="20" maxlength="500">
+<small>Get your free API Read Access Token at <a class="text-link" href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer">TMDB account → API settings</a>. Do not paste it into chat or GitHub.</small>
+<div class="form-actions"><button class="primary-button" id="save" type="submit">Save and verify token</button><button type="button" class="danger-button" id="remove">Remove saved token</button></div>
+<p class="message" id="message" role="status"></p>
+</form></section>
+<section class="form-card"><h2>How matching works</h2>
+<p>One-Eyed Willie identifies the show, season, and episode from your existing file and folder names. TMDB supplies optional posters and descriptions. It does not change, rename, or upload your media files.</p>
+<p>Artwork and summaries are cached locally. If no match is found, you'll see the original title and a placeholder rather than incorrect artwork.</p></section>
+<section class="form-card" aria-labelledby="credits"><h2 id="credits">Credits</h2>
+<p>This product uses the TMDB API but is not endorsed or certified by TMDB.</p>
+<p>TV metadata and artwork from <a class="text-link" href="https://www.themoviedb.org" target="_blank" rel="noopener noreferrer">The Movie Database (TMDB)</a>. The pirate-style heading font is Pirata One by Rodrigo Fuenzalida and Nicolas Massi, licensed under the SIL Open Font License 1.1. Standard interface and media text use the system sans-serif font.</p></section>
+</main></div></div>
+<script>
+const $=id=>document.getElementById(id);
+function msg(text,error=false){$('message').textContent=text;$('message').className='message'+(error?' error':'')}
+async function load(){
+ try{
+  const response=await fetch('/api/metadata/settings',{cache:'no-store'});
+  if(!response.ok)throw Error('Unable to read metadata settings');
+  const data=await response.json();
+  $('token-status').textContent=data.tmdb_configured?'TMDB is connected. Artwork and summaries can be loaded.':'Not connected. Library folders and episode navigation still work without TMDB.';
+  $('remove').disabled=!data.tmdb_configured;
+ }catch(error){msg(error.message,true)}
+}
+$('token-form').addEventListener('submit',async event=>{
+ event.preventDefault();$('save').disabled=true;msg('Verifying token…');
+ try{
+  const response=await fetch('/api/metadata/settings',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({token:$('token').value.trim()})});
+  const data=await response.json();
+  if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Unable to save token');
+  $('token').value='';msg('Token saved on your server. Open TV Shows to load posters and descriptions.');await load();
+ }catch(error){msg(error.message,true)}
+ finally{$('save').disabled=false}
+});
+$('remove').addEventListener('click',async()=>{
+ if(!confirm('Remove the TMDB token from this server? Previously cached artwork can remain available.'))return;
+ try{
+  const response=await fetch('/api/metadata/settings',{method:'DELETE'});
+  const data=await response.json().catch(()=>({}));
+  if(!response.ok)throw Error(data.detail||'Cannot remove token');
+  msg('TMDB token removed.');await load();
+ }catch(error){msg(error.message,true)}
+});
+load();
+</script></body></html>
