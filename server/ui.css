@@ -355,12 +355,20 @@ body[data-page="tv"] .season-card{border:0;background:transparent}
 /* Default artwork for media without a poster. Real poster images layer above it. */
 .cover,
 .cover--1,.cover--2,.cover--3,.cover--4,.cover--5{
-  background:#0b111c linear-gradient(#0b111c80,#0b111c80), url("/assets/poster-placeholder.jpg") center / cover no-repeat;
+  background-color:#0b111c;
+  background-image:linear-gradient(rgba(11,17,28,.25),rgba(11,17,28,.25)),url("/assets/poster-placeholder.jpg");
+  background-position:center,center;
+  background-size:cover,cover;
+  background-repeat:no-repeat,no-repeat;
 }
 .cover:not(:has(.poster-image)) .cover-initial{display:none}
 .cover:not(:has(.poster-image)) .cover-title{
   position:relative;z-index:1;text-shadow:0 2px 12px #000,0 1px 3px #000;
 }
 .hero-poster,.movie-detail-poster,.explore-poster{
-  background:#0b111c linear-gradient(#0b111c80,#0b111c80), url("/assets/poster-placeholder.jpg") center / cover no-repeat;
+  background-color:#0b111c;
+  background-image:linear-gradient(rgba(11,17,28,.25),rgba(11,17,28,.25)),url("/assets/poster-placeholder.jpg");
+  background-position:center,center;
+  background-size:cover,cover;
+  background-repeat:no-repeat,no-repeat;
 }
