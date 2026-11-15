@@ -260,7 +260,28 @@ class MainActivity : ComponentActivity() {
                 input:focus-visible,select:focus-visible,[tabindex="0"]:focus-visible{
                   outline:2px solid #b7c7d6!important;outline-offset:2px!important
                 }
-                /* TV mode is cinematic and uses 4 roomy posters across. */
+                /* Explore uses a full-card button. Focus ONLY its poster. */
+                body[data-page="explore"] .explore-card .detail-trigger:focus-visible,
+                body[data-page="explore"] .explore-card .detail-trigger:focus,
+                body[data-page="explore"] .explore-card .detail-trigger:hover{
+                  outline:none!important;box-shadow:none!important;border:0!important
+                }
+                body[data-page="explore"] .explore-card .detail-trigger:focus-visible .cover,
+                body[data-page="explore"] .explore-card .detail-trigger:focus .cover{
+                  outline:2px solid #ccdae6!important;outline-offset:3px!important;
+                  border-color:#a1b6c7!important;box-shadow:0 9px 28px #0008!important
+                }
+                body[data-page="explore"] .explore-card:focus-within{
+                  outline:none!important;box-shadow:none!important
+                }
+                body[data-page="explore"] .discovery-row .explore-card{
+                  border-color:transparent!important;background:transparent!important;
+                  padding:7px!important
+                }
+                body[data-page="explore"] .explore-results{
+                  grid-template-columns:repeat(4,minmax(0,1fr))!important
+                }
+                                /* TV mode is cinematic and uses 4 roomy posters across. */
                 .workspace{margin-left:0!important;position:relative;z-index:1}
                 .workspace>.content,body[data-page="tv"] .workspace>.content,
                 body[data-page="home"] .workspace>.content {
@@ -300,6 +321,8 @@ class MainActivity : ComponentActivity() {
                 body.oew-tv-artwork-active .explore-grid::before,
                 body.oew-tv-artwork-active .movie-grid::before,
                 body.oew-tv-artwork-active .tv-grid::before {display:none!important}
+                body.oew-tv-artwork-active .explore-results::before,
+                body.oew-tv-artwork-active .discovery-row::before{display:none!important}
                 *{scroll-margin:26px}
                 @media(max-width:1100px){
                   #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
@@ -323,16 +346,18 @@ class MainActivity : ComponentActivity() {
               });
               document.body.prepend(backdrop);
               const setArtwork=node=>{
-                const tile=node?.closest?.('.tile');
-                if(!tile)return;
-                const poster=tile.querySelector('.cover .poster-image');
-                const source=poster?.getAttribute('src')||'';
-                // Only display artwork served by the same media server.
-                if(source.startsWith('/')&&!source.startsWith('//')){
+                const card=node?.closest?.('.tile,.explore-card');
+                if(!card)return;
+                const poster=card.querySelector('.cover .poster-image');
+                const image=card.dataset.hoverBackdrop || poster?.getAttribute('src') || '';
+                // Allow same-server artwork and trusted TMDB images on Explore.
+                const trusted=image.startsWith('/api/artwork/') ||
+                  image.startsWith('https://image.tmdb.org/t/p/');
+                if(trusted){
                   backdrop.style.backgroundImage=
-                    'linear-gradient(90deg,rgba(6,10,18,.48),rgba(6,10,18,.35)),'+
-                    'url("'+source.replaceAll('"','%22')+'")';
-                  backdrop.style.opacity='.85';
+                    'linear-gradient(90deg,rgba(6,10,18,.38),rgba(6,10,18,.28)),'+
+                    'url("'+image.replaceAll('"','%22')+'")';
+                  backdrop.style.opacity='.92';
                   document.body.classList.add('oew-tv-artwork-active');
                 }else{
                   backdrop.style.opacity='0';
@@ -344,7 +369,7 @@ class MainActivity : ComponentActivity() {
               document.addEventListener('mouseover',event=>setArtwork(event.target),{passive:true});
               const posterObserver=new MutationObserver(()=>{
                 const active=document.activeElement;
-                if(active?.closest?.('.tile'))setArtwork(active);
+                if(active?.closest?.('.tile,.explore-card'))setArtwork(active);
               });
               posterObserver.observe(document.body,{childList:true,subtree:true});
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
