@@ -323,6 +323,26 @@ class MainActivity : ComponentActivity() {
                 body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{
                   display:none!important
                 }
+                /* Android TV resolves genuine metadata backdrops independently,
+                   so it also works before a server-side shell update deploys. */
+                .willie-hover-backdrop{display:none!important}
+                .oew-tv-cinematic-backdrop{position:fixed;inset:0;z-index:0;
+                  overflow:hidden;pointer-events:none;background:#080d16}
+                .oew-tv-cinematic-image{position:absolute;inset:-3%;
+                  background-position:center 28%;background-size:cover;
+                  background-repeat:no-repeat;opacity:0;transform:scale(1.045);
+                  transition:opacity .6s ease,transform 1.4s ease}
+                .oew-tv-cinematic-image.is-visible{opacity:.92;transform:scale(1)}
+                .oew-tv-cinematic-backdrop::after{content:"";position:absolute;
+                  inset:0;background:
+                  linear-gradient(90deg,#080d16aa 0%,#080d163d 45%,#080d1645 100%),
+                  linear-gradient(0deg,#080d16cc 0%,#080d1638 45%,#080d1654 100%)}
+                body>.app-shell{position:relative;z-index:1;background:transparent!important}
+                body.oew-tv-backdrop-active #items::before,
+                body.oew-tv-backdrop-active .shelf-track::before,
+                body.oew-tv-backdrop-active .explore-grid::before,
+                body.oew-tv-backdrop-active .movie-grid::before,
+                body.oew-tv-backdrop-active .tv-grid::before{display:none!important}
                 *{scroll-margin:26px}
                 @media(max-width:1100px){
                   #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
@@ -333,10 +353,92 @@ class MainActivity : ComponentActivity() {
               `;
               document.head.appendChild(style);
 
-              // The server's shell.js owns the cinematic backdrop on Home,
-              // Movies, TV and Explore. It resolves actual widescreen backdrop_url
-              // from metadata, handles focus and hover, and fades between images.
-              // Do not add a second WebView backdrop based on poster images.
+              // Exactly the server's widescreen metadata endpoints and visual
+              // treatment, but driven by Android TV focus even on older servers.
+              const backdrop=document.createElement('div');
+              backdrop.className='oew-tv-cinematic-backdrop';
+              backdrop.setAttribute('aria-hidden','true');
+              const layers=[document.createElement('div'),document.createElement('div')];
+              layers.forEach(layer=>{
+                layer.className='oew-tv-cinematic-image';
+                backdrop.appendChild(layer);
+              });
+              document.body.prepend(backdrop);
+              const backdropCache=new Map();
+              let backdropSerial=0,backdropCurrent='',backdropVisible=-1,backdropTarget=null;
+              const validBackdrop=url=>typeof url==='string'&&(
+                url.startsWith('/api/artwork/') ||
+                url.startsWith('https://image.tmdb.org/t/p/'));
+              const lookupBackdrop=async element=>{
+                const direct=element.dataset.hoverBackdrop;
+                if(validBackdrop(direct))return direct;
+                const kind=element.dataset.hoverKind;
+                const id=element.dataset.hoverLibraryId;
+                const key=element.dataset.hoverKey;
+                if(!['movies','tv'].includes(kind)||!/^[0-9]+$/.test(id||'')||!key)
+                  return null;
+                const identity=kind+'|'+id+'|'+key;
+                if(!backdropCache.has(identity)){
+                  const query=new URLSearchParams({library_id:id,key});
+                  const url=kind==='tv'?'/api/tv/show?'+query:'/api/movies/details?'+query;
+                  const pending=fetch(url).then(response=>{
+                    if(!response.ok)throw Error('Backdrop unavailable');
+                    return response.json();
+                  }).then(data=>validBackdrop(data.backdrop_url)?data.backdrop_url:null)
+                    .catch(()=>null);
+                  backdropCache.set(identity,pending);
+                  if(backdropCache.size>90)backdropCache.delete(backdropCache.keys().next().value);
+                }
+                return backdropCache.get(identity);
+              };
+              const clearBackdrop=()=>{
+                backdropSerial++;backdropCurrent='';backdropVisible=-1;
+                layers.forEach(layer=>layer.classList.remove('is-visible'));
+                document.body.classList.remove('oew-tv-backdrop-active');
+              };
+              const setBackdropTarget=async target=>{
+                if(target===backdropTarget)return;
+                backdropTarget=target;
+                if(!target){clearBackdrop();return}
+                const serial=++backdropSerial;
+                const url=await lookupBackdrop(target);
+                if(serial!==backdropSerial)return;
+                if(!validBackdrop(url)){clearBackdrop();return}
+                if(url===backdropCurrent)return;
+                const image=new Image();
+                image.onload=()=>{
+                  if(serial!==backdropSerial)return;
+                  const next=backdropVisible===0?1:0;
+                  layers[next].style.backgroundImage='url("'+url.replaceAll('"','%22')+'")';
+                  layers[next].classList.add('is-visible');
+                  layers[1-next].classList.remove('is-visible');
+                  backdropVisible=next;backdropCurrent=url;
+                  document.body.classList.add('oew-tv-backdrop-active');
+                };
+                image.onerror=()=>{if(serial===backdropSerial)clearBackdrop()};
+                image.src=url;
+              };
+              const locateBackdrop=target=>target instanceof Element?
+                target.closest('[data-hover-kind],[data-hover-backdrop]'):null;
+              document.addEventListener('focusin',event=>{
+                setBackdropTarget(locateBackdrop(event.target));
+              },true);
+              document.addEventListener('mouseover',event=>{
+                const target=locateBackdrop(event.target);
+                if(target)setBackdropTarget(target);
+              },{passive:true});
+              document.addEventListener('mouseout',event=>{
+                const target=locateBackdrop(event.target);
+                if(target!==backdropTarget)return;
+                if(event.relatedTarget instanceof Node&&target.contains(event.relatedTarget))return;
+                const focused=locateBackdrop(document.activeElement);
+                setBackdropTarget(focused);
+              });
+              document.addEventListener('visibilitychange',()=>{
+                if(document.hidden){backdropTarget=null;clearBackdrop()}
+              });
+              if(locateBackdrop(document.activeElement))
+                setBackdropTarget(locateBackdrop(document.activeElement));
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
               const visible=node=>{
                 if (!node.isConnected || node.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
