@@ -13,6 +13,7 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -62,6 +63,12 @@ class MainActivity : ComponentActivity() {
             setBackgroundColor(Color.BLACK)
             setPadding(64, 48, 64, 48)
         }
+        val brand = ImageView(this).apply {
+            setImageResource(R.drawable.tv_ship_icon)
+            adjustViewBounds = true
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            layoutParams = LinearLayout.LayoutParams(192, 192)
+        }
         val title = TextView(this).apply {
             text = "One-eyed Willie"
             textSize = 33f
@@ -103,7 +110,7 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        listOf(title, help, input, connect, status).forEach {
+        listOf(brand, title, help, input, connect, status).forEach {
             val p = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 20 }
@@ -115,7 +122,6 @@ class MainActivity : ComponentActivity() {
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showSetup("Invalid server URL"); return }
         origin = server.trimEnd('/')
-        val trusted = URI(origin)
         val view = WebView(this)
         browser = view
         view.setBackgroundColor(Color.BLACK)
