@@ -71,6 +71,16 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }).catch(()=>{});
   }
+  // Keep the default artwork visible if a remote poster fails to load.
+  document.addEventListener('error', event => {
+    const img=event.target;
+    if(!(img instanceof HTMLImageElement))return;
+    if(img.classList.contains('poster-image')){
+      img.remove(); // Exposes the poster placeholder background on the parent card.
+    }else if(['hero-poster','movie-detail-poster','explore-poster'].some(cls=>img.classList.contains(cls))){
+      if(!img.src.endsWith('/assets/poster-placeholder.jpg'))img.src='/assets/poster-placeholder.jpg';
+    }
+  },true);
   // Make the hover-expanded icon rail keyboard-accessible too.
   target.querySelectorAll('.nav-link').forEach(link=>{
     link.addEventListener('focus',()=>target.classList.add('nav-focused'));

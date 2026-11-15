@@ -352,3 +352,15 @@ body[data-page="tv"] .season-card{border:0;background:transparent}
 #items,.shelf-track,.explore-grid,.movie-grid,.tv-grid{position:relative;isolation:isolate}
 #items::before,.shelf-track::before,.explore-grid::before,.movie-grid::before,.tv-grid::before{content:"";position:absolute;left:50%;top:50%;width:min(410px,66vw);aspect-ratio:1;transform:translate(-50%,-50%);background:url('/assets/logo.png') center / contain no-repeat;opacity:.055;pointer-events:none;z-index:-1}
 @media(max-width:700px){.sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,.sidebar:focus-within .brand-logo-frame{width:58px;height:72px;flex-basis:58px}.sidebar .brand-logo,.sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{width:58px;height:72px}}
+/* Default artwork for media without a poster. Real poster images layer above it. */
+.cover,
+.cover--1,.cover--2,.cover--3,.cover--4,.cover--5{
+  background:#0b111c url("/assets/poster-placeholder.jpg") center / cover no-repeat;
+}
+.cover:not(:has(.poster-image)) .cover-initial{display:none}
+.cover:not(:has(.poster-image)) .cover-title{
+  position:relative;z-index:1;text-shadow:0 2px 12px #000,0 1px 3px #000;
+}
+.hero-poster,.movie-detail-poster,.explore-poster{
+  background:#0b111c url("/assets/poster-placeholder.jpg") center / cover no-repeat;
+}

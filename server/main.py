@@ -104,6 +104,12 @@ def ship_logo_png():
                         headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/assets/poster-placeholder.jpg")
+def poster_placeholder():
+    return FileResponse(Path(__file__).with_name("poster-placeholder.jpg"), media_type="image/jpeg",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/assets/logo.png")
 def brand_logo_png():
     return FileResponse(Path(__file__).with_name("logo.png"), media_type="image/png",
