@@ -84,15 +84,73 @@ document.addEventListener('DOMContentLoaded', () => {
       nav.insertBefore(link,settingsLink);
     }
   }).catch(()=>{});
+  const settingsSections=[
+    ['libraries','/settings/libraries','Libraries'],
+    ['playback','/settings/playback','Playback'],
+    ['remote','/settings/remote','Remote Access'],
+    ['metadata','/settings/metadata','Metadata'],
+    ['connections','/settings/connections','Connections'],
+    ['maintenance','/settings/maintenance','Maintenance'],
+  ];
   if(inSettings){
     const subnav=document.createElement('nav');subnav.className='settings-shortcuts';
     subnav.setAttribute('aria-label','Settings sections');
-    [['libraries','/settings/libraries','Libraries'],['playback','/settings/playback','Playback'],['remote','/settings/remote','Remote Access'],['metadata','/settings/metadata','Metadata'],['connections','/settings/connections','Connections'],['maintenance','/settings/maintenance','Maintenance']].forEach(([id,href,name])=>{
+    settingsSections.forEach(([id,href,name])=>{
       const a=document.createElement('a');a.href=href;a.title=name;a.textContent=name;
       if(page===id)a.setAttribute('aria-current','page');
       subnav.append(a);
     });target.append(subnav);
   }
+  // On narrow screens the desktop settings shortcuts are hidden behind the bottom rail.
+  // The gear opens this native, keyboard-accessible settings sheet on every page.
+  const settingsTrigger=nav.querySelector('a[href="/settings/libraries"]');
+  const settingsSheet=document.createElement('dialog');
+  settingsSheet.className='mobile-settings-sheet';
+  settingsSheet.setAttribute('aria-labelledby','mobile-settings-title');
+  settingsSheet.id='mobile-settings-sheet';
+  const sheetHeader=document.createElement('div');
+  sheetHeader.className='mobile-settings-header';
+  const heading=document.createElement('h2');
+  heading.id='mobile-settings-title';
+  heading.textContent='Settings';
+  const closeSheet=document.createElement('button');
+  closeSheet.type='button';
+  closeSheet.className='mobile-settings-close';
+  closeSheet.setAttribute('aria-label','Close settings menu');
+  closeSheet.textContent='×';
+  closeSheet.addEventListener('click',()=>settingsSheet.close());
+  sheetHeader.append(heading,closeSheet);
+  const links=document.createElement('nav');
+  links.className='mobile-settings-links';
+  links.setAttribute('aria-label','Settings sections');
+  for(const [id,href,name] of settingsSections){
+    const link=document.createElement('a');
+    link.href=href;
+    link.className='mobile-settings-link';
+    link.textContent=name;
+    if(page===id)link.setAttribute('aria-current','page');
+    links.append(link);
+  }
+  settingsSheet.append(sheetHeader,links);
+  document.body.append(settingsSheet);
+  settingsTrigger.setAttribute('aria-controls',settingsSheet.id);
+  settingsTrigger.setAttribute('aria-haspopup','dialog');
+  settingsTrigger.setAttribute('aria-expanded','false');
+  settingsTrigger.addEventListener('click',event=>{
+    if(!window.matchMedia('(max-width:700px)').matches)return;
+    event.preventDefault();
+    if(settingsSheet.open){settingsSheet.close();return}
+    settingsSheet.showModal();
+    settingsTrigger.setAttribute('aria-expanded','true');
+    (links.querySelector('[aria-current="page"]')||links.querySelector('a'))?.focus({preventScroll:true});
+  });
+  settingsSheet.addEventListener('close',()=>{
+    settingsTrigger.setAttribute('aria-expanded','false');
+    settingsTrigger.focus({preventScroll:true});
+  });
+  settingsSheet.addEventListener('click',event=>{
+    if(event.target===settingsSheet)settingsSheet.close();
+  });
   if(!document.querySelector('link[rel~="icon"]')){
     const favicon=document.createElement('link');
     favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=5';

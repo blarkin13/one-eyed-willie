@@ -406,3 +406,47 @@ body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
   text-transform:uppercase;
 }
 .sidebar .library-nav-link[aria-current="page"] .library-initial{background:#365b7d;border-color:#9ebbd9}
+
+
+/* Mobile Settings: keep all server settings reachable from the fixed gear tab. */
+.mobile-settings-sheet{display:none}
+@media(max-width:700px){
+  .mobile-settings-sheet[open]{
+    display:block;
+    position:fixed;
+    inset:auto 12px calc(77px + env(safe-area-inset-bottom,0px)) 12px;
+    box-sizing:border-box;
+    width:calc(100% - 24px);
+    max-width:480px;
+    max-height:min(72dvh,540px);
+    margin:0 auto;
+    padding:20px;
+    overflow-y:auto;
+    border:1px solid #425773;
+    border-radius:18px;
+    background:#101d2c;
+    color:#edf4ff;
+    box-shadow:0 24px 70px #000b;
+    scrollbar-width:thin;
+    overscroll-behavior:contain;
+  }
+  .mobile-settings-sheet::backdrop{background:rgba(2,6,13,.67)}
+  .mobile-settings-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:17px}
+  .mobile-settings-header h2{font-size:1.35rem;line-height:1.2;margin:0}
+  .mobile-settings-close{
+    display:grid;place-items:center;flex:none;
+    width:40px;height:40px;border:0;border-radius:10px;
+    background:#22374e;color:#f2f7ff;font-size:1.9rem;cursor:pointer;
+  }
+  .mobile-settings-links{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+  .mobile-settings-link{
+    display:flex;align-items:center;justify-content:center;min-height:58px;
+    padding:12px 9px;box-sizing:border-box;text-align:center;
+    border:1px solid #35485e;border-radius:12px;
+    background:#192b3d;color:#e3edf9;font-size:.92rem;font-weight:650;
+    line-height:1.25;
+  }
+  .mobile-settings-link[aria-current="page"]{background:#284a69;border-color:#9dbedb;color:#fff}
+  .mobile-settings-link:hover,.mobile-settings-link:focus-visible,
+  .mobile-settings-close:focus-visible{outline:2px solid #cee8ff;outline-offset:2px}
+}
