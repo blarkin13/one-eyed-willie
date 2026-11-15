@@ -8,6 +8,9 @@ import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import android.webkit.WebChromeClient
+import android.webkit.JsPromptResult
+import android.net.Uri
+import org.json.JSONObject
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -153,7 +156,29 @@ class MainActivity : ComponentActivity() {
             displayZoomControls = false
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
-        view.webChromeClient = WebChromeClient()
+        view.webChromeClient = object : WebChromeClient() {
+            override fun onJsPrompt(
+                web: WebView, url: String, message: String,
+                defaultValue: String?, result: JsPromptResult
+            ): Boolean {
+                if (!sameOrigin(url) || !message.startsWith("oewtv:play:"))
+                    return super.onJsPrompt(web, url, message, defaultValue, result)
+                try {
+                    val payload = JSONObject(Uri.decode(message.removePrefix("oewtv:play:")))
+                    val id = payload.optInt("id")
+                    if (id <= 0) throw IllegalArgumentException("Invalid media ID")
+                    result.confirm("ACK")
+                    web.post {
+                        if (browser === web)
+                            play(id, payload.optBoolean("restart", false),
+                                payload.optString("title", "Now Playing"))
+                    }
+                } catch (_: Exception) {
+                    result.confirm("INVALID")
+                }
+                return true
+            }
+        }
         view.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
@@ -249,7 +274,14 @@ class MainActivity : ComponentActivity() {
                 const query=new URLSearchParams();
                 if(options?.restart)query.set('restart','1');
                 if(title)query.set('title',String(title).slice(0,160));
-                location.href='oewtv://play/'+mediaId+'?'+query.toString();
+                // Synchronous WebChromeClient handoff is reliable for WebView
+                // JS click handlers; keep the URL route as a fallback.
+                const payload={id:mediaId,restart:Boolean(options?.restart),
+                               title:String(title||'Now Playing').slice(0,160)};
+                let ack=null;
+                try{ack=prompt('oewtv:play:'+encodeURIComponent(JSON.stringify(payload)),'')}
+                catch(_){}
+                if(ack!=='ACK')location.href='oewtv://play/'+mediaId+'?'+query.toString();
               };
               const installPlayerHook=()=>{
                 if(!window.WilliePlayer)window.WilliePlayer={open:nativeOpen,close:()=>{}};
