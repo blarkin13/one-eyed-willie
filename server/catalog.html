@@ -64,6 +64,7 @@ let offset=0,total=0,requestId=0,loading=false;
 const PAGE_SIZE=60;
 const initialSearch=query.get('search')||'';
 $('search').value=initialSearch.slice(0,150);
+if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
 $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
 $('page-description').textContent=type==='movies'?'Browse every movie in your collection.':'Browse all of your series and episodes.';
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
