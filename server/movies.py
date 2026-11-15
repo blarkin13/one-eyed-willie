@@ -143,7 +143,7 @@ def _snapshot():
         if row and row["source_url"] == settings["url"]:
             try:
                 cached = json.loads(row["snapshot"])
-                if time.time() - row["updated_at"] < SNAPSHOT_SECONDS:
+                if time.time() - row["updated_at"] < SNAPSHOT_SECONDS and all("youtube_trailer_id" in m for m in cached):
                     return cached
             except ValueError:
                 pass
@@ -297,7 +297,7 @@ def _movie_extras(radarr):
     from .metadata import token_status, _call, _cache_get, _cache_put, image_url, LOCK as META_LOCK
     if not token_status():
         return {}
-    key = "movie-extras:" + str(tmdb_id)
+    key = "movie-extras:v2:" + str(tmdb_id)
     with META_LOCK:
         cached = _cache_get(key)
         if cached is not None:
