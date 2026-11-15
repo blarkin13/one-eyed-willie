@@ -5,6 +5,8 @@
   let saveAt = 0;
   let lastMediaId = 0;
   let savedStatus = null;
+  let timeOffset=0;
+  let enteredFullscreen=false;
   const css = `
 .willie-player{position:fixed;inset:0;z-index:10000;background:#03060b;color:#edf4fb;
  display:flex;align-items:center;justify-content:center;font:16px system-ui,-apple-system,sans-serif}
@@ -22,6 +24,9 @@
  max-width:min(90vw,640px);color:#fff;border-radius:12px;background:#111c2be8;
  padding:13px 19px;text-align:center;z-index:3}
 .willie-info:empty{display:none}
+.willie-compatible-seek{display:flex;gap:8px;align-items:center}
+.willie-compatible-seek button{background:#192839;color:#fff;border:1px solid #40566d;
+ border-radius:9px;padding:10px 12px;cursor:pointer;font:inherit}
 @media(hover:none){.willie-controls{opacity:1}}
 `;
   const style=document.createElement('style');style.textContent=css;document.head.append(style);
@@ -31,15 +36,17 @@
   async function saveProgress(force=false, ended=false) {
     if(!current || !lastMediaId)return;
     const video=current.querySelector('video');
-    if(!video || !Number.isFinite(video.duration) || video.duration<=0)return;
+    if(!video)return;
+    const duration=Number(savedStatus?.duration_seconds)||video.duration;
+    if(!Number.isFinite(duration) || duration<=0)return;
     const now=Date.now();
     if(!force&&now-saveAt<12000)return;
     saveAt=now;
-    const position=Math.min(video.currentTime||0,video.duration);
+    const position=Math.min((video.currentTime||0)+timeOffset,duration);
     try{
       await fetch(progressUrl,{method:'PUT',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({media_id:lastMediaId,position_seconds:position,
-          duration_seconds:video.duration,completed:ended||position>=video.duration*.95}),
+          duration_seconds:duration,completed:ended||position>=duration*.95}),
         keepalive:force});
     }catch(_){}
   }
@@ -52,7 +59,7 @@
     const video=container.querySelector('video');
     saveProgress(true);
     video.pause();video.removeAttribute('src');video.load();
-    current=null;lastMediaId=0;savedStatus=null;
+    current=null;lastMediaId=0;savedStatus=null;timeOffset=0;enteredFullscreen=false;
     if(document.fullscreenElement===container)document.exitFullscreen().catch(()=>{});
     container.remove();
     document.dispatchEvent(new CustomEvent('willie:watch-updated'));
@@ -98,7 +105,23 @@
         document.dispatchEvent(new CustomEvent('willie:watch-updated'));
       }catch(_){setMessage('Unable to update watched status');}
     });
-    controls.append(back,name,watched);
+    const skip=document.createElement('span');skip.className='willie-compatible-seek';
+    skip.hidden=true;
+    for(const [label,delta] of [['−30s',-30],['+30s',30]]){
+      const control=document.createElement('button');control.type='button';control.textContent=label;
+      control.setAttribute('aria-label',delta<0?'Back 30 seconds':'Forward 30 seconds');
+      control.onclick=()=>{
+        if(!savedStatus||current!==surface)return;
+        const duration=Number(savedStatus.duration_seconds)||0;
+        const next=Math.max(0,Math.min(duration||1e7,timeOffset+(video.currentTime||0)+delta));
+        saveProgress(true);
+        timeOffset=next;
+        video.src=savedStatus.compatible_url+'?start='+encodeURIComponent(next);
+        video.play().catch(()=>setMessage('Press Play to resume'));
+      };
+      skip.append(control);
+    }
+    controls.append(back,name,skip,watched);
     const info=document.createElement('p');info.className='willie-info';info.setAttribute('role','status');
     surface.append(video,controls,info);
     document.body.append(surface);
@@ -110,12 +133,15 @@
       if(event.key==='Escape'&&current===surface&&!document.fullscreenElement)close();
     };
     surface.addEventListener('keydown',keyHandler);
-    document.addEventListener('fullscreenchange',()=>{
-      if(current===surface&&!document.fullscreenElement && !options.keepOpen)close();
-    },{once:true});
+    const onFullscreenChange=()=>{
+      if(document.fullscreenElement===surface)enteredFullscreen=true;
+      else if(enteredFullscreen&&current===surface&&!options.keepOpen)close();
+      if(current!==surface)document.removeEventListener('fullscreenchange',onFullscreenChange);
+    };
+    document.addEventListener('fullscreenchange',onFullscreenChange);
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
-    video.addEventListener('ended',()=>{saveProgress(true,true);watched.textContent='Mark unwatched';if(savedStatus)savedStatus.watched=true;});
+    video.addEventListener('ended',()=>{saveProgress(true,true);watched.textContent='Mark unwatched';if(savedStatus)savedStatus.watched=true;document.dispatchEvent(new CustomEvent('willie:watch-updated'));});
     video.addEventListener('error',()=>{
       setMessage('This format could not play in your browser. Try a supported MP4/WebM or compatibility mode.');
     });
@@ -126,10 +152,12 @@
       watched.textContent=savedStatus.watched?'Mark unwatched':'Mark watched';
       if(current!==surface)return;
       const isCompat=savedStatus.mode==='compatible';
+      skip.hidden=!isCompat;
       video.src=isCompat?savedStatus.compatible_url:savedStatus.stream_url;
       // Native byte-range streams seek normally. A compatible FFmpeg stream
       // can restart at its saved position using the ?start parameter.
-      const resume=options.restart?0:Number(savedStatus.position_seconds||0);
+      const resume=options.restart?0:(savedStatus.watched?0:Number(savedStatus.position_seconds||0));
+      timeOffset=isCompat&&resume>5?resume:0;
       if(isCompat&&resume>5)video.src=savedStatus.compatible_url+'?start='+encodeURIComponent(resume);
       if(!isCompat&&resume>5){
         video.addEventListener('loadedmetadata',()=>{
