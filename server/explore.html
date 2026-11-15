@@ -40,7 +40,7 @@
 <div id="status" class="status-line" role="status"></div>
 <div id="hint" class="explore-hint"><h2>Find something new</h2><p>Enter a title to search your connected media manager's catalog. Choose a result to add it to that manager. Existing titles will be marked as already added.</p></div>
 <div id="results" class="explore-results"></div>
-<p class="note">Adding a title registers it with Radarr or Sonarr; it does not provide or immediately play media files. Only add content you are authorized to obtain.</p>
+<p class="note">Adding a title registers it with Radarr or Sonarr and enables their normal monitoring; it does not immediately provide playable files. Only add content you are authorized to obtain.</p>
 </main>
 </div></div>
 <dialog id="add-dialog" aria-labelledby="add-title">
@@ -50,6 +50,8 @@
 <form id="add-form">
 <label for="folder">Root folder</label><select id="folder" required></select>
 <label for="profile">Quality profile</label><select id="profile" required></select>
+<div id="language-wrap" hidden><label for="language">Language profile (older Sonarr)</label>
+<select id="language"></select></div>
 <div class="check-row"><input type="checkbox" id="search-now"><label for="search-now">Request an immediate search using my media manager's configured services (optional)</label></div>
 <p id="add-message" class="message" role="status"></p>
 <div class="form-actions"><button type="submit" class="primary-button" id="confirm-add">Add to manager</button><button type="button" class="secondary-button" id="cancel">Cancel</button></div>
@@ -118,7 +120,7 @@ async function openAdd(item){
  selected={...item,provider};
  $('add-title').textContent='Add '+item.title;
  $('add-message').textContent='Loading destinations…';
- $('folder').replaceChildren();$('profile').replaceChildren();
+ $('folder').replaceChildren();$('profile').replaceChildren();$('language').replaceChildren();$('language-wrap').hidden=true;
  $('confirm-add').disabled=true;$('search-now').checked=false;
  dialog.showModal();
  try{
@@ -129,8 +131,15 @@ async function openAdd(item){
   for(const profile of data.profiles){
     const option=document.createElement('option');option.value=String(profile.id);option.textContent=profile.name;$('profile').append(option);
   }
+  if(data.languages?.length){
+    $('language-wrap').hidden=false;
+    for(const lang of data.languages){
+      const option=document.createElement('option');option.value=String(lang.id);option.textContent=lang.name;
+      $('language').append(option);
+    }
+  }
   if(!data.folders.length||!data.profiles.length)throw Error('Configure a root folder and quality profile in your media manager first.');
-  $('add-message').textContent='Nothing is searched or downloaded immediately unless you select the checkbox.';
+  $('add-message').textContent='No immediate search will run unless you select the checkbox. Normal monitoring may discover future releases.';
   $('confirm-add').disabled=false;
  }catch(e){$('add-message').textContent=e.message;}
 }
@@ -142,6 +151,7 @@ $('add-form').onsubmit=async event=>{
   const target=selected.provider;
   const body={external_id:selected.id,root_folder:$('folder').value,
     quality_profile_id:Number($('profile').value),search_now:$('search-now').checked};
+  if(!$('language-wrap').hidden)body.language_profile_id=Number($('language').value);
   const result=await fetchJson('/api/arr/'+target+'/add',{
    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   dialog.close();
