@@ -1,0 +1,226 @@
+"""Optional TMDB artwork and descriptions for personal-use TV libraries.
+
+The token stays in /data, never in GitHub, HTML or API responses. Absence of
+metadata is not treated as a reason to hide locally indexed seasons/episodes.
+"""
+import json
+import os
+import re
+import tempfile
+import time
+import urllib.error
+import urllib.parse
+import urllib.request
+from pathlib import Path
+from threading import RLock
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
+
+from .library import db
+
+router = APIRouter(prefix="/api/metadata")
+TOKEN_FILE = Path(os.environ.get("METADATA_CONFIG_PATH", "/data/metadata-settings.json"))
+LOCK = RLock()
+IMG_PATH = re.compile(r"^/[a-zA-Z0-9_-]+\.(?:jpg|png|webp)$")
+VALID_TITLE = re.compile(r"[^a-z0-9]+")
+CACHE_SECONDS = 30 * 24 * 60 * 60
+
+
+class TokenRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=500)
+
+
+def _token():
+    env = os.environ.get("TMDB_READ_ACCESS_TOKEN", "").strip()
+    if env:
+        return env
+    try:
+        data = json.loads(TOKEN_FILE.read_text())
+        return str(data.get("token", "")).strip()
+    except (FileNotFoundError, ValueError, OSError):
+        return ""
+
+
+def token_status():
+    return bool(_token())
+
+
+def _call(path, *, token=None, query=None):
+    bearer = token if token is not None else _token()
+    if not bearer:
+        return None
+    url = "https://api.themoviedb.org/3/" + path.lstrip("/")
+    if query:
+        url += "?" + urllib.parse.urlencode(query)
+    request = urllib.request.Request(
+        url,
+        headers={"Authorization": "Bearer " + bearer,
+                 "Accept": "application/json", "User-Agent": "OneEyedWillie/0.6"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=6) as response:
+            return json.loads(response.read(2_000_000))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return None
+
+
+def _cache_get(key):
+    with db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS metadata_cache "
+            "(cache_key TEXT PRIMARY KEY, payload TEXT NOT NULL, fetched_at INTEGER NOT NULL)"
+        )
+        row = conn.execute(
+            "SELECT payload, fetched_at FROM metadata_cache WHERE cache_key=?", (key,)
+        ).fetchone()
+    if row and time.time() - row["fetched_at"] < CACHE_SECONDS:
+        try:
+            return json.loads(row["payload"])
+        except ValueError:
+            pass
+    return None
+
+
+def _cache_put(key, data):
+    with db() as conn:
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS metadata_cache "
+            "(cache_key TEXT PRIMARY KEY, payload TEXT NOT NULL, fetched_at INTEGER NOT NULL)"
+        )
+        conn.execute(
+            "INSERT INTO metadata_cache(cache_key,payload,fetched_at) VALUES(?,?,?) "
+            "ON CONFLICT(cache_key) DO UPDATE SET payload=excluded.payload, "
+            "fetched_at=excluded.fetched_at",
+            (key, json.dumps(data), int(time.time())),
+        )
+
+
+def image_url(path, size="w342"):
+    if isinstance(path, str) and IMG_PATH.fullmatch(path):
+        return "https://image.tmdb.org/t/p/" + size + path
+    return None
+
+
+def _simple(value):
+    return VALID_TITLE.sub("", (value or "").casefold())
+
+
+def show_metadata(title, year=None):
+    """Only exact-normalized title matches, avoiding incorrect posters for similar shows."""
+    if not token_status():
+        return {}
+    key = "tv:" + _simple(title) + ":" + str(year or "")
+    with LOCK:
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached
+        result = _call("search/tv", query={"query": title, "language": "en-US", "include_adult": "false"})
+        if result is None:
+            return {}
+        matches = [
+            entry for entry in result.get("results", [])
+            if _simple(entry.get("name")) == _simple(title)
+            or _simple(entry.get("original_name")) == _simple(title)
+        ]
+        if year:
+            matches = [
+                entry for entry in matches
+                if not entry.get("first_air_date") or
+                abs(int(entry["first_air_date"][:4]) - int(year)) <= 1
+            ]
+        if not matches:
+            _cache_put(key, {})
+            return {}
+        item = matches[0]
+        tmdb_id = item.get("id")
+        details = _call("tv/" + str(tmdb_id), query={"language": "en-US"}) or item
+        seasons = []
+        for season in details.get("seasons", []):
+            seasons.append({
+                "number": season.get("season_number"),
+                "name": season.get("name") or "Season " + str(season.get("season_number")),
+                "overview": season.get("overview") or "",
+                "poster_url": image_url(season.get("poster_path")),
+                "episode_count": season.get("episode_count"),
+            })
+        metadata = {
+            "tmdb_id": tmdb_id,
+            "title": details.get("name") or title,
+            "overview": details.get("overview") or "",
+            "poster_url": image_url(details.get("poster_path")),
+            "backdrop_url": image_url(details.get("backdrop_path"), "w780"),
+            "seasons": seasons,
+            "source": "TMDB",
+        }
+        _cache_put(key, metadata)
+        return metadata
+
+
+def season_metadata(tmdb_id, season_number):
+    if not token_status() or not isinstance(tmdb_id, int):
+        return {}
+    key = "season:" + str(tmdb_id) + ":" + str(season_number)
+    with LOCK:
+        cached = _cache_get(key)
+        if cached is not None:
+            return cached
+        result = _call(
+            "tv/" + str(tmdb_id) + "/season/" + str(season_number),
+            query={"language": "en-US"},
+        )
+        if result is None:
+            return {}
+        data = {
+            "name": result.get("name") or "Season " + str(season_number),
+            "overview": result.get("overview") or "",
+            "poster_url": image_url(result.get("poster_path")),
+            "episodes": {
+                str(ep.get("episode_number")): {
+                    "title": ep.get("name") or "",
+                    "overview": ep.get("overview") or "",
+                    "still_url": image_url(ep.get("still_path"), "w300"),
+                    "air_date": ep.get("air_date") or "",
+                    "runtime": ep.get("runtime"),
+                }
+                for ep in result.get("episodes", [])
+                if isinstance(ep.get("episode_number"), int)
+            },
+        }
+        _cache_put(key, data)
+        return data
+
+
+@router.get("/settings")
+def metadata_settings():
+    return {"tmdb_configured": token_status(), "source": "TMDB",
+            "notice": "This product uses the TMDB API but is not endorsed or certified by TMDB."}
+
+
+@router.post("/settings")
+def set_metadata_settings(data: TokenRequest):
+    token = data.token.strip()
+    # Validate credentials before replacing previously working settings.
+    if _call("authentication", token=token) is None:
+        raise HTTPException(422, "TMDB rejected this token or could not be reached")
+    with LOCK:
+        TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+        fd, path = tempfile.mkstemp(prefix=".metadata-", dir=TOKEN_FILE.parent)
+        try:
+            with os.fdopen(fd, "w") as stream:
+                json.dump({"token": token}, stream)
+            os.chmod(path, 0o600)
+            os.replace(path, TOKEN_FILE)
+        finally:
+            if os.path.exists(path):
+                os.unlink(path)
+    return {"tmdb_configured": True}
+
+
+@router.delete("/settings")
+def clear_metadata_settings():
+    if os.environ.get("TMDB_READ_ACCESS_TOKEN"):
+        raise HTTPException(409, "Token is configured in the server environment")
+    with LOCK:
+        TOKEN_FILE.unlink(missing_ok=True)
+    return {"tmdb_configured": False}
