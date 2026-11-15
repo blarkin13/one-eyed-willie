@@ -4,6 +4,7 @@
 <title>One-Eyed Willie · Browse</title>
 <link rel="stylesheet" href="/assets/ui.css">
 <script defer src="/assets/shell.js"></script>
+<script defer src="/assets/player.js"></script>
 <style>
 .library-toolbar{margin:26px 0 20px}
 .count-label{color:#98a7ba;font-size:.88rem}
@@ -49,7 +50,11 @@
    <button type="button" class="icon-button" id="close-dialog" aria-label="Close details">×</button>
   </div>
   <div class="detail-top"><div class="detail-art" id="detail-art" aria-hidden="true"></div>
-   <div class="detail-metadata"><p id="detail-description"></p><p id="detail-year"></p><p id="detail-extra"></p><p id="detail-links"></p><p class="dialog-placeholder">Playback is being built. You can browse your library and episodes now.</p></div>
+   <div class="detail-metadata"><p id="detail-description"></p><p id="detail-year"></p><p id="detail-extra"></p><p id="detail-links"></p>
+   <div class="library-actions" style="margin-top:17px">
+     <button type="button" class="primary-button" id="detail-play">▶ Play fullscreen</button>
+     <button type="button" class="secondary-button" id="detail-watched">Mark watched</button>
+   </div></div>
   </div>
   <div id="episode-area" hidden><h3>Episodes</h3><ul class="episode-list" id="episode-list"></ul></div>
  </div>
@@ -74,8 +79,34 @@ for(const [id,kind] of [['tab-movies','movies'],['tab-tv','tv']]){
 const dialog=$('detail-dialog');$('close-dialog').onclick=()=>dialog.close();
 dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
 let detailsRequest=0;
+let selectedMovie=null;
+const playButton=$('detail-play'),watchedButton=$('detail-watched');
+function setWatchedButton(item){
+ watchedButton.textContent=item.watched?'✓ Watched · mark unwatched':'Mark watched';
+}
+playButton.onclick=()=>{
+ if(selectedMovie)WilliePlayer.open(selectedMovie.media_id,selectedMovie.title);
+};
+watchedButton.onclick=async()=>{
+ if(!selectedMovie)return;
+ watchedButton.disabled=true;
+ try{
+   const next=!selectedMovie.watched;
+   const response=await fetch('/api/watch/'+selectedMovie.media_id+'/watched',{
+     method:'PUT',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({watched:next})});
+   if(!response.ok)throw Error('Unable to save watched status');
+   selectedMovie.watched=next;setWatchedButton(selectedMovie);
+   load(true);
+ }catch(err){$('detail-extra').textContent=err.message}
+ finally{watchedButton.disabled=false;}
+};
+document.addEventListener('willie:watch-updated',()=>load(true));
 function openDetails(item){
  const current=++detailsRequest;
+ selectedMovie=item;
+ setWatchedButton(item);
+ playButton.disabled=!item.media_id;
  $('detail-type').textContent='MOVIE';
  $('detail-title').textContent=item.title;
  $('detail-art').replaceChildren(document.createTextNode(item.title.slice(0,1).toUpperCase()));
@@ -176,6 +207,10 @@ function createCard(item){
  const meta=document.createElement('div');meta.className='tile-meta';
  meta.textContent=(item.year?item.year+' · ':'')+(item.kind==='tv'?item.seasons.length+' season'+(item.seasons.length===1?'':'s'):item.files+' file'+(item.files===1?'':'s'));
  button.append(cover,title,meta);
+ if(item.watched){
+   const flag=document.createElement('span');flag.className='watched-badge';flag.textContent='✓ Watched';
+   flag.setAttribute('aria-label','Watched');article.append(flag);
+ }
  if(type==='movies')button.addEventListener('click',()=>openDetails(item));
  article.append(button);
  if(type==='tv')observePoster(article,cover,item);
