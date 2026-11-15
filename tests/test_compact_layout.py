@@ -66,16 +66,23 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn(".topbar,.app-topbar{display:none!important}",
                       (SERVER / "ui.css").read_text())
 
-    def test_brand_is_single_compact_icon_not_duplicated_full_logo(self):
+    def test_expanded_brand_matches_supplied_artwork_and_font(self):
         shell = (SERVER / "shell.js").read_text()
         css = (SERVER / "ui.css").read_text()
-        self.assertIn("image.src='/assets/favicon.png'", shell)
-        self.assertIn("words.textContent='One-Eyed Willie'", shell)
-        self.assertNotIn("words.src='/assets/logo.png'", shell)
-        self.assertIn("image.width=36;image.height=36", shell)
-        self.assertIn(".sidebar .brand-logo{width:36px;height:36px", css)
-        self.assertNotIn("object-position:center bottom", css)
-        self.assertIn("border:0", css)
+        self.assertIn("image.src='/assets/logo.png'", shell)
+        self.assertNotIn("image.src='/assets/favicon.png'", shell)
+        self.assertIn("words.textContent='One-eyed Willie'", shell)
+        self.assertIn('font-family:"Snell Roundhand"', css)
+        self.assertIn(".sidebar:hover,.sidebar:focus-within{width:440px", css)
+        self.assertIn("width:142px;height:142px", css)
+        self.assertIn("object-fit:contain", css)
+        self.assertNotIn('font-family:"Pirata One"', css)
+
+    def test_home_has_explicit_favicon(self):
+        home = (SERVER / "dashboard.html").read_text()
+        shell = (SERVER / "shell.js").read_text()
+        self.assertIn('<link rel="icon" type="image/png" href="/assets/favicon.png?v=3">', home)
+        self.assertIn("favicon.href='/assets/favicon.png?v=3'", shell)
 
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
