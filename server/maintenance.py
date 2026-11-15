@@ -300,10 +300,9 @@ def _run_task(name):
     if name == "remove_old_cache_files":
         from .hls import ROOT as HLS_ROOT, ACTIVE, LOCK as HLS_LOCK
         from .subtitles import CACHE as SUBTITLE_CACHE
-        from .artwork import CACHE_DIR as ARTWORK_CACHE
         count = _safe_clean(SUBTITLE_CACHE, now - 30 * 86400, {".vtt"})
         # Downloaded SRT subtitle files are intentionally retained.
-        count += _safe_clean(ARTWORK_CACHE, now - 90 * 86400)
+        # Keep precomputed artwork and thumbnails: they are referenced by the\n        # persistent poster index and should not be re-downloaded weekly.
         with HLS_LOCK:
             active = {entry.directory.name for entry in ACTIVE.values()}
             if HLS_ROOT.is_dir():
