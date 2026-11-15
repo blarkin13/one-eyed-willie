@@ -24,6 +24,14 @@ body[data-page=tv] .tv-extras h2{margin:30px 0 17px;font-size:1.45rem}
 .tv-reviews{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px 36px}
 .tv-review{padding:0;border:0}.tv-review p{color:#b7c9d9;line-height:1.65;white-space:pre-wrap}
 .tv-trailer-launch{background:none;color:#d9ecfb;border:0;font-size:1rem;cursor:pointer}
+.tv-cast-person:hover strong,.tv-cast-person:focus-visible strong{color:#cbe4ff;text-decoration:underline}
+.show-bulk-actions{display:flex;gap:14px;align-items:center}
+.tv-trailer-launch{width:48px;height:48px;display:grid;place-items:center}
+.tv-trailer-launch svg{width:27px;height:27px}
+.tv-trailer-dialog{width:min(920px,calc(100vw - 24px));max-width:none;max-height:90vh;background:#08111d;color:#edf4fd;border:1px solid #334b64;border-radius:12px;padding:20px}
+.tv-trailer-dialog::backdrop{background:#000c}
+.tv-trailer-dialog iframe{width:100%;aspect-ratio:16/9;border:0;display:block;margin:12px 0}
+.tv-trailer-close{display:block;margin-left:auto;background:none;border:0;color:inherit;font-size:2rem;cursor:pointer}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -140,6 +148,20 @@ function bulkWatchedControl(data,scope){
  };
  return button;
 }
+function openTvTrailer(key,title){
+ if(!/^[A-Za-z0-9_-]{11}$/.test(key))return;
+ const dialog=el('dialog','tv-trailer-dialog');
+ dialog.setAttribute('aria-label',title+' trailer');
+ const close=el('button','tv-trailer-close','×');close.type='button';close.setAttribute('aria-label','Close trailer');
+ const frame=el('iframe');frame.title=title+' trailer';
+ frame.src='https://www.youtube-nocookie.com/embed/'+key+'?autoplay=1&playsinline=1';
+ frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';frame.allowFullscreen=true;
+ frame.referrerPolicy='strict-origin-when-cross-origin';
+ const external=el('a','text-link','Watch on YouTube');external.href='https://www.youtube.com/watch?v='+key;external.target='_blank';external.rel='noopener noreferrer';
+ dialog.append(close,frame,external);document.body.append(dialog);
+ close.onclick=()=>dialog.close();dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+ dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
+}
 function showExtras(data){
  const section=el('section','tv-extras');
  const facts=el('div','tv-facts');
@@ -148,41 +170,14 @@ function showExtras(data){
  if(data.network)facts.append(el('span','tv-network',data.network));
  if(Array.isArray(data.genres)&&data.genres.length)facts.append(el('span','tv-genres',data.genres.join(' · ')));
  if(facts.childNodes.length)section.append(facts);
- if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
-   const title=el('h2','','Trailer');
-   const trailer=el('div','tv-trailer');
-   const key=data.trailer_key;
-   const launch=el('button','tv-trailer-preview');
-   launch.type='button';launch.title='Play trailer';
-   launch.setAttribute('aria-label','Play '+data.title+' trailer');
-   const thumbnail=el('img');thumbnail.alt='';thumbnail.loading='lazy';
-   thumbnail.referrerPolicy='no-referrer';
-   thumbnail.src='https://i.ytimg.com/vi/'+key+'/hqdefault.jpg';
-   const badge=el('span','','▶');badge.setAttribute('aria-hidden','true');
-   launch.append(thumbnail,badge);
-   launch.onclick=()=>{
-     const frame=document.createElement('iframe');
-     frame.title=data.title+' trailer';frame.allowFullscreen=true;
-     frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
-     frame.referrerPolicy='strict-origin-when-cross-origin';
-     frame.src='https://www.youtube-nocookie.com/embed/'+key+'?autoplay=1&playsinline=1';
-     trailer.replaceChildren(frame);
-   };
-   trailer.append(launch);
-   const fallback=el('p','tv-trailer-fallback');
-   fallback.append('If playback is blocked, ');
-   const link=el('a','','watch on YouTube');
-   link.href='https://www.youtube.com/watch?v='+key;
-   link.target='_blank';link.rel='noopener noreferrer';
-   fallback.append(link,'.');
-   section.append(title,trailer,fallback);
- }
  const actors=Array.isArray(data.cast)?data.cast.filter(person=>person.name):[];
  if(actors.length){
    section.append(el('h2','','Cast'));
    const grid=el('div','tv-cast');
    for(const actor of actors){
-     const person=el('article','tv-cast-person');
+     const person=el('a','tv-cast-person');
+     person.href='/person?'+new URLSearchParams({name:actor.name,...(actor.tmdb_id?{tmdb_id:String(actor.tmdb_id)}:{}),...(actor.tvmaze_id?{tvmaze_id:String(actor.tvmaze_id)}:{})});
+     person.setAttribute('aria-label','View '+actor.name+' biography and screen credits');
      if(actor.photo?.startsWith('/api/artwork/'))person.append(image(actor.photo,'tv-actor-image',''));
      else person.append(el('div','tv-actor-image tv-actor-placeholder',actor.name[0]));
      person.append(el('strong','',actor.name));
@@ -225,8 +220,14 @@ async function renderShow(){
  document.title=data.title+' · One-Eyed Willie';
  view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
  const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'));
+ if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
+   const trailer=el('button','media-icon-action tv-trailer-launch');
+   trailer.type='button';trailer.title='Play trailer';trailer.setAttribute('aria-label','Play trailer');
+   trailer.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>';
+   trailer.onclick=()=>openTvTrailer(data.trailer_key,data.title);
+   showActions.append(trailer);
+ }
  view.append(showActions);
- view.append(showExtras(data));
  const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
  view.appendChild(heading);
  const grid=el('div','season-grid');
@@ -236,6 +237,7 @@ async function renderShow(){
     seasonHref(data.library_id,data.key,season.number)));
  }
  view.appendChild(grid);
+ view.append(showExtras(data));
  if(data.seasons.some(s=>s.number===null)){
    const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
    view.appendChild(note);

@@ -172,7 +172,7 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
     actors = (tvmaze_show_cast(meta.get("tvmaze_id"))
               if meta.get("source") == "TVmaze" else meta.get("cast") or [])
     for actor in actors:
-        cast.append({"name": actor["name"], "character": actor.get("character") or "",
+        cast.append({"name": actor["name"], "tmdb_id": actor.get("tmdb_id"), "tvmaze_id": actor.get("tvmaze_id"), "character": actor.get("character") or "",
                      "photo": register_remote(actor.get("photo_url"))})
     result = {
         "cast": cast,

@@ -156,7 +156,7 @@ def show_metadata(title, year=None):
             and re.fullmatch(r"[A-Za-z0-9_-]{11}", v["key"])
         ), None)
         cast = [
-            {"name": str(actor.get("name") or "")[:90],
+            {"tmdb_id": actor.get("id"), "name": str(actor.get("name") or "")[:90],
              "character": str(actor.get("character") or "")[:90],
              "photo_url": image_url(actor.get("profile_path"), "w185")}
             for actor in (details.get("credits") or {}).get("cast", [])[:18]

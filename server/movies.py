@@ -344,7 +344,7 @@ def _movie_extras(radarr):
         for person in (credits or {}).get("cast", [])[:15]:
             if not isinstance(person, dict):
                 continue
-            cast.append({"name": str(person.get("name") or "")[:90],
+            cast.append({"tmdb_id": person.get("id"), "name": str(person.get("name") or "")[:90],
                          "character": str(person.get("character") or "")[:90],
                          "photo": register_remote(image_url(person.get("profile_path"), "w185"))})
         user_reviews = []

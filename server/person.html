@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cast · One-Eyed Willie</title>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css">
+<script defer src="/assets/shell.js"></script>
+<style>
+.person-content{max-width:1220px}
+.person-back{display:inline-flex;margin:12px 0 30px;color:#adcce9}
+.person-hero{display:grid;grid-template-columns:minmax(150px,260px) minmax(0,1fr);gap:clamp(22px,4vw,58px);align-items:start}
+.person-portrait{width:100%;aspect-ratio:3/4;object-fit:cover;background:#162334;border-radius:9px}
+.person-hero h1{font-size:clamp(2.1rem,4vw,3.8rem);line-height:1.1;margin:0 0 20px}
+.person-hero p{line-height:1.75;color:#cad5e1;max-width:800px}
+.person-sources{display:flex;gap:18px;flex-wrap:wrap;margin-top:20px}
+.person-sources a{color:#b7d9f6;text-decoration:underline;text-underline-offset:3px}
+.person-filmography{margin-top:44px}
+.person-filmography h2{margin-bottom:22px}
+.person-credits{list-style:none;margin:0;padding:0}
+.person-credits li{padding:13px 0;border-bottom:1px solid #243346;display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+.person-credits strong{color:#e3edf8}.person-credits span{color:#94aac1;font-size:.86rem;text-align:right}
+@media(max-width:600px){.person-hero{grid-template-columns:105px minmax(0,1fr);gap:16px}.person-hero h1{font-size:1.8rem}.person-hero p{font-size:.88rem;line-height:1.5}.person-credits li{flex-direction:column;gap:4px}}
+</style></head>
+<body data-page="movies"><div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content person-content">
+<a class="person-back" href="javascript:history.back()" id="person-back">← Back to title</a>
+<p id="person-status" role="status">Loading cast profile…</p>
+<section class="person-hero" id="person-hero" hidden>
+<img id="person-photo" class="person-portrait" alt="" hidden>
+<div><p class="eyebrow">CAST PROFILE</p><h1 id="person-name"></h1>
+<p id="person-bio"></p><div class="person-sources" id="person-sources"></div></div>
+</section>
+<section class="person-filmography" id="person-filmography" hidden><h2>Film and television credits</h2><ul class="person-credits" id="person-credits"></ul>
+<p id="person-credit-attribution" class="muted"></p></section>
+</main></div></div>
+<script>
+const params=new URLSearchParams(location.search);
+const name=params.get('name')||'';
+const status=document.getElementById('person-status');
+const byId=id=>document.getElementById(id);
+if(document.referrer && !document.referrer.startsWith(location.origin))byId('person-back').href='/movies';
+if(!document.referrer)byId('person-back').href='/movies';
+function sourceLink(label,url){
+ if(typeof url!=='string'||!url.startsWith('https://'))return;
+ const link=document.createElement('a');link.href=url;link.textContent=label;link.target='_blank';link.rel='noopener noreferrer';
+ byId('person-sources').append(link);
+}
+async function load(){
+ if(name.length<2||name.length>120){status.textContent='Choose a cast member from a movie or TV show.';return}
+ const q=new URLSearchParams({name});
+ for(const id of ['tmdb_id','tvmaze_id'])if(/^\d+$/.test(params.get(id)||''))q.set(id,params.get(id));
+ try{
+  const response=await fetch('/api/people/profile?'+q,{cache:'no-store'});
+  if(!response.ok)throw Error('Unable to load this cast profile');
+  const data=await response.json();
+  byId('person-name').textContent=data.name;
+  document.title=data.name+' · One-Eyed Willie';
+  byId('person-bio').textContent=data.biography||'A verified biography is not currently available for this cast member.';
+  const photo=byId('person-photo');
+  if(data.photo?.startsWith('https://')){photo.src=data.photo;photo.hidden=false}
+  sourceLink('Wikipedia',data.wikipedia_url);
+  sourceLink(data.credit_source||'Screen credits',data.source_url);
+  if(data.biography_source && data.biography_source!=='Wikipedia' && data.biography_source!==data.credit_source)
+    sourceLink('TMDB biography',data.source_url);
+  byId('person-hero').hidden=false;
+  const credits=Array.isArray(data.credits)?data.credits:[];
+  byId('person-filmography').hidden=false;
+  for(const credit of credits){
+   const row=document.createElement('li');
+   const title=document.createElement('strong');title.textContent=credit.title;
+   const meta=document.createElement('span');meta.textContent=[credit.year,credit.type,credit.character].filter(Boolean).join(' · ');
+   row.append(title,meta);byId('person-credits').append(row);
+  }
+  if(!credits.length){
+   const row=document.createElement('li');row.textContent='Film and television credits are unavailable from the connected metadata provider.';
+   byId('person-credits').append(row);
+  }
+  byId('person-credit-attribution').textContent=data.credit_source?'Credits supplied by '+data.credit_source+'.':'';
+  status.textContent='';
+ }catch(error){status.textContent=error.message}
+}
+load();
+</script></body></html>

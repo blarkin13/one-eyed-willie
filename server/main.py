@@ -17,6 +17,7 @@ from server.movies import router as movies_router
 from server.arr import router as arr_router
 from server.tv import router as tv_router
 from server.metadata import router as metadata_router
+from server.people import router as people_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -47,6 +48,7 @@ app.include_router(movies_router)
 app.include_router(arr_router)
 app.include_router(tv_router)
 app.include_router(metadata_router)
+app.include_router(people_router)
 
 @app.get("/health")
 def health():
@@ -83,6 +85,11 @@ def get_catalog(
 @app.get("/")
 def home():
     return FileResponse(Path(__file__).with_name("dashboard.html"), media_type="text/html")
+
+@app.get("/person")
+def person_page():
+    return FileResponse(Path(__file__).with_name("person.html"), media_type="text/html")
+
 
 @app.get("/movie")
 def movie_page():

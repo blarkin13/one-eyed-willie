@@ -172,7 +172,7 @@ def show_cast(show_id):
             name = str(person.get("name") or "")[:90]
             if not name:
                 continue
-            cast.append({"name": name,
+            cast.append({"tvmaze_id": person.get("id"), "name": name,
                          "character": str(character.get("name") or "")[:90],
                          "photo_url": image_url(person.get("image"), "medium")})
         _cache_put(key, cast)

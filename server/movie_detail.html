@@ -93,6 +93,13 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
 @media(max-width:700px){.trailer-embed{max-width:100%}}
 .metadata-hint{color:#94aabd;font-size:.95rem;line-height:1.7;margin:3px 0 18px}
 .metadata-hint a{text-decoration:underline;text-underline-offset:3px;color:#c2dfff}
+.cast-person:hover strong,.cast-person:focus-visible strong{color:#cbe4ff;text-decoration:underline}
+.detail-trailer-dialog{width:min(920px,calc(100vw - 24px));max-width:none;max-height:90vh;padding:18px;border-radius:12px;background:#08111d;border:1px solid #334b64;color:#edf4fd}
+.detail-trailer-dialog::backdrop{background:#000c}
+.trailer-dialog-body{aspect-ratio:16/9;background:#0b1421;margin-top:16px}
+.trailer-dialog-body iframe{width:100%;height:100%;border:0;display:block}
+.trailer-close{float:right;border:0;background:none;color:inherit;font-size:2rem;cursor:pointer}
+.trailer-youtube{display:inline-block;margin:12px 0 0}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -141,10 +148,6 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
     <p id="movie-tagline" class="movie-tagline"></p>
     <dl id="movie-fact-list" class="movie-fact-list"></dl>
   </div>
-  <section id="trailer-section" class="movie-block" hidden>
-    <h2>Trailer</h2><div id="trailer-embed" class="trailer-embed"></div>
-    <p class="trailer-fallback"><a id="trailer-external" target="_blank" rel="noopener noreferrer">Watch trailer on YouTube</a> if the embedded player is unavailable.</p>
-  </section>
   <section id="cast-section" class="movie-block">
     <h2>Cast</h2><p id="cast-unavailable" class="metadata-hint" hidden>Cast information isn't available from the connected movie metadata. <a href="/settings/metadata">Connect TMDB in Settings → Metadata</a> to enable cast and community reviews.</p>
     <div id="cast-list" class="movie-cast"></div>
@@ -206,8 +209,6 @@ async function loadMovie(){
    $('play-movie').disabled=!movie.media_id;
    const trailer=$('trailer-movie');
    trailer.hidden=!/^[A-Za-z0-9_-]{11}$/.test(movie.trailer_key||'');
-   $('trailer-section').hidden=trailer.hidden;
-   renderTrailerPreview();
    renderExtras(movie);
    $('movie-detail').hidden=false;$('expanded').hidden=false;$('movie-status').textContent='';
  }catch(error){$('movie-status').textContent=error.message}
@@ -245,7 +246,9 @@ function renderExtras(data){
  $('cast-section').hidden=false;
  $('cast-unavailable').hidden=people.length>0;
  for(const person of people){
-   const article=document.createElement('article');article.className='cast-person';
+   const article=document.createElement('a');article.className='cast-person';
+   article.href='/person?'+new URLSearchParams({name:person.name,...(person.tmdb_id?{tmdb_id:String(person.tmdb_id)}:{})});
+   article.setAttribute('aria-label','View '+person.name+' biography and screen credits');
    if(person.photo?.startsWith('/api/artwork/')){
      const photo=document.createElement('img');photo.src=person.photo;photo.alt='';
      photo.loading='lazy';article.append(photo);
@@ -268,37 +271,26 @@ function renderExtras(data){
    article.append(author,excerpt);reviews.append(article);
  }
 }
-function renderTrailerPreview(){
- const holder=$('trailer-embed');holder.replaceChildren();
+// The trailer icon opens a compact overlay instead of a full page section.
+const trailerDialog=document.createElement('dialog');
+trailerDialog.className='detail-trailer-dialog';
+trailerDialog.setAttribute('aria-label','Movie trailer');
+trailerDialog.innerHTML='<button type="button" class="trailer-close" aria-label="Close trailer">×</button><div class="trailer-dialog-body"></div><a class="text-link trailer-youtube" target="_blank" rel="noopener noreferrer">Watch on YouTube</a>';
+document.body.append(trailerDialog);
+trailerDialog.querySelector('.trailer-close').onclick=()=>trailerDialog.close();
+trailerDialog.addEventListener('click',event=>{if(event.target===trailerDialog)trailerDialog.close()});
+trailerDialog.addEventListener('close',()=>trailerDialog.querySelector('.trailer-dialog-body').replaceChildren());
+$('trailer-movie').addEventListener('click',()=>{
  const key=movie?.trailer_key||'';
  if(!/^[A-Za-z0-9_-]{11}$/.test(key))return;
- const watchUrl='https://www.youtube.com/watch?v='+key;
- $('trailer-external').href=watchUrl;
- const preview=document.createElement('button');preview.type='button';
- preview.className='trailer-preview';preview.title='Play trailer';
- preview.setAttribute('aria-label','Play '+movie.title+' trailer');
- const poster=document.createElement('img');
- poster.alt='';poster.loading='lazy';poster.referrerPolicy='no-referrer';
- poster.src='https://i.ytimg.com/vi/'+key+'/hqdefault.jpg';
- const play=document.createElement('span');play.className='trailer-play-icon';
- play.textContent='▶';play.setAttribute('aria-hidden','true');
- preview.append(poster,play);
- preview.onclick=()=>{
-   const frame=document.createElement('iframe');
-   frame.title=movie.title+' trailer';
-   frame.referrerPolicy='strict-origin-when-cross-origin';
-   frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
-   frame.allowFullscreen=true;
-   frame.src='https://www.youtube-nocookie.com/embed/'+key+'?autoplay=1&playsinline=1';
-   holder.replaceChildren(frame);
- };
- holder.append(preview);
-}
-$('trailer-movie').addEventListener('click',()=>{
- if(!/^[A-Za-z0-9_-]{11}$/.test(movie?.trailer_key||''))return;
- $('trailer-section').scrollIntoView({behavior:'smooth',block:'center'});
- const button=$('trailer-embed').querySelector('.trailer-preview');
- if(button)button.focus({preventScroll:true});
+ const frame=document.createElement('iframe');
+ frame.title=(movie?.title||'Movie')+' trailer';
+ frame.src='https://www.youtube-nocookie.com/embed/'+key+'?autoplay=1&playsinline=1';
+ frame.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';
+ frame.referrerPolicy='strict-origin-when-cross-origin';frame.allowFullscreen=true;
+ trailerDialog.querySelector('.trailer-dialog-body').replaceChildren(frame);
+ trailerDialog.querySelector('.trailer-youtube').href='https://www.youtube.com/watch?v='+key;
+ trailerDialog.showModal();
 });
 $('play-movie').addEventListener('click',()=>{
  if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title,{restart:true});
