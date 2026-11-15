@@ -23,12 +23,43 @@
 #add-dialog .check-row label{margin:0;font-weight:450}
 @media(max-width:620px){.explore-search .primary-button{width:100%}.explore-results{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.explore-card{padding:8px}.explore-card .overview{-webkit-line-clamp:3}}
 .discovery-section{margin:34px 0}.discovery-section h2{font-size:1.35rem;margin:0 0 15px}.discovery-row{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(155px,195px);gap:16px;overflow-x:auto;scroll-snap-type:x proximity;padding:3px 0 15px}.discovery-row .explore-card{scroll-snap-align:start}.discovery-row .explore-card .overview{display:none}.discovery-row .explore-card .cover{border-radius:9px}.discovery-row .explore-card h3{font-size:.9rem}.discovery-row .explore-card .meta{font-size:.77rem}.section-empty{color:var(--muted)}.add-inline{display:grid;grid-template-columns:1fr 1fr;gap:13px}.add-inline label{margin-top:11px!important}.add-inline>div{min-width:0}.tag-options{display:flex;gap:9px;flex-wrap:wrap}.tag-options label{display:flex!important;gap:5px;align-items:center;margin:3px!important;font-weight:400!important}.tag-options input{width:auto!important}.discovery-row .explore-card button{margin-top:auto}@media(max-width:620px){.discovery-row{grid-auto-columns:minmax(145px,44%)}.add-inline{grid-template-columns:1fr}}
+
+.explore-card .detail-trigger{display:block;width:100%;border:0;background:transparent;color:inherit;text-align:left;padding:0;cursor:pointer;min-width:0}
+.explore-card .detail-trigger:focus-visible{outline:2px solid #bddfff;outline-offset:4px;border-radius:9px}
+.explore-card .detail-trigger:hover h3{color:#c4e2ff}
+.explore-card .detail-trigger .cover{overflow:hidden}
+.explore-card .detail-trigger:hover .poster-image{transform:scale(1.025)}
+.explore-card .poster-image{transition:transform .2s ease}
+.explore-detail[hidden]{display:none}
+.explore-detail-back{display:inline-flex;gap:9px;align-items:center;color:#c9def3;background:none;border:0;padding:8px 0;margin:12px 0 24px;font-size:.93rem;cursor:pointer}
+.explore-hero{position:relative;isolation:isolate;display:grid;grid-template-columns:minmax(150px,255px) minmax(0,1fr);align-items:center;gap:clamp(22px,4vw,60px);min-height:390px;padding:clamp(22px,5vw,64px);overflow:hidden;background:#101b2a;border-radius:14px}
+.explore-hero:before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#09121ff2,#09121fd9 58%,#09121fb7);z-index:-1}
+.explore-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.38;z-index:-2}
+.explore-poster{width:100%;aspect-ratio:2/3;object-fit:cover;border-radius:11px;background:#25374a;box-shadow:0 22px 45px #0008}
+.explore-info h1{font-size:clamp(2rem,4vw,4.2rem);letter-spacing:-.04em;line-height:1.1;margin:9px 0 16px}
+.explore-info p{max-width:780px;line-height:1.7;color:#c6d5e6}
+.explore-meta{display:flex;flex-wrap:wrap;gap:10px 17px;color:#abc1d7;font-size:.93rem;margin-bottom:16px}
+.explore-actions{display:flex;align-items:center;gap:15px;flex-wrap:wrap;margin-top:24px}
+.explore-expanded{padding:26px 2px 80px;max-width:1300px}
+.explore-facts{display:flex;flex-wrap:wrap;gap:16px 30px;color:#bdcfe1;margin-bottom:25px}
+.explore-block{padding:26px 0 35px;border-top:1px solid #2b3b4f}
+.explore-block h2{font-size:1.48rem;margin:0 0 18px}
+.explore-cast,.explore-seasons{display:grid;grid-auto-flow:column;grid-auto-columns:135px;gap:17px;overflow-x:auto;padding-bottom:12px}
+.explore-cast figure,.explore-seasons figure{margin:0}
+.explore-cast img,.explore-seasons img{width:135px;aspect-ratio:3/4;object-fit:cover;border-radius:8px;background:#25374a}
+.explore-cast figcaption,.explore-seasons figcaption{font-size:.84rem;line-height:1.4;margin-top:7px;color:#dbe6f2}
+.explore-cast small,.explore-seasons small{color:#94acc3;display:block}
+.explore-reviews{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:22px 40px}
+.explore-reviews p{color:#b9ccde;line-height:1.6}
+.explore-trailer{width:100%;max-width:740px;aspect-ratio:16/9;border:0;border-radius:10px}
+@media(max-width:650px){.explore-hero{grid-template-columns:110px minmax(0,1fr);padding:21px;gap:17px}.explore-info h1{font-size:1.85rem}.explore-info p{font-size:.89rem;line-height:1.5}}
+@media(max-width:460px){.explore-hero{display:block}.explore-poster{max-width:135px;margin-bottom:20px}.explore-cast,.explore-seasons{grid-auto-columns:112px}.explore-cast img,.explore-seasons img{width:112px}}
 </style></head>
 <body data-page="explore"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace">
 <main class="content">
-<div class="page-head"><div><p class="eyebrow">Discover</p><h1>Explore More</h1>
+<div id="browse-area"><div class="page-head"><div><p class="eyebrow">Discover</p><h1>Explore More</h1>
 <p id="explore-description">Discover movies to add to Radarr. Your local library stays separate.</p></div>
 <a href="/settings/connections" class="secondary-button">Manage connections</a></div>
 
@@ -44,7 +75,12 @@
 </div>
 <h2 id="search-heading" hidden>Search Results</h2>
 <div id="results" class="explore-results"></div>
-<p class="note">Adding a title registers it with Radarr or Sonarr and enables their normal monitoring; it does not immediately provide playable files. Only add content you are authorized to obtain.</p>
+<p class="note">Adding a title registers it with Radarr or Sonarr and enables their normal monitoring; it does not immediately provide playable files. Only add content you are authorized to obtain.</p></div>
+<section id="explore-detail" class="explore-detail" hidden aria-label="Title details">
+<button type="button" id="detail-back" class="explore-detail-back">← Back to Explore More</button>
+<div id="detail-status" class="status-line" role="status"></div>
+<div id="detail-body"></div>
+</section>
 </main>
 </div></div>
 <dialog id="add-dialog" aria-labelledby="add-title">
@@ -102,14 +138,120 @@ function render(items,container=$('results'),isDiscovery=false){
   const title=document.createElement('h3');title.textContent=item.title;
   const year=document.createElement('p');year.className='meta';year.textContent=[item.year,item.rating?'★ '+Number(item.rating).toFixed(1):null,item.release_date].filter(Boolean).join(' · ')||'Release date unavailable';
   const desc=document.createElement('p');desc.className='overview';desc.textContent=item.overview||'No description available.';
-  const button=document.createElement('button');button.type='button';
-  button.className=item.already_added?'secondary-button':'primary-button';
-  button.textContent=item.already_added?'Already in '+(provider==='radarr'?'Radarr':'Sonarr'):'Add to '+(provider==='radarr'?'Radarr':'Sonarr');
-  button.disabled=!!item.already_added;
-  button.addEventListener('click',()=>isDiscovery?resolveDiscovery(item):openAdd(item));
-  article.append(cover,title,year,desc,button);grid.append(article);
+  const trigger=document.createElement('button');trigger.type='button';trigger.className='detail-trigger';trigger.setAttribute('aria-label','View details for '+item.title);
+  trigger.append(cover,title,year,desc);
+  trigger.addEventListener('click',()=>showDetail(item,isDiscovery));
+  article.append(trigger);grid.append(article);
  }
 }
+
+let detailSelection=null;
+function node(tag,cls,value){
+ const e=document.createElement(tag);
+ if(cls)e.className=cls;
+ if(value!==undefined&&value!==null)e.textContent=String(value);
+ return e;
+}
+function detailImage(url,cls,alt){
+ if(typeof url!=='string'||!(url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/')))return null;
+ const img=node('img',cls);img.src=url;img.alt=alt||'';img.loading='lazy';return img;
+}
+function addFact(parent,value){if(value)parent.append(node('span','',value));}
+function addSection(parent,title,body){
+ const section=node('section','explore-block');
+ section.append(node('h2','',title),body);parent.append(section);
+}
+function restoreExplore(){
+ $('explore-detail').hidden=true;$('browse-area').hidden=false;
+ detailSelection=null;document.title='One-Eyed Willie · Explore '+(provider==='radarr'?'Movies':'TV Shows');
+ window.scrollTo({top:0,behavior:'instant'});
+}
+$('detail-back').onclick=restoreExplore;
+async function showDetail(item,isDiscovery){
+ detailSelection={item,isDiscovery,provider};
+ $('browse-area').hidden=true;$('explore-detail').hidden=false;
+ $('detail-status').textContent='Loading title information…';$('detail-body').replaceChildren();
+ window.scrollTo({top:0,behavior:'instant'});
+ let extra={};
+ try{
+  const params=new URLSearchParams();
+  if(isDiscovery)params.set('tmdb_id',String(item.id));
+  else {params.set('title',item.title);if(item.year)params.set('year',String(item.year));}
+  extra=await fetchJson('/api/arr/'+provider+'/detail?'+params);
+ }catch(e){extra={available:false,message:e.message};}
+ if(!detailSelection||detailSelection.item!==item)return;
+ const data=extra.available?extra:{};
+ const title=data.title||item.title;
+ document.title=title+' · Explore · One-Eyed Willie';
+ $('detail-status').textContent=extra.available?'':(extra.message||'Additional information is not currently available.');
+ const root=$('detail-body');
+ const hero=node('div','explore-hero');
+ const backdrop=detailImage(data.backdrop_url,'explore-backdrop','');if(backdrop)hero.append(backdrop);
+ const poster=detailImage(data.poster_url||item.poster_url,'explore-poster',title+' poster');
+ hero.append(poster||node('div','explore-poster'));
+ const info=node('div','explore-info');
+ info.append(node('p','eyebrow',provider==='radarr'?'MOVIE':'TV SERIES'),node('h1','',title));
+ const meta=node('div','explore-meta');
+ addFact(meta,data.release_date||item.release_date||item.year);
+ const score=Number(data.rating??item.rating);
+ if(Number.isFinite(score)&&score>0)addFact(meta,'★ '+score.toFixed(1)+' / 10');
+ if(data.runtime)addFact(meta,data.runtime+' min');
+ if(data.status)addFact(meta,data.status);
+ if(meta.children.length)info.append(meta);
+ info.append(node('p','',data.overview||item.overview||'No description available.'));
+ if(data.tagline)info.append(node('p','',data.tagline));
+ const actions=node('div','explore-actions');
+ const add=node('button','primary-button',item.already_added?'Already in '+(provider==='radarr'?'Radarr':'Sonarr'):'Add to '+(provider==='radarr'?'Radarr':'Sonarr'));
+ add.type='button';add.disabled=!!item.already_added;add.id='detail-add';
+ add.onclick=async()=>{
+  add.disabled=true;
+  try{if(isDiscovery)await resolveDiscovery(item);else await openAdd(item);}
+  finally{if(!item.already_added&&detailSelection?.item===item)add.disabled=false;}
+ };
+ actions.append(add);info.append(actions);hero.append(info);root.append(hero);
+ const expanded=node('div','explore-expanded');
+ const facts=node('div','explore-facts');
+ if(data.genres?.length)addFact(facts,data.genres.join(' · '));
+ if(data.network)addFact(facts,'Network: '+data.network);
+ if(data.studio)addFact(facts,'Studio: '+data.studio);
+ if(data.vote_count)addFact(facts,Number(data.vote_count).toLocaleString()+' ratings');
+ if(facts.children.length)expanded.append(facts);
+ if(Array.isArray(data.seasons)&&data.seasons.length){
+  const gallery=node('div','explore-seasons');
+  for(const season of data.seasons){
+   const fig=node('figure');const image=detailImage(season.poster_url,'',season.name+' poster');
+   if(image)fig.append(image);
+   const caption=node('figcaption','',season.name||'Season '+season.number);
+   caption.append(node('small','',season.episodes+' episodes'));fig.append(caption);gallery.append(fig);
+  }
+  addSection(expanded,'Seasons',gallery);
+ }
+ if(data.trailer_key&&/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key)){
+  const iframe=node('iframe','explore-trailer');iframe.src='https://www.youtube-nocookie.com/embed/'+data.trailer_key;
+  iframe.title=title+' trailer';iframe.loading='lazy';iframe.allow='accelerometer; autoplay; encrypted-media; gyroscope; picture-in-picture';iframe.allowFullscreen=true;
+  addSection(expanded,'Trailer',iframe);
+ }
+ if(Array.isArray(data.cast)&&data.cast.length){
+  const gallery=node('div','explore-cast');
+  for(const actor of data.cast){
+   const fig=node('figure');const image=detailImage(actor.photo_url,'',actor.name);
+   if(image)fig.append(image);
+   const cap=node('figcaption','',actor.name);if(actor.character)cap.append(node('small','',actor.character));
+   fig.append(cap);gallery.append(fig);
+  }
+  addSection(expanded,'Cast',gallery);
+ }
+ if(Array.isArray(data.reviews)&&data.reviews.length){
+  const grid=node('div','explore-reviews');
+  for(const review of data.reviews){
+   const article=node('article');article.append(node('strong','',review.author),node('p','',review.excerpt));grid.append(article);
+  }
+  addSection(expanded,'Reviews',grid);
+ }
+ if(extra.available)expanded.append(node('p','muted','Metadata provided by TMDB. Titles are not playable until added media is available in your library.'));
+ root.append(expanded);
+}
+
 async function search(){
  if(searching)return;
  const q=$('query').value.trim();
@@ -174,6 +316,7 @@ $('add-form').onsubmit=async event=>{
    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   dialog.close();
   $('status').textContent=result.title+' added to '+(target==='radarr'?'Radarr':'Sonarr')+'. '+result.note;
+  if(detailSelection?.item){detailSelection.item.already_added=true;const add=$('detail-add');if(add){add.textContent='Already in '+(target==='radarr'?'Radarr':'Sonarr');add.disabled=true;}$('detail-status').textContent=$('status').textContent;}
   results=results.map(item=>item.id===selected.id?{...item,already_added:true}:item);
   render(results);
  }catch(e){$('add-message').textContent=e.message;$('confirm-add').disabled=false;}

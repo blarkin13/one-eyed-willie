@@ -24,6 +24,7 @@
 @media(max-width:700px){.alpha-nav{right:2px;padding:4px 0}
 .alpha-nav button{min-width:18px;min-height:19px;font-size:10px}
 #items{padding-right:15px}}
+.explore-icon-link{display:grid;place-items:center;width:44px;height:44px;border:1px solid #40536b;border-radius:11px;color:#cde4fa;background:#172536;flex:none;transition:background .15s,color .15s}.explore-icon-link:hover,.explore-icon-link:focus-visible{background:#29415b;color:#fff}.explore-icon-link svg{width:23px;height:23px}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -34,7 +35,7 @@
         <p class="eyebrow" id="eyebrow">Your library</p>
         <h1 id="page-title">Movies</h1>
         <p id="page-description">Browse all the movies on your media server.</p>
-      </div><a id="explore-library" class="primary-button" href="/explore?type=movies">Explore More</a></div>
+      </div><a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a></div>
       <div class="toolbar library-toolbar">
         <div class="filter-tabs" aria-label="Browse category">
           <a class="filter-link" id="tab-movies" href="/movies">Movies</a>
