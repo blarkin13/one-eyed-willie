@@ -12,7 +12,7 @@ from .library import db
 
 log = logging.getLogger(__name__)
 LOCK = threading.Lock()
-BATCH = 16
+BATCH = 8
 RETRY_SECONDS = 3600
 
 
@@ -165,4 +165,4 @@ def poster_loop(stop):
         except Exception:
             log.exception("Background poster indexing failed")
             completed = 0
-        stop.wait(12 if completed else 180)
+        stop.wait(25 if completed else 180)
