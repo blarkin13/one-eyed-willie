@@ -87,6 +87,13 @@ max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
 .willie-player:not(.willie-chrome-hidden) .willie-controls{opacity:1}
 .willie-player:not(.willie-chrome-hidden) .willie-bottom{opacity:1}
 @media(prefers-reduced-motion:reduce){.willie-controls,.willie-bottom{transition:none}}
+.willie-next-prompt{position:absolute;bottom:110px;right:24px;z-index:7;background:#102137f5;border:1px solid #47627f;border-radius:13px;padding:18px;max-width:min(380px,calc(100vw - 48px));color:#fff;box-shadow:0 14px 48px #000a}
+.willie-next-prompt[hidden]{display:none}
+.willie-next-prompt p{margin:0 0 12px;line-height:1.4}
+.willie-next-actions{display:flex;gap:10px;justify-content:flex-end}
+.willie-next-actions button{border:1px solid #6685a4;border-radius:8px;padding:9px 14px;background:#1e3955;color:#fff;cursor:pointer;font:inherit}
+.willie-next-actions button:focus-visible{outline:2px solid #fff}
+.willie-autoplay[aria-pressed="true"]{color:#9fd5b4!important}
 .willie-timeline{display:flex;
 align-items:center;gap:12px;padding:10px 15px;z-index:5}
 .willie-timeline input{flex:1;accent-color:var(--accent,#e5e0d5);cursor:pointer}
@@ -131,6 +138,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
   function close(){
     if(!current)return;
     const node=current,video=node.querySelector('video');
+    node.dispatchEvent(new Event('willie:closing'));
     saveProgress(true);
     clearInterval(monitor);monitor=null;
     clearTimeout(chromeTimer);chromeTimer=null;
@@ -205,7 +213,9 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     watched:'<path d="M20 6 9 17l-5-5"/>',
     play:'<path d="m8 5 12 7-12 7z"/>',
     pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
-    info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6m0-10h.01"/>'
+    info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6m0-10h.01"/>',
+    next:'<path d="m5 5 11 7-11 7z"/><path d="M19 5v14"/>',
+    autoplay:'<path d="m5 5 11 7-11 7z"/><path d="M19 5v14"/><path d="M4 2h16"/>'
   };
   function setIcon(button,icon,label){
     button.setAttribute('aria-label',label);button.title=label;
@@ -308,6 +318,54 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     subtitles.onclick=()=>{subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
     const playPause=document.createElement('button');setIcon(playPause,'pause','Pause');
     playPause.onclick=()=>video.paused?video.play().catch(()=>{}):video.pause();
+    let nextEpisode=null;
+    let countdownTimer=null;
+    let autoPlayNext=false;
+    try{autoPlayNext=localStorage.getItem('willie-autoplay-next')==='on'}catch(_){}
+    const next=document.createElement('button');setIcon(next,'next','Play next episode');next.hidden=true;
+    const autoplay=document.createElement('button');setIcon(autoplay,'autoplay','Auto Play Next: Off');
+    autoplay.className='willie-autoplay';autoplay.hidden=true;
+    function updateAutoplay(){
+      autoplay.setAttribute('aria-pressed',String(autoPlayNext));
+      const label='Auto Play Next: '+(autoPlayNext?'On':'Off');
+      autoplay.title=label;autoplay.setAttribute('aria-label',label);
+    }
+    updateAutoplay();
+    function stopCountdown(){if(countdownTimer!==null){clearInterval(countdownTimer);countdownTimer=null}}
+    function launchNext(){
+      stopCountdown();
+      if(!nextEpisode||current!==surface)return;
+      const chosen=nextEpisode;
+      start(chosen.media_id,chosen.title,{restart:true});
+    }
+    next.onclick=launchNext;
+    autoplay.onclick=()=>{
+      autoPlayNext=!autoPlayNext;
+      try{localStorage.setItem('willie-autoplay-next',autoPlayNext?'on':'off')}catch(_){}
+      updateAutoplay();
+      if(!autoPlayNext){stopCountdown();nextPrompt.hidden=true}
+      revealChrome();
+    };
+    const nextPrompt=document.createElement('div');nextPrompt.className='willie-next-prompt';nextPrompt.hidden=true;
+    nextPrompt.setAttribute('role','group');nextPrompt.setAttribute('aria-label','Play next episode');
+    const nextLabel=document.createElement('p');
+    const nextActions=document.createElement('div');nextActions.className='willie-next-actions';
+    const cancelNext=document.createElement('button');cancelNext.type='button';cancelNext.textContent='Cancel';cancelNext.onclick=()=>{stopCountdown();nextPrompt.hidden=true};
+    const playNext=document.createElement('button');playNext.type='button';playNext.textContent='Play Next';playNext.onclick=launchNext;
+    nextActions.append(cancelNext,playNext);nextPrompt.append(nextLabel,nextActions);
+    function showNextCountdown(){
+      if(!autoPlayNext||!nextEpisode||current!==surface)return;
+      stopCountdown();nextPrompt.hidden=false;surface.classList.remove('willie-chrome-hidden');
+      let remaining=8;
+      nextLabel.textContent='Up next: '+nextEpisode.title+' · Playing in '+remaining+' seconds';
+      playNext.focus({preventScroll:true});
+      countdownTimer=setInterval(()=>{
+        if(current!==surface){stopCountdown();return}
+        remaining--;
+        if(remaining<=0){launchNext();return}
+        nextLabel.textContent='Up next: '+nextEpisode.title+' · Playing in '+remaining+' seconds';
+      },1000);
+    }
     const diagnostics=document.createElement('button');setIcon(diagnostics,'info','Playback diagnostics');
     diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':'HLS transcoding')+
       ' · Server: '+(surface.dataset.engine||'Not reported')+
@@ -318,7 +376,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const toolbar=document.createElement('div');toolbar.className='willie-toolbar';
     const left=document.createElement('div');left.className='willie-group';
     const right=document.createElement('div');right.className='willie-group';
-    left.append(playPause,backward,forward);right.append(subtitles,watch,diagnostics);
+    left.append(playPause,backward,forward);right.append(next,autoplay,subtitles,watch,diagnostics);
     toolbar.append(left,right);bottom.append(toolbar,subtitleMenu);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
     const timeline=document.createElement('div');timeline.className='willie-timeline';
@@ -327,9 +385,10 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     slider.setAttribute('aria-label','Playback position');
     const total=document.createElement('span');total.textContent='0:00:00';
     timeline.append(elapsed,slider,total);
-    bottom.prepend(timeline);surface.append(video,controls,info,bottom);
+    bottom.prepend(timeline);surface.append(video,controls,info,bottom,nextPrompt);
     document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;captionsSelect=cc;
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
+    surface.addEventListener('willie:closing',stopCountdown);
     surface.addEventListener('pointerdown',revealChrome);
     surface.addEventListener('focusin',revealChrome);
     surface.addEventListener('focusout',concealChromeSoon);
@@ -378,7 +437,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{saveProgress(true,true);if(status)status.watched=true;
-      watch.setAttribute('aria-pressed','true');watch.title='Mark unwatched';watch.setAttribute('aria-label',watch.title);document.dispatchEvent(new CustomEvent('willie:watch-updated'))});
+      watch.setAttribute('aria-pressed','true');watch.title='Mark unwatched';watch.setAttribute('aria-label',watch.title);
+      document.dispatchEvent(new CustomEvent('willie:watch-updated'));showNextCountdown()});
     video.addEventListener('error',()=>{
       if(playbackMode==='direct')playHls(playerPosition(video));
       else message('Unable to decode HLS stream. Check FFmpeg and media format.');
@@ -388,6 +448,13 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       if(current!==surface)return;
       status=data;watch.setAttribute('aria-pressed',String(data.watched));watch.title=data.watched?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
       reloadTracks().catch(()=>{});
+      requestJson('/api/tv/next?media_id='+id).then(result=>{
+        if(current!==surface)return;
+        nextEpisode=result.next||null;
+        next.hidden=!nextEpisode;autoplay.hidden=!nextEpisode;
+        // If status/next results race with a very short clip, still offer next.
+        if(video.ended)showNextCountdown();
+      }).catch(()=>{next.hidden=true;autoplay.hidden=true});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
       if(data.mode==='direct'){
         playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;

@@ -310,6 +310,42 @@ def season_details(
     return result
 
 
+@router.get("/next")
+def next_episode(media_id: int = Query(ge=1)):
+    """Next locally indexed, numbered and unwatched episode in series order."""
+    with db() as conn:
+        row = conn.execute(
+            "SELECT m.path,m.library_id,l.path AS root,l.kind "
+            "FROM media m JOIN libraries l ON l.id=m.library_id WHERE m.id=?",
+            (media_id,),
+        ).fetchone()
+    if row is None or row["kind"] != "tv":
+        return {"next": None}
+    try:
+        current = episode_info(row["path"], row["root"])
+    except (ValueError, OSError):
+        return {"next": None}
+    season, number = current.get("season"), current.get("episode")
+    if season is None or number is None:
+        return {"next": None}
+    try:
+        show = local_show(row["library_id"], current["key"])
+    except HTTPException:
+        return {"next": None}
+    for entry in show["episodes"]:
+        next_season, next_number = entry["season"], entry["episode"]
+        if next_season is None or next_number is None or entry["watched"]:
+            continue
+        if (next_season, next_number) > (season, number):
+            return {"next": {
+                "media_id": entry["id"],
+                "title": show["title"] + " · S" + str(next_season).zfill(2) +
+                         " E" + str(next_number).zfill(2),
+                "season": next_season, "episode": next_number,
+            }}
+    return {"next": None}
+
+
 @router.get("/episode")
 def episode_details(media_id: int = Query(ge=1)):
     with db() as conn:
