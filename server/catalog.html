@@ -34,7 +34,7 @@
         <p class="eyebrow" id="eyebrow">Your library</p>
         <h1 id="page-title">Movies</h1>
         <p id="page-description">Browse all the movies on your media server.</p>
-      </div></div>
+      </div><a id="explore-library" class="primary-button" href="/explore?type=movies">Explore More</a></div>
       <div class="toolbar library-toolbar">
         <div class="filter-tabs" aria-label="Browse category">
           <a class="filter-link" id="tab-movies" href="/movies">Movies</a>
@@ -65,6 +65,8 @@ let total=0,requestId=0,loading=false;
 const initialSearch=query.get('search')||'';
 $('search').value=initialSearch.slice(0,150);
 if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
+$('explore-library').href='/explore?type='+type;
+$('explore-library').setAttribute('aria-label','Explore more '+(type==='movies'?'movies':'TV shows'));
 $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
 $('page-description').textContent=type==='movies'?'Browse every movie in your collection.':'Browse all of your series and episodes.';
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';

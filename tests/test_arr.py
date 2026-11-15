@@ -108,6 +108,49 @@ class ArrConnectionTests(unittest.TestCase):
         self.assertEqual(payload["rootFolderPath"], "/tv")
         self.assertTrue(payload["monitored"])
 
+    def test_sonarr_selected_monitor_and_type_are_transmitted(self):
+        setting = {"url": "http://192.168.86.29:8989", "api_key": "secret", "api_version": "v3"}
+        opts = {"folders": [{"path": "/tv", "label": "/tv"}], "profiles": [{"id": 4, "name": "HD"}], "tags": [{"id": 9, "name": "Drama"}]}
+        sent = []
+        def get(name, resource, query=None):
+            return [] if resource == "series" else [{"tvdbId": 379481, "title": "Severance", "seasons": []}]
+        def request(name, settings, resource, **kwargs):
+            sent.append(kwargs["payload"])
+            return {"title": "Severance", "id": 900}
+        with patch.object(arr, "_settings", return_value=setting), \
+             patch.object(arr, "options", return_value=opts), \
+             patch.object(arr, "_get", side_effect=get), \
+             patch.object(arr, "_request", side_effect=request):
+            arr.add("sonarr", arr.AddInput(external_id=379481, root_folder="/tv",
+                quality_profile_id=4, series_type="anime", monitor="future",
+                season_folder=False, tags=[9]))
+        self.assertEqual(sent[0]["seriesType"], "anime")
+        self.assertEqual(sent[0]["addOptions"]["monitor"], "future")
+        self.assertFalse(sent[0]["seasonFolder"])
+        self.assertEqual(sent[0]["tags"], [9])
+
+    def test_invalid_sonarr_monitor_is_rejected(self):
+        with patch.object(arr, "_settings", return_value={"url": "http://192.168.86.29:8989"}), \
+             patch.object(arr, "options", return_value={"folders": [{"path": "/tv"}], "profiles": [{"id": 4}]}):
+            with self.assertRaises(HTTPException):
+                arr.add("sonarr", arr.AddInput(external_id=379481, root_folder="/tv",
+                    quality_profile_id=4, monitor="unsupported"))
+
+    def test_discover_has_separate_types_and_no_token_leak(self):
+        from server import metadata
+        def fake_call(endpoint, query=None):
+            return {"results": [{"id": 55, "title": "Film", "name": "Show",
+                        "release_date": "2027-01-10", "first_air_date": "2027-01-10",
+                        "overview": "A description", "vote_average": 7.5}]}
+        with patch.object(metadata, "token_status", return_value=True), \
+             patch.object(metadata, "_call", side_effect=fake_call):
+            movies = arr.discover("radarr")
+            shows = arr.discover("sonarr")
+        self.assertEqual(movies["sections"]["popular"][0]["title"], "Film")
+        self.assertEqual(shows["sections"]["popular"][0]["title"], "Show")
+        self.assertEqual(set(shows["sections"]), {"popular", "new", "soon"})
+        self.assertNotIn("api_key", str(shows))
+
     def test_add_movie_requests_search_only_when_checked(self):
         setting = {"url": "http://192.168.86.29:7878", "api_key": "secret"}
         options = {"folders": [{"path": "/movies", "label": "/movies"}],
