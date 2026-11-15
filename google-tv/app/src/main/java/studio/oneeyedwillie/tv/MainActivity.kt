@@ -375,7 +375,7 @@ class MainActivity : ComponentActivity() {
                 const kind=element.dataset.hoverKind;
                 const id=element.dataset.hoverLibraryId;
                 const key=element.dataset.hoverKey;
-                if(!['movies','tv'].includes(kind)||!/^\\d+$/.test(id||'')||!key)
+                if(!['movies','tv'].includes(kind)||!/^[0-9]+$/.test(id||'')||!key)
                   return null;
                 const identity=kind+'|'+id+'|'+key;
                 if(!backdropCache.has(identity)){
