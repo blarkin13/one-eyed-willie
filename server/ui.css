@@ -1,3 +1,4 @@
+@import url("https://fonts.googleapis.com/css2?family=Pirata+One&display=swap");
 
 :root{color-scheme:dark;font:16px/1.5 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#0b0d12;color:#edf1f7;--bg:#0b0d12;--panel:#131820;--panel-2:#19202b;--line:#283241;--ink:#edf1f7;--muted:#98a5b7;--accent:#8ab9ed;--accent-sub:#1c3049;--radius:15px}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;min-width:320px}button,input,select{font:inherit}button{cursor:pointer}a{color:inherit;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
@@ -19,3 +20,46 @@ dialog{background:#151b24;color:var(--ink);border:1px solid #405069;border-radiu
 .sr-only{position:absolute!important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .form-card .primary-button,.form-card .secondary-button{cursor:pointer}
 @media(max-width:620px){.filter-link{padding:9px 8px}}
+
+/* One-Eyed Willie 0.6: maritime ink palette, and display typography ONLY for the brand. */
+:root{--bg:#080d16;--panel:#111a27;--panel-2:#182331;--line:#2a3545;--ink:#e6ebf2;--muted:#9ba8b6;--accent:#a5c5e1;--accent-sub:#1d3047;background:#080d16;color:#e6ebf2}
+.sidebar{background:#0b111c;border-color:#263342}
+.topbar{background:rgba(8,13,22,.94);border-color:#243143}
+.nav-link[aria-current=page]{background:#1e3045;color:#eff5fb}
+.brand{font-family:"Pirata One",Georgia,serif;font-weight:400;font-size:1.49rem;letter-spacing:.018em;color:#e1e9f2}
+.brand-mark{font-family:"Pirata One",Georgia,serif;font-weight:400;background:#263c56;color:#f0f6fb;border:1px solid #6583a1;font-size:1.45rem}
+.cover--1{background:linear-gradient(155deg,#263e55,#151d2b)}
+.cover--2{background:linear-gradient(155deg,#354453,#161e2b)}
+.cover--3{background:linear-gradient(155deg,#343b49,#111a2a)}
+.cover--4{background:linear-gradient(155deg,#30445a,#1b2330)}
+.cover--5{background:linear-gradient(155deg,#3b4656,#111827)}
+.cover-title,.tile h3,.tile-meta,.page-head h1,.dialog-heading h2,.sidebar .nav-link{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.cover:has(.poster-image)::before{display:none}
+.cover .poster-image{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:2}
+.cover:has(.poster-image) .cover-top,.cover:has(.poster-image) .cover-initial,.cover:has(.poster-image) .cover-title{display:none}
+.media-hero{position:relative;isolation:isolate;border:1px solid #34475b;border-radius:18px;overflow:hidden;display:grid;grid-template-columns:minmax(160px,220px) minmax(0,1fr);gap:26px;padding:30px;background:#121c29;margin-bottom:33px;min-height:290px}
+.media-hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,#111a28f2,#111a28c9);z-index:-1}
+.media-hero .hero-backdrop{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;opacity:.27;z-index:-2}
+.hero-poster{width:100%;aspect-ratio:2/3;max-height:315px;object-fit:cover;background:linear-gradient(150deg,#314963,#151e2d);border:1px solid #4b627a;border-radius:12px;box-shadow:0 16px 35px #0006}
+.hero-info{display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
+.hero-info h1{margin:0 0 10px;font-size:clamp(1.9rem,3.1vw,3.1rem);letter-spacing:-.04em;line-height:1.1}
+.hero-info p{color:#c0ccda;line-height:1.7;margin:8px 0;max-width:760px}
+.breadcrumb-link{font-size:.85rem;color:#aecce9;display:inline-flex;gap:8px;align-items:center;margin-bottom:15px}
+.season-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:26px 17px}
+.season-card{min-width:0}
+.season-card h3{font-size:.98rem;margin:10px 0 4px}
+.season-card p{font-size:.8rem;color:var(--muted);margin:0}
+.episode-grid{display:grid;gap:15px}
+.episode-card{display:grid;grid-template-columns:minmax(150px,240px) minmax(0,1fr);gap:19px;padding:14px;border:1px solid var(--line);border-radius:13px;background:var(--panel);transition:border .18s,background .18s}
+.episode-card:hover{background:#182536;border-color:#4c6887}
+.episode-still{aspect-ratio:16/9;width:100%;object-fit:cover;border:1px solid #35485f;border-radius:9px;background:linear-gradient(145deg,#26374a,#0b1421)}
+.episode-card h3{margin:0 0 6px;font-size:1.02rem}
+.episode-card .episode-desc{margin:7px 0 0;color:#afbac8;font-size:.87rem;line-height:1.5;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.episode-card .episode-meta{margin:0;color:#8ea4be;font-size:.78rem}
+.episode-summary{font-size:1rem;line-height:1.7;color:#c5d1e0;max-width:900px}
+.metadata-notice{font-size:.87rem;margin:20px 0;padding:14px;border:1px solid #3a4b60;background:#182434;border-radius:10px;color:#b8c9dd}
+.metadata-notice a{color:#b7dcfc;text-decoration:underline}
+.episode-preview{width:100%;max-width:950px;aspect-ratio:16/9;object-fit:cover;border:1px solid #33485d;border-radius:13px;background:linear-gradient(135deg,#22384f,#111a29)}
+.episode-detail-title{font-size:clamp(1.8rem,3vw,2.8rem);margin:10px 0 12px}
+@media(max-width:720px){.media-hero{grid-template-columns:105px minmax(0,1fr);gap:17px;padding:17px;min-height:0}.hero-info h1{font-size:1.55rem}.hero-info p{font-size:.86rem;line-height:1.45}.season-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:19px 13px}.episode-card{grid-template-columns:130px minmax(0,1fr);gap:13px;padding:11px}.episode-card .episode-desc{-webkit-line-clamp:2}.brand{font-size:1.39rem}}
+@media(max-width:470px){.media-hero{grid-template-columns:1fr}.hero-poster{max-width:150px}.episode-card{grid-template-columns:1fr}.episode-still{max-width:100%}}
