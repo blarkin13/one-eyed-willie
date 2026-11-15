@@ -99,8 +99,13 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("willie:watch-updated", player)
         self.assertIn("/api/playback/progress", player)
         self.assertIn("/api/watch/", player)
-        self.assertIn("detail-play", movie)
-        self.assertIn("detail-watched", movie)
+        self.assertIn("'/movie?'", movie)
+        self.assertNotIn('id="detail-dialog"', movie)
+        full_movie = (SERVER / "movie_detail.html").read_text()
+        self.assertIn('id="play-movie"', full_movie)
+        self.assertIn('id="watched-movie"', full_movie)
+        self.assertIn("WilliePlayer.open", full_movie)
+        self.assertIn("/api/stream/hls/", player)
         self.assertIn("Play fullscreen", tv)
         self.assertIn("WilliePlayer.open", home)
         self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
@@ -120,7 +125,7 @@ class CompactLayoutTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("node"), "Node.js not installed")
     def test_ui_javascript_syntax(self):
         source_files = [SERVER / "shell.js", SERVER / "player.js"]
-        for path in (SERVER / "dashboard.html", SERVER / "catalog.html", SERVER / "index.html", SERVER / "tv_detail.html", SERVER / "watch.html"):
+        for path in (SERVER / "dashboard.html", SERVER / "catalog.html", SERVER / "index.html", SERVER / "tv_detail.html", SERVER / "watch.html", SERVER / "movie_detail.html"):
             parser = Scripts()
             parser.feed(path.read_text())
             for script in parser.scripts:
