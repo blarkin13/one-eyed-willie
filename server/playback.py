@@ -19,6 +19,8 @@ from pydantic import BaseModel, Field
 from .library import MEDIA_ROOT, db
 
 router = APIRouter(prefix="/api/watch")
+TRANSCODE_SLOTS = asyncio.Semaphore(2)
+
 BROWSER_TYPES = {
     ".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime",
     ".webm": "video/webm", ".ogv": "video/ogg",
@@ -157,22 +159,23 @@ async def transcode_media(
                "-f", "mp4", "pipe:1"]
 
     async def output():
-        proc = await asyncio.create_subprocess_exec(
-            *command, stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.DEVNULL,
-        )
-        try:
-            while True:
-                if await request.is_disconnected():
-                    break
-                chunk = await proc.stdout.read(128 * 1024)
-                if not chunk:
-                    break
-                yield chunk
-        finally:
-            if proc.returncode is None:
-                proc.kill()
-            await proc.wait()
+        async with TRANSCODE_SLOTS:
+            proc = await asyncio.create_subprocess_exec(
+                *command, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            try:
+                while True:
+                    if await request.is_disconnected():
+                        break
+                    chunk = await proc.stdout.read(128 * 1024)
+                    if not chunk:
+                        break
+                    yield chunk
+            finally:
+                if proc.returncode is None:
+                    proc.kill()
+                await proc.wait()
 
     return StreamingResponse(output(), media_type="video/mp4", headers={
         "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
