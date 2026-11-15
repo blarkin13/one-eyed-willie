@@ -450,3 +450,21 @@ body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
   .mobile-settings-link:hover,.mobile-settings-link:focus-visible,
   .mobile-settings-close:focus-visible{outline:2px solid #cee8ff;outline-offset:2px}
 }
+
+
+/* Media manager navigation: individual icons on desktop, one service hub on mobile. */
+@media(min-width:701px){
+  .sidebar .nav-link[data-service-nav="services"]{display:none!important}
+}
+@media(max-width:700px){
+  .sidebar .nav-link[data-service-nav="radarr"],
+  .sidebar .nav-link[data-service-nav="sonarr"],
+  .sidebar .nav-link[data-service-nav="sabnzbd"]{display:none!important}
+  .sidebar .nav-link[data-service-nav="services"].mobile-service-active{
+    background:#20344a;color:#edf6ff
+  }
+  .sidebar .nav-link[data-service-nav="services"].mobile-service-active::before{
+    content:"";position:absolute;left:21%;right:21%;top:auto;bottom:0;height:2px;width:auto;background:#a1c6ed
+  }
+  .sidebar .side-nav{overflow:visible!important}
+}

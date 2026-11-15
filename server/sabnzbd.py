@@ -133,7 +133,7 @@ def _queue_view(data):
     if not isinstance(slots, list):
         slots = []
     return {
-        "paused": bool(data.get("paused")),
+        "paused": data.get("paused") is True or str(data.get("paused")).lower() == "true",
         "speed": _clip(data.get("speed")),
         "timeleft": _clip(data.get("timeleft")),
         "remaining": _clip(data.get("mb")),
@@ -141,6 +141,7 @@ def _queue_view(data):
         "items": [
             {
                 "name": _clip(row.get("filename") or row.get("name"), 180),
+                "id": _clip(row.get("nzo_id") or "", 110),
                 "status": _clip(row.get("status"), 60),
                 "percent": _clip(row.get("percentage")),
                 "timeleft": _clip(row.get("timeleft")),
@@ -179,4 +180,21 @@ def control_queue(payload: QueueAction):
     result = request(setting["url"], setting["api_key"], payload.action)
     if not result.get("status", False):
         raise HTTPException(502, "SABnzbd could not update the queue.")
+    return {"ok": True, "action": payload.action}
+
+class JobAction(BaseModel):
+    action: str
+
+@router.post("/jobs/{job_id}/action")
+def control_job(job_id: str, payload: JobAction):
+    if payload.action not in ("pause", "resume"):
+        raise HTTPException(422, "Only pause and resume are supported.")
+    if not re.fullmatch(r"[A-Za-z0-9_-]{8,110}", job_id):
+        raise HTTPException(422, "Invalid SABnzbd job identifier.")
+    setting = saved()
+    # SABnzbd's documented per-job operation is mode=queue&name=pause|resume.
+    result = request(setting["url"], setting["api_key"], "queue",
+                     name=payload.action, value=job_id)
+    if not result.get("status", False):
+        raise HTTPException(502, "SABnzbd could not update this download.")
     return {"ok": True, "action": payload.action}

@@ -9,6 +9,10 @@ document.addEventListener('DOMContentLoaded', () => {
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
+    {id:'services',href:'/services',name:'Download services',fa:'fa-layer-group',fallback:'services'},
+    {id:'radarr',href:'/radarr',name:'Radarr',fa:'fa-bullseye',fallback:'radarr'},
+    {id:'sonarr',href:'/sonarr',name:'Sonarr',fa:'fa-wave-square',fallback:'sonarr'},
+    {id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd',fa:'fa-download',fallback:'sabnzbd'},
     {id:'settings',href:'/settings/libraries',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
   // Inline SVG fallbacks make every control usable without an external font.
@@ -19,7 +23,11 @@ document.addEventListener('DOMContentLoaded', () => {
     compass:'<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7" fill="none"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z" stroke="currentColor" stroke-width="1.6" fill="none" stroke-linejoin="round"/>',
     settings:'<path d="M12 3v2m0 14v2M4.9 4.9l1.5 1.5m11.2 11.2 1.5 1.5M3 12h2m14 0h2M4.9 19.1l1.5-1.5M17.6 6.4l1.5-1.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="12" r="5" stroke="currentColor" stroke-width="1.8" fill="none"/><circle cx="12" cy="12" r="1.7" fill="currentColor"/>',
     search:'<circle cx="10.5" cy="10.5" r="6.3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m15.1 15.1 5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
-    chevron:'<path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>'
+    chevron:'<path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    services:'<rect x="3" y="3" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="13" y="3" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="3" y="13" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="13" y="13" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/>',
+    radarr:'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="4.8" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>',
+    sonarr:'<path d="M3 12c3-6 6 6 9 0s6-6 9 0M3 17c3-6 6 6 9 0s6-6 9 0M3 7c3-6 6 6 9 0s6-6 9 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+    sabnzbd:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
   };
   function glyph(fa,svg){
     const icon=document.createElement('span');icon.className='nav-icon';icon.setAttribute('aria-hidden','true');
@@ -44,6 +52,8 @@ document.addEventListener('DOMContentLoaded', () => {
   navItems.forEach(item=>{
     const a=document.createElement('a');a.href=item.href;a.title=item.name;
     a.className='nav-link';a.setAttribute('aria-label',item.name);
+    if(['radarr','sonarr','sabnzbd','services'].includes(item.id))a.dataset.serviceNav=item.id;
+    if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
     if(item.id===active)a.setAttribute('aria-current','page');
     a.append(glyph(item.fa,item.fallback));
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);

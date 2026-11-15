@@ -1,0 +1,247 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<title>Media Manager · One-Eyed Willie</title>
+<link rel="stylesheet" href="/assets/ui.css?v=services-1">
+<script defer src="/assets/shell.js?v=services-1"></script>
+<style>
+.manager-content{max-width:1540px}
+.manager-nav{display:flex;gap:15px;align-items:center;flex-wrap:wrap;margin:14px 0 27px}
+.manager-nav a{color:#a8c6e4;font-weight:650;font-size:.89rem;text-decoration:none}
+.manager-nav a[aria-current="page"]{color:#fff;border-bottom:2px solid #afcfea;padding-bottom:5px}
+.manager-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.manager-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 28px}
+.manager-stat{padding:17px 20px;border:1px solid #354359;border-radius:13px;background:#111d2a}
+.manager-stat strong{display:block;font-size:1.65rem;letter-spacing:-.045em}
+.manager-stat span{display:block;color:#adbed3;font-size:.86rem;margin-top:3px}
+.manager-section{margin:29px 0}
+.manager-section h2{font-size:1.35rem;margin-bottom:15px}
+.manager-rows{display:grid;gap:9px}
+.manager-event{padding:13px 15px;background:#121e2c;border:1px solid #2c3e54;border-radius:10px;display:grid;gap:4px}
+.manager-event strong{font-size:.94rem;overflow-wrap:anywhere}
+.manager-event small{color:#a7bdd1}
+.manager-list-head{display:flex;justify-content:space-between;gap:14px;align-items:center;flex-wrap:wrap}
+.manager-filter{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 17px}
+.manager-filter input,.manager-filter select,.manager-item select{
+ background:#111b28;border:1px solid #3a526b;border-radius:9px;color:#ecf3ff;padding:10px 11px;min-height:44px}
+.manager-filter input{flex:1;min-width:160px}
+.manager-filter select{min-width:170px}
+.manager-library{display:grid;gap:8px}
+.manager-item{display:grid;grid-template-columns:minmax(180px,1fr) minmax(116px,170px) auto;
+gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-radius:11px;background:#121d2b}
+.manager-item strong{display:block;overflow-wrap:anywhere}
+.manager-item .manager-subtitle{display:block;margin-top:5px;font-size:.83rem;color:#aebfd1}
+.manager-item .manager-status{display:block;color:#afc2d6;font-size:.79rem;margin-top:5px}
+.manager-item .manager-actions{display:flex;align-items:center;gap:7px;flex-wrap:wrap;justify-content:flex-end}
+.manager-item .manager-actions button{background:#20334a;color:#e7f0fc;border:1px solid #435c77;border-radius:8px;padding:9px 12px;min-height:40px;font-size:.8rem;font-weight:650;cursor:pointer}
+.manager-item .manager-actions button:hover,.manager-item .manager-actions button:focus-visible{background:#315276}
+.manager-item .manager-actions button:disabled{opacity:.5;cursor:default}
+.manager-item .manager-item-feedback{grid-column:1/-1;color:#d6e7f9;font-size:.81rem;min-height:0}
+.manager-item .manager-item-feedback:empty{display:none}
+.manager-note{color:#a8bfd5}
+.manager-empty{color:#a9bbce;padding:14px 0}
+.manager-warning{padding:12px 16px;border:1px solid #62513c;border-radius:11px;color:#e6c8a2}
+@media(max-width:900px){.manager-stat-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.manager-item{grid-template-columns:minmax(0,1fr) minmax(120px,170px)}.manager-item .manager-actions{grid-column:1/-1;justify-content:flex-start}}
+@media(max-width:520px){.manager-item{grid-template-columns:1fr;padding:15px;gap:10px}.manager-item .manager-actions{grid-column:auto}.manager-item select{width:100%}.manager-controls{width:100%}.manager-controls button{flex:1}.manager-stat-grid{gap:8px}.manager-stat{padding:12px}.manager-stat strong{font-size:1.35rem}}
+</style>
+</head><body data-page="services"><div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content manager-content">
+<div class="page-head">
+ <div><p class="eyebrow">Media manager</p><h1 id="manager-title">Loading…</h1>
+ <p id="manager-description">Manage your connected library and activity.</p></div>
+ <div class="manager-controls">
+  <button id="manager-refresh" class="secondary-button" type="button">Refresh</button>
+  <button id="manager-rss" class="secondary-button" type="button">Sync RSS</button>
+ </div>
+</div>
+<nav class="manager-nav" aria-label="Download services">
+<a href="/radarr" id="tab-radarr">Radarr</a><a href="/sonarr" id="tab-sonarr">Sonarr</a><a href="/sabnzbd" id="tab-sabnzbd">SABnzbd</a>
+<a href="/settings/connections">Manage connections</a>
+</nav>
+<p id="manager-message" role="status" class="manager-note">Loading your media manager…</p>
+<section id="manager-body" hidden>
+<div class="manager-stat-grid" aria-label="Library summary">
+ <div class="manager-stat"><strong id="manager-total">0</strong><span id="total-label">Titles</span></div>
+ <div class="manager-stat"><strong id="manager-monitored">0</strong><span>Monitored</span></div>
+ <div class="manager-stat"><strong id="manager-missing">0</strong><span id="missing-label">Missing files</span></div>
+ <div class="manager-stat"><strong id="manager-queued">0</strong><span>In queue</span></div>
+</div>
+<section class="manager-section"><h2>Activity queue</h2><div id="manager-queue" class="manager-rows"></div></section>
+<section class="manager-section"><h2>Recent history</h2><div id="manager-history" class="manager-rows"></div></section>
+<section class="manager-section">
+ <div class="manager-list-head"><h2 id="library-heading">Managed titles</h2>
+ <a id="manager-add" href="/explore?type=movies" class="secondary-button">Find and add titles</a></div>
+ <div class="manager-filter"><input id="manager-search" type="search" placeholder="Filter managed titles…" aria-label="Filter titles">
+ <select id="manager-filter" aria-label="Filter monitoring"><option value="all">All titles</option><option value="monitored">Monitored</option><option value="missing">Missing files</option><option value="unmonitored">Not monitored</option></select></div>
+ <div id="manager-library" class="manager-library"></div>
+</section>
+</section>
+</main></div></div>
+<script>
+const managerName=location.pathname==='/sonarr'?'sonarr':'radarr';
+document.body.dataset.page=managerName;
+const $=id=>document.getElementById(id);
+const label=managerName==='radarr'?'Radarr':'Sonarr';
+document.title=label+' · One-Eyed Willie';
+$('manager-title').textContent=label;
+$('manager-description').textContent=managerName==='radarr'
+ ?'Monitor movies, review downloads, edit quality profiles, and search for releases.'
+ :'Monitor series, review downloads, edit quality profiles, and search for episodes.';
+$('total-label').textContent=managerName==='radarr'?'Movies':'Series';
+$('missing-label').textContent=managerName==='radarr'?'Movies missing files':'Series with missing episodes';
+$('library-heading').textContent=managerName==='radarr'?'Managed movies':'Managed series';
+$('manager-add').href='/explore?type='+(managerName==='radarr'?'movies':'tv');
+$('tab-'+managerName).setAttribute('aria-current','page');
+let activeData=null,waiting=false;
+const endpoint='/api/managers/'+managerName;
+async function api(url,options){
+ const response=await fetch(url,options);
+ const body=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(body.detail||'Request failed');
+ return body;
+}
+function feedback(message){$('manager-message').textContent=message}
+function eventRow(data){
+ const el=document.createElement('div');el.className='manager-event';
+ const title=document.createElement('strong');title.textContent=data.title||'Untitled download';
+ const info=document.createElement('small');
+ info.textContent=[data.status,data.tracked,data.timeleft,data.message].filter(Boolean).join(' · ');
+ el.append(title,info);
+ return el;
+}
+function renderEvents(id,items,empty){
+ const container=$(id);container.replaceChildren();
+ for(const item of items||[])container.append(eventRow(item));
+ if(!container.children.length){
+   const p=document.createElement('p');p.className='manager-empty';p.textContent=empty;container.append(p);
+ }
+}
+function newButton(title,action){
+ const button=document.createElement('button');button.type='button';button.textContent=title;
+ button.addEventListener('click',action);return button;
+}
+function showLibrary(){
+ if(!activeData)return;
+ const list=$('manager-library');list.replaceChildren();
+ const search=$('manager-search').value.toLocaleLowerCase().trim();
+ const filter=$('manager-filter').value;
+ let count=0;
+ for(const entry of activeData.items||[]){
+  if(search&&!entry.title.toLocaleLowerCase().includes(search))continue;
+  if(filter==='monitored'&&!entry.monitored)continue;
+  if(filter==='unmonitored'&&entry.monitored)continue;
+  if(filter==='missing'&&!entry.missing)continue;
+  count++;
+  const row=document.createElement('article');row.className='manager-item';
+  const heading=document.createElement('div');
+  const title=document.createElement('strong');title.textContent=entry.title;
+  const subtitle=document.createElement('span');subtitle.className='manager-subtitle';
+  subtitle.textContent=[entry.year,entry.subtitle].filter(Boolean).join(' · ');
+  const status=document.createElement('span');status.className='manager-status';
+  status.textContent=(entry.monitored?'Monitored':'Not monitored')+
+    ' · '+(entry.missing?'Missing media':'Media available');
+  heading.append(title,subtitle,status);
+  const select=document.createElement('select');select.setAttribute('aria-label','Quality profile for '+entry.title);
+  for(const profile of activeData.profiles||[]){
+    const option=document.createElement('option');option.value=String(profile.id);option.textContent=profile.name;
+    if(entry.profile_id===profile.id)option.selected=true;
+    select.append(option);
+  }
+  if(entry.profile_id&&!Array.from(select.options).some(x=>Number(x.value)===entry.profile_id)){
+    const option=document.createElement('option');option.value=String(entry.profile_id);option.textContent=entry.profile||'Current profile';
+    option.selected=true;select.prepend(option);
+  }
+  const previousProfile=entry.profile_id;
+  const actions=document.createElement('div');actions.className='manager-actions';
+  const message=document.createElement('div');message.className='manager-item-feedback';message.setAttribute('role','status');
+  async function perform(url,options,success){
+    const controls=[select,...actions.querySelectorAll('button')];
+    controls.forEach(control=>control.disabled=true);
+    message.textContent='Updating '+label+'…';
+    try{
+      const result=await api(url,options);
+      message.textContent=success;
+      return result;
+    }catch(error){message.textContent=error.message;return null}
+    finally{controls.forEach(control=>control.disabled=false)}
+  }
+  select.addEventListener('change',async()=>{
+    const chosen=Number(select.value);
+    if(!Number.isInteger(chosen)||chosen===entry.profile_id)return;
+    const result=await perform(endpoint+'/items/'+entry.id,
+      {method:'PUT',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({quality_profile_id:chosen})},
+      'Quality profile updated.');
+    if(result){entry.profile_id=result.quality_profile_id}
+    else select.value=String(entry.profile_id||previousProfile);
+  });
+  const monitorButton=newButton(entry.monitored?'Unmonitor':'Monitor',async()=>{
+    const desired=!entry.monitored;
+    const result=await perform(endpoint+'/items/'+entry.id,
+      {method:'PUT',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({monitored:desired})},'Monitoring updated.');
+    if(result){
+      entry.monitored=!!result.monitored;
+      monitorButton.textContent=entry.monitored?'Unmonitor':'Monitor';
+      status.textContent=(entry.monitored?'Monitored':'Not monitored')+
+        ' · '+(entry.missing?'Missing media':'Media available');
+      $('manager-monitored').textContent=String(activeData.items.filter(x=>x.monitored).length);
+    }
+  });
+  const searchButton=newButton('Search',async()=>{
+    if(!confirm('Search indexers for '+entry.title+'?'))return;
+    await perform(endpoint+'/command',
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({action:'search',item_id:entry.id})},
+      'Search command queued in '+label+'.');
+  });
+  const refreshButton=newButton('Refresh metadata',async()=>{
+    await perform(endpoint+'/command',
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({action:'refresh',item_id:entry.id})},
+      'Metadata refresh queued in '+label+'.');
+  });
+  actions.append(monitorButton,searchButton,refreshButton);
+  row.append(heading,select,actions,message);
+  list.append(row);
+ }
+ if(!count){const p=document.createElement('p');p.className='manager-empty';p.textContent='No titles match these filters.';list.append(p)}
+}
+async function refresh(){
+ if(waiting)return;
+ waiting=true;$('manager-refresh').disabled=true;
+ feedback('Updating '+label+'…');
+ try{
+  activeData=await api(endpoint+'/dashboard',{cache:'no-store'});
+  $('manager-total').textContent=String(activeData.total||0);
+  $('manager-monitored').textContent=String(activeData.monitored||0);
+  $('manager-missing').textContent=String(activeData.missing||0);
+  $('manager-queued').textContent=String((activeData.queue||[]).length);
+  renderEvents('manager-queue',activeData.queue,'No active download activity.');
+  renderEvents('manager-history',activeData.history,'No recent activity.');
+  showLibrary();
+  $('manager-body').hidden=false;
+  feedback('Connected to '+activeData.address+
+    ((activeData.warnings||[]).length?' · '+activeData.warnings.join(' '):''));
+ }catch(error){
+  $('manager-body').hidden=true;
+  feedback(error.message+' Connect or check '+label+' in Settings → Connections.');
+ }finally{waiting=false;$('manager-refresh').disabled=false}
+}
+$('manager-refresh').onclick=refresh;
+$('manager-search').addEventListener('input',showLibrary);
+$('manager-filter').addEventListener('change',showLibrary);
+$('manager-rss').onclick=async()=>{
+ if(!confirm('Ask '+label+' to check indexer RSS feeds for new releases?'))return;
+ $('manager-rss').disabled=true;feedback('Requesting RSS sync…');
+ try{
+  await api(endpoint+'/command',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({action:'rss'})});
+  feedback(label+' RSS sync queued.');
+ }catch(error){feedback(error.message)}
+ finally{$('manager-rss').disabled=false}
+};
+refresh();
+</script></body></html>

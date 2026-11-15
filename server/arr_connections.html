@@ -3,7 +3,7 @@
 <head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=mobile-settings-1"><script defer src="/assets/shell.js?v=mobile-settings-1"></script>
+<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=services-1"><script defer src="/assets/shell.js?v=services-1"></script>
 <style>
 .connection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:16px}
 .connection-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:23px}
@@ -23,6 +23,8 @@
 .sab-entry span{color:var(--muted);font-size:.8rem;text-align:right;flex-shrink:0}
 .sab-entry:focus-visible{outline:2px solid #b2cde8}
 @media(max-width:600px){.sab-entry{flex-direction:column;gap:4px}.sab-entry span{text-align:left}}
+.connection-quicklinks{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 20px}
+.connection-quicklinks a{color:#b5d4f0;text-decoration:underline;text-underline-offset:3px}
 </style></head>
 <body data-page="connections"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -31,6 +33,7 @@
 <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Connections</h1>
 <p>Connect your existing media managers once. They handle library management; One-Eyed Willie handles browsing.</p></div>
 <a class="primary-button" href="/explore">Explore More</a></div>
+<div class="connection-quicklinks"><a href="/radarr">Radarr dashboard</a><a href="/sonarr">Sonarr dashboard</a><a href="/sabnzbd">SABnzbd dashboard</a></div>
 <div class="connection-grid" id="connections"></div>
 <section class="connection-card" aria-labelledby="opensubtitles-heading" style="margin-top:18px;max-width:760px">
 <div class="connection-head"><h2 id="opensubtitles-heading">OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
@@ -48,7 +51,7 @@
 
 <section class="connection-card" aria-labelledby="sab-heading" style="margin-top:18px;max-width:900px">
 <div class="connection-head"><h2 id="sab-heading">SABnzbd</h2><span id="sab-state" class="integration-state">Checking…</span></div>
-<p class="connection-kind">Monitor your Usenet download queue and recent history. Pause or resume downloads without leaving One-Eyed Willie.</p>
+<p class="connection-kind">Connect your download manager. Queue monitoring and controls are on the dedicated SABnzbd page.</p>
 <p id="sab-summary" class="connection-state" role="status">Checking connection…</p>
 <form id="sab-form">
 <label for="sab-url">SABnzbd local address</label>
@@ -58,16 +61,7 @@
 <p class="connection-help">In SABnzbd, open Config → General and copy the full <strong>API Key</strong>, not the NZB Key. Use the local address reachable from this server. Your key stays in the server's private configuration and is never displayed.</p>
 <div class="form-actions"><button type="submit" class="primary-button" id="sab-connect">Connect SABnzbd</button><button type="button" class="danger-button" id="sab-disconnect">Disconnect</button></div>
 </form>
-<div id="sab-dashboard" hidden>
-<div class="form-actions" style="margin-top:20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-<button type="button" class="secondary-button" id="sab-refresh">Refresh</button>
-<button type="button" class="secondary-button" id="sab-pause">Pause downloads</button>
-<button type="button" class="secondary-button" id="sab-resume">Resume downloads</button>
-</div>
-<p id="sab-queue-summary" class="connection-state"></p>
-<h3>Download queue</h3><div id="sab-queue" class="sab-list"></div>
-<h3 style="margin-top:20px">Recent history</h3><div id="sab-history" class="sab-list"></div>
-</div>
+<p class="connection-help"><a class="text-link" href="/sabnzbd">Open SABnzbd dashboard</a> to monitor downloads and control the queue.</p>
 <p id="sab-message" class="message" role="status"></p>
 <p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. One-Eyed Willie only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
 </section>
@@ -88,7 +82,7 @@
 <p class="connection-help">Imports only confirmed watched items, never removes existing watch history and never changes Plex. Matches are checked by movie title/year or TV show/season/episode number. Review the preview before importing.</p>
 </section>
 <section class="form-card"><h2>How this works</h2>
-<p>Enter the LAN address and existing API key from each media manager's Settings. Your API keys stay on this server. You don't need a new account or a new public port-forward.</p>
+<p>Enter the LAN address and API key for each media manager. Credentials stay on the server; queues, history, searches, and monitoring are managed from their own Radarr, Sonarr, and SABnzbd pages.</p>
 <p>Radarr manages movies; Sonarr manages TV series. One-Eyed Willie can send a title to either service after you choose its folder and quality profile. Adding a title does not mean the media is available to play.</p>
 <p>Other *arr applications have different content types: Lidarr manages music, Readarr manages books, and Prowlarr manages indexers. They can be integrated separately when those features are supported; connecting them here would not add movie or TV browsing.</p></section>
 </main></div></div>
@@ -252,41 +246,15 @@ $('plex-import').addEventListener('click',async()=>{
 refreshPlex();
 
 
-function sabRow(target,name,meta){
- const row=document.createElement('div');row.className='sab-entry';
- const left=document.createElement('strong');left.textContent=name||'Unnamed download';
- const right=document.createElement('span');right.textContent=meta;
- row.append(left,right);target.append(row);
-}
-async function sabRefresh(){
- const queue=$('sab-queue'),history=$('sab-history');
- try{
-  const data=await fetchJson('/api/sabnzbd/status',{cache:'no-store'});
-  queue.replaceChildren();history.replaceChildren();
-  const q=data.queue||{};
-  $('sab-queue-summary').textContent=(q.paused?'Paused':'Downloading')+
-    ' · '+(q.total||'0')+' queued · '+(q.speed||'0')+' · '+(q.timeleft||'—')+' remaining';
-  $('sab-pause').disabled=!!q.paused;
-  $('sab-resume').disabled=!q.paused;
-  for(const item of q.items||[])
-   sabRow(queue,item.name,[item.status,item.percent?item.percent+'%':'',item.timeleft].filter(Boolean).join(' · '));
-  if(!queue.children.length)sabRow(queue,'No queued downloads','');
-  for(const item of data.history||[])
-   sabRow(history,item.name,[item.status,item.category].filter(Boolean).join(' · '));
-  if(!history.children.length)sabRow(history,'No recent history','');
-  $('sab-message').textContent='';
- }catch(error){$('sab-message').textContent=error.message}
-}
+
 async function sabConnection(){
  try{
-  const setting=await fetchJson('/api/sabnzbd/settings',{cache:'no-store'});
-  $('sab-state').textContent=setting.connected?'Connected':'Not connected';
-  $('sab-state').className='integration-state'+(setting.connected?' on':'');
-  $('sab-summary').textContent=setting.connected?'Connected to '+setting.address:'Connect SABnzbd to monitor your download queue.';
-  if(setting.address)$('sab-url').value=setting.address;
-  $('sab-disconnect').disabled=!setting.connected;
-  $('sab-dashboard').hidden=!setting.connected;
-  if(setting.connected)await sabRefresh();
+  const data=await fetchJson('/api/sabnzbd/settings',{cache:'no-store'});
+  $('sab-state').textContent=data.connected?'Connected':'Not connected';
+  $('sab-state').className='integration-state'+(data.connected?' on':'');
+  $('sab-summary').textContent=data.connected?'Connected to '+data.address:'Connect SABnzbd to use its dashboard.';
+  if(data.address)$('sab-url').value=data.address;
+  $('sab-disconnect').disabled=!data.connected;
  }catch(error){$('sab-summary').textContent=error.message}
 }
 $('sab-form').addEventListener('submit',async event=>{
@@ -294,7 +262,8 @@ $('sab-form').addEventListener('submit',async event=>{
  try{
   await fetchJson('/api/sabnzbd/settings',{method:'PUT',headers:{'Content-Type':'application/json'},
    body:JSON.stringify({url:$('sab-url').value.trim(),api_key:$('sab-key').value.trim()})});
-  $('sab-key').value='';$('sab-message').textContent='SABnzbd connected.';
+  $('sab-key').value='';
+  $('sab-message').textContent='SABnzbd connected. Open its dashboard to manage downloads.';
   await sabConnection();
  }catch(error){$('sab-message').textContent=error.message}
  finally{$('sab-connect').disabled=false}
@@ -306,18 +275,7 @@ $('sab-disconnect').onclick=async()=>{
   $('sab-message').textContent='SABnzbd disconnected.';await sabConnection();
  }catch(error){$('sab-message').textContent=error.message}
 };
-$('sab-refresh').onclick=sabRefresh;
-for(const action of ['pause','resume']){
- $('sab-'+action).onclick=async()=>{
-  const button=$('sab-'+action);button.disabled=true;$('sab-message').textContent='Updating SABnzbd queue…';
-  try{
-   await fetchJson('/api/sabnzbd/queue',{method:'POST',headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({action})});
-   await sabRefresh();
-  }catch(error){$('sab-message').textContent=error.message}
-  finally{button.disabled=false}
- };
-}
+
 sabConnection();
 
 build();refresh();

@@ -11,6 +11,7 @@ from server.home import router as home_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
 from server.plex_import import router as plex_router
+from server.manager_control import router as manager_router
 from server.sabnzbd import router as sabnzbd_router
 from server.subtitles import router as subtitles_router
 from server.subtitle_provider import router as subtitle_provider_router
@@ -58,6 +59,7 @@ app.include_router(home_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
 app.include_router(plex_router)
+app.include_router(manager_router)
 app.include_router(sabnzbd_router)
 app.include_router(subtitle_provider_router)
 app.include_router(subtitles_router)
@@ -201,6 +203,22 @@ def metadata_settings_page():
 @app.get("/explore")
 def explore_more_page():
     return FileResponse(Path(__file__).with_name("explore.html"), media_type="text/html")
+
+@app.get("/services")
+def download_services_page():
+    return FileResponse(Path(__file__).with_name("services.html"), media_type="text/html")
+
+
+@app.get("/radarr")
+@app.get("/sonarr")
+def manager_dashboard_page():
+    return FileResponse(Path(__file__).with_name("manager_dashboard.html"), media_type="text/html")
+
+
+@app.get("/sabnzbd")
+def sabnzbd_dashboard_page():
+    return FileResponse(Path(__file__).with_name("sab_dashboard.html"), media_type="text/html")
+
 
 @app.get("/settings/connections")
 def arr_connections_page():

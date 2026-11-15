@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SABnzbd · One-Eyed Willie</title>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css?v=services-1">
+<script defer src="/assets/shell.js?v=services-1"></script>
+<style>
+.sab-content{max-width:1450px}
+.service-tabs{display:flex;flex-wrap:wrap;gap:16px;margin:13px 0 26px}
+.service-tabs a{font-size:.9rem;font-weight:650;color:#a6c6e3}
+.service-tabs a[aria-current="page"]{color:white;border-bottom:2px solid #c7e3fc;padding-bottom:5px}
+.sab-toolbar{display:flex;flex-wrap:wrap;gap:10px}
+.sab-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0 32px}
+.sab-stat{border:1px solid #33475d;background:#101d2b;padding:20px;border-radius:13px}
+.sab-stat strong{display:block;font-size:1.7rem;line-height:1.3}
+.sab-stat span{display:block;font-size:.82rem;color:#acc0d4;margin-top:3px}
+.sab-section{margin:32px 0}
+.sab-section h2{font-size:1.35rem;margin-bottom:15px}
+.sab-table{display:grid;gap:10px}
+.sab-item{background:#121e2e;border:1px solid #33465e;border-radius:12px;padding:16px;display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:center}
+.sab-item strong{display:block;overflow-wrap:anywhere}
+.sab-meta{margin-top:6px;color:#afc1d4;font-size:.85rem}
+.sab-progress{margin-top:11px;height:5px;border-radius:10px;background:#36485c;overflow:hidden}
+.sab-progress span{display:block;height:100%;background:#a2ccef;min-width:0}
+.sab-actions{display:flex;gap:8px;flex-wrap:wrap}
+.sab-actions button{background:#253950;color:#e4f1ff;border:1px solid #4d6783;border-radius:9px;padding:10px 14px;cursor:pointer;min-height:40px}
+.sab-actions button:disabled{opacity:.45}
+.sab-empty{padding:17px 0;color:#b5c6d7}
+.sab-note{color:#b6c9dc;margin:12px 0}
+@media(max-width:780px){.sab-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.sab-item{grid-template-columns:1fr}}
+@media(max-width:420px){.sab-stat{padding:12px}.sab-stat strong{font-size:1.3rem}.sab-toolbar button{flex:1}}
+</style></head>
+<body data-page="sabnzbd"><div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content sab-content">
+<div class="page-head"><div><p class="eyebrow">Download manager</p><h1>SABnzbd</h1>
+<p>Monitor and control your download queue from One-Eyed Willie.</p></div>
+<div class="sab-toolbar">
+<button type="button" id="sab-reload" class="secondary-button">Refresh</button>
+<button type="button" id="sab-pause" class="secondary-button" disabled>Pause all</button>
+<button type="button" id="sab-resume" class="secondary-button" disabled>Resume all</button>
+</div></div>
+<nav class="service-tabs" aria-label="Download services">
+<a href="/radarr">Radarr</a><a href="/sonarr">Sonarr</a><a href="/sabnzbd" aria-current="page">SABnzbd</a>
+<a href="/settings/connections">Manage connections</a></nav>
+<p id="sab-feedback" role="status" class="sab-note">Connecting to SABnzbd…</p>
+<div id="sab-body" hidden>
+<div class="sab-stats" aria-label="Download status">
+<div class="sab-stat"><strong id="sab-status">—</strong><span>Queue state</span></div>
+<div class="sab-stat"><strong id="sab-count">—</strong><span>Queued items</span></div>
+<div class="sab-stat"><strong id="sab-speed">—</strong><span>Download speed</span></div>
+<div class="sab-stat"><strong id="sab-time">—</strong><span>Time remaining</span></div>
+</div>
+<section class="sab-section"><h2>Download queue</h2><div id="sab-queue" class="sab-table"></div></section>
+<section class="sab-section"><h2>Recent history</h2><div id="sab-history" class="sab-table"></div></section>
+</div>
+<p class="sab-note">SABnzbd still runs independently. Download additions from Radarr/Sonarr and file imports continue through their usual connections. Pause/resume changes SABnzbd's live queue.</p>
+</main></div></div>
+<script>
+const $=id=>document.getElementById(id);
+let pending=false,connected=false;
+async function api(url,opts){
+ const r=await fetch(url,opts);
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(data.detail||'SABnzbd request failed');
+ return data;
+}
+function say(text){$('sab-feedback').textContent=text}
+function empty(target,text){
+ const node=document.createElement('p');node.className='sab-empty';node.textContent=text;target.append(node);
+}
+function row(item,inQueue){
+ const article=document.createElement('article');article.className='sab-item';
+ const body=document.createElement('div');
+ const name=document.createElement('strong');name.textContent=item.name||'Untitled download';body.append(name);
+ const meta=document.createElement('div');meta.className='sab-meta';
+ meta.textContent=[item.status,item.category,
+  inQueue&&item.percent?item.percent+'%':null,
+  inQueue&&item.timeleft?item.timeleft+' left':null].filter(Boolean).join(' · ');
+ body.append(meta);
+ if(inQueue){
+  const pct=Math.max(0,Math.min(100,Number(item.percent)||0));
+  const progress=document.createElement('div');progress.className='sab-progress';
+  progress.setAttribute('role','progressbar');progress.setAttribute('aria-label','Download progress');
+  progress.setAttribute('aria-valuemin','0');progress.setAttribute('aria-valuemax','100');
+  progress.setAttribute('aria-valuenow',String(pct));
+  const fill=document.createElement('span');fill.style.width=pct+'%';progress.append(fill);body.append(progress);
+ }
+ article.append(body);
+ if(inQueue&&/^[A-Za-z0-9_-]{8,110}$/.test(item.id||'')){
+  const actions=document.createElement('div');actions.className='sab-actions';
+  const paused=String(item.status||'').toLowerCase().includes('paused');
+  const btn=document.createElement('button');btn.type='button';btn.textContent=paused?'Resume':'Pause';
+  btn.title=(paused?'Resume':'Pause')+' this download';
+  btn.onclick=async()=>{
+   btn.disabled=true;say('Updating '+item.name+'…');
+   try{
+    await api('/api/sabnzbd/jobs/'+encodeURIComponent(item.id)+'/action',
+      {method:'POST',headers:{'Content-Type':'application/json'},
+       body:JSON.stringify({action:paused?'resume':'pause'})});
+    await refresh();
+   }catch(error){say(error.message)}
+   finally{btn.disabled=false}
+  };
+  actions.append(btn);article.append(actions);
+ }
+ return article;
+}
+async function refresh(){
+ if(pending)return;
+ pending=true;$('sab-reload').disabled=true;
+ try{
+  const data=await api('/api/sabnzbd/status',{cache:'no-store'});
+  connected=true;
+  const q=data.queue||{};
+  $('sab-body').hidden=false;
+  $('sab-status').textContent=q.paused?'Paused':'Active';
+  $('sab-count').textContent=String(q.total||0);
+  $('sab-speed').textContent=q.speed||'0';
+  $('sab-time').textContent=q.timeleft||'—';
+  $('sab-pause').disabled=!!q.paused;$('sab-resume').disabled=!q.paused;
+  const queue=$('sab-queue'),history=$('sab-history');
+  queue.replaceChildren();history.replaceChildren();
+  for(const item of q.items||[])queue.append(row(item,true));
+  for(const item of data.history||[])history.append(row(item,false));
+  if(!queue.children.length)empty(queue,'No active downloads.');
+  if(!history.children.length)empty(history,'No recent downloads.');
+  say('Connected. Queue refreshed.');
+ }catch(error){
+  if(!connected){$('sab-body').hidden=true;$('sab-pause').disabled=true;$('sab-resume').disabled=true}
+  say(error.message+' Check Settings → Connections.');
+ }finally{pending=false;$('sab-reload').disabled=false}
+}
+$('sab-reload').onclick=refresh;
+for(const action of ['pause','resume']){
+ $('sab-'+action).onclick=async()=>{
+  const button=$('sab-'+action);
+  button.disabled=true;say('Updating SABnzbd…');
+  try{
+   await api('/api/sabnzbd/queue',{method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({action})});
+   await refresh();
+  }catch(error){say(error.message)}
+  finally{button.disabled=false}
+ };
+}
+refresh();
+setInterval(()=>{if(document.visibilityState==='visible')refresh()},20000);
+</script></body></html>

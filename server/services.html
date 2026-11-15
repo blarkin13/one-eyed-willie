@@ -1,0 +1,24 @@
+<!doctype html><html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Download services · One-Eyed Willie</title>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css?v=services-1">
+<script defer src="/assets/shell.js?v=services-1"></script>
+<style>
+.service-links{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:15px;margin-top:25px}
+.service-link{display:flex;flex-direction:column;gap:14px;padding:24px;background:#152337;border:1px solid #3c526d;border-radius:15px;color:#eaf4fe}
+.service-link:hover,.service-link:focus-visible{background:#243951;border-color:#a2c0df;outline:2px solid #b2cde8;outline-offset:2px}
+.service-link strong{font-size:1.35rem}
+.service-link span{color:#acc2d7;line-height:1.55}
+</style></head><body data-page="services">
+<div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<div class="page-head"><div><p class="eyebrow">Media management</p><h1>Download services</h1>
+<p>Monitor and control Radarr, Sonarr and SABnzbd from One-Eyed Willie.</p></div></div>
+<nav class="service-links" aria-label="Download services">
+<a href="/radarr" class="service-link"><strong>Radarr</strong><span>Manage movies, monitoring, quality profiles and release searches.</span></a>
+<a href="/sonarr" class="service-link"><strong>Sonarr</strong><span>Manage series, monitoring, quality profiles and episode searches.</span></a>
+<a href="/sabnzbd" class="service-link"><strong>SABnzbd</strong><span>View download progress and history; pause or resume the queue.</span></a>
+</nav>
+<p style="margin-top:26px"><a class="text-link" href="/settings/connections">Configure connections and API keys</a></p>
+</main></div></div></body></html>
