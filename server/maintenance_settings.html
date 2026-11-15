@@ -17,8 +17,8 @@
 <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Scheduled Maintenance</h1>
 <p>Keep your libraries and local caches current, without changing the original media files.</p></div></div>
 <section class="form-card maintenance-panel" aria-labelledby="schedule-title">
-<h2 id="schedule-title">Automatic maintenance</h2>
-<p class="maintenance-note">The server checks for due work during its overnight maintenance window (3 AM Central time). Weekly tasks run once per week; metadata refresh tasks run once every three days. Preview generation runs daily. Missed work runs during the next maintenance window after the server comes back online. Jobs process limited batches to protect playback performance.</p>
+<h2 id="schedule-title">Automatic maintenance · 4:00 AM Central</h2>
+<p class="maintenance-note">The server checks for due work during its overnight maintenance window (**4:00 AM Central time**). Weekly tasks run once per week; metadata refresh tasks run once every three days. Preview generation runs daily. Missed work runs during the next maintenance window after the server comes back online. Jobs process limited batches to protect playback performance.</p>
 <div id="maintenance-options"><p id="loading-options" role="status">Loading maintenance settings…</p></div>
 <div class="maintenance-actions">
 <button class="primary-button" id="maintenance-save" type="button" disabled>Save settings</button>
@@ -29,13 +29,13 @@
 </section>
 <section class="form-card maintenance-panel"><h2>Performance and storage</h2>
 <p class="maintenance-note">Quick media analysis reads video and audio stream properties with FFprobe. Extensive media analysis samples black frames, silence and loudness from the first minute of up to three videos per maintenance run. Preview generation extracts six 320-pixel images per video, with at most four new preview sets in each scheduled run. Previews appear when hovering or seeking on the video timeline. Analysis and preview files are kept in the private server data directory, not on your read-only media drive.</p>
-<p class="maintenance-note">Old bundle cleanup is limited to generated One-Eyed Willie maintenance bundles. Cache cleanup removes stale generated artwork, WebVTT derivatives, and expired HLS sessions; it preserves downloaded subtitle files and manually corrected metadata matches. Database optimization preserves library and playback history.</p>
+<p class="maintenance-note">Old bundle cleanup is limited to generated One-Eyed Willie maintenance bundles. Cache cleanup removes stale generated WebVTT derivatives, and expired HLS sessions; it preserves downloaded subtitle files and manually corrected metadata matches. Database optimization preserves library and playback history.</p>
 </section></main></div></div>
 <script>
 const descriptions=[
  ['optimize_database','Optimize database','Weekly','Optimize SQLite indexes and reclaim unused space.'],
  ['remove_old_bundles','Remove old bundles','Weekly','Remove obsolete bundles created by the app; never original media.'],
- ['remove_old_cache_files','Remove old cache files','Weekly','Remove stale artwork, generated subtitle conversions and inactive streaming cache.'],
+ ['remove_old_cache_files','Remove old cache files','Weekly','Remove obsolete subtitle conversions and inactive streaming cache. Prepared posters are retained.'],
  ['refresh_local_metadata','Refresh local metadata','Every 3 days','Expire outdated provider metadata entries so updated information is fetched again.'],
  ['update_all_libraries','Update all libraries','Weekly','Scan each library for added, changed and removed files.'],
  ['upgrade_media_analysis','Upgrade media analysis','Weekly','Read stream properties for up to 40 indexed files each maintenance run.'],
@@ -55,6 +55,7 @@ async function api(url,options){
 async function load(){
  try{
   const state=await api('/api/maintenance/settings');
+  byId('schedule-title').textContent='Automatic maintenance · '+String(state.maintenance_hour??4)+':00 AM Central';
   const parent=byId('maintenance-options');parent.replaceChildren();
   for(const [key,title,cadence,description] of descriptions){
    const row=document.createElement('label');row.className='maintenance-row';
