@@ -39,7 +39,7 @@
       <p id="status" class="status-line" role="status">Loading titles…</p>
       <div id="items" aria-live="off"></div>
       <div class="load-more-wrap"><button type="button" class="secondary-button" id="more" hidden>Load more</button></div>
-      <p class="note">TV posters and episode details load automatically from TVmaze when available. TMDB is an optional source in Settings → Metadata.</p>
+      <p class="note">Movie artwork comes from local poster files or your Radarr library. TV artwork comes from TVmaze. Artwork is cached on the server.</p>
     </main>
   </div>
 </div>
@@ -50,7 +50,7 @@
    <button type="button" class="icon-button" id="close-dialog" aria-label="Close details">×</button>
   </div>
   <div class="detail-top"><div class="detail-art" id="detail-art" aria-hidden="true"></div>
-   <div class="detail-metadata"><p id="detail-description"></p><p id="detail-year"></p><p class="dialog-placeholder">Playback is being built. You can browse your library and episodes now.</p></div>
+   <div class="detail-metadata"><p id="detail-description"></p><p id="detail-year"></p><p id="detail-extra"></p><p id="detail-links"></p><p class="dialog-placeholder">Playback is being built. You can browse your library and episodes now.</p></div>
   </div>
   <div id="episode-area" hidden><h3>Episodes</h3><ul class="episode-list" id="episode-list"></ul></div>
  </div>
@@ -73,26 +73,57 @@ for(const [id,kind] of [['tab-movies','movies'],['tab-tv','tv']]){
 }
 const dialog=$('detail-dialog');$('close-dialog').onclick=()=>dialog.close();
 dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+let detailsRequest=0;
 function openDetails(item){
- $('detail-type').textContent=item.kind==='movies'?'MOVIE':'TV SERIES';
+ const current=++detailsRequest;
+ $('detail-type').textContent='MOVIE';
  $('detail-title').textContent=item.title;
- $('detail-art').textContent=item.title.slice(0,1).toUpperCase();
- $('detail-description').textContent=item.kind==='movies'?(item.files+' media file'+(item.files===1?'':'s')):(item.seasons.length+' season'+(item.seasons.length===1?'':'s')+' · '+item.files+' episodes/files');
- $('detail-year').textContent=item.year?'Year: '+item.year:'';
- const area=$('episode-area');area.hidden=item.kind!=='tv'||!item.episodes.length;
- const episodes=$('episode-list');episodes.replaceChildren();
- if(!area.hidden){
-  for(const ep of item.episodes){
-    const li=document.createElement('li');
-    const num=document.createElement('span');num.className='episode-number';
-    num.textContent=(ep.season==null?'':('S'+String(ep.season).padStart(2,'0')))+(ep.episode==null?'':('E'+String(ep.episode).padStart(2,'0')))||'Episode';
-    const name=document.createElement('span');name.className='episode-name';name.textContent=ep.filename;
-    li.append(num,name);episodes.appendChild(li);
-  }
- }
+ $('detail-art').replaceChildren(document.createTextNode(item.title.slice(0,1).toUpperCase()));
+ $('detail-description').textContent='Loading movie information…';
+ $('detail-year').textContent=item.year?'Released '+item.year:'';
+ $('detail-extra').textContent='';
+ $('detail-links').replaceChildren();
+ $('episode-area').hidden=true;
  dialog.showModal();
+ const params=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+ fetch('/api/movies/details?'+params,{cache:'no-store'})
+   .then(response=>{if(!response.ok)throw Error('Movie details unavailable');return response.json()})
+   .then(data=>{
+    if(current!==detailsRequest||!dialog.open)return;
+    $('detail-description').textContent=data.overview||'No description available yet. Place movie.nfo and poster.jpg beside the movie or connect Radarr under Settings → Metadata.';
+    $('detail-year').textContent=(data.year?'Released '+data.year:'')+(data.runtime?' · '+data.runtime+' min':'');
+    $('detail-extra').textContent=(data.genres||[]).join(' · ');
+    if(data.poster_url?.startsWith('/api/artwork/')){
+      const poster=document.createElement('img');poster.src=data.poster_url;poster.alt=data.title+' poster';poster.loading='lazy';
+      poster.style.cssText='width:100%;height:100%;object-fit:cover;border-radius:12px';
+      $('detail-art').replaceChildren(poster);
+    }
+    if(data.imdb_url?.startsWith('https://www.imdb.com/title/')){
+      const link=document.createElement('a');link.className='text-link';link.textContent='View on IMDb';link.href=data.imdb_url;link.target='_blank';link.rel='noopener noreferrer';$('detail-links').append(link);
+    }
+   }).catch(error=>{if(current===detailsRequest)$('detail-description').textContent=error.message});
 }
 
+// Movie posters are looked up in one request per page; actual image bytes are
+// downloaded once and cached privately on the NUC.
+const moviePosterJobs=[];
+function fetchMoviePosters(){
+ const jobs=moviePosterJobs.splice(0);
+ if(!jobs.length)return;
+ fetch('/api/movies/posters',{method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({items:jobs.map(j=>({library_id:j.item.library_id,key:j.item.key}))})})
+   .then(response=>response.ok?response.json():null)
+   .then(data=>{
+     if(!data?.items)return;
+     const map=new Map(data.items.map(entry=>[entry.library_id+'|'+entry.key,entry.poster_url]));
+     for(const job of jobs){
+       const poster=map.get(job.item.library_id+'|'+job.item.key);
+       if(!poster?.startsWith('/api/artwork/')||!job.cover.isConnected)continue;
+       const img=document.createElement('img');img.className='poster-image';img.alt=job.item.title+' poster';
+       img.src=poster;img.loading='lazy';job.cover.append(img);
+     }
+   }).catch(()=>{});
+}
 // Artwork requests are intentionally lazy and capped to avoid rate limiting.
 const posterQueue=[];
 let posterActive=0;
@@ -148,6 +179,7 @@ function createCard(item){
  if(type==='movies')button.addEventListener('click',()=>openDetails(item));
  article.append(button);
  if(type==='tv')observePoster(article,cover,item);
+ else moviePosterJobs.push({cover,item});
  return article;
 }
 async function load(reset=true){
@@ -160,6 +192,7 @@ async function load(reset=true){
   const data=await response.json();if(thisRequest!==requestId)return;
   total=data.total;const items=Array.isArray(data.items)?data.items:[];
   for(const item of items)$('items').append(createCard(item));
+  if(type==='movies')fetchMoviePosters();
   offset+=items.length;
   $('results-count').textContent=total.toLocaleString()+' title'+(total===1?'':'s');
   $('status').textContent=total?('Showing '+offset.toLocaleString()+' of '+total.toLocaleString()):'';
