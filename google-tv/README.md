@@ -1,19 +1,22 @@
-# One-Eyed Willie for Google TV
+# One-Eyed Willie for Android TV / Google TV
 
-Native Android TV / Google TV client (Kotlin + Compose, Media3). This first milestone is LAN-first.
+This is the **actual One-Eyed Willie server interface** running inside a TV-optimized Android WebView—not a separately designed Android catalog. Home, Movies, TV Shows, Explore, details, matching, and Settings are rendered by the server. Layout and branding changes shipped to the server appear in the Android TV app without reimplementing screens.
+
+The TV launcher icon is derived from the user-provided black-and-white pirate ship PNG. The image is bundled locally so the launcher works offline.
 
 ## Build and install
-1. Open the `google-tv/` folder in Android Studio (JDK 17).
-2. Let Android Studio sync Gradle, then select `app` and **Build APK**.
-3. Install the debug APK on a Google TV device using Android Studio or `adb install app/build/outputs/apk/debug/app-debug.apk`.
-4. Start the server on the same network and enter `http://SERVER-IP:8787` in the app.
 
-The TV launcher entry is included. The app connects to `/health`, browses `/api/catalog`, drills into TV seasons and launches a fullscreen Media3 player using the server stream endpoint.
+1. Open `google-tv/` in Android Studio (JDK 17) and build the app's debug APK, or use GitHub Actions' **Google TV APK** workflow.
+2. Install with `adb install -r app/build/outputs/apk/debug/app-debug.apk`.
+3. Enter your server URL on the first run. The app saves it and loads the full server interface on subsequent launches.
+4. A TV remote's D-pad navigates the actual server links and buttons, with focus indicators. Back returns to prior pages.
 
-## Current limitations
-- Basic text tiles only. Poster art, D-pad focus animations and redesigned home shelves are next.
-- No discovery/pairing yet; enter the local server address manually.
-- HTTP cleartext is enabled for LAN servers. Do not expose an unauthenticated server or client over the public internet.
-- No media transcoding: codec support depends on Google TV device and source format.
-- Progress/watched sync and resume still require wiring to `/api/playback/progress`.
-- No CI build validation has yet been run on this Android project.
+## Playback
+
+Selecting Play in the browser interface switches to the existing native Media3 player to avoid Android WebView codec restrictions. As a result the **catalog and navigation match the server exactly**, but native playback controls may still differ from the browser player. Test resume, captions, seeking, and media compatibility on the target TV before relying on feature parity.
+
+The Android client is LAN-first and currently supports HTTP for local media servers. Do not expose an unauthenticated server to the public internet. Native external metadata links are intentionally blocked from navigating inside the trusted embedded server view.
+
+## Signing
+
+The debug APK is not signed with a production release key. A debug APK with a new signing certificate may not update an already-installed APK with the same application ID. Do not uninstall a signed production installation without first considering its saved server settings.
