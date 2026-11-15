@@ -66,7 +66,7 @@ class TVHierarchyTests(unittest.TestCase):
         self.assertEqual(result["season_number"], 2)
         self.assertEqual(result["episode_number"], 1)
         self.assertEqual(result["title"], "Episode 1")
-        self.assertFalse(result["playback_available"])
+        self.assertTrue(result["playback_available"])
 
     def test_bad_show_and_missing_season_are_404(self):
         with self.assertRaises(HTTPException):
