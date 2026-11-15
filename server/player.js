@@ -6,6 +6,24 @@
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
   let captions=null;
+  let captionsSelect=null;
+  function syncCaptions(){
+    if(captions){captions.remove();captions=null}
+    if(!current||!captionsSelect)return;
+    const value=captionsSelect.value;
+    if(!/^(external|embedded)-[0-9]{1,3}$/.test(value))return;
+    const video=current.querySelector('video');
+    const track=document.createElement('track');
+    track.kind='subtitles';track.label=captionsSelect.selectedOptions[0].textContent;
+    track.srclang='en';
+    track.src='/api/stream/subtitles/'+mediaId+'/'+value+'.vtt'+
+      (playbackMode==='hls'&&offset>0?'?start='+encodeURIComponent(offset):'');
+    track.default=true;
+    track.onload=()=>{if(track.track)track.track.mode='showing'};
+    track.onerror=()=>message('This subtitle track could not be loaded.');
+    video.append(track);captions=track;
+    if(track.track)track.track.mode='showing';
+  }
   const css=`
 .willie-player{position:fixed;inset:0;z-index:10000;background:#000;color:#f0f5fb;
 display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif}
@@ -75,7 +93,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     clearInterval(monitor);monitor=null;
     video.pause();destroyStream();
     video.removeAttribute('src');video.load();
-    current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;
+    current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;captionsSelect=null;
     if(document.fullscreenElement===node)document.exitFullscreen().catch(()=>{});
     node.remove();
     document.dispatchEvent(new CustomEvent('willie:watch-updated'));
@@ -101,6 +119,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     await saveProgress(true);
     destroyStream();video.pause();video.removeAttribute('src');video.load();
     offset=seek;playbackMode='hls';
+    syncCaptions();
     message('Preparing compatible HLS stream…');
     try{
       const result=await requestJson('/api/stream/hls/start/'+mediaId+
@@ -160,20 +179,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     cc.setAttribute('aria-label','Subtitles');cc.title='Subtitles';
     cc.hidden=true;
     const off=document.createElement('option');off.value='';off.textContent='CC Off';cc.append(off);
-    cc.onchange=()=>{
-      if(captions){captions.remove();captions=null}
-      const value=cc.value;
-      if(!value||!current||current!==surface)return;
-      if(!/^(external|embedded)-[0-9]{1,3}$/.test(value))return;
-      const track=document.createElement('track');
-      track.kind='subtitles';track.label=cc.selectedOptions[0].textContent;
-      track.srclang='en';track.src='/api/stream/subtitles/'+id+'/'+value+'.vtt';
-      track.default=true;
-      track.onload=()=>{if(track.track)track.track.mode='showing'};
-      track.onerror=()=>message('This subtitle track could not be loaded.');
-      video.append(track);captions=track;
-      if(track.track)track.track.mode='showing';
-    };
+    cc.onchange=syncCaptions;
     const watch=document.createElement('button');watch.textContent='Mark watched';
     watch.onclick=async()=>{
       try{
@@ -200,7 +206,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     const total=document.createElement('span');total.textContent='0:00:00';
     timeline.append(elapsed,slider,total);
     surface.append(video,controls,info,timeline);
-    document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;
+    document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;captionsSelect=cc;
     // Must be synchronous with user's Play click for fullscreen permission.
     try{surface.requestFullscreen?.().catch(()=>{})}catch(_){}
     let entered=false;
