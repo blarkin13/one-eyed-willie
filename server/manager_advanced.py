@@ -30,7 +30,24 @@ def _event(data, name):
         "message": _text(data.get("trackedDownloadStatus"), 100),
     }
 
-def _episode(data):
+def _episode(data, files=None):
+    """An episode is downloaded if Sonarr links it to an imported media file."""
+    file_id = _positive_int(data.get("episodeFileId"))
+    embedded = data.get("episodeFile")
+    embedded = embedded if isinstance(embedded, dict) else {}
+    if file_id is None:
+        file_id = _positive_int(embedded.get("id"))
+    files = files or {}
+    file_data = files.get(file_id) or embedded
+    quality = file_data.get("quality") if isinstance(file_data, dict) else {}
+    if isinstance(quality, dict):
+        quality = quality.get("quality") or quality
+    quality_name = _text(quality.get("name") if isinstance(quality, dict) else quality, 80)
+    size = file_data.get("size") if isinstance(file_data, dict) else None
+    size = size if isinstance(size, int) and not isinstance(size, bool) and size >= 0 else None
+    path = file_data.get("path") or file_data.get("relativePath") or ""
+    filename = str(path).replace(chr(92), "/").rsplit("/", 1)[-1] if path else ""
+    has_file = bool(data.get("hasFile")) or file_id is not None or bool(file_data)
     return {
         "id": _positive_int(data.get("id")),
         "title": _text(data.get("title"), 200),
@@ -38,7 +55,11 @@ def _episode(data):
         "episode": data.get("episodeNumber"),
         "air_date": _json_date(data.get("airDateUtc") or data.get("airDate")),
         "monitored": bool(data.get("monitored")),
-        "has_file": bool(data.get("hasFile")),
+        "has_file": has_file,
+        "file_id": file_id,
+        "file_quality": quality_name,
+        "file_size": size,
+        "file_name": _text(filename, 220),
         "overview": _text(data.get("overview"), 1000),
         "absolute": data.get("absoluteEpisodeNumber"),
     }
@@ -157,8 +178,24 @@ def title_detail(name: str, item_id: int = Path(gt=0)):
         "external_url": setting["url"],
     }
     if name == "sonarr":
-        episodes = _request(name, setting, "episode", query={"seriesId": item_id})
-        ep = [_episode(row) for row in _rows(episodes) if isinstance(row, dict)]
+        episodes = _request(name, setting, "episode", query={
+            "seriesId": item_id, "includeEpisodeFile": "true",
+        })
+        episode_rows = [row for row in _rows(episodes) if isinstance(row, dict)]
+        # Older Sonarr versions omit nested file details even with includeEpisodeFile.
+        # Fetch the series' imported files once and join via episodeFileId.
+        file_map = {}
+        if any((row.get("hasFile") or _positive_int(row.get("episodeFileId")) or
+                isinstance(row.get("episodeFile"), dict)) for row in episode_rows):
+            try:
+                episode_files = _request(name, setting, "episodefile", query={"seriesId": item_id})
+                if isinstance(episode_files, list):
+                    file_map = {_positive_int(row.get("id")): row for row in episode_files
+                                if isinstance(row, dict) and _positive_int(row.get("id"))}
+            except HTTPException:
+                # File association is still available from the episode response.
+                pass
+        ep = [_episode(row, file_map) for row in episode_rows]
         ep.sort(key=lambda row: (row["season"] if isinstance(row["season"], int) else -1,
                                 row["episode"] if isinstance(row["episode"], int) else -1))
         seasons = []

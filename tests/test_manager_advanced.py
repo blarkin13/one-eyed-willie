@@ -33,10 +33,14 @@ class AdvancedManagerTests(unittest.TestCase):
                 return {"id":22,"title":"Test Series","overview":"Science fiction",
                         "seasons":[{"seasonNumber":1,"monitored":True,"statistics":{"episodeCount":4}}]}
             if resource=="episode":
+                self.assertEqual(kwargs["query"]["includeEpisodeFile"], "true")
                 return [{"id":50,"seasonNumber":1,"episodeNumber":2,"title":"Episode 2",
                          "monitored":True,"hasFile":False},
                         {"id":49,"seasonNumber":1,"episodeNumber":1,"title":"Episode 1",
-                         "monitored":True,"hasFile":True}]
+                         "monitored":True,"hasFile":True,"episodeFileId":123}]
+            if resource=="episodefile":
+                return [{"id":123,"size":2147483648,"path":"/tv/Test Series/S01E01.mkv",
+                         "quality":{"quality":{"name":"WEBDL-1080p"}}}]
             raise AssertionError(resource)
         with patch.object(advanced,"_provider",return_value=self.setting), \
              patch.object(advanced,"_request",side_effect=fake):
@@ -44,6 +48,11 @@ class AdvancedManagerTests(unittest.TestCase):
         self.assertEqual(detail["seasons"][0]["number"],1)
         self.assertEqual(detail["episodes"][0]["episode"],1)
         self.assertEqual(detail["episodes"][1]["title"],"Episode 2")
+        self.assertTrue(detail["episodes"][0]["has_file"])
+        self.assertEqual(detail["episodes"][0]["file_quality"],"WEBDL-1080p")
+        self.assertEqual(detail["episodes"][0]["file_size"],2147483648)
+        self.assertEqual(detail["episodes"][0]["file_name"],"S01E01.mkv")
+        self.assertFalse(detail["episodes"][1]["has_file"])
 
     def test_season_monitor_updates_only_selected_season(self):
         original={"id":22,"title":"Example",

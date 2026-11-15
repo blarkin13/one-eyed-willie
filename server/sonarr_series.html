@@ -16,7 +16,7 @@
 .series-button:hover,.series-heading button:hover,.series-button:focus-visible{background:#365878}
 .series-button:disabled{opacity:.48;cursor:default}
 .series-overview{max-width:1000px;line-height:1.75;color:#b9cbdd;margin:15px 0 27px}
-.series-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:11px;margin:20px 0 25px}
+.series-stats{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:11px;margin:20px 0 25px}
 .series-stat{padding:18px 20px;border:1px solid #344b64;border-radius:12px;background:#142437}
 .series-stat strong{display:block;font-size:1.7rem}
 .series-stat span{display:block;color:#adbed1;font-size:.84rem;margin-top:3px}
@@ -58,6 +58,14 @@
 @media(max-width:950px){.series-episode{grid-template-columns:auto 1fr}.series-episode .series-buttons{grid-column:2}}
 @media(max-width:650px){.series-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.series-stat{padding:12px}.series-stat strong{font-size:1.35rem}.series-season>summary{padding:16px}.series-season-body{padding:0 12px 14px}.series-selection{padding:12px}.series-episode{gap:11px}.series-episode .series-buttons{gap:6px}.series-buttons button{font-size:.75rem}.series-manual-item{align-items:flex-start;flex-direction:column}}
 @media(prefers-reduced-motion:reduce){.series-season>summary::after{transition:none}}
+.series-file-state{display:inline-flex;align-items:center;gap:6px;border:1px solid transparent;border-radius:7px;padding:5px 9px;font-size:.77rem;font-weight:750;line-height:1.25;white-space:nowrap}
+.series-file-state.downloaded{color:#b6f0d1;background:#153a30;border-color:#386a58}
+.series-file-state.missing{color:#ffd9ac;background:#36281c;border-color:#74543a}
+.series-episode-heading{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.series-file-details{font-size:.81rem;color:#b7cfdf;margin:5px 0 0;overflow-wrap:anywhere}
+.series-season-downloads{color:#b6f0d1}
+.series-file-state::before{content:"✓";font-size:.85rem}
+.series-file-state.missing::before{content:"—"}
 </style></head>
 <body data-page="sonarr"><div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content sonarr-series-page">
@@ -72,7 +80,8 @@
 <div class="series-stat"><strong id="stat-seasons">0</strong><span>Seasons</span></div>
 <div class="series-stat"><strong id="stat-episodes">0</strong><span>Episodes</span></div>
 <div class="series-stat"><strong id="stat-monitored">0</strong><span>Monitored</span></div>
-<div class="series-stat"><strong id="stat-missing">0</strong><span>Without files</span></div>
+<div class="series-stat"><strong id="stat-downloaded">0</strong><span>Downloaded</span></div>
+<div class="series-stat"><strong id="stat-missing">0</strong><span>Not downloaded</span></div>
 </div>
 <div class="series-selection" aria-label="Selected episode actions">
 <div class="series-selection-summary"><span class="series-selected-count" id="series-count" aria-live="polite">0 episodes selected</span>
@@ -81,7 +90,8 @@
 <button type="button" class="series-button" id="bulk-unmonitor" disabled>Unmonitor selected</button>
 <button type="button" class="series-button" id="bulk-search" disabled>Search selected</button></div></div>
 <div class="series-select-tools">
-<button class="series-button" type="button" id="select-unfiled">Select without files</button>
+<button class="series-button" type="button" id="select-unfiled">Select not downloaded</button>
+<button class="series-button" type="button" id="select-downloaded">Select downloaded</button>
 <button class="series-button" type="button" id="select-monitored">Select monitored</button>
 <button class="series-button" type="button" id="select-all">Select all</button>
 <button class="series-button" type="button" id="select-clear">Clear selection</button></div>
@@ -114,6 +124,13 @@ function textEl(tag,text,className){
 function button(text,click,disabled=false){
  const node=document.createElement('button');node.type='button';node.textContent=text;node.disabled=disabled;
  node.addEventListener('click',click);return node;
+}
+function formatFileSize(size){
+ if(typeof size!=='number'||!Number.isFinite(size)||size<0)return '';
+ const units=['B','KB','MB','GB','TB'];
+ let n=size,index=0;
+ while(n>=1024&&index<units.length-1){n/=1024;index++}
+ return n.toFixed(index===0?0:1)+' '+units[index];
 }
 function labels(episode){
  const season=String(episode.season??0).padStart(2,'0');
@@ -168,6 +185,7 @@ function render(){
  $('stat-seasons').textContent=String(data.seasons.length);
  $('stat-episodes').textContent=String(data.episodes.length);
  $('stat-monitored').textContent=String(data.episodes.filter(ep=>ep.monitored).length);
+ $('stat-downloaded').textContent=String(data.episodes.filter(ep=>ep.has_file).length);
  $('stat-missing').textContent=String(data.episodes.filter(ep=>!ep.has_file).length);
  const destination=$('series-seasons');destination.replaceChildren();
  const seasons=data.seasons.length?data.seasons:
@@ -179,7 +197,7 @@ function render(){
   const summary=document.createElement('summary');
   const info=document.createElement('span');
   info.append(textEl('span',season.number===0?'Specials':'Season '+season.number,'series-season-title'));
-  info.append(textEl('span',entries.filter(ep=>ep.has_file).length+'/'+entries.length+' files · '+
+  info.append(textEl('span',entries.filter(ep=>ep.has_file).length+' of '+entries.length+' downloaded · '+
    entries.filter(ep=>ep.monitored).length+' monitored','series-season-meta'));
   summary.append(info);details.append(summary);
   details.addEventListener('toggle',()=>{
@@ -222,9 +240,18 @@ function render(){
     updateSelected();
    });
    const info=document.createElement('div');
-   info.append(textEl('strong',labels(ep)+' · '+(ep.title||'Untitled episode')));
-   info.append(textEl('small',[ep.air_date,ep.has_file?'File available':'No file',
+   const headline=document.createElement('div');headline.className='series-episode-heading';
+   headline.append(textEl('strong',labels(ep)+' · '+(ep.title||'Untitled episode')));
+   const fileBadge=textEl('span',ep.has_file?'Downloaded':'Not downloaded',
+     'series-file-state '+(ep.has_file?'downloaded':'missing'));
+   fileBadge.setAttribute('aria-label',ep.has_file?'Downloaded file available':'No downloaded file in Sonarr');
+   headline.append(fileBadge);info.append(headline);
+   info.append(textEl('small',[ep.air_date,
      ep.monitored?'Monitored':'Not monitored'].filter(Boolean).join(' · ')));
+   if(ep.has_file){
+    const details=[ep.file_quality,formatFileSize(ep.file_size),ep.file_name].filter(Boolean);
+    if(details.length)info.append(textEl('div',details.join(' · '),'series-file-details'));
+   }
    if(ep.overview)info.append(textEl('p',ep.overview.slice(0,320)));
    const actions=document.createElement('div');actions.className='series-buttons';
    actions.append(button(ep.monitored?'Unmonitor':'Monitor',()=>{
@@ -266,6 +293,11 @@ $('bulk-search').onclick=()=>command('search',[...selected],'Searching selected 
 $('select-unfiled').onclick=()=>{
  if(!data)return;
  selected.clear();data.episodes.filter(ep=>ep.id&&!ep.has_file).forEach(ep=>selected.add(ep.id));
+ updateSelected();
+};
+$('select-downloaded').onclick=()=>{
+ if(!data)return;
+ selected.clear();data.episodes.filter(ep=>ep.id&&ep.has_file).forEach(ep=>selected.add(ep.id));
  updateSelected();
 };
 $('select-monitored').onclick=()=>{
