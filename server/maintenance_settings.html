@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>One-Eyed Willie · Maintenance</title>
+<link rel="icon" type="image/png" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+<style>
+.maintenance-panel{max-width:950px}.maintenance-row{display:flex;align-items:flex-start;justify-content:space-between;gap:24px;padding:17px 4px;border-bottom:1px solid var(--line)}
+.maintenance-row:last-of-type{border-bottom:none}.maintenance-description{flex:1}.maintenance-description strong{display:block;font-size:1rem}.maintenance-description small{display:block;color:var(--muted);margin:4px 0;font-size:.85rem}.maintenance-description .last-run{font-size:.78rem;color:var(--muted)}
+.maintenance-row input[type=checkbox]{width:23px;height:23px;accent-color:var(--accent);margin-top:4px;cursor:pointer;flex:none}
+.maintenance-actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:20px}
+.maintenance-note{font-size:.9rem;color:var(--muted);max-width:800px;line-height:1.65}
+@media(max-width:600px){.maintenance-row{gap:12px}.maintenance-panel{padding:15px}}
+</style></head><body data-page="maintenance">
+<div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Scheduled Maintenance</h1>
+<p>Keep your libraries and local caches current, without changing the original media files.</p></div></div>
+<section class="form-card maintenance-panel" aria-labelledby="schedule-title">
+<h2 id="schedule-title">Automatic maintenance</h2>
+<p class="maintenance-note">The server checks for due work during its overnight maintenance window (3 AM Central time). Weekly tasks run once per week; metadata refresh tasks run once every three days. Preview generation runs daily. Missed work runs during the next maintenance window after the server comes back online. Jobs process limited batches to protect playback performance.</p>
+<div id="maintenance-options"><p id="loading-options" role="status">Loading maintenance settings…</p></div>
+<div class="maintenance-actions">
+<button class="primary-button" id="maintenance-save" type="button" disabled>Save settings</button>
+<button class="secondary-button" id="maintenance-run" type="button" disabled>Run maintenance now</button>
+<button class="secondary-button" id="maintenance-previews" type="button" disabled>Generate video previews now</button>
+</div>
+<p id="maintenance-status" role="status" class="message"></p>
+</section>
+<section class="form-card maintenance-panel"><h2>Performance and storage</h2>
+<p class="maintenance-note">Quick media analysis reads video and audio stream properties with FFprobe. Extensive media analysis samples black frames, silence and loudness from the first minute of up to three videos per maintenance run. Preview generation extracts six 320-pixel images per video, with at most four new preview sets in each scheduled run. Previews appear when hovering or seeking on the video timeline. Analysis and preview files are kept in the private server data directory, not on your read-only media drive.</p>
+<p class="maintenance-note">Old bundle cleanup is limited to generated One-Eyed Willie maintenance bundles. Cache cleanup removes stale generated artwork, WebVTT derivatives, and expired HLS sessions; it preserves downloaded subtitle files and manually corrected metadata matches. Database optimization preserves library and playback history.</p>
+</section></main></div></div>
+<script>
+const descriptions=[
+ ['optimize_database','Optimize database','Weekly','Optimize SQLite indexes and reclaim unused space.'],
+ ['remove_old_bundles','Remove old bundles','Weekly','Remove obsolete bundles created by the app; never original media.'],
+ ['remove_old_cache_files','Remove old cache files','Weekly','Remove stale artwork, generated subtitle conversions and inactive streaming cache.'],
+ ['refresh_local_metadata','Refresh local metadata','Every 3 days','Expire outdated provider metadata entries so updated information is fetched again.'],
+ ['update_all_libraries','Update all libraries','Weekly','Scan each library for added, changed and removed files.'],
+ ['upgrade_media_analysis','Upgrade media analysis','Weekly','Read stream properties for up to 40 indexed files each maintenance run.'],
+ ['refresh_library_metadata','Refresh library metadata periodically','Every 3 days','Refresh show and season metadata while preserving manually selected matches.'],
+ ['extensive_media_analysis','Perform extensive media analysis','Weekly','Sample video black segments and audio silence/loudness for up to three files per run.'],
+ ['video_preview_thumbnails','Enable video preview thumbnails','Daily and on demand','Create six preview frames per video; generated in limited batches.']
+];
+const byId=id=>document.getElementById(id);
+const controls={};
+const message=(value,error=false)=>{byId('maintenance-status').textContent=value;byId('maintenance-status').className='message'+(error?' error':'')};
+async function api(url,options){
+ const response=await fetch(url,{cache:'no-store',...options});
+ const data=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Request failed');
+ return data;
+}
+async function load(){
+ try{
+  const state=await api('/api/maintenance/settings');
+  const parent=byId('maintenance-options');parent.replaceChildren();
+  for(const [key,title,cadence,description] of descriptions){
+   const row=document.createElement('label');row.className='maintenance-row';
+   const text=document.createElement('span');text.className='maintenance-description';
+   const heading=document.createElement('strong');heading.textContent=title;
+   const details=document.createElement('small');details.textContent=cadence+' · '+description;
+   const last=document.createElement('small');last.className='last-run';
+   const saved=state.last_runs?.[key];
+   last.textContent=saved?.last_completed?
+     'Last completed: '+new Date(saved.last_completed*1000).toLocaleString()+' · '+saved.last_result:
+     'Not completed yet';
+   text.append(heading,details,last);
+   const checkbox=document.createElement('input');checkbox.type='checkbox';
+   checkbox.checked=!!state.settings[key];checkbox.setAttribute('aria-label',title);
+   controls[key]=checkbox;
+   row.append(text,checkbox);parent.append(row);
+  }
+  byId('maintenance-save').disabled=false;
+  byId('maintenance-run').disabled=!!state.running;
+  byId('maintenance-previews').disabled=!!state.running||!state.settings.video_preview_thumbnails;
+  message(state.running?'Maintenance is running. Check status again after it completes.':'Settings loaded.');
+ }catch(error){message(error.message,true)}
+}
+byId('maintenance-save').onclick=async()=>{
+ const button=byId('maintenance-save');button.disabled=true;
+ try{
+  const settings=Object.fromEntries(descriptions.map(([key])=>[key,controls[key].checked]));
+  await api('/api/maintenance/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(settings)});
+  message('Maintenance preferences saved.');await load();
+ }catch(error){message(error.message,true)}
+ finally{button.disabled=false;}
+};
+byId('maintenance-run').onclick=async()=>{
+ if(!confirm('Run enabled maintenance tasks now? Video analysis may temporarily use CPU resources.'))return;
+ try{await api('/api/maintenance/run',{method:'POST'});message('Maintenance started.');await load();}
+ catch(error){message(error.message,true)}
+};
+byId('maintenance-previews').onclick=async()=>{
+ try{await api('/api/maintenance/previews/generate',{method:'POST'});message('Preview generation started.');await load();}
+ catch(error){message(error.message,true)}
+};
+load();
+</script></body></html>

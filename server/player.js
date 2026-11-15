@@ -59,6 +59,10 @@ opacity:0;transition:opacity .15s}
 .willie-controls button:hover,.willie-toolbar button:hover,.willie-controls button:focus-visible,.willie-toolbar button:focus-visible{background:#ffffff2c}
 .willie-controls button svg,.willie-toolbar button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .willie-bottom{position:absolute;bottom:0;left:0;right:0;z-index:5;background:linear-gradient(transparent,#000e 65%);padding:44px 25px 20px;transition:opacity .2s}
+.willie-preview-tooltip{position:absolute;bottom:102px;left:50%;transform:translateX(-50%);z-index:9;width:180px;text-align:center;pointer-events:none;background:#090c11ed;border:1px solid #ffffff50;border-radius:9px;padding:6px;box-shadow:0 8px 22px #0009}
+.willie-preview-tooltip[hidden]{display:none}
+.willie-preview-tooltip img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:5px}
+.willie-preview-tooltip span{font-size:12px;color:var(--ink,#fff);font-variant-numeric:tabular-nums}
 .willie-toolbar{display:flex;justify-content:space-between;align-items:center}
 .willie-group{display:flex;align-items:center;gap:8px}
 .willie-subtitle-menu{position:absolute;right:25px;bottom:90px;background:var(--panel,#171b20);border:1px solid var(--line,#535b64);border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:13px;width:min(360px,calc(100vw - 40px))}
@@ -384,6 +388,28 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const slider=document.createElement('input');slider.type='range';slider.min='0';slider.max='1000';slider.value='0';
     slider.setAttribute('aria-label','Playback position');
     const total=document.createElement('span');total.textContent='0:00:00';
+    const preview=document.createElement('div');preview.className='willie-preview-tooltip';preview.hidden=true;
+    const previewImage=document.createElement('img');previewImage.alt='Video preview thumbnail';
+    const previewTime=document.createElement('span');preview.append(previewImage,previewTime);
+    let previewImages=[];
+    const previewAt=fraction=>{
+      if(!previewImages.length)return;
+      const index=Math.max(0,Math.min(previewImages.length-1,Math.floor(fraction*previewImages.length)));
+      previewImage.src=previewImages[index];
+      const duration=Number(status?.duration_seconds)||video.duration;
+      previewTime.textContent=Number.isFinite(duration)?formatTime(duration*fraction):'';
+      preview.hidden=false;
+    };
+    slider.addEventListener('input',()=>previewAt(Math.max(0,Math.min(1,Number(slider.value)/1000))));
+    slider.addEventListener('pointermove',event=>{
+      const rect=slider.getBoundingClientRect();
+      if(rect.width>0)previewAt(Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width)));
+    });
+    for(const eventName of ['pointerleave','blur','change'])slider.addEventListener(eventName,()=>{preview.hidden=true});
+    requestJson('/api/maintenance/preview/'+id).then(data=>{
+      if(current===surface&&data.enabled&&Array.isArray(data.images))previewImages=data.images.filter(url=>/^\/api\/maintenance\/preview\/\d+\/00[0-5]\.jpg$/.test(url));
+    }).catch(()=>{});
+    timeline.append(preview);
     timeline.append(elapsed,slider,total);
     bottom.prepend(timeline);surface.append(video,controls,info,bottom,nextPrompt);
     document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;captionsSelect=cc;

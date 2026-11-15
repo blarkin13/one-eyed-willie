@@ -18,6 +18,7 @@ from server.arr import router as arr_router
 from server.tv import router as tv_router
 from server.metadata import router as metadata_router
 from server.people import router as people_router
+from server.maintenance import router as maintenance_router, maintenance_loop
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -25,12 +26,17 @@ async def lifespan(app: FastAPI):
     cleanup_stop = threading.Event()
     cleanup_thread = threading.Thread(target=cleanup_loop,args=(cleanup_stop,),daemon=True)
     cleanup_thread.start()
+    maintenance_stop = threading.Event()
+    maintenance_thread = threading.Thread(target=maintenance_loop, args=(maintenance_stop,), daemon=True, name='maintenance-scheduler')
+    maintenance_thread.start()
     stop, thread = start_background_scans()
     try:
         yield
     finally:
         stop.set()
         thread.join(timeout=5)
+        maintenance_stop.set()
+        maintenance_thread.join(timeout=3)
         cleanup_stop.set()
         cleanup_thread.join(timeout=3)
 
@@ -49,6 +55,7 @@ app.include_router(arr_router)
 app.include_router(tv_router)
 app.include_router(metadata_router)
 app.include_router(people_router)
+app.include_router(maintenance_router)
 
 @app.get("/health")
 def health():
@@ -178,3 +185,9 @@ def explore_more_page():
 @app.get("/settings/connections")
 def arr_connections_page():
     return FileResponse(Path(__file__).with_name("arr_connections.html"), media_type="text/html")
+
+
+@app.get("/settings/maintenance")
+def maintenance_settings_page():
+    return FileResponse(Path(__file__).with_name("maintenance_settings.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-store"})
