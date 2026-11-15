@@ -1,4 +1,5 @@
 import json
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -24,6 +25,32 @@ class ProviderTests(unittest.TestCase):
             stub = patch.object(target, attr, return_value=value) if attr == "_item" else patch.object(target, attr, value)
             stub.start()
             self.addCleanup(stub.stop)
+
+    def test_save_key_verifies_and_keeps_secrets_private(self):
+        config = self.root / "opensubtitles-settings.json"
+        with patch.object(provider, "SETTINGS_PATH", config), \
+             patch.object(provider, "_json", return_value={"data": []}) as verify:
+            result = provider.save_settings(provider.SettingsRequest(api_key="demo-key-123", token="demo-token"))
+            self.assertTrue(result["configured"])
+            self.assertTrue(result["token_configured"])
+            self.assertEqual(result["source"], "settings")
+            self.assertNotIn("demo-key-123", str(result))
+            self.assertNotIn("demo-token", str(result))
+            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(provider._headers()["Api-Key"], "demo-key-123")
+            self.assertEqual(verify.call_count, 1)
+            cleared = provider.remove_settings()
+            self.assertFalse(config.exists())
+            self.assertEqual(cleared["source"], "none")
+
+    def test_invalid_provider_key_does_not_replace_existing_key(self):
+        config = self.root / "opensubtitles-settings.json"
+        config.write_text(json.dumps({"api_key": "previous-working-key", "token": ""}))
+        with patch.object(provider, "SETTINGS_PATH", config), \
+             patch.object(provider, "_json", side_effect=HTTPException(502, "Provider rejected key")):
+            with self.assertRaises(HTTPException):
+                provider.save_settings(provider.SettingsRequest(api_key="new-bad-key"))
+        self.assertEqual(json.loads(config.read_text())["api_key"], "previous-working-key")
 
     def test_key_required_and_no_leak(self):
         with patch.dict("os.environ", {"OPENSUBTITLES_API_KEY": ""}):
