@@ -99,6 +99,31 @@ class MovieMetadataTests(unittest.TestCase):
         self.assertTrue(response["connected"])
         self.assertNotIn("sensitive-local-key", str(response))
 
+    def test_radarr_internal_poster_is_registered_without_credentials_in_url(self):
+        (movies.SETTINGS_PATH).write_text(
+            '{"url":"http://192.168.86.29:7878","api_key":"sensitive-local-key"}'
+        )
+        records = [{
+            "title": "Arrival", "year": 2016,
+            "poster_internal": "/MediaCover/123/poster.jpg?lastWrite=2026",
+            "overview": "Existing Radarr artwork",
+        }]
+        with patch.object(movies, "_snapshot", return_value=records):
+            result = movies.movie_details(library_id=1, key="arrival:2016")
+        self.assertTrue(result["poster_url"].startswith("/api/artwork/"))
+        with library.db() as conn:
+            row = conn.execute("SELECT source,kind FROM artwork_assets").fetchone()
+        self.assertEqual(row["kind"], "radarr")
+        self.assertEqual(row["source"], "http://192.168.86.29:7878/MediaCover/123/poster.jpg")
+        self.assertNotIn("sensitive-local-key", str(result))
+
+    def test_remote_artwork_does_not_allow_radarr_arbitrary_path(self):
+        (movies.SETTINGS_PATH).write_text(
+            '{"url":"http://192.168.86.29:7878","api_key":"sensitive-local-key"}'
+        )
+        self.assertIsNone(artwork.register_radarr("/api/v3/system/status"))
+        self.assertIsNone(artwork.register_radarr("/MediaCover/../config.xml"))
+
     def test_wrong_library_or_movie_returns_404(self):
         with self.assertRaises(HTTPException):
             movies.movie_details(library_id=1, key="other:2020")
