@@ -9,6 +9,7 @@ from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.home import router as home_router
 from server.playback import router as playback_router
+from server.subtitles import router as subtitles_router
 from server.hls import router as hls_router, init_cache, cleanup_loop
 from server.artwork import router as artwork_router
 from server.movies import router as movies_router
@@ -31,12 +32,13 @@ async def lifespan(app: FastAPI):
         cleanup_stop.set()
         cleanup_thread.join(timeout=3)
 
-app = FastAPI(title="One-Eyed Willie", version="0.12.0", lifespan=lifespan)
+app = FastAPI(title="One-Eyed Willie", version="0.13.0", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
 app.include_router(remote_config_router)
 app.include_router(home_router)
 app.include_router(playback_router)
+app.include_router(subtitles_router)
 app.include_router(hls_router)
 app.include_router(artwork_router)
 app.include_router(movies_router)
@@ -46,7 +48,7 @@ app.include_router(metadata_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "application": "one-eyed-willie", "version": "0.12.0"}
+    return {"status": "ok", "application": "one-eyed-willie", "version": "0.13.0"}
 
 @app.get("/api/catalog")
 def get_catalog(
