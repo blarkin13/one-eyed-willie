@@ -169,12 +169,14 @@ def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_len
 def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show, meta, seasons = merged_show(library_id, key)
     cast = []
-    if meta.get("source") == "TVmaze":
-        for actor in tvmaze_show_cast(meta.get("tvmaze_id")):
-            cast.append({"name": actor["name"], "character": actor["character"],
-                         "photo": register_remote(actor.get("photo_url"))})
+    actors = (tvmaze_show_cast(meta.get("tvmaze_id"))
+              if meta.get("source") == "TVmaze" else meta.get("cast") or [])
+    for actor in actors:
+        cast.append({"name": actor["name"], "character": actor.get("character") or "",
+                     "photo": register_remote(actor.get("photo_url"))})
     result = {
         "cast": cast,
+        "reviews": meta.get("reviews") or [],
         "rating": meta.get("rating"),
         "network": meta.get("network"),
         "genres": meta.get("genres") or [],
