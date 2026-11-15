@@ -18,6 +18,7 @@ from threading import Lock, Semaphore
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
+Image.MAX_IMAGE_PIXELS = 40_000_000
 
 from .library import db, MEDIA_ROOT
 
@@ -329,7 +330,7 @@ def warm_thumbnail(digest):
             os.chmod(temp, 0o600)
             os.replace(temp, target)
             return True
-        except (OSError, ValueError, UnidentifiedImageError):
+        except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError):
             return False
         finally:
             if os.path.exists(temp):
@@ -341,7 +342,8 @@ def artwork_thumbnail(digest: str):
     if not HEX.fullmatch(digest):
         raise HTTPException(404, "Thumbnail not found")
     if not warm_thumbnail(digest):
-        raise HTTPException(404, "Thumbnail unavailable")
+        # Preserve the full original poster when an unusual image cannot be resized.
+        return artwork(digest)
     return FileResponse(
         THUMB_DIR / (digest + ".jpg"), media_type="image/jpeg",
         headers={"Cache-Control": "private, max-age=604800",
