@@ -61,15 +61,27 @@ document.addEventListener('DOMContentLoaded', () => {
       if(!Number.isInteger(library.id)||!['movies','tv'].includes(library.kind))continue;
       const name=String(library.name||'').trim().slice(0,80);
       if(!name)continue;
+      // The combined Movies and TV Shows links already represent standard libraries.
+      // Show only separately named collections, e.g. Horror, as additional entries.
+      const normalized=name.toLocaleLowerCase().replace(/[^a-z0-9]/g,'');
+      if((library.kind==='movies'&&normalized==='movies')||
+         (library.kind==='tv'&&(normalized==='tvshows'||normalized==='tv')))continue;
       const url=new URLSearchParams({library_id:String(library.id)});
       const link=document.createElement('a');
       link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+url;
       link.title=name;link.setAttribute('aria-label',name+' library');
       link.className='nav-link library-nav-link';
       if(selected===String(library.id)&&(page==='movies'||page==='tv'))link.setAttribute('aria-current','page');
-      link.append(glyph(library.kind==='tv'?'fa-tv':'fa-film',library.kind==='tv'?'tv':'film'));
+      // Distinctive initial makes custom collections identifiable with the sidebar collapsed.
+      const icon=document.createElement('span');
+      icon.className='nav-icon library-initial';
+      icon.setAttribute('aria-hidden','true');
+      icon.textContent=Array.from(name)[0].toUpperCase();
+      link.append(icon);
       const caption=document.createElement('span');caption.className='nav-text';caption.textContent=name;link.append(caption);
-      nav.append(link);
+      // Keep custom collections alongside Movies/TV Shows, not after Settings.
+      const settingsLink=nav.querySelector('a[href="/settings/libraries"]');
+      nav.insertBefore(link,settingsLink);
     }
   }).catch(()=>{});
   if(inSettings){
