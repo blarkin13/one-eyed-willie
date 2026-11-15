@@ -5,6 +5,7 @@
   let current=null, mediaId=0, status=null, hls=null, session=null;
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
+  let captions=null;
   const css=`
 .willie-player{position:fixed;inset:0;z-index:10000;background:#000;color:#f0f5fb;
 display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif}
@@ -17,6 +18,10 @@ opacity:0;transition:opacity .15s}
 .willie-controls button{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
 color:#fff;padding:10px 13px;cursor:pointer;font:inherit}
 .willie-controls button:hover{background:#2a435f}
+.willie-subtitle-select{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
+color:#fff;padding:10px 12px;font:inherit;max-width:180px;cursor:pointer}
+.willie-subtitle-select option{background:#172636;color:#fff}
+.willie-subtitle-select[hidden]{display:none}
 .willie-title{font-weight:650;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .willie-info{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);
 background:#172637ec;color:#e8f3ff;border:1px solid #324c66;border-radius:12px;
@@ -70,7 +75,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     clearInterval(monitor);monitor=null;
     video.pause();destroyStream();
     video.removeAttribute('src');video.load();
-    current=null;mediaId=0;status=null;started=false;offset=0;switching=false;
+    current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;
     if(document.fullscreenElement===node)document.exitFullscreen().catch(()=>{});
     node.remove();
     document.dispatchEvent(new CustomEvent('willie:watch-updated'));
@@ -151,6 +156,24 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     const name=document.createElement('span');name.className='willie-title';name.textContent=title||'Now playing';
     const backward=document.createElement('button');backward.textContent='−10s';
     const forward=document.createElement('button');forward.textContent='+10s';
+    const cc=document.createElement('select');cc.className='willie-subtitle-select';
+    cc.setAttribute('aria-label','Subtitles');cc.title='Subtitles';
+    cc.hidden=true;
+    const off=document.createElement('option');off.value='';off.textContent='CC Off';cc.append(off);
+    cc.onchange=()=>{
+      if(captions){captions.remove();captions=null}
+      const value=cc.value;
+      if(!value||!current||current!==surface)return;
+      if(!/^(external|embedded)-[0-9]{1,3}$/.test(value))return;
+      const track=document.createElement('track');
+      track.kind='subtitles';track.label=cc.selectedOptions[0].textContent;
+      track.srclang='en';track.src='/api/stream/subtitles/'+id+'/'+value+'.vtt';
+      track.default=true;
+      track.onload=()=>{if(track.track)track.track.mode='showing'};
+      track.onerror=()=>message('This subtitle track could not be loaded.');
+      video.append(track);captions=track;
+      if(track.track)track.track.mode='showing';
+    };
     const watch=document.createElement('button');watch.textContent='Mark watched';
     watch.onclick=async()=>{
       try{
@@ -168,7 +191,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
       else video.currentTime=Math.max(0,Math.min(video.duration||1e7,target));
     };
     backward.onclick=()=>seekBy(-10);forward.onclick=()=>seekBy(10);
-    controls.append(back,name,backward,forward,watch);
+    controls.append(back,name,backward,forward,cc,watch);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
     const timeline=document.createElement('div');timeline.className='willie-timeline';
     const elapsed=document.createElement('span');elapsed.textContent='0:00:00';
@@ -218,6 +241,16 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     requestJson('/api/watch/'+id+'/status').then(data=>{
       if(current!==surface)return;
       status=data;watch.textContent=data.watched?'✓ Watched':'Mark watched';
+      requestJson('/api/stream/subtitles/'+id).then(info=>{
+        if(current!==surface)return;
+        for(const item of info.tracks||[]){
+          if(!/^(external|embedded)-[0-9]{1,3}$/.test(item.id))continue;
+          const option=document.createElement('option');option.value=item.id;
+          option.textContent='CC '+String(item.label||'Subtitles').slice(0,80);
+          cc.append(option);
+        }
+        cc.hidden=cc.options.length===1;
+      }).catch(()=>{});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
       if(data.mode==='direct'){
         playbackMode='direct';video.src=data.stream_url;
