@@ -21,6 +21,13 @@
      <button class="primary-button" type="button" onclick="openAdd()">+ Add library</button></div>
    <p class="message" id="message" role="status"></p>
    <section id="library-list" aria-label="Configured libraries"></section>
+   <section class="form-card" aria-labelledby="overview-title">
+     <h2 id="overview-title">Library overview</h2>
+     <div class="stats" aria-label="Library totals">
+       <div class="stat"><strong id="overview-movies">—</strong><span>Movies</span></div>
+       <div class="stat"><strong id="overview-tv">—</strong><span>TV Shows</span></div>
+     </div>
+   </section>
    <div class="form-card"><h2>Library safety</h2><p>Media folders are mounted read-only. Scans update the catalog, never the original files. Automatic rescans run every five minutes.</p></div>
   </main>
  </div>
@@ -58,8 +65,18 @@ byId('folder-status').textContent='Selected folder: '+current}catch(e){byId('fol
 function openAdd(){byId('name').value='Movies';byId('kind').value='movies';byId('add-dialog').showModal();browse('/media')}
 byId('kind').onchange=()=>byId('name').value=byId('kind').value==='movies'?'Movies':'TV Shows';
 byId('add-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/libraries',{method:'POST',body:JSON.stringify({name:byId('name').value,kind:byId('kind').value,path:chosen})});byId('add-dialog').close();notify('Library saved. Select Scan now to catalog the files.');await load()}catch(ex){byId('folder-status').textContent=ex.message}};
-async function scan(id){notify('Scanning files. This can take some time for large libraries.');try{let result=await api('/api/libraries/'+id+'/scan',{method:'POST'});notify('Scan complete: '+result.found+' files found'+(result.errors?' ('+result.errors+' errors)':''));await load()}catch(e){notify(e.message,true)}}
+async function scan(id){notify('Scanning files. This can take some time for large libraries.');try{let result=await api('/api/libraries/'+id+'/scan',{method:'POST'});notify('Scan complete: '+result.found+' files found'+(result.errors?' ('+result.errors+' errors)':''));await load();await loadOverview()}catch(e){notify(e.message,true)}}
 async function remove(id,name){if(!confirm('Remove '+name+' from One-Eyed Willie? Your original media files will not be deleted.'))return;try{await api('/api/libraries/'+id,{method:'DELETE'});notify('Library removed; media files were not deleted.');await load()}catch(e){notify(e.message,true)}}
-load();
-
+async function loadOverview(){
+ try{
+  const r=await fetch('/api/home',{cache:'no-store'});
+  if(!r.ok)throw Error('Library totals unavailable');
+  const data=await r.json();
+  byId('overview-movies').textContent=Number(data.totals?.movies||0).toLocaleString();
+  byId('overview-tv').textContent=Number(data.totals?.tv||0).toLocaleString();
+ }catch(error){
+  byId('overview-movies').textContent='—';byId('overview-tv').textContent='—';
+ }
+}
+load();loadOverview();
 </script></body></html>

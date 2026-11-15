@@ -21,27 +21,21 @@
   <div class="workspace">
     <header class="topbar"><div class="breadcrumbs" id="breadcrumbs"></div><div class="server-pill"><span class="server-dot" aria-hidden="true"></span>Personal media server</div></header>
     <main class="content">
-      <div class="page-head">
-        <div><p class="eyebrow">Your media</p><h1>Home</h1><p class="page-lead">Your movies and shows, all in one place.</p></div>
-        <div class="stats" aria-label="Library totals">
-          <div class="stat"><strong id="movie-count">—</strong><span>Movies</span></div>
-          <div class="stat"><strong id="show-count">—</strong><span>TV Shows</span></div>
-        </div>
-      </div>
-      <p id="status" class="status-line" role="status">Loading library…</p>
+      <h1 class="sr-only">Home</h1>
+      <p id="status" class="status-line" role="status">Loading…</p>
       <section class="shelf" aria-labelledby="continue-heading">
-        <div class="section-heading"><div><h2 id="continue-heading" class="shelf-title">Continue Watching</h2><p class="shelf-desc">Unfinished movies and TV episodes</p></div></div>
+        <div class="section-heading"><div><h2 id="continue-heading" class="shelf-title">Continue Watching</h2></div></div>
         <div id="continue-watching"></div>
       </section>
       <section class="shelf" aria-labelledby="movies-heading">
-        <div class="section-heading"><div><h2 id="movies-heading" class="shelf-title">Recently Added Movies</h2><p class="shelf-desc">Latest titles indexed in your movie library</p></div><a href="/movies" class="shelf-action">View all movies</a></div>
+        <div class="section-heading"><div><h2 id="movies-heading" class="shelf-title">Recently Added Movies</h2></div><a href="/movies" class="shelf-action" title="All movies" aria-label="All movies"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
         <div id="recent-movies"></div>
       </section>
       <section class="shelf" aria-labelledby="tv-heading">
-        <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2><p class="shelf-desc">Latest series indexed in your TV library</p></div><a href="/tv" class="shelf-action">View all shows</a></div>
+        <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2></div><a href="/tv" class="shelf-action" title="All TV shows" aria-label="All TV shows"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
         <div id="recent-tv"></div>
       </section>
-      <p class="note">Movies use local or Radarr artwork. TV shows use TVmaze and connected Sonarr metadata. Both are cached on your NUC. <a class="text-link" href="/explore">Explore more movies and TV shows.</a></p>
+      
     </main>
   </div>
 </div>
@@ -129,11 +123,10 @@ async function load(){
     const response=await fetch('/api/home',{cache:'no-store'});
     if(!response.ok)throw Error('Server returned '+response.status);
     const data=await response.json();
-    byId('movie-count').textContent=Number(data.totals?.movies||0).toLocaleString();
-    byId('show-count').textContent=Number(data.totals?.tv||0).toLocaleString();
-    shelf('continue-watching',data.continue_watching,'Nothing in progress yet','Unfinished movies and TV episodes will appear here after playback progress is recorded. Playback support is still being built.',true);
-    shelf('recent-movies',data.recent_movies,'No movies indexed yet','Add a movie library in Settings → Libraries and scan it.');
-    shelf('recent-tv',data.recent_tv,'No TV shows indexed yet','Add a TV library in Settings → Libraries and scan it.');
+
+    shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
+    shelf('recent-movies',data.recent_movies,'No movies yet','');
+    shelf('recent-tv',data.recent_tv,'No TV shows yet','');
     fetchMoviePosters();
     byId('status').textContent='';
   }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
