@@ -292,8 +292,19 @@ def _details(library_id, key, snapshot=None):
                     or register_radarr(radarr.get("backdrop_internal")) )
     imdb_id = nfo.get("imdb_id") or radarr.get("imdb_id")
     imdb_id = imdb_id if isinstance(imdb_id, str) and IMDB_ID.fullmatch(imdb_id) else None
+    with db() as conn:
+        entry = conn.execute(
+            "SELECT m.id,p.position_seconds,p.duration_seconds,p.completed "
+            "FROM media m LEFT JOIN playback_progress p ON p.media_id=m.id "
+            "WHERE m.library_id=? AND m.path=? ORDER BY m.id LIMIT 1",
+            (library_id, str(video)),
+        ).fetchone()
     return {
         "library_id": library_id, "key": key, "title": parsed["title"],
+        "media_id": entry["id"] if entry else None,
+        "watched": bool(entry and entry["completed"]),
+        "position_seconds": entry["position_seconds"] if entry and entry["position_seconds"] else 0,
+        "duration_seconds": entry["duration_seconds"] if entry and entry["duration_seconds"] else 0,
         "year": parsed["year"], "poster_url": poster_url,
         "backdrop_url": backdrop_url,
         "overview": nfo.get("overview") or radarr.get("overview") or "",
