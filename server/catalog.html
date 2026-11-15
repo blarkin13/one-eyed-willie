@@ -11,6 +11,19 @@
 #more{min-width:178px}
 .detail-top{display:flex;gap:22px;align-items:flex-start}.detail-art{width:128px;aspect-ratio:2/3;border-radius:12px;background:linear-gradient(160deg,#354b61,#18202d);display:flex;align-items:center;justify-content:center;font-size:3.5rem;color:#b1c2d6;flex:none}.detail-metadata{flex:1;min-width:0}.detail-metadata p{color:var(--muted);margin:7px 0}
 @media(max-width:530px){.detail-art{width:90px;font-size:2.6rem}.detail-top{gap:13px}}
+.alpha-nav{position:fixed;top:50%;right:9px;transform:translateY(-50%);z-index:12;
+ display:flex;flex-direction:column;align-items:center;gap:0;background:#0a1421e8;
+ backdrop-filter:blur(12px);padding:5px 3px;border-radius:14px}
+.alpha-nav[hidden]{display:none}
+.alpha-nav button{background:none;border:0;color:#c3d3e4;min-width:25px;min-height:20px;
+ font-size:11px;font-weight:700;padding:0 2px}
+.alpha-nav button:disabled{color:#4c6074;cursor:default}
+.alpha-nav button:not(:disabled):hover,.alpha-nav button:not(:disabled):focus-visible{color:#fff;background:#2a435e;border-radius:5px}
+.tile{scroll-margin-top:12px}
+@media(max-height:650px){.alpha-nav button{min-height:15px;font-size:10px}}
+@media(max-width:700px){.alpha-nav{right:2px;padding:4px 0}
+.alpha-nav button{min-width:18px;min-height:19px;font-size:10px}
+#items{padding-right:15px}}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -37,8 +50,8 @@
       <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
       <p id="status" class="status-line" role="status">Loading titles…</p>
       <div id="items" aria-live="off"></div>
-      <div class="load-more-wrap"><button type="button" class="secondary-button" id="more" hidden>Load more</button></div>
-      <p class="note">Movie artwork comes from local poster files or your Radarr library. TV artwork comes from TVmaze. Artwork is cached on the server.</p>
+      <nav id="alpha-nav" class="alpha-nav" aria-label="Jump to letter" hidden></nav>
+      
     </main>
   </div>
 </div>
@@ -48,8 +61,7 @@ const type=location.pathname==='/tv'?'tv':'movies';
 document.body.dataset.page=type;
 const $=id=>document.getElementById(id);
 const query=new URLSearchParams(location.search);
-let offset=0,total=0,requestId=0,loading=false;
-const PAGE_SIZE=60;
+let total=0,requestId=0,loading=false;
 const initialSearch=query.get('search')||'';
 $('search').value=initialSearch.slice(0,150);
 if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
@@ -63,22 +75,35 @@ for(const [id,kind] of [['tab-movies','movies'],['tab-tv','tv']]){
 // Movie posters are looked up in one request per page; actual image bytes are
 // downloaded once and cached privately on the NUC.
 const moviePosterJobs=[];
-function fetchMoviePosters(){
+async function fetchMoviePosters(){
  const jobs=moviePosterJobs.splice(0);
  if(!jobs.length)return;
- fetch('/api/movies/posters',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({items:jobs.map(j=>({library_id:j.item.library_id,key:j.item.key}))})})
-   .then(response=>response.ok?response.json():null)
-   .then(data=>{
-     if(!data?.items)return;
-     const map=new Map(data.items.map(entry=>[entry.library_id+'|'+entry.key,entry.poster_url]));
-     for(const job of jobs){
-       const poster=map.get(job.item.library_id+'|'+job.item.key);
-       if(!poster?.startsWith('/api/artwork/')||!job.cover.isConnected)continue;
-       const img=document.createElement('img');img.className='poster-image';img.alt=job.item.title+' poster';
-       img.src=poster;img.loading='lazy';job.cover.append(img);
-     }
-   }).catch(()=>{});
+ // Server caps one poster request at 60. Fetch in bounded batches, while
+ // images themselves use native lazy loading and the NUC artwork cache.
+ const batches=[];
+ for(let i=0;i<jobs.length;i+=50)batches.push(jobs.slice(i,i+50));
+ let next=0;
+ async function worker(){
+   while(next<batches.length){
+     const part=batches[next++];
+     try{
+       const response=await fetch('/api/movies/posters',{
+         method:'POST',headers:{'Content-Type':'application/json'},
+         body:JSON.stringify({items:part.map(j=>({library_id:j.item.library_id,key:j.item.key}))})});
+       if(!response.ok)continue;
+       const data=await response.json();
+       const map=new Map((data.items||[]).map(e=>[e.library_id+'|'+e.key,e.poster_url]));
+       for(const job of part){
+         const poster=map.get(job.item.library_id+'|'+job.item.key);
+         if(!poster?.startsWith('/api/artwork/')||!job.cover.isConnected)continue;
+         const img=document.createElement('img');img.className='poster-image';
+         img.alt=job.item.title+' poster';img.loading='lazy';img.decoding='async';
+         img.src=poster;job.cover.append(img);
+       }
+     }catch(_){}
+   }
+ }
+ await Promise.all([worker(),worker(),worker()]);
 }
 // Artwork requests are intentionally lazy and capped to avoid rate limiting.
 const posterQueue=[];
@@ -142,29 +167,64 @@ function createCard(item){
  else moviePosterJobs.push({cover,item});
  return article;
 }
-async function load(reset=true){
- if(loading&&!reset)return;
- const thisRequest=++requestId;if(reset){offset=0;$('items').replaceChildren();}
- loading=true;$('more').disabled=true;$('status').textContent='Loading titles…';
- const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value,offset:String(offset),limit:String(PAGE_SIZE)});
+function drawAlphabet(items){
+ const nav=$('alpha-nav');nav.replaceChildren();
+ const show=$('sort').value==='title'&&!$('search').value.trim()&&items.length>15;
+ nav.hidden=!show;
+ if(!show)return;
+ const markers=new Map();
+ for(const item of items){
+   const initial=(item.title.trim()[0]||'#').toUpperCase();
+   const letter=/^[A-Z]$/.test(initial)?initial:'#';
+   if(!markers.has(letter)){
+     const card=document.querySelector('[data-letter="'+letter+'"]');
+     if(card)markers.set(letter,card);
+   }
+ }
+ for(const letter of '#ABCDEFGHIJKLMNOPQRSTUVWXYZ'){
+   const item=markers.get(letter);
+   const a=document.createElement('button');a.type='button';a.textContent=letter;
+   a.title=item?'Jump to '+letter:'No titles beginning with '+letter;
+   a.setAttribute('aria-label',a.title);a.disabled=!item;
+   if(item)a.onclick=()=>item.scrollIntoView({behavior:'smooth',block:'start'});
+   nav.append(a);
+ }
+}
+async function load(){
+ const thisRequest=++requestId;
+ loading=true;$('status').textContent='Loading titles…';
+ const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value});
  try{
-  const response=await fetch('/api/catalog?'+params,{cache:'no-store'});if(!response.ok)throw Error('Server returned '+response.status);
+  const response=await fetch('/api/catalog/all?'+params,{cache:'no-store'});
+  if(!response.ok)throw Error('Server returned '+response.status);
   const data=await response.json();if(thisRequest!==requestId)return;
-  total=data.total;const items=Array.isArray(data.items)?data.items:[];
-  for(const item of items)$('items').append(createCard(item));
+  total=data.total;const entries=Array.isArray(data.items)?data.items:[];
+  $('items').replaceChildren();
+  moviePosterJobs.length=0;posterQueue.length=0;
+  const fragment=document.createDocumentFragment();
+  for(const item of entries){
+    const card=createCard(item);
+    const initial=(item.title.trim()[0]||'#').toUpperCase();
+    const letter=/^[A-Z]$/.test(initial)?initial:'#';
+    card.dataset.letter=letter;
+    fragment.append(card);
+  }
+  $('items').append(fragment);
+  drawAlphabet(entries);
   if(type==='movies')fetchMoviePosters();
-  offset+=items.length;
-  $('results-count').textContent=total.toLocaleString()+' title'+(total===1?'':'s');
-  $('status').textContent=total?('Showing '+offset.toLocaleString()+' of '+total.toLocaleString()):'';
-  if(!total){const empty=document.createElement('div');empty.className='empty';const h=document.createElement('h3');h.textContent='No titles found';const p=document.createElement('p');p.textContent=$('search').value?'Try another search.':'Add a library in Settings → Libraries and scan it.';empty.append(h,p);$('items').append(empty);}
-  $('more').hidden=offset>=total;
- }catch(error){if(thisRequest===requestId)$('status').textContent='Unable to load titles: '+error.message;}
- finally{if(thisRequest===requestId){loading=false;$('more').disabled=false;}}
+  $('results-count').textContent=total.toLocaleString()+' titles';
+  $('status').textContent='';
+  if(!total){
+    const empty=document.createElement('div');empty.className='empty';
+    const heading=document.createElement('h3');heading.textContent='No titles found';
+    empty.append(heading);$('items').append(empty);
+  }
+ }catch(error){if(thisRequest===requestId)$('status').textContent='Unable to load titles: '+error.message}
+ finally{if(thisRequest===requestId)loading=false}
 }
 let debounce;
-$('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(true),220)});
+$('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(),220)});
 $('sort').addEventListener('change',()=>load(true));
-$('more').onclick=()=>load(false);
 load();
 </script>
 </body></html>
