@@ -215,13 +215,16 @@ def _normalized_results(name, records, library_ids):
         art = next((x for x in images if
                     isinstance(x, dict) and x.get("coverType") in ("poster", "banner")), {})
         poster = register_remote(art.get("remoteUrl"))
+        fanart = next((x for x in images if isinstance(x, dict)
+                       and x.get("coverType") in ("fanart", "background")), {})
+        backdrop = register_remote(fanart.get("remoteUrl"))
         title = str(item.get("title") or "")[:180]
         if not title:
             continue
         result.append({
             "id": external_id, "title": title, "year": item.get("year"),
             "overview": str(item.get("overview") or "")[:900],
-            "poster_url": poster, "provider": name,
+            "poster_url": poster, "backdrop_url": backdrop, "provider": name,
             "already_added": external_id in library_ids,
         })
         if len(result) >= 20:
@@ -265,6 +268,7 @@ def discover(name: str):
                 "year": int(release_date[:4]) if len(release_date) >= 4 and release_date[:4].isdigit() else None,
                 "release_date": release_date, "rating": item.get("vote_average"),
                 "poster_url": metadata.image_url(item.get("poster_path")),
+                "backdrop_url": metadata.image_url(item.get("backdrop_path"), "w1280"),
                 "source": "TMDB",
             })
         sections[key] = items

@@ -112,6 +112,25 @@ document.addEventListener('DOMContentLoaded',()=>{
   async function lookup(element){
     const direct=element.dataset.hoverBackdrop;
     if(valid(direct))return direct;
+    const exploreProvider=element.dataset.hoverExploreProvider;
+    if(['radarr','sonarr'].includes(exploreProvider)){
+      const identity='explore|'+exploreProvider+'|'+(element.dataset.hoverTmdbId||element.dataset.hoverTitle||'')+'|'+(element.dataset.hoverYear||'');
+      if(cache.has(identity))return cache.get(identity);
+      const query=new URLSearchParams();
+      if(/^\d+$/.test(element.dataset.hoverTmdbId||''))query.set('tmdb_id',element.dataset.hoverTmdbId);
+      else{
+        if(!element.dataset.hoverTitle)return null;
+        query.set('title',element.dataset.hoverTitle);
+        if(element.dataset.hoverYear)query.set('year',element.dataset.hoverYear);
+      }
+      const promise=fetch('/api/arr/'+exploreProvider+'/detail?'+query,{cache:'default'})
+        .then(response=>response.ok?response.json():null)
+        .then(data=>valid(data?.backdrop_url)?data.backdrop_url:null)
+        .catch(()=>null);
+      cache.set(identity,promise);
+      if(cache.size>90)cache.delete(cache.keys().next().value);
+      return promise;
+    }
     const kind=element.dataset.hoverKind;
     const id=element.dataset.hoverLibraryId;
     const key=element.dataset.hoverKey;

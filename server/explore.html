@@ -3,7 +3,7 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · Explore More</title>
-<link rel="stylesheet" href="/assets/ui.css?v=hover-2"><script defer src="/assets/shell.js?v=hover-1"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=hover-2"><script defer src="/assets/shell.js?v=hover-3"></script>
 <style>
 .explore-search{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:25px 0 20px}
 .explore-search .search-box{flex:1;min-width:220px}.explore-search .search-box input{width:100%}
@@ -156,7 +156,17 @@ function render(items,container=$('results'),isDiscovery=false){
  const grid=container;grid.replaceChildren();
  for(const item of items){
   const article=document.createElement('article');article.className='explore-card';
-   if(item.backdrop_url?.startsWith('/api/artwork/')||item.backdrop_url?.startsWith('https://image.tmdb.org/t/p/'))article.dataset.hoverBackdrop=item.backdrop_url;
+   const backdrop=item.backdrop_url;
+   if(backdrop?.startsWith('/api/artwork/')||backdrop?.startsWith('https://image.tmdb.org/t/p/')){
+     article.dataset.hoverBackdrop=backdrop;
+   }else{
+     article.dataset.hoverExploreProvider=provider;
+     if(isDiscovery&&Number.isInteger(item.id))article.dataset.hoverTmdbId=String(item.id);
+     else{
+       article.dataset.hoverTitle=item.title;
+       if(item.year)article.dataset.hoverYear=String(item.year);
+     }
+   }
   const cover=document.createElement('div');cover.className='cover';
   const titleOnCover=document.createElement('div');titleOnCover.className='cover-title';titleOnCover.textContent=item.title;
   if(item.poster_url?.startsWith('/api/artwork/') || (isDiscovery && item.poster_url?.startsWith('https://image.tmdb.org/t/p/'))){
@@ -189,6 +199,7 @@ function addSection(parent,title,body){
  section.append(node('h2','',title),body);parent.append(section);
 }
 function restoreExplore(){
+ document.dispatchEvent(new CustomEvent('willie:explore-backdrop',{detail:{url:null}}));
  $('explore-detail').hidden=true;$('browse-area').hidden=false;
  detailSelection=null;document.title='One-Eyed Willie · Explore '+(provider==='radarr'?'Movies':'TV Shows');
  window.scrollTo({top:0,behavior:'instant'});
