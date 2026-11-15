@@ -51,7 +51,26 @@ class HLSTests(unittest.TestCase):
         self.assertNotIn("h264_vaapi", command)
         gpu = hls._command(self.video, folder, 20, True)
         self.assertIn("h264_vaapi", gpu)
+        self.assertIn("-hwaccel", gpu)
+        self.assertEqual(gpu[gpu.index("-hwaccel")+1], "vaapi")
+        self.assertIn("-hwaccel_output_format", gpu)
+        self.assertIn("scale_vaapi=w=1280:h=720:force_original_aspect_ratio=decrease:force_divisible_by=2:format=nv12", gpu)
         self.assertNotIn("libx264", gpu)
+
+    def test_vaapi_failure_restarts_with_software(self):
+        gpu = FakeProcess()
+        gpu.stopped = True
+        software = FakeProcess()
+        with patch.object(hls, "_item", return_value=({"id": 1}, self.video)), \
+             patch.object(hls, "hardware_available", return_value=True), \
+             patch.object(hls, "probe_duration", return_value=150), \
+             patch.object(hls.subprocess, "Popen", side_effect=[gpu, software]) as popen:
+            info = hls.start_hls(1, 0)
+            self.assertEqual(info["engine"], "Intel VAAPI decode + encode")
+            data = hls.stream_status(info["session"])
+        self.assertEqual(data["engine"], "CPU fallback")
+        self.assertEqual(popen.call_count, 2)
+        self.assertIn("libx264", popen.call_args.args[0])
 
     def test_session_start_status_segment_and_stop(self):
         process = FakeProcess()
