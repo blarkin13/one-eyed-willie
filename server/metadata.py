@@ -138,7 +138,7 @@ def show_metadata(title, year=None):
             return {}
         item = matches[0]
         tmdb_id = item.get("id")
-        details = _call("tv/" + str(tmdb_id), query={"language": "en-US"}) or item
+        details = _call("tv/" + str(tmdb_id), query={"language": "en-US", "append_to_response": "videos"}) or item
         seasons = []
         for season in details.get("seasons", []):
             seasons.append({
@@ -148,7 +148,18 @@ def show_metadata(title, year=None):
                 "poster_url": image_url(season.get("poster_path")),
                 "episode_count": season.get("episode_count"),
             })
+        trailer = next((
+            v.get("key") for v in (details.get("videos") or {}).get("results", [])
+            if isinstance(v, dict) and v.get("site") == "YouTube"
+            and v.get("type") == "Trailer"
+            and isinstance(v.get("key"), str)
+            and re.fullmatch(r"[A-Za-z0-9_-]{11}", v["key"])
+        ), None)
         metadata = {
+            "trailer_key": trailer,
+            "rating": details.get("vote_average"),
+            "genres": [g.get("name") for g in details.get("genres", []) if isinstance(g, dict) and g.get("name")],
+            "network": ", ".join(n.get("name") for n in details.get("networks", []) if isinstance(n, dict) and n.get("name")),
             "tmdb_id": tmdb_id,
             "title": details.get("name") or title,
             "overview": details.get("overview") or "",
