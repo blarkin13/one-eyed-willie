@@ -118,12 +118,15 @@ class CompactLayoutTests(unittest.TestCase):
 
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
-        for path in ("/movies", "/tv", "/explore", "/settings/libraries"):
+        for path in ("/movies", "/tv", "/settings/libraries"):
             self.assertIn(path, js)
-        for name in ("fa-house", "fa-film", "fa-tv", "fa-compass", "fa-gear"):
+        for name in ("fa-house", "fa-film", "fa-tv", "fa-gear"):
             self.assertIn(name, js)
         self.assertIn("aria-label", js)
         self.assertIn("fa-fallback", js)
+        catalog = (SERVER / "catalog.html").read_text()
+        self.assertIn('id="explore-library"', catalog)
+        self.assertIn("/explore?type=", catalog)
         css = (SERVER / "ui.css").read_text()
         self.assertIn("@media(max-width:700px)", css)
         self.assertIn("safe-area-inset-bottom", css)
