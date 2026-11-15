@@ -6,6 +6,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.*
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -25,6 +26,8 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
@@ -33,12 +36,12 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import kotlinx.coroutines.launch
 
-private val navy = Color(0xFF0B0D12)
-private val rail = Color(0xFF10141B)
-private val surface = Color(0xFF19202B)
-private val ink = Color(0xFFEDF1F7)
-private val muted = Color(0xFF98A5B7)
-private val accent = Color(0xFF8AB9ED)
+private val navy = Color(0xFF000000)
+private val rail = Color(0xFF080808)
+private val surface = Color(0xFF151515)
+private val ink = Color(0xFFF4F0E8)
+private val muted = Color(0xFFB0AFA9)
+private val accent = Color(0xFFE8E3D9)
 
 class MainActivity : ComponentActivity() {
     private val settings by lazy { getSharedPreferences("server", MODE_PRIVATE) }
@@ -105,21 +108,18 @@ class MainActivity : ComponentActivity() {
 
             Row(Modifier.fillMaxSize().background(navy)) {
                 Column(
-                    Modifier.width(188.dp).fillMaxHeight().background(rail)
-                        .padding(start = 18.dp, end = 12.dp, top = 26.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp)
+                    Modifier.width(210.dp).fillMaxHeight().background(rail)
+                        .border(width = 1.dp, color = Color(0xFF292827))
+                        .padding(start = 18.dp, end = 18.dp, top = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    if (connected) {
-                        AsyncImage(
-                            model = address.trimEnd('/') + "/assets/logo.png",
-                            contentDescription = "One-Eyed Willie",
-                            modifier = Modifier.height(70.dp).width(145.dp),
-                            contentScale = ContentScale.Fit
-                        )
-                    } else {
-                        Text("One-Eyed Willie", color = ink, fontSize = 21.sp, fontWeight = FontWeight.Bold)
-                    }
-                    Spacer(Modifier.height(16.dp))
+                    Image(
+                        painter = painterResource(id = R.drawable.willie_logo),
+                        contentDescription = "One-Eyed Willie pirate ship",
+                        modifier = Modifier.fillMaxWidth().height(156.dp),
+                        contentScale = ContentScale.Fit
+                    )
+                    Spacer(Modifier.height(12.dp))
                     listOf(
                         Triple("Home", "⌂", "Home"),
                         Triple("Movies", "▣", "Movies"),
@@ -132,10 +132,10 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 Column(
-                    Modifier.fillMaxSize().padding(horizontal = 40.dp, vertical = 32.dp)
+                    Modifier.fillMaxSize().padding(horizontal = 42.dp, vertical = 28.dp)
                 ) {
                     if (!connected || section == "Settings") {
-                        Text("Server connection", color = ink, fontSize = 27.sp, fontWeight = FontWeight.SemiBold)
+                        Text("SETTINGS  /  SERVER", color = ink, fontSize = 25.sp, fontWeight = FontWeight.Medium, letterSpacing = 2.sp)
                         Spacer(Modifier.height(14.dp))
                         Text("Connect to the One-Eyed Willie server on your local network.", color = muted)
                         Spacer(Modifier.height(18.dp))
@@ -168,7 +168,7 @@ class MainActivity : ComponentActivity() {
                         }) { Text("Connect") }
                     } else if (selected != null) {
                         val item = selected!!
-                        Text(item.title, fontSize = 35.sp, color = ink, fontWeight = FontWeight.Bold)
+                        Text(item.title, fontSize = 35.sp, color = ink, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
                         Text(listOfNotNull(item.year?.toString(), detail?.genres?.takeIf { it.isNotBlank() })
                             .joinToString("  ·  "), color = muted, fontSize = 16.sp)
@@ -202,10 +202,30 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else if (section == "Home") {
-                        LazyColumn(verticalArrangement = Arrangement.spacedBy(30.dp)) {
+                        LazyColumn(verticalArrangement = Arrangement.spacedBy(28.dp)) {
+                            item {
+                                Row(
+                                    Modifier.fillMaxWidth().padding(bottom = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(20.dp)
+                                ) {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.willie_logo),
+                                        contentDescription = null,
+                                        modifier = Modifier.height(108.dp).width(108.dp),
+                                        contentScale = ContentScale.Fit
+                                    )
+                                    Column {
+                                        Text("ONE-EYED WILLIE", fontSize = 30.sp,
+                                            fontWeight = FontWeight.Light, letterSpacing = 3.sp, color = ink)
+                                        Text("YOUR COLLECTION  ·  YOUR SHIP", color = muted,
+                                            fontSize = 13.sp, letterSpacing = 2.sp)
+                                    }
+                                }
+                            }
                             items(home) { (heading, titles) ->
                                 Column {
-                                    Text(heading, fontSize = 23.sp, fontWeight = FontWeight.SemiBold, color = ink)
+                                    Text(heading.uppercase(), fontSize = 21.sp, fontWeight = FontWeight.Medium, color = ink, letterSpacing = 1.6.sp)
                                     Spacer(Modifier.height(16.dp))
                                     if (titles.isEmpty()) {
                                         Text("Nothing here yet", color = muted)
@@ -220,7 +240,7 @@ class MainActivity : ComponentActivity() {
                             }
                         }
                     } else {
-                        Text(section, fontSize = 30.sp, fontWeight = FontWeight.Bold, color = ink)
+                        Text(section.uppercase(), fontSize = 28.sp, fontWeight = FontWeight.Medium, color = ink, letterSpacing = 2.sp)
                         Spacer(Modifier.height(20.dp))
                         LazyVerticalGrid(
                             columns = GridCells.Adaptive(minSize = 155.dp),
@@ -246,11 +266,11 @@ private fun NavigationItem(symbol: String, name: String, active: Boolean, onClic
     Row(
         Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused }
             .clip(RoundedCornerShape(10.dp))
-            .background(if (focused || active) Color(0xFF243449) else Color.Transparent)
+            .background(if (focused || active) Color(0xFF292722) else Color.Transparent)\n            .border(if (focused) 1.dp else 0.dp, if (focused) accent else Color.Transparent, RoundedCornerShape(10.dp))
             .clickable(onClick = onClick).padding(horizontal = 12.dp, vertical = 13.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(symbol, color = if (focused || active) ink else accent, fontSize = 23.sp)
+        Text(symbol, color = ink, fontSize = 23.sp)
         Spacer(Modifier.width(13.dp))
         Text(name, color = if (focused || active) ink else muted, fontSize = 16.sp,
             fontWeight = FontWeight.Medium)
@@ -273,7 +293,7 @@ private fun FocusPill(label: String, onClick: () -> Unit) {
 @Composable
 private fun PosterCard(server: String, item: MediaEntry, onClick: () -> Unit) {
     var focused by remember { mutableStateOf(false) }
-    var artwork by remember(item.key, item.kind, item.libraryId, server) { mutableStateOf<String?>(null) }
+    var artwork by remember(item.key, item.kind, item.libraryId, server) { mutableStateOf<String?>(item.posterUrl) }
     LaunchedEffect(item.key, item.kind, item.libraryId, server) {
         try { artwork = ServerApi(server).details(item).artwork } catch (_: Exception) { }
     }
@@ -283,20 +303,20 @@ private fun PosterCard(server: String, item: MediaEntry, onClick: () -> Unit) {
         Box(
             Modifier.fillMaxWidth().height(224.dp)
                 .clip(RoundedCornerShape(11.dp))
-                .background(Brush.verticalGradient(listOf(Color(0xFF30475E), surface)))
+                .background(surface)
                 .border(if (focused) 3.dp else 1.dp,
-                    if(focused) accent else Color(0xFF344457), RoundedCornerShape(11.dp))
+                    if(focused) accent else Color(0xFF32302C), RoundedCornerShape(11.dp))
         ) {
             if(artwork != null) {
                 AsyncImage(model = artwork, contentDescription = item.title + " poster",
                     contentScale = ContentScale.Crop, modifier = Modifier.fillMaxSize())
             } else {
-                Text(item.title.take(1).uppercase(), color = Color(0xFF889CB3),
+                Text(item.title.take(1).uppercase(), color = Color(0xFFACA79D),
                     fontSize = 64.sp, modifier = Modifier.align(Alignment.Center))
             }
             if(item.progress > 0) {
                 Box(Modifier.align(Alignment.BottomStart).fillMaxWidth()
-                    .height(5.dp).background(Color(0xFF344457))) {
+                    .height(5.dp).background(Color(0xFF35312B))) {
                     Box(Modifier.fillMaxWidth((item.progress / 100f).coerceIn(0f, 1f))
                         .fillMaxHeight().background(accent))
                 }
