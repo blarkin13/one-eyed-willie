@@ -224,3 +224,23 @@ body[data-page="home"] .workspace>.content{padding-top:24px}
 .episode-actions .media-icon-action,.episode-detail-actions .media-icon-action{min-width:0;width:50px}
 .media-icon-action:focus-visible{outline:2px solid #b2cde8;outline-offset:3px}
 @media(prefers-reduced-motion:reduce){.media-icon-action:hover svg{transform:none}}
+
+/* Unboxed media action icons: subtle highlight only on hover/focus. */
+.media-icon-action,.episode-actions .media-icon-action,
+.episode-detail-actions .media-icon-action{
+ background:transparent!important;border:0!important;border-radius:0!important;
+ box-shadow:none!important;color:#d8e7f7;min-width:0!important;padding:8px!important;
+}
+.media-icon-action:hover,.episode-actions .media-icon-action:hover,
+.episode-detail-actions .media-icon-action:hover{
+ background:transparent!important;color:#fff;transform:scale(1.08)
+}
+.media-icon-action[aria-pressed=true]{color:#91dbb4}
+.show-bulk-actions{display:flex;justify-content:flex-start;align-items:center;gap:14px;margin:12px 0 26px}
+.icon-only-control{display:grid;place-items:center;background:transparent;border:0;
+ min-width:48px;height:48px;padding:7px;font-size:1.7rem;font-weight:700;color:#d1e5fa;
+ border-radius:0;cursor:pointer}
+.icon-only-control:hover{color:#fff;transform:scale(1.07)}
+.icon-only-control[aria-pressed=true]{color:#91dbb4}
+.icon-only-control:focus-visible{outline:2px solid #b8d5f4;outline-offset:2px}
+@media(prefers-reduced-motion:reduce){.icon-only-control:hover,.media-icon-action:hover{transform:none}}
