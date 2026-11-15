@@ -134,7 +134,8 @@ def ui_shell():
 
 @app.get("/assets/player.js")
 def player_script():
-    return FileResponse(Path(__file__).with_name("player.js"), media_type="text/javascript")
+    return FileResponse(Path(__file__).with_name("player.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 
 @app.get("/watch/{media_id}")
