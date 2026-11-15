@@ -1,6 +1,7 @@
 package studio.oneeyedwillie.tv
 
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
 import android.app.AlertDialog
 import android.view.KeyEvent
 import android.widget.Button
@@ -148,8 +149,17 @@ class PlayerActivity : ComponentActivity() {
         textSize = 17f
         isAllCaps = false
         setTextColor(Color.WHITE)
-        setBackgroundColor(0x6620344A)
-        setPadding(dp(13), dp(6), dp(13), dp(6))
+        background = GradientDrawable().apply {
+            cornerRadius = dp(8).toFloat()
+            setColor(Color.TRANSPARENT)
+        }
+        setOnFocusChangeListener { _, focused ->
+            background = GradientDrawable().apply {
+                cornerRadius = dp(8).toFloat()
+                setColor(if(focused) 0x664A6580 else Color.TRANSPARENT)
+            }
+        }
+        setPadding(dp(11), dp(6), dp(11), dp(6))
         minHeight = dp(46)
         setOnClickListener { action(); scheduleHide() }
     }
@@ -165,7 +175,7 @@ class PlayerActivity : ComponentActivity() {
             gravity = Gravity.CENTER_VERTICAL
             setBackgroundColor(0x99060D16.toInt())
         }
-        top.addView(control("‹ Back") { finish() })
+        top.addView(control("‹") { finish() }.apply { contentDescription = "Back to library" })
         titleText = TextView(this).apply {
             text = title
             setTextColor(Color.WHITE)
@@ -223,12 +233,13 @@ class PlayerActivity : ComponentActivity() {
             if(p?.isPlaying==true) p.pause() else p?.play()
             refreshControls()
         }
+        playButton.contentDescription = "Play or pause"
         buttons.addView(playButton)
-        buttons.addView(control("↶ 10") { seekTo(currentPosition()-10) })
-        buttons.addView(control("10 ↷") { seekTo(currentPosition()+10) })
+        buttons.addView(control("↶ 10") { seekTo(currentPosition()-10) }.apply { contentDescription = "Rewind ten seconds" })
+        buttons.addView(control("10 ↷") { seekTo(currentPosition()+10) }.apply { contentDescription = "Forward ten seconds" })
         buttons.addView(control("CC") { showCaptions() })
-        buttons.addView(control("✓ Watched") { toggleWatched() })
-        buttons.addView(control("ⓘ") { showDiagnostics() })
+        buttons.addView(control("✓") { toggleWatched() }.apply { contentDescription = "Mark watched or unwatched" })
+        buttons.addView(control("ⓘ") { showDiagnostics() }.apply { contentDescription = "Playback diagnostics" })
         bottom.addView(buttons)
         root.addView(bottom)
         return root
