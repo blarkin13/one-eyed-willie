@@ -17,11 +17,13 @@ from threading import Lock, Semaphore
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
+from PIL import Image, ImageOps, UnidentifiedImageError
 
 from .library import db, MEDIA_ROOT
 
 router = APIRouter(prefix="/api")
 CACHE_DIR = Path(os.environ.get("ARTWORK_CACHE_DIR", "/data/artwork"))
+THUMB_DIR = CACHE_DIR / "thumbs"
 HEX = re.compile(r"^[0-9a-f]{64}$")
 IMAGE_CONTENT_TYPES = {"image/jpeg", "image/png", "image/webp"}
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
@@ -299,3 +301,55 @@ def artwork(digest: str):
         headers={"Cache-Control": "private, max-age=604800",
                  "X-Content-Type-Options": "nosniff"},
     )
+
+
+def warm_thumbnail(digest):
+    """Ensure a small, persistent JPEG exists. Existing registered image stays authoritative."""
+    if not HEX.fullmatch(digest):
+        return False
+    target = THUMB_DIR / (digest + ".jpg")
+    if target.is_file():
+        return True
+    with _locks_for("thumb:" + digest):
+        if target.is_file():
+            return True
+        # Reuse the existing validated source fetch and registration path.
+        original = artwork(digest)
+        source = Path(original.path)
+        THUMB_DIR.mkdir(parents=True, exist_ok=True)
+        fd, temp = tempfile.mkstemp(prefix=".thumb-", suffix=".jpg", dir=THUMB_DIR)
+        try:
+            os.close(fd)
+            with Image.open(source) as picture:
+                picture = ImageOps.exif_transpose(picture)
+                picture.thumbnail((360, 540), Image.Resampling.LANCZOS)
+                if picture.mode != "RGB":
+                    picture = picture.convert("RGB")
+                picture.save(temp, "JPEG", quality=78, optimize=True)
+            os.chmod(temp, 0o600)
+            os.replace(temp, target)
+            return True
+        except (OSError, ValueError, UnidentifiedImageError):
+            return False
+        finally:
+            if os.path.exists(temp):
+                os.unlink(temp)
+
+
+@router.get("/artwork/thumb/{digest}")
+def artwork_thumbnail(digest: str):
+    if not HEX.fullmatch(digest):
+        raise HTTPException(404, "Thumbnail not found")
+    if not warm_thumbnail(digest):
+        raise HTTPException(404, "Thumbnail unavailable")
+    return FileResponse(
+        THUMB_DIR / (digest + ".jpg"), media_type="image/jpeg",
+        headers={"Cache-Control": "private, max-age=604800",
+                 "X-Content-Type-Options": "nosniff"}
+    )
+
+
+def thumbnail_url(url):
+    if isinstance(url, str) and re.fullmatch(r"/api/artwork/[a-f0-9]{64}", url):
+        return url.replace("/api/artwork/", "/api/artwork/thumb/", 1)
+    return url
