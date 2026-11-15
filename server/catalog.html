@@ -32,23 +32,49 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
  outline:3px solid #d7edff!important;outline-offset:4px;box-shadow:0 0 0 7px #5898d24a!important
 }
 .tile-button:focus-visible .cover{outline:3px solid #d7edff;outline-offset:3px}
+
+/* Library header: controls aligned together at the right on wide layouts. */
+.library-head{align-items:center;gap:18px;margin-bottom:34px}
+.library-heading{min-width:0;flex:1 1 360px}
+.library-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:0 1 auto;min-width:0}
+.library-head-actions .search-box input{width:clamp(195px,21vw,315px)}
+.library-head-actions .sort-select{width:165px;max-width:165px}
+.library-trivia{max-width:650px;font-size:.91rem;line-height:1.5;min-height:1.5em;color:#aab9cc}
+.trivia-credit{display:block;color:#7f92a7;font-size:.69rem;margin-top:3px}
+.trivia-credit[hidden]{display:none}
+.trivia-credit a{color:#a3c5e8;text-decoration:underline;text-underline-offset:2px}
+@media(max-width:1000px){
+ .library-head{align-items:flex-start}
+ .library-head-actions{flex-wrap:wrap}
+}
+@media(max-width:760px){
+ .library-head{display:flex;flex-direction:column;align-items:stretch;gap:14px}
+ .library-heading{flex:0 1 auto}
+ .library-head-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
+ .library-head-actions .search-box{flex:1 1 160px}
+ .library-head-actions .search-box input{width:100%}
+ .library-head-actions .sort-select{width:140px;max-width:140px}
+}
+@media(max-width:430px){.library-head-actions{gap:8px}.library-head-actions .sort-select{width:115px;max-width:115px}}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
   <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
   <div class="workspace">
     <main class="content">
-      <div class="page-head"><div>
-        <p class="eyebrow" id="eyebrow">Your library</p>
-        <h1 id="page-title">Movies</h1>
-        <p id="page-description">Browse all the movies on your media server.</p>
-      </div><a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a></div>
-      <div class="toolbar library-toolbar">
-        <div class="tools">
+      <div class="page-head library-head">
+        <div class="library-heading">
+          <p class="eyebrow" id="eyebrow">Your library</p>
+          <h1 id="page-title">Movies</h1>
+          <p class="library-trivia" id="page-description" aria-live="polite"></p>
+          <small class="trivia-credit" id="trivia-credit" hidden>Trivia from <a href="https://opentdb.com/" target="_blank" rel="noopener noreferrer">Open Trivia DB</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>)</small>
+        </div>
+        <div class="library-head-actions" role="group" aria-label="Browse library controls">
           <label class="search-box"><span class="sr-only">Search titles</span><input type="search" id="search" placeholder="Search titles…" maxlength="150" aria-label="Search titles"></label>
-          <label><span class="sr-only">Sort titles</span><select id="sort" class="sort-select" aria-label="Sort titles">
+          <label class="sort-wrapper"><span class="sr-only">Sort titles</span><select id="sort" class="sort-select" aria-label="Sort titles">
             <option value="title">Title A–Z</option><option value="recent">Recently added</option><option value="year">Release year</option>
           </select></label>
+          <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
         </div>
       </div>
       <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
@@ -72,9 +98,101 @@ if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
 $('explore-library').href='/explore?type='+type;
 $('explore-library').setAttribute('aria-label','Explore more '+(type==='movies'?'movies':'TV shows'));
 $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
-$('page-description').textContent=type==='movies'?'Browse every movie in your collection.':'Browse all of your series and episodes.';
+// The description is replaced by rotating film/TV trivia below.
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
 document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
+
+
+/* Open Trivia DB film (11) and television (14): one batch per category,
+   with per-browser queue/history so navigation and refreshes do not repeat.
+   Offline fallback retains a small, rotating set of verified general facts. */
+const fallbackTrivia={
+ movies:[
+  'A standard cinema film runs at 24 frames per second.',
+  'The Lumière brothers held a public film screening in Paris in 1895.',
+  'The first Academy Awards ceremony took place in 1929.',
+  'The first feature-length animated film released by Disney was Snow White and the Seven Dwarfs (1937).',
+  'The Wilhelm scream is a stock sound effect reused in many films.',
+  'A film storyboard uses a sequence of drawings to plan shots before production.',
+  'Foley artists recreate everyday sounds such as footsteps for film soundtracks.',
+  'A clapperboard helps synchronize recorded sound with the filmed image.',
+  'A cinematographer is also called a director of photography.',
+  'Stop-motion animation photographs objects one small movement at a time.',
+  'A film dissolve gradually blends one shot into another.',
+  'Early silent films were often accompanied by live music.'
+ ],
+ tv:[
+  'The first television broadcast of a US presidential debate took place in 1960.',
+  'A television pilot is an initial episode used to introduce or test a proposed series.',
+  'A bottle episode is produced mostly on existing sets with a limited cast.',
+  'A cold open begins an episode before its opening credits or title sequence.',
+  'A showrunner typically oversees the creative direction and day-to-day production of a television series.',
+  'A television miniseries tells a story across a predetermined, limited number of episodes.',
+  'A sitcom is short for situation comedy.',
+  'A cliffhanger leaves a story unresolved at a dramatic moment.',
+  'Television closed captions can include dialogue and descriptions of important sounds.',
+  'A season finale is the last episode in a television season.',
+  'A television anthology series can feature different stories or characters each episode or season.',
+  'A laugh track may use prerecorded audience laughter.'
+ ]
+};
+function triviaStorage(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch(_){return fallback}}
+function storeTrivia(key,value){try{localStorage.setItem(key,JSON.stringify(value))}catch(_){}}
+function nextOfflineTrivia(){
+ const key='oew-trivia-fallback-'+type;
+ const old=Number(triviaStorage(key,-1));
+ const index=(old+1)%fallbackTrivia[type].length;
+ storeTrivia(key,index);
+ return fallbackTrivia[type][index];
+}
+function showTrivia(text,fromApi=false){
+ $('page-description').textContent=(fromApi?'Trivia: ':'Did you know? ')+text;
+ $('trivia-credit').hidden=!fromApi;
+}
+function nextTriviaFromQueue(){
+ const key='oew-trivia-batch-'+type;
+ const queue=triviaStorage(key,[]);
+ if(!Array.isArray(queue)||!queue.length)return false;
+ const item=queue.shift();
+ if(!item||typeof item.question!=='string'||typeof item.answer!=='string')return false;
+ storeTrivia(key,queue);
+ showTrivia(item.question+' Answer: '+item.answer,true);
+ return true;
+}
+async function rotateTrivia(){
+ if(nextTriviaFromQueue())return;
+ // Show a local fact immediately; a new API batch replaces it once ready.
+ showTrivia(nextOfflineTrivia());
+ try{
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),3500);
+  let response;
+  try{
+   response=await fetch('https://opentdb.com/api.php?amount=40&category='+(type==='movies'?'11':'14')+'&type=multiple&encode=url3986',
+     {signal:controller.signal,mode:'cors',cache:'no-store'});
+  }finally{clearTimeout(timeout)}
+  if(!response.ok)return;
+  const body=await response.json();
+  if(body.response_code!==0||!Array.isArray(body.results))return;
+  const historyKey='oew-trivia-history-'+type;
+  const history=triviaStorage(historyKey,[]);
+  const seen=new Set(Array.isArray(history)?history:[]);
+  const fresh=[];
+  for(const row of body.results){
+   if(!row.question||!row.correct_answer)continue;
+   const question=decodeURIComponent(row.question);
+   const answer=decodeURIComponent(row.correct_answer);
+   if(seen.has(question))continue;
+   seen.add(question);fresh.push({question,answer});
+  }
+  if(!fresh.length)return;
+  // Retain a bounded history for future batches; save unshown questions too.
+  storeTrivia(historyKey,[...seen].slice(-300));
+  storeTrivia('oew-trivia-batch-'+type,fresh);
+  nextTriviaFromQueue();
+ }catch(_){/* Keep the offline fact when the remote API is unavailable. */}
+}
+rotateTrivia();
 
 // Movie posters are looked up in one request per page; actual image bytes are
 // downloaded once and cached privately on the NUC.
