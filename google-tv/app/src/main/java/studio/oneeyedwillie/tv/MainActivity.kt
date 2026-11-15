@@ -328,7 +328,7 @@ class MainActivity : ComponentActivity() {
                 /* Keep the server's own working backdrop visible. */
                 .willie-hover-backdrop{display:block!important}
                 body:has(.willie-hover-backdrop-layer.is-visible) .oew-tv-cinematic-backdrop{opacity:0!important}
-                .oew-tv-cinematic-backdrop{position:fixed;inset:0;z-index:0;
+                .oew-tv-cinematic-backdrop{position:fixed;inset:0;z-index:1;
                   overflow:hidden;pointer-events:none;background:#080d16}
                 .oew-tv-cinematic-image{position:absolute;inset:-3%;
                   background-position:center 28%;background-size:cover;
@@ -339,7 +339,7 @@ class MainActivity : ComponentActivity() {
                   inset:0;background:
                   linear-gradient(90deg,#080d16aa 0%,#080d163d 45%,#080d1645 100%),
                   linear-gradient(0deg,#080d16cc 0%,#080d1638 45%,#080d1654 100%)}
-                body>.app-shell{position:relative;z-index:1;background:transparent!important}
+                body>.app-shell{position:relative;z-index:2;background:transparent!important}
                 body.oew-tv-backdrop-active #items::before,
                 body.oew-tv-backdrop-active .shelf-track::before,
                 body.oew-tv-backdrop-active .explore-grid::before,
