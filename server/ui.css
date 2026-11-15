@@ -27,7 +27,6 @@ dialog{background:#151b24;color:var(--ink);border:1px solid #405069;border-radiu
 .topbar{background:rgba(8,13,22,.94);border-color:#243143}
 .nav-link[aria-current=page]{background:#1e3045;color:#eff5fb}
 .brand{font-family:"Snell Roundhand","Snell Roundhand LT Std","Apple Chancery",cursive;font-weight:400;font-size:1.49rem;letter-spacing:.018em;color:#e1e9f2}
-.brand-mark{font-family:"Pirata One",Georgia,serif;font-weight:400;background:#263c56;color:#f0f6fb;border:1px solid #6583a1;font-size:1.45rem}
 .cover--1{background:linear-gradient(155deg,#263e55,#151d2b)}
 .cover--2{background:linear-gradient(155deg,#354453,#161e2b)}
 .cover--3{background:linear-gradient(155deg,#343b49,#111a2a)}
