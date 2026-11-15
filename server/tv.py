@@ -48,6 +48,10 @@ def local_show(library_id: int, show_key: str):
             (library_id,),
         ).fetchall()
 
+    with db() as conn:
+        watched_ids = {row["media_id"] for row in conn.execute(
+            "SELECT media_id FROM playback_progress WHERE completed=1"
+        )}
     found = []
     info = None
     for entry in entries:
@@ -65,6 +69,7 @@ def local_show(library_id: int, show_key: str):
             "episode": parsed["episode"],
             "filename": Path(entry["path"]).name,
             "added_at": entry["added_at"],
+            "watched": entry["id"] in watched_ids,
         })
     if not info or not found:
         raise HTTPException(404, "TV show not found")
@@ -99,6 +104,7 @@ def merged_show(library_id: int, show_key: str):
             "overview": details.get("overview", ""),
             "poster_url": details.get("poster_url") or metadata.get("poster_url"),
             "episode_count": len(grouped[number]),
+            "watched_count": sum(1 for e in grouped[number] if e["watched"]),
         })
     return show, metadata, seasons
 
@@ -127,6 +133,7 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         "backdrop_url": meta.get("backdrop_url"),
         "seasons": seasons,
         "episode_count": len(show["episodes"]),
+        "watched_count": sum(1 for e in show["episodes"] if e["watched"]),
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
     result = localize(result)
@@ -201,7 +208,8 @@ def episode_details(media_id: int = Query(ge=1)):
         "air_date": episode_meta.get("air_date", ""),
         "runtime": episode_meta.get("runtime"),
         "filename": Path(row["path"]).name,
-        "playback_available": False,
+        "playback_available": True,
+        "watched": next((e["watched"] for e in show["episodes"] if e["id"] == media_id), False),
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
     return localize(result)
