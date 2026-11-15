@@ -87,9 +87,16 @@ def _plex_get(url, token, path, params=None):
         return {"size": root.get("size"), "totalSize": root.get("totalSize"),
                 "Directory": [elem(n) for n in root.findall("Directory")],
                 "Metadata": [elem(n) for n in list(root) if n.tag in ("Video", "Directory")]}
-    except (urllib.error.URLError, urllib.error.HTTPError, TimeoutError, OSError,
-            ValueError, ET.ParseError, KeyError) as error:
-        raise HTTPException(502, "Unable to read Plex. Check the local address, token, and that the server is reachable.") from error
+    except urllib.error.HTTPError as error:
+        if error.code in (401, 403):
+            raise HTTPException(401, "Plex rejected the authentication token. Verify that you copied only the token value, or generate a fresh Plex token.") from None
+        if error.code in (301, 302, 307, 308):
+            raise HTTPException(502, "Plex redirected the local connection. Check Plex Settings → Network → Secure connections and whether the local server address is correct.") from None
+        raise HTTPException(502, "Plex responded with HTTP " + str(error.code) + " while reading its library.") from None
+    except (urllib.error.URLError, TimeoutError, OSError) as error:
+        raise HTTPException(502, "Cannot reach Plex from the One-Eyed Willie server. Check that Plex is running, its LAN address and port 32400, and Docker network access.") from None
+    except (ValueError, ET.ParseError, KeyError, TypeError):
+        raise HTTPException(502, "Plex returned an unreadable library response. Check that the address points to your Plex Media Server.") from None
 
 def _read():
     try:
