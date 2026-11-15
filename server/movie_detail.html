@@ -37,6 +37,51 @@ background:linear-gradient(150deg,#37495a,#141c29);object-fit:cover;box-shadow:0
 .movie-detail-data .movie-description{font-size:.88rem;line-height:1.48}}
 @media(max-width:510px){.movie-detail-hero{display:block}.movie-detail-poster{width:145px;max-height:220px;margin:0 0 20px}
 .movie-detail-hero::after{background:#0b1423d9}.movie-detail-data h1{font-size:2rem}}
+/* Full-width cinematic detail page: no bordered modal / container. */
+body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:none;padding:0 0 65px}
+.movie-back{position:relative;z-index:4;margin:24px clamp(24px,4vw,72px) 0}
+.movie-detail-hero{min-height:clamp(520px,75vh,860px);border:none;border-radius:0;
+  background:transparent;grid-template-columns:minmax(205px,260px) minmax(0,860px);
+  padding:clamp(45px,6vw,110px) clamp(24px,5vw,90px);align-items:center;gap:clamp(28px,4vw,72px)}
+.movie-detail-hero::after{background:linear-gradient(90deg,#080d16 0%,#080d16d9 38%,#080d16b8 70%,#080d16bd 100%),
+  linear-gradient(0deg,#080d16 0%,transparent 30%);z-index:-1}
+.movie-detail-backdrop{opacity:.75}
+.movie-detail-data h1{font-size:clamp(2.8rem,5.1vw,6rem)}
+.movie-detail-poster{border:0;box-shadow:0 25px 65px #000b;max-height:440px}
+.movie-detail-actions .media-icon-action{border:0!important;background:none!important;color:#dceaf8;
+  width:54px;height:54px;min-height:0;box-shadow:none;padding:10px}
+.movie-detail-actions .media-icon-action:first-child{color:#d5e9ff}
+.movie-detail-actions .media-icon-action:hover{background:none!important;color:#fff;transform:scale(1.1)}
+.movie-detail-actions .media-icon-action[aria-pressed=true]{color:#81d6ab}
+.movie-expanded{width:100%;padding:0 clamp(24px,5vw,90px) 90px;max-width:1560px;margin:0 auto}
+.movie-expanded[hidden],.movie-block[hidden]{display:none}
+.movie-facts{display:flex;flex-direction:column;gap:18px;margin:0 0 44px}
+.movie-ratings{display:flex;flex-wrap:wrap;gap:18px 30px}
+.rating-item{display:flex;gap:9px;align-items:baseline;font-size:1.05rem;color:#d9e4f0}
+.rating-item strong{font-size:.78rem;color:#97adc2;letter-spacing:.03em}
+.movie-tagline{color:#c8d8e8;font-size:1.2rem;font-style:italic;margin:0}
+.movie-tagline:empty{display:none}
+.movie-fact-list{display:grid;grid-template-columns:max-content minmax(0,1fr);gap:9px 26px;margin:0}
+.movie-fact-list dt{color:#91a4bb}.movie-fact-list dd{margin:0;color:#e0e8f4}
+.movie-block{padding:30px 0 42px;border-top:1px solid #253448}
+.movie-block h2{font-size:1.55rem;letter-spacing:-.025em;margin:0 0 22px}
+.source-label{font-size:.74rem;font-weight:400;color:#91a4bb;margin-left:13px}
+.movie-cast{display:grid;grid-auto-flow:column;grid-auto-columns:145px;gap:18px;overflow-x:auto;padding-bottom:12px}
+.cast-person{display:flex;flex-direction:column;gap:5px;min-width:0}
+.cast-person img,.cast-blank{width:145px;height:190px;object-fit:cover;border-radius:7px;background:#172435}
+.cast-blank{display:grid;place-items:center;font-size:2rem;color:#71849c}
+.cast-person strong{font-size:.9rem;line-height:1.3;margin-top:6px}
+.cast-person span{font-size:.81rem;color:#99abc0}
+.movie-reviews{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,410px),1fr));gap:30px 45px}
+.movie-review{border:0;padding:0}
+.movie-review strong{color:#f0f4fa}.movie-review p{color:#b3c3d5;line-height:1.65;white-space:pre-wrap}
+@media(max-width:700px){.movie-detail-hero{grid-template-columns:115px minmax(0,1fr);gap:18px;min-height:480px;padding:40px 22px}
+ .movie-detail-poster{max-height:210px}.movie-detail-data h1{font-size:clamp(2rem,7vw,3rem)}
+ .movie-expanded{padding:0 22px 60px}.movie-cast{grid-auto-columns:112px}
+ .cast-person img,.cast-blank{width:112px;height:155px}}
+@media(max-width:510px){.movie-detail-hero{display:block;min-height:0}
+ .movie-detail-poster{max-height:200px;width:130px}
+ .movie-detail-data{margin-top:20px}}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -63,7 +108,10 @@ background:linear-gradient(150deg,#37495a,#141c29);object-fit:cover;box-shadow:0
         title="Resume from saved position" aria-label="Resume from saved position">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
       </button>
-      <button id="watched-movie" type="button" class="secondary-button">Mark watched</button>
+      <button id="watched-movie" type="button" class="secondary-button media-icon-action"
+        title="Mark watched" aria-label="Mark watched">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
     </div>
     <div id="progress-track" class="movie-detail-progress" hidden><span id="progress-fill"></span></div>
     <p id="progress-label" class="muted"></p>
@@ -72,6 +120,20 @@ background:linear-gradient(150deg,#37495a,#141c29);object-fit:cover;box-shadow:0
     <p><a id="imdb-link" class="text-link" hidden rel="noopener noreferrer" target="_blank">View on IMDb</a></p>
   </div>
 </section>
+<div class="movie-expanded" id="expanded" hidden>
+  <div class="movie-facts">
+    <div id="rating-list" class="movie-ratings" aria-label="Ratings"></div>
+    <p id="movie-tagline" class="movie-tagline"></p>
+    <dl id="movie-fact-list" class="movie-fact-list"></dl>
+  </div>
+  <section id="cast-section" class="movie-block" hidden>
+    <h2>Cast</h2><div id="cast-list" class="movie-cast"></div>
+  </section>
+  <section id="reviews-section" class="movie-block" hidden>
+    <h2>Reviews <span class="source-label">TMDB community</span></h2>
+    <div id="review-list" class="movie-reviews"></div>
+  </section>
+</div>
 </main></div></div>
 <script>
 const $=id=>document.getElementById(id);
@@ -108,7 +170,8 @@ async function loadMovie(){
      imdb.href=movie.imdb_url;imdb.hidden=false;
    }else imdb.hidden=true;
    const watched=$('watched-movie');
-   watched.textContent=movie.watched?'✓ Watched — mark unwatched':'Mark watched';
+   const label=movie.watched?'Mark unwatched':'Mark watched';
+   watched.title=label;watched.setAttribute('aria-label',label);
    watched.setAttribute('aria-pressed',String(!!movie.watched));
    const position=Number(movie.position_seconds)||0,duration=Number(movie.duration_seconds)||0;
    const partial=!movie.watched&&duration>0&&position>=30&&position<duration*.95;
@@ -120,8 +183,63 @@ async function loadMovie(){
      $('progress-label').textContent=Math.round(position/60)+' of '+Math.round(duration/60)+' minutes';
    }else $('progress-label').textContent='';
    $('play-movie').disabled=!movie.media_id;
-   $('movie-detail').hidden=false;$('movie-status').textContent='';
+   renderExtras(movie);
+   $('movie-detail').hidden=false;$('expanded').hidden=false;$('movie-status').textContent='';
  }catch(error){$('movie-status').textContent=error.message}
+}
+function renderExtras(data){
+ const ratings=$('rating-list');ratings.replaceChildren();
+ const entries=[
+   ['IMDb',data.ratings?.imdb?.value],
+   ['TMDB',data.ratings?.tmdb?.value??data.tmdb_rating],
+   ['Rotten Tomatoes',data.ratings?.rottenTomatoes?.value],
+   ['Metacritic',data.ratings?.metacritic?.value]
+ ];
+ for(const [source,value] of entries){
+   if(value===null||value===undefined||value==='')continue;
+   const item=document.createElement('span');item.className='rating-item';
+   const name=document.createElement('strong');name.textContent=source;
+   const score=document.createElement('span');score.textContent=String(value);
+   item.append(name,score);ratings.append(item);
+ }
+ $('movie-tagline').textContent=data.tagline||'';
+ const facts=$('movie-fact-list');facts.replaceChildren();
+ const pairs=[
+   ['Studio',data.studio||data.production_companies?.join(', ')],
+   ['Certification',data.certification],
+   ['Release',data.release_date],
+   ['Runtime',data.runtime?data.runtime+' min':null]
+ ];
+ for(const [term,value] of pairs){
+   if(!value)continue;
+   const dt=document.createElement('dt');dt.textContent=term;
+   const dd=document.createElement('dd');dd.textContent=value;facts.append(dt,dd);
+ }
+ const cast=$('cast-list');cast.replaceChildren();
+ const people=Array.isArray(data.cast)?data.cast.filter(p=>p.name):[];
+ $('cast-section').hidden=!people.length;
+ for(const person of people){
+   const article=document.createElement('article');article.className='cast-person';
+   if(person.photo?.startsWith('/api/artwork/')){
+     const photo=document.createElement('img');photo.src=person.photo;photo.alt='';
+     photo.loading='lazy';article.append(photo);
+   }else{
+     const blank=document.createElement('div');blank.className='cast-blank';
+     blank.textContent=person.name.slice(0,1);article.append(blank);
+   }
+   const name=document.createElement('strong');name.textContent=person.name;article.append(name);
+   if(person.character){const role=document.createElement('span');role.textContent=person.character;article.append(role)}
+   cast.append(article);
+ }
+ const reviews=$('review-list');reviews.replaceChildren();
+ const comments=Array.isArray(data.reviews)?data.reviews.filter(r=>r.excerpt):[];
+ $('reviews-section').hidden=!comments.length;
+ for(const review of comments){
+   const article=document.createElement('article');article.className='movie-review';
+   const author=document.createElement('strong');author.textContent=review.author;
+   const excerpt=document.createElement('p');excerpt.textContent=review.excerpt;
+   article.append(author,excerpt);reviews.append(article);
+ }
 }
 $('play-movie').addEventListener('click',()=>{
  if(movie?.media_id)WilliePlayer.open(movie.media_id,movie.title,{restart:true});
