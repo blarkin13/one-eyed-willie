@@ -92,16 +92,17 @@ def show_metadata(title, year=None):
             return {}
         show = matches[0]
         show_id = show.get("id")
-        result = show_metadata_by_id(show_id)
+        result = show_metadata_by_id(show_id, show=show)
         if result:
             _cache_put(key, result)
         return result
 
-def show_metadata_by_id(show_id):
+def show_metadata_by_id(show_id, show=None):
     """Fetch an explicit TVmaze show without fuzzy matching."""
     if not isinstance(show_id, int) or show_id <= 0:
         return {}
-    show = _get("/shows/" + str(show_id))
+    if show is None:
+        show = _get("/shows/" + str(show_id))
     if not isinstance(show, dict) or show.get("id") != show_id:
         return {}
     raw_seasons = _get("/shows/" + str(show_id) + "/seasons")
