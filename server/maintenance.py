@@ -178,15 +178,21 @@ def _probe(row, extensive=False):
             # Sample only one minute, one concurrent FFmpeg job, lowest priority.
             ffmpeg = ["nice", "-n", "15", "/usr/bin/ffmpeg", "-nostdin",
                       "-v", "info", "-t", "60", "-i", str(path),
-                      "-map", "0:a:0?", "-af", "volumedetect", "-vn",
+                      "-map", "0:v:0?", "-map", "0:a:0?",
+                      "-vf", "blackdetect=d=0.5:pix_th=0.10",
+                      "-af", "volumedetect,silencedetect=noise=-35dB:d=1",
                       "-f", "null", "-"]
             try:
                 deep = subprocess.run(ffmpeg, capture_output=True, text=True, timeout=90)
-                tail = deep.stderr[-2500:]
+                tail = deep.stderr[-10000:]
                 found = re.search(r"mean_volume:\s*(-?[0-9.]+) dB", tail)
                 payload["sample_mean_db"] = float(found.group(1)) if found else None
+                payload["sample_black_segments"] = min(100, tail.count("black_start:"))
+                payload["sample_silence_segments"] = min(100, tail.count("silence_start:"))
             except (OSError, subprocess.TimeoutExpired):
                 payload["sample_mean_db"] = None
+                payload["sample_black_segments"] = None
+                payload["sample_silence_segments"] = None
         with db() as conn:
             _tables(conn)
             fingerprint = f'{row["size"]}:{row["mtime_ns"]}'
