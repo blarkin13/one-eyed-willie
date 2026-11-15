@@ -97,7 +97,6 @@ max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
 .willie-next-actions{display:flex;gap:10px;justify-content:flex-end}
 .willie-next-actions button{border:1px solid #6685a4;border-radius:8px;padding:9px 14px;background:#1e3955;color:#fff;cursor:pointer;font:inherit}
 .willie-next-actions button:focus-visible{outline:2px solid #fff}
-.willie-autoplay[aria-pressed="true"]{color:#9fd5b4!important}
 .willie-timeline{display:flex;
 align-items:center;gap:12px;padding:10px 15px;z-index:5}
 .willie-timeline input{flex:1;accent-color:var(--accent,#e5e0d5);cursor:pointer}
@@ -325,16 +324,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     let nextEpisode=null;
     let countdownTimer=null;
     let autoPlayNext=false;
-    try{autoPlayNext=localStorage.getItem('willie-autoplay-next')==='on'}catch(_){}
     const next=document.createElement('button');setIcon(next,'next','Play next episode');next.hidden=true;
-    const autoplay=document.createElement('button');setIcon(autoplay,'autoplay','Auto Play Next: Off');
-    autoplay.className='willie-autoplay';autoplay.hidden=true;
-    function updateAutoplay(){
-      autoplay.setAttribute('aria-pressed',String(autoPlayNext));
-      const label='Auto Play Next: '+(autoPlayNext?'On':'Off');
-      autoplay.title=label;autoplay.setAttribute('aria-label',label);
-    }
-    updateAutoplay();
     function stopCountdown(){if(countdownTimer!==null){clearInterval(countdownTimer);countdownTimer=null}}
     function launchNext(){
       stopCountdown();
@@ -343,13 +333,6 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       start(chosen.media_id,chosen.title,{restart:true});
     }
     next.onclick=launchNext;
-    autoplay.onclick=()=>{
-      autoPlayNext=!autoPlayNext;
-      try{localStorage.setItem('willie-autoplay-next',autoPlayNext?'on':'off')}catch(_){}
-      updateAutoplay();
-      if(!autoPlayNext){stopCountdown();nextPrompt.hidden=true}
-      revealChrome();
-    };
     const nextPrompt=document.createElement('div');nextPrompt.className='willie-next-prompt';nextPrompt.hidden=true;
     nextPrompt.setAttribute('role','group');nextPrompt.setAttribute('aria-label','Play next episode');
     const nextLabel=document.createElement('p');
@@ -380,7 +363,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const toolbar=document.createElement('div');toolbar.className='willie-toolbar';
     const left=document.createElement('div');left.className='willie-group';
     const right=document.createElement('div');right.className='willie-group';
-    left.append(playPause,backward,forward);right.append(next,autoplay,subtitles,watch,diagnostics);
+    left.append(playPause,backward,forward);right.append(next,subtitles,watch,diagnostics);
     toolbar.append(left,right);bottom.append(toolbar,subtitleMenu);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
     const timeline=document.createElement('div');timeline.className='willie-timeline';
@@ -473,14 +456,20 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     requestJson('/api/watch/'+id+'/status').then(data=>{
       if(current!==surface)return;
       status=data;watch.setAttribute('aria-pressed',String(data.watched));watch.title=data.watched?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
+      // Server-wide saved setting; no per-playback toggle required.
+      requestJson('/api/settings/playback').then(prefs=>{
+        if(current!==surface)return;
+        autoPlayNext=!!prefs.auto_play_next;
+        if(video.ended)showNextCountdown();
+      }).catch(()=>{autoPlayNext=false});
       reloadTracks().catch(()=>{});
       requestJson('/api/tv/next?media_id='+id).then(result=>{
         if(current!==surface)return;
         nextEpisode=result.next||null;
-        next.hidden=!nextEpisode;autoplay.hidden=!nextEpisode;
+        next.hidden=!nextEpisode;
         // If status/next results race with a very short clip, still offer next.
         if(video.ended)showNextCountdown();
-      }).catch(()=>{next.hidden=true;autoplay.hidden=true});
+      }).catch(()=>{next.hidden=true});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
       if(data.mode==='direct'){
         playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;

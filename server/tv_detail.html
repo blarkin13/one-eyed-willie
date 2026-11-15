@@ -3,7 +3,7 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · TV Shows</title>
-<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script><script defer src="/assets/player.js?v=player-29"></script>
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script><script defer src="/assets/player.js?v=player-30"></script>
 <style>
 body[data-page=tv] .tv-extras{padding:10px 0 28px}
 body[data-page=tv] .tv-extras h2{margin:30px 0 17px;font-size:1.45rem}
@@ -47,6 +47,9 @@ body[data-page=tv] .tv-extras h2{margin:30px 0 17px;font-size:1.45rem}
 .tv-match-message{color:var(--muted,#aab)}
 .tv-match-restore{background:transparent;color:inherit;border:0;text-decoration:underline;margin-top:12px;padding:8px}
 @media(max-width:560px){.tv-match-search{flex-wrap:wrap}.tv-match-search button{width:100%}}
+.episode-card{display:flex;text-align:left;color:inherit;background:none;border:0;padding:0;width:100%;cursor:pointer;font:inherit}
+.episode-card:hover h3,.episode-card:focus-visible h3{color:#c9e4ff}
+.episode-card:focus-visible{outline:3px solid #c9e4ff;outline-offset:4px;border-radius:7px}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -65,7 +68,6 @@ const view=document.getElementById('view'),loading=document.getElementById('load
 const route=location.pathname.includes('/episode')?'episode':location.pathname.includes('/season')?'season':'show';
 const showHref=(id,key)=>'/tv/show?'+new URLSearchParams({library_id:String(id),key});
 const seasonHref=(id,key,season)=>'/tv/season?'+new URLSearchParams({library_id:String(id),key,season_number:String(season)});
-const episodeHref=id=>'/tv/episode?'+new URLSearchParams({media_id:String(id)});
 function el(tag,cls,text){
   const node=document.createElement(tag);if(cls)node.className=cls;
   if(text!==undefined&&text!==null)node.textContent=String(text);
@@ -353,7 +355,9 @@ async function renderSeason(){
  const heading=el('div','section-heading');heading.append(el('h2','','Episodes'),el('span','',data.episodes.length+' in your library'));view.appendChild(heading);
  const list=el('div','episode-grid');
  for(const episode of data.episodes){
-  const card=el('a','episode-card');card.href=episodeHref(episode.id);
+  const card=el('button','episode-card');card.type='button';
+  card.title='Play '+episode.title;card.setAttribute('aria-label','Play '+episode.title);
+  card.onclick=()=>WilliePlayer.open(episode.id,data.show.title+' · '+episode.title,{restart:false});
   if(episode.still_url)card.append(image(episode.still_url,'episode-still','Still from '+episode.title));
   else{
     const fallback=el('div','episode-still');fallback.setAttribute('role','img');fallback.setAttribute('aria-label','Episode still not available');card.append(fallback);
@@ -386,46 +390,19 @@ async function renderSeason(){
  view.appendChild(list);
  if(!data.metadata_available)view.appendChild(notice());
 }
-async function renderEpisode(){
- if(!Number.isInteger(state.media_id)||!state.media_id)throw Error('Choose an episode from its season.');
+// Old episode-detail URLs return to the containing season, preserving bookmarks.
+async function redirectLegacyEpisode(){
+ if(!Number.isInteger(state.media_id)||state.media_id<1)throw Error('Choose an episode from its season.');
  const data=await loadJson('/api/tv/episode?'+new URLSearchParams({media_id:state.media_id}));
- state.library_id=data.library_id;state.key=data.key;state.show_title=data.show_title;
- setBack('Back to '+data.show_title, data.season_number===null?
-   showHref(data.library_id,data.key):seasonHref(data.library_id,data.key,data.season_number));
- document.title=data.title+' · '+data.show_title+' · One-Eyed Willie';
- view.append(el('p','eyebrow',data.show_title+' · Season '+(data.season_number??'?')+' · Episode '+(data.episode_number??'?')),
-   el('h1','episode-detail-title',data.title));
- if(data.still_url)view.append(image(data.still_url,'episode-preview','Episode preview image'));
- else{const preview=el('div','episode-preview');preview.setAttribute('role','img');preview.setAttribute('aria-label','Episode preview unavailable');view.append(preview);}
- view.append(el('p','episode-summary',data.overview||'No episode description is available yet.'));
- const meta=el('p','muted',[
-  data.air_date||null,data.runtime?data.runtime+' min':null
- ].filter(Boolean).join(' · '));view.append(meta);
- const controls=el('div','episode-detail-actions');
- const play=playbackButton(data.id,data.show_title+' · '+data.title);
- const resume=canResume(data)?playbackButton(data.id,data.show_title+' · '+data.title,true):null;
- const watched=el('button','media-icon-action watch-icon-control');
- watched.type='button';updateWatchIcon(watched,data.watched);
- watched.onclick=async()=>{
-   watched.disabled=true;
-   try{
-     const r=await fetch('/api/watch/'+data.id+'/watched',{
-       method:'PUT',headers:{'Content-Type':'application/json'},
-       body:JSON.stringify({watched:!data.watched})});
-     if(!r.ok)throw Error('Unable to save status');
-     data.watched=!data.watched;updateWatchIcon(watched,data.watched);
-   }catch(_){watched.title='Try again'}
-   finally{watched.disabled=false}
- };
- controls.append(play);if(resume)controls.append(resume);
- controls.append(watched,matchButton());view.append(controls);
- if(!data.metadata_available)view.appendChild(notice());
+ location.replace(data.season_number===null
+   ?showHref(data.library_id,data.key)
+   :seasonHref(data.library_id,data.key,data.season_number));
 }
 (async()=>{
  try{
   if(route==='show')await renderShow();
   else if(route==='season')await renderSeason();
-  else await renderEpisode();
+  else await redirectLegacyEpisode();
   loading.textContent='';
  }catch(error){loading.textContent=error.message;}
 })();

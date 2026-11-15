@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Playback Settings · One-Eyed Willie</title>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css"><script defer src="/assets/shell.js"></script>
+<style>
+.playback-setting{display:flex;align-items:center;justify-content:space-between;gap:24px;max-width:780px}
+.playback-setting h2{margin:0 0 7px}.playback-setting p{color:var(--muted);margin:0;max-width:570px}
+.playback-switch{position:relative;flex:0 0 auto;display:flex;align-items:center;gap:12px;cursor:pointer;min-height:54px;font-weight:650}
+.playback-switch input{width:23px;height:23px;accent-color:#9ccafb;cursor:pointer}
+.playback-switch input:focus-visible{outline:3px solid #cceaff;outline-offset:3px}
+@media(max-width:520px){.playback-setting{align-items:flex-start;flex-direction:column;gap:15px}}
+</style></head>
+<body data-page="playback"><div class="app-shell">
+<aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Playback</h1><p>Choose how TV episodes play.</p></div></div>
+<section class="form-card"><div class="playback-setting">
+<div><h2>Auto Play Next</h2><p>Automatically play the next available unwatched episode when the current episode ends. An eight-second countdown lets you cancel. Movies are unaffected.</p></div>
+<label class="playback-switch"><input type="checkbox" id="auto-play-next" disabled aria-label="Auto Play Next"> <span id="auto-play-label">Off</span></label>
+</div><p id="playback-message" role="status" class="muted">Loading playback settings…</p></section>
+</main></div></div>
+<script>
+const checkbox=document.getElementById('auto-play-next');
+const message=document.getElementById('playback-message');
+const label=document.getElementById('auto-play-label');
+function updateLabel(){label.textContent=checkbox.checked?'On':'Off'}
+async function load(){
+ try{
+  const response=await fetch('/api/settings/playback',{cache:'no-store'});
+  if(!response.ok)throw Error('Unable to load playback settings');
+  const prefs=await response.json();checkbox.checked=!!prefs.auto_play_next;
+  checkbox.disabled=false;updateLabel();message.textContent='Your preference is saved on this server.';
+ }catch(error){message.textContent=error.message}
+}
+checkbox.addEventListener('change',async()=>{
+ const desired=checkbox.checked;checkbox.disabled=true;updateLabel();message.textContent='Saving…';
+ try{
+  const response=await fetch('/api/settings/playback',{method:'PUT',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({auto_play_next:desired})});
+  if(!response.ok)throw Error('Unable to save playback settings');
+  const data=await response.json();checkbox.checked=!!data.auto_play_next;updateLabel();message.textContent='Saved.';
+ }catch(error){checkbox.checked=!desired;updateLabel();message.textContent=error.message}
+ finally{checkbox.disabled=false}
+});
+load();
+</script></body></html>
