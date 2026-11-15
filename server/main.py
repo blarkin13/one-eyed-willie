@@ -20,6 +20,7 @@ from server.tv import router as tv_router
 from server.metadata import router as metadata_router
 from server.people import router as people_router
 from server.maintenance import router as maintenance_router, maintenance_loop
+from server.poster_index import poster_loop
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -31,9 +32,15 @@ async def lifespan(app: FastAPI):
     maintenance_thread = threading.Thread(target=maintenance_loop, args=(maintenance_stop,), daemon=True, name='maintenance-scheduler')
     maintenance_thread.start()
     stop, thread = start_background_scans()
+    posters_stop = threading.Event()
+    poster_thread = threading.Thread(target=poster_loop, args=(posters_stop,), daemon=True, name='poster-prefetch')
+    poster_thread.start()
     try:
         yield
     finally:
+        posters_stop.set()
+        posters_thread = poster_thread
+        posters_thread.join(timeout=3)
         stop.set()
         thread.join(timeout=5)
         maintenance_stop.set()
