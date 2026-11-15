@@ -8,12 +8,27 @@ from pydantic import BaseModel
 from .catalog import episode_info
 from .library import db
 from .artwork import localize, local_show_poster, register_remote
-from .metadata import show_metadata as tmdb_show_metadata, season_metadata, token_status
-from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tvmaze_season_metadata, show_cast as tvmaze_show_cast
+from .metadata import show_metadata as tmdb_show_metadata, show_metadata_by_id as tmdb_by_id, season_metadata, token_status, _call as tmdb_call, image_url as tmdb_image
+from .tvmaze import show_metadata as tvmaze_show_metadata, show_metadata_by_id as tvmaze_by_id, season_metadata as tvmaze_season_metadata, show_cast as tvmaze_show_cast, _get as tvmaze_get, image_url as tvmaze_image
 from .arr import sonarr_metadata
 
-def show_metadata(title, year=None):
-    """Prefer established TV providers; Sonarr fills gaps without re-searching titles."""
+def _manual_table(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS tv_manual_matches (library_id INTEGER NOT NULL, show_key TEXT NOT NULL, provider TEXT NOT NULL, provider_id INTEGER NOT NULL, PRIMARY KEY (library_id, show_key))")
+
+
+def manual_match(library_id, key):
+    with db() as conn:
+        _manual_table(conn)
+        row = conn.execute("SELECT provider,provider_id FROM tv_manual_matches WHERE library_id=? AND show_key=?", (library_id, key)).fetchone()
+    return dict(row) if row else None
+
+
+def show_metadata(title, year=None, library_id=None, show_key=None):
+    if library_id is not None and show_key is not None:
+        chosen = manual_match(library_id, show_key)
+        if chosen:
+            return (tmdb_by_id(chosen["provider_id"]) if chosen["provider"] == "TMDB"
+                    else tvmaze_by_id(chosen["provider_id"]))
     if token_status():
         tmdb = tmdb_show_metadata(title, year)
         if tmdb:
@@ -26,6 +41,8 @@ def show_metadata(title, year=None):
         return automatic
     return sonarr
 
+
+
 def provider_season(meta, number):
     if meta.get("source") == "TVmaze":
         return tvmaze_season_metadata(meta.get("tvmaze_id"), number)
@@ -35,6 +52,64 @@ def provider_season(meta, number):
 
 
 router = APIRouter(prefix="/api/tv")
+
+
+class MatchRequest(BaseModel):
+    provider: str
+    provider_id: int
+
+
+@router.get("/match/search")
+def search_matches(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300),
+                   query: str = Query(min_length=2, max_length=120)):
+    local_show(library_id, key)
+    results = []
+    raw_tmdb = tmdb_call("search/tv", query={"query": query, "language": "en-US", "include_adult": "false"}) if token_status() else None
+    if isinstance(raw_tmdb, dict):
+        for item in raw_tmdb.get("results", [])[:15]:
+            if not isinstance(item, dict) or not isinstance(item.get("id"), int) or item["id"] <= 0:
+                continue
+            results.append({"provider": "TMDB", "provider_id": item["id"],
+                            "title": str(item.get("name") or item.get("original_name") or "")[:120],
+                            "year": str(item.get("first_air_date") or "")[:4],
+                            "overview": str(item.get("overview") or "")[:240],
+                            "poster_url": tmdb_image(item.get("poster_path"))})
+    raw_tvmaze = tvmaze_get("/search/shows", {"q": query})
+    if isinstance(raw_tvmaze, list):
+        for entry in raw_tvmaze[:15]:
+            item = entry.get("show") if isinstance(entry, dict) else None
+            if not isinstance(item, dict) or not isinstance(item.get("id"), int) or item["id"] <= 0:
+                continue
+            results.append({"provider": "TVmaze", "provider_id": item["id"],
+                            "title": str(item.get("name") or "")[:120],
+                            "year": str(item.get("premiered") or "")[:4],
+                            "overview": "", "poster_url": tvmaze_image(item.get("image"))})
+    return {"results": results, "tmdb_connected": token_status()}
+
+
+@router.put("/match")
+def save_match(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300),
+               change: MatchRequest = None):
+    local_show(library_id, key)
+    if change is None or change.provider not in ("TMDB", "TVmaze") or change.provider_id <= 0:
+        raise HTTPException(422, "Choose a valid metadata result")
+    details = tmdb_by_id(change.provider_id) if change.provider == "TMDB" else tvmaze_by_id(change.provider_id)
+    if not details:
+        raise HTTPException(422, "The selected metadata record could not be loaded")
+    with db() as conn:
+        _manual_table(conn)
+        conn.execute("INSERT INTO tv_manual_matches(library_id,show_key,provider,provider_id) VALUES(?,?,?,?) ON CONFLICT(library_id,show_key) DO UPDATE SET provider=excluded.provider,provider_id=excluded.provider_id",
+                     (library_id, key, change.provider, change.provider_id))
+    return {"matched": True, "provider": change.provider, "provider_id": change.provider_id, "title": details.get("title")}
+
+
+@router.delete("/match")
+def clear_match(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
+    local_show(library_id, key)
+    with db() as conn:
+        _manual_table(conn)
+        conn.execute("DELETE FROM tv_manual_matches WHERE library_id=? AND show_key=?", (library_id, key))
+    return {"matched": False}
 
 
 class BulkWatched(BaseModel):
@@ -128,7 +203,7 @@ def local_show(library_id: int, show_key: str):
 
 def merged_show(library_id: int, show_key: str):
     show = local_show(library_id, show_key)
-    metadata = show_metadata(show["title"], show["year"])
+    metadata = show_metadata(show["title"], show["year"], library_id, show_key)
     grouped = defaultdict(list)
     for episode in show["episodes"]:
         grouped[episode["season"]].append(episode)
@@ -154,7 +229,7 @@ def merged_show(library_id: int, show_key: str):
 @router.get("/poster")
 def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show = local_show(library_id, key)
-    metadata = show_metadata(show["title"], show["year"])
+    metadata = show_metadata(show["title"], show["year"], library_id, show_key)
     result = {
         "poster_url": metadata.get("poster_url"),
         "overview": metadata.get("overview", ""),
@@ -189,6 +264,7 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         "episode_count": len(show["episodes"]),
         "watched_count": sum(1 for e in show["episodes"] if e["watched"]),
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
+        "manual_match": manual_match(library_id, key),
     }
     result = localize(result)
     result["poster_url"] = local_show_poster(library_id, key) or result["poster_url"]
