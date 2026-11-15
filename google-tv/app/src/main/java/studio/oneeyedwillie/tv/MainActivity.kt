@@ -294,6 +294,12 @@ class MainActivity : ComponentActivity() {
                 .sidebar .settings-shortcuts{display:none!important}
                 .workspace,.topbar,.content{background:transparent!important}
                 body{background:#080d16!important}
+                /* Hide skull watermark while artwork is active. */
+                body.oew-tv-artwork-active #items::before,
+                body.oew-tv-artwork-active .shelf-track::before,
+                body.oew-tv-artwork-active .explore-grid::before,
+                body.oew-tv-artwork-active .movie-grid::before,
+                body.oew-tv-artwork-active .tv-grid::before {display:none!important}
                 *{scroll-margin:26px}
                 @media(max-width:1100px){
                   #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
@@ -309,10 +315,10 @@ class MainActivity : ComponentActivity() {
               const backdrop=document.createElement('div');
               backdrop.id='oew-tv-artwork-backdrop';
               Object.assign(backdrop.style,{
-                position:'fixed',inset:'-50px',zIndex:'0',
-                pointerEvents:'none',opacity:'.22',
+                position:'fixed',inset:'-24px',zIndex:'0',
+                pointerEvents:'none',opacity:'0',
                 backgroundPosition:'center',backgroundSize:'cover',
-                backgroundRepeat:'no-repeat',filter:'blur(44px) brightness(.5)',
+                backgroundRepeat:'no-repeat',filter:'blur(16px) brightness(.78)',
                 transition:'opacity .25s ease'
               });
               document.body.prepend(backdrop);
@@ -320,13 +326,18 @@ class MainActivity : ComponentActivity() {
                 const tile=node?.closest?.('.tile');
                 if(!tile)return;
                 const poster=tile.querySelector('.cover .poster-image');
-                if(poster?.getAttribute('src')){
-                  const source=poster.getAttribute('src');
-                  // Do not allow a remote URL or an external metadata image.
-                  if(source.startsWith('/')&&!source.startsWith('//'))
-                    backdrop.style.backgroundImage='url("'+source.replaceAll('"','%22')+'")';
+                const source=poster?.getAttribute('src')||'';
+                // Only display artwork served by the same media server.
+                if(source.startsWith('/')&&!source.startsWith('//')){
+                  backdrop.style.backgroundImage=
+                    'linear-gradient(90deg,rgba(6,10,18,.48),rgba(6,10,18,.35)),'+
+                    'url("'+source.replaceAll('"','%22')+'")';
+                  backdrop.style.opacity='.85';
+                  document.body.classList.add('oew-tv-artwork-active');
                 }else{
-                  backdrop.style.backgroundImage='url("/assets/poster-placeholder.jpg")';
+                  backdrop.style.opacity='0';
+                  backdrop.style.backgroundImage='none';
+                  document.body.classList.remove('oew-tv-artwork-active');
                 }
               };
               document.addEventListener('focusin',event=>setArtwork(event.target),true);
