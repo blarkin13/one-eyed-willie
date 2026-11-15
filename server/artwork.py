@@ -5,7 +5,6 @@ mounted persistently outside the container. Only two fixed image CDNs are
 permitted; redirects and private/network addresses are never followed.
 """
 import hashlib
-import ipaddress
 import os
 import re
 import tempfile
@@ -17,7 +16,7 @@ from pathlib import Path
 from threading import Lock, Semaphore
 
 from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse
 
 from .library import db, MEDIA_ROOT
 
@@ -63,8 +62,8 @@ def _trusted_remote(url):
     return False
 
 
-def _register(source, kind):
-    digest = hashlib.sha256((kind + ":" + source).encode()).hexdigest()
+def _register(source, kind, version=""):
+    digest = hashlib.sha256((kind + ":" + source + ":" + version).encode()).hexdigest()
     with db() as conn:
         _table(conn)
         conn.execute(
@@ -92,7 +91,7 @@ def register_local(path):
             return None
     except (OSError, ValueError):
         return None
-    return _register(str(real), "local")
+    return _register(str(real), "local", str(real.stat().st_mtime_ns))
 
 
 def local_show_poster(library_id, key):
@@ -142,9 +141,11 @@ def localize(value):
     return value
 
 
-class _NoRedirect(urllib.request.HTTPRedirectHandler):
+class _SafeRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, request, fp, code, msg, headers, newurl):
-        return None
+        if not _trusted_remote(newurl):
+            return None
+        return super().redirect_request(request, fp, code, msg, headers, newurl)
 
 
 def _download(source):
@@ -154,7 +155,7 @@ def _download(source):
         "Accept": "image/jpeg,image/png,image/webp",
         "User-Agent": "OneEyedWillie/0.7 (local artwork cache)",
     })
-    opener = urllib.request.build_opener(_NoRedirect())
+    opener = urllib.request.build_opener(_SafeRedirect())
     with opener.open(request, timeout=FETCH_TIMEOUT_SECONDS) as response:
         mime = response.headers.get("Content-Type", "").split(";")[0].lower().strip()
         if mime not in IMAGE_CONTENT_TYPES:
