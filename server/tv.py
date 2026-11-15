@@ -3,6 +3,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 from .catalog import episode_info
 from .library import db
@@ -34,6 +35,44 @@ def provider_season(meta, number):
 
 
 router = APIRouter(prefix="/api/tv")
+
+
+class BulkWatched(BaseModel):
+    watched: bool
+
+
+def _bulk_watched(library_id, show_key, watched, season_number=None):
+    show = local_show(library_id, show_key)
+    ids = [episode["id"] for episode in show["episodes"]
+           if season_number is None or episode["season"] == season_number]
+    if not ids:
+        raise HTTPException(404, "No matching episodes")
+    with db() as conn:
+        if watched:
+            conn.executemany(
+                "INSERT INTO playback_progress(media_id,position_seconds,duration_seconds,"
+                "completed,updated_at) VALUES(?,0,0,1,CURRENT_TIMESTAMP) "
+                "ON CONFLICT(media_id) DO UPDATE SET completed=1,"
+                "position_seconds=duration_seconds,updated_at=CURRENT_TIMESTAMP",
+                [(id,) for id in ids],
+            )
+        else:
+            conn.executemany("DELETE FROM playback_progress WHERE media_id=?",
+                             [(id,) for id in ids])
+    return {"watched": watched, "updated": len(ids)}
+
+
+@router.put("/show/watched")
+def set_show_watched(library_id: int, key: str, change: BulkWatched):
+    return _bulk_watched(library_id, key, change.watched)
+
+
+@router.put("/season/watched")
+def set_season_watched(library_id: int, key: str, season_number: int, change: BulkWatched):
+    if season_number < 0 or season_number > 999:
+        raise HTTPException(422, "Invalid season")
+    return _bulk_watched(library_id, key, change.watched, season_number)
+
 
 
 def local_show(library_id: int, show_key: str):
