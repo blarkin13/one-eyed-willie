@@ -255,15 +255,15 @@ def discover(name: str):
         for item in (data.get("results", []) if isinstance(data, dict) else [])[:20]:
             if not isinstance(item, dict) or not isinstance(item.get("id"), int):
                 continue
-            date = item.get("release_date" if name == "radarr" else "first_air_date") or ""
+            release_date = item.get("release_date" if name == "radarr" else "first_air_date") or ""
             title = str(item.get("title" if name == "radarr" else "name") or "")[:180]
             if not title:
                 continue
             items.append({
                 "id": item["id"], "title": title,
                 "overview": str(item.get("overview") or "")[:900],
-                "year": int(date[:4]) if len(date) >= 4 and date[:4].isdigit() else None,
-                "release_date": date, "rating": item.get("vote_average"),
+                "year": int(release_date[:4]) if len(release_date) >= 4 and release_date[:4].isdigit() else None,
+                "release_date": release_date, "rating": item.get("vote_average"),
                 "poster_url": metadata.image_url(item.get("poster_path")),
                 "source": "TMDB",
             })
