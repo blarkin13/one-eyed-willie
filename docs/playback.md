@@ -1,6 +1,6 @@
 # Playback, movie pages, and HLS
 
-One-Eyed Willie 0.12.0 opens each movie on `/movie?library_id=…&key=…` with a poster, description, backdrop, watched state, and fullscreen Play button. It does not change the media files.
+One-Eyed Willie 0.13.0 opens each movie on `/movie?library_id=…&key=…` with a poster, description, backdrop, watched state, and fullscreen Play button. It does not change the media files.
 
 ## Playback modes
 
@@ -8,6 +8,24 @@ One-Eyed Willie 0.12.0 opens each movie on `/movie?library_id=…&key=…` with 
 - Compatibility: for MKV, AVI, unsupported video/audio codecs, and failed Direct Play, FFmpeg produces H.264/AAC HLS segments. Safari has native HLS; other modern browsers use the pinned Apache-licensed Hls.js client (version 1.7.4). Hls.js currently loads from a public CDN, so those browsers require internet access to load the library.
 - Streaming occurs **only** from the NUC origin, not Cloudflare Workers. Remote use requires the existing password-protected direct HTTPS address.
 - Progress persists in the local SQLite database. Movies and TV episodes can be marked watched/unwatched.
+
+## Play, Resume and Continue Watching
+
+Movie and episode pages now use two compact icon actions: Play always begins at the start, and Resume appears when saved playback progress is at least 30 seconds and below 95% of the title. The same 30-second threshold determines whether a movie or episode appears in Continue Watching. The player saves position periodically and on closing. A completed title or one marked watched no longer appears there.
+
+## Subtitles
+
+The player now exposes a **CC** dropdown when compatible subtitle tracks exist. "CC Off" is the default. Supported external sidecars are `.srt`, `.vtt`, `.ass`, and `.ssa`, named alongside the video, for example:
+
+```
+The Goonies (1985).mkv
+The Goonies (1985).en.srt
+The Goonies (1985).forced.srt
+```
+
+Embedded text subtitle tracks (SubRip, ASS/SSA, mov_text, WebVTT) are also detected. FFmpeg converts them into browser WebVTT tracks and caches the results under `/data/subtitles`. Original files are not changed. Image-based subtitles such as PGS/VobSub are **not yet supported**; they require another approach (bitmap overlay or burn-in). Select CC Off to disable subtitles. HLS restarts request subtitles aligned to the resumed stream start time.
+
+Subtitle endpoints are located under `/api/stream/subtitles/`, which the Cloudflare Worker blocks. Subtitles, like media bytes, are delivered only from the protected direct NUC origin.
 
 ## Optional Intel graphics acceleration
 
@@ -34,7 +52,7 @@ HLS segments are stored in `/data/hls/`, never in the media library. Only two co
 
 ## Testing
 
-1. Verify `/health` is v0.12.0.
+1. Verify `/health` is v0.13.0.
 2. On the LAN, open a movie and select Play. Confirm fullscreen, sound, and timeline.
 3. Try one MKV or HEVC movie, using the fallback. Confirm playback, 10-second skips, and resume.
 4. Mark a movie watched, reload its page, and mark it unwatched.

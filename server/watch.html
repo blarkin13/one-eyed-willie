@@ -19,6 +19,6 @@ button:hover{background:#355b81}p{max-width:540px;color:#a7b9ce;text-align:cente
 const id=Number(location.pathname.split('/').pop());
 document.getElementById('launch').addEventListener('click',()=>{
   if(!Number.isInteger(id)||id<=0)return;
-  window.WilliePlayer.open(id,'Now Playing');
+  window.WilliePlayer.open(id,'Now Playing',{restart:new URLSearchParams(location.search).get('restart')==='1'});
 });
 </script></body></html>
