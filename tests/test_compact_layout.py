@@ -147,10 +147,25 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("@media(max-width:700px)", css)
         self.assertIn("safe-area-inset-bottom", css)
 
+    def test_explore_remote_controls(self):
+        explore = (SERVER / "explore.html").read_text()
+        catalog = (SERVER / "catalog.html").read_text()
+        self.assertIn("function remoteMove(key)", explore)
+        self.assertIn("remoteCandidates(scope)", explore)
+        self.assertIn("ArrowUp", explore)
+        self.assertIn("ArrowDown", explore)
+        self.assertIn("BrowserBack", explore)
+        self.assertIn("dialog.addEventListener('close'", explore)
+        self.assertIn("active.click()", explore)
+        self.assertIn("explore-trailer-preview", explore)
+        self.assertIn("function remoteCatalogMove(key)", catalog)
+        self.assertIn("focus-visible", catalog)
+        self.assertIn("explore-library", catalog)
+
     @unittest.skipUnless(shutil.which("node"), "Node.js not installed")
     def test_ui_javascript_syntax(self):
         source_files = [SERVER / "shell.js", SERVER / "player.js"]
-        for path in (SERVER / "dashboard.html", SERVER / "catalog.html", SERVER / "index.html", SERVER / "tv_detail.html", SERVER / "watch.html", SERVER / "movie_detail.html"):
+        for path in (SERVER / "dashboard.html", SERVER / "catalog.html", SERVER / "index.html", SERVER / "tv_detail.html", SERVER / "watch.html", SERVER / "movie_detail.html", SERVER / "explore.html"):
             parser = Scripts()
             parser.feed(path.read_text())
             for script in parser.scripts:
