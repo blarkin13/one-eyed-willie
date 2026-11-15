@@ -5,6 +5,31 @@
   let current=null, mediaId=0, status=null, hls=null, session=null;
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
+  let chromeTimer=null;
+  let pointerInside=false;
+  function revealChrome(){
+    if(!current)return;
+    current.classList.remove('willie-chrome-hidden');
+    clearTimeout(chromeTimer);
+    const video=current.querySelector('video');
+    if(video&&!video.paused&&!video.ended){
+      chromeTimer=setTimeout(()=>{
+        if(current&&!video.paused&&!video.ended&&!pointerInside&&
+           !current.contains(document.activeElement))current.classList.add('willie-chrome-hidden');
+      },2200);
+    }
+  }
+  function concealChromeSoon(){
+    if(!current)return;
+    clearTimeout(chromeTimer);
+    const video=current.querySelector('video');
+    if(video&&!video.paused&&!video.ended){
+      chromeTimer=setTimeout(()=>{
+        if(current&&!video.paused&&!video.ended&&
+          !current.contains(document.activeElement))current.classList.add('willie-chrome-hidden');
+      },2200);
+    }
+  }
   let captions=null;
   let captionsSelect=null;
   function syncCaptions(){
@@ -45,6 +70,14 @@ color:#fff;padding:10px 12px;font:inherit;max-width:180px;cursor:pointer}
 background:#172637ec;color:#e8f3ff;border:1px solid #324c66;border-radius:12px;
 max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
 .willie-info:empty{display:none}
+.willie-player.willie-chrome-hidden{cursor:none}
+.willie-player.willie-chrome-hidden .willie-controls,
+.willie-player.willie-chrome-hidden .willie-timeline{opacity:0;pointer-events:none}
+.willie-player .willie-timeline{transition:opacity .2s ease}
+.willie-player .willie-info:not(:empty){opacity:1}
+.willie-player:not(.willie-chrome-hidden) .willie-controls{opacity:1}
+.willie-player:not(.willie-chrome-hidden) .willie-timeline{opacity:1}
+@media(prefers-reduced-motion:reduce){.willie-controls,.willie-timeline{transition:none}}
 .willie-timeline{position:absolute;bottom:9px;left:20px;right:20px;display:flex;
 align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius:12px;z-index:5}
 .willie-timeline input{flex:1;accent-color:#b2cde8;cursor:pointer}
@@ -91,6 +124,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     const node=current,video=node.querySelector('video');
     saveProgress(true);
     clearInterval(monitor);monitor=null;
+    clearTimeout(chromeTimer);chromeTimer=null;
     video.pause();destroyStream();
     video.removeAttribute('src');video.load();
     current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;captionsSelect=null;
@@ -170,7 +204,7 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     const surface=document.createElement('div');surface.className='willie-player';
     surface.setAttribute('role','dialog');surface.setAttribute('aria-label','Media player');
     const video=document.createElement('video');video.className='willie-video';
-    video.controls=true;video.autoplay=true;video.playsInline=true;video.preload='metadata';
+    video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';
     const controls=document.createElement('div');controls.className='willie-controls';
     const back=document.createElement('button');back.type='button';back.textContent='← Back';back.onclick=close;
     const name=document.createElement('span');name.className='willie-title';name.textContent=title||'Now playing';
@@ -208,6 +242,15 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
     timeline.append(elapsed,slider,total);
     surface.append(video,controls,info,timeline);
     document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;captionsSelect=cc;
+    surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
+    surface.addEventListener('pointerdown',revealChrome);
+    surface.addEventListener('focusin',revealChrome);
+    surface.addEventListener('focusout',concealChromeSoon);
+    video.addEventListener('click',()=>{
+      if(video.paused)video.play().catch(()=>{});
+      else video.pause();
+      revealChrome();concealChromeSoon();
+    });
     // Must be synchronous with user's Play click for fullscreen permission.
     try{surface.requestFullscreen?.().catch(()=>{})}catch(_){}
     let entered=false;
@@ -235,7 +278,8 @@ align-items:center;gap:12px;background:#0b1620d9;padding:10px 15px;border-radius
         elapsed.textContent=formatTime(now);total.textContent=formatTime(duration);
       }
     },500);
-    video.addEventListener('playing',()=>{started=true;message('')});
+    video.addEventListener('playing',()=>{started=true;message('');concealChromeSoon()});
+    video.addEventListener('pause',()=>{revealChrome()});
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{saveProgress(true,true);if(status)status.watched=true;
