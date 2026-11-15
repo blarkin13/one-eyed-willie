@@ -9,7 +9,10 @@
 .person-content{max-width:1220px}
 .person-back{display:inline-flex;margin:12px 0 30px;color:#adcce9}
 .person-hero{display:grid;grid-template-columns:minmax(150px,260px) minmax(0,1fr);gap:clamp(22px,4vw,58px);align-items:start}
-.person-portrait{width:100%;aspect-ratio:3/4;object-fit:cover;background:#162334;border-radius:9px}
+.person-photo-frame{position:relative;min-height:200px;aspect-ratio:3/4;background:#162334;border-radius:9px;overflow:hidden}
+.person-photo-fallback{position:absolute;inset:0;display:grid;place-items:center;color:#8ba1b8;font-size:4rem;font-weight:700}
+.person-photo-fallback[hidden]{display:none}
+.person-portrait{position:relative;z-index:1;width:100%;aspect-ratio:3/4;object-fit:cover;background:#162334;border-radius:9px}
 .person-hero h1{font-size:clamp(2.1rem,4vw,3.8rem);line-height:1.1;margin:0 0 20px}
 .person-hero p{line-height:1.75;color:#cad5e1;max-width:800px}
 .person-sources{display:flex;gap:18px;flex-wrap:wrap;margin-top:20px}
@@ -26,7 +29,7 @@
 <a class="person-back" href="javascript:history.back()" id="person-back">← Back to title</a>
 <p id="person-status" role="status">Loading cast profile…</p>
 <section class="person-hero" id="person-hero" hidden>
-<img id="person-photo" class="person-portrait" alt="" hidden>
+<div class="person-photo-frame"><img id="person-photo" class="person-portrait" alt="" hidden><div id="person-photo-fallback" class="person-photo-fallback" aria-hidden="true"></div></div>
 <div><p class="eyebrow">CAST PROFILE</p><h1 id="person-name"></h1>
 <p id="person-bio"></p><div class="person-sources" id="person-sources"></div></div>
 </section>
@@ -57,7 +60,12 @@ async function load(){
   document.title=data.name+' · One-Eyed Willie';
   byId('person-bio').textContent=data.biography||'A verified biography is not currently available for this cast member.';
   const photo=byId('person-photo');
+  const fallback=byId('person-photo-fallback');
+  fallback.textContent=data.name.split(/\s+/).slice(0,2).map(part=>part[0]||'').join('').toUpperCase();
+  photo.onerror=()=>{photo.hidden=true;fallback.hidden=false};
+  photo.onload=()=>{fallback.hidden=true;photo.hidden=false};
   if(data.photo?.startsWith('https://')){photo.src=data.photo;photo.hidden=false}
+  else{photo.hidden=true;fallback.hidden=false}
   sourceLink('Wikipedia',data.wikipedia_url);
   sourceLink(data.credit_source||'Screen credits',data.source_url);
   if(data.biography_source && data.biography_source!=='Wikipedia' && data.biography_source!==data.credit_source)

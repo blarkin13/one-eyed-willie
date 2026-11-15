@@ -47,6 +47,42 @@ def wikipedia_summary(name):
                       if str((data.get("thumbnail") or {}).get("source") or "").startswith("https://upload.wikimedia.org/") else None),
     }
 
+
+def same_person(left, right):
+    return re.sub(r"[^a-z0-9]", "", str(left).casefold()) == re.sub(r"[^a-z0-9]", "", str(right).casefold())
+
+def find_tmdb_id(name):
+    data = tmdb_call("search/person", query={"query": name, "language": "en-US", "page": 1})
+    if not isinstance(data, dict):
+        return None
+    candidates = [row for row in data.get("results", []) if isinstance(row, dict)
+                  and same_person(row.get("name"), name) and isinstance(row.get("id"), int)]
+    return candidates[0]["id"] if len(candidates) == 1 else None
+
+def find_tvmaze_id(name):
+    data = tvmaze_get("/search/people", {"q": name})
+    if not isinstance(data, list):
+        return None
+    candidates = [row.get("person") for row in data if isinstance(row, dict)]
+    candidates = [row for row in candidates if isinstance(row, dict)
+                  and same_person(row.get("name"), name) and isinstance(row.get("id"), int)]
+    return candidates[0]["id"] if len(candidates) == 1 else None
+
+def wikipedia_portrait(name):
+    query = urllib.parse.urlencode({
+        "action": "query", "format": "json", "redirects": 1,
+        "prop": "pageimages", "pithumbsize": 500, "titles": name
+    })
+    data = public_json("https://en.wikipedia.org/w/api.php?" + query)
+    pages = ((data or {}).get("query") or {}).get("pages") or {}
+    for page in pages.values():
+        if not isinstance(page, dict) or not same_person(page.get("title"), name):
+            continue
+        url = ((page.get("thumbnail") or {}).get("source") or "")
+        if url.startswith("https://upload.wikimedia.org/"):
+            return url
+    return None
+
 def tmdb_profile(person_id):
     if not person_id:
         return {}
@@ -109,16 +145,29 @@ def profile(
     tmdb_id: int | None = Query(default=None, ge=1),
     tvmaze_id: int | None = Query(default=None, ge=1),
 ):
-    cache_key = "person-profile:v1:" + name.casefold() + ":" + str(tmdb_id or 0) + ":" + str(tvmaze_id or 0)
+    cache_key = "person-profile:v2:" + name.casefold() + ":" + str(tmdb_id or 0) + ":" + str(tvmaze_id or 0)
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
-    detail = (tmdb_profile(tmdb_id) if tmdb_id else
-              tvmaze_profile(tvmaze_id) if tvmaze_id else {})
-    # Do not silently show a profile for an unrelated person.
-    if detail.get("name") and detail["name"].casefold() != name.casefold():
+    # Prefer verified IDs, then resolve older name-only cast entries by exact match.
+    resolved_tmdb = tmdb_id or find_tmdb_id(name)
+    resolved_tvmaze = tvmaze_id
+    detail = tmdb_profile(resolved_tmdb) if resolved_tmdb else {}
+    if detail.get("name") and not same_person(detail["name"], name):
         detail = {}
+    if not detail.get("credits"):
+        resolved_tvmaze = resolved_tvmaze or find_tvmaze_id(name)
+        alternate = tvmaze_profile(resolved_tvmaze) if resolved_tvmaze else {}
+        if alternate.get("name") and same_person(alternate["name"], name):
+            if not detail:
+                detail = alternate
+            else:
+                detail["credits"] = alternate.get("credits") or []
+                detail["credit_source"] = alternate.get("credit_source") if detail["credits"] else detail.get("credit_source")
+                detail["photo"] = detail.get("photo") or alternate.get("photo")
     wiki = wikipedia_summary(name)
+    if wiki and not wiki.get("thumbnail") and not detail.get("photo"):
+        wiki["thumbnail"] = wikipedia_portrait(name)
     result = {
         "name": name, "biography": wiki.get("biography") or detail.get("biography") or "",
         "biography_source": "Wikipedia" if wiki.get("biography") else ("TMDB" if detail.get("biography") else None),
