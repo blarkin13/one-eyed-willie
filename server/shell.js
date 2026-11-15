@@ -33,13 +33,16 @@ document.addEventListener('DOMContentLoaded', () => {
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
   brand.title='One-Eyed Willie';
-  // Use the supplied logo as the logo, never the browser-only favicon.
-  // The expanded brand pairs the complete supplied logo (skull + lettering)
-  // with a Snell Roundhand title, as in the approved reference composition.
+  // The logo is the supplied logo.png, not favicon.png. Its square canvas
+  // includes a tiny line of lettering below the skull; frame the skull here
+  // so it doesn't appear as a second, unreadable wordmark beside the title.
+  const logoFrame=document.createElement('span');logoFrame.className='brand-logo-frame';
+  logoFrame.setAttribute('aria-hidden','true');
   const image=document.createElement('img');image.className='brand-logo';image.src='/assets/logo.png';
-  image.alt='';image.width=68;image.height=68;
+  image.alt='';image.width=90;image.height=90;
+  logoFrame.append(image);
   const words=document.createElement('span');words.className='brand-name';words.textContent='One-eyed Willie';
-  brand.append(image,words);target.append(brand);
+  brand.append(logoFrame,words);target.append(brand);
   const nav=document.createElement('nav');nav.className='side-nav';nav.setAttribute('aria-label','Main navigation');
   navItems.forEach(item=>{
     const a=document.createElement('a');a.href=item.href;a.title=item.name;
