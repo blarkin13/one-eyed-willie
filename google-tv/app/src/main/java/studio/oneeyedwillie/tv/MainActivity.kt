@@ -315,14 +315,14 @@ class MainActivity : ComponentActivity() {
                 .sidebar .settings-shortcuts{display:none!important}
                 .workspace,.topbar,.content{background:transparent!important}
                 body{background:#080d16!important}
-                /* Hide skull watermark while artwork is active. */
-                body.oew-tv-artwork-active #items::before,
-                body.oew-tv-artwork-active .shelf-track::before,
-                body.oew-tv-artwork-active .explore-grid::before,
-                body.oew-tv-artwork-active .movie-grid::before,
-                body.oew-tv-artwork-active .tv-grid::before {display:none!important}
-                body.oew-tv-artwork-active .explore-results::before,
-                body.oew-tv-artwork-active .discovery-row::before{display:none!important}
+                /* Match the server: the skull disappears with a real backdrop. */
+                body:has(.willie-hover-backdrop-layer.is-visible) #items::before,
+                body:has(.willie-hover-backdrop-layer.is-visible) .shelf-track::before,
+                body:has(.willie-hover-backdrop-layer.is-visible) .explore-grid::before,
+                body:has(.willie-hover-backdrop-layer.is-visible) .movie-grid::before,
+                body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{
+                  display:none!important
+                }
                 *{scroll-margin:26px}
                 @media(max-width:1100px){
                   #items{grid-template-columns:repeat(3,minmax(0,1fr))!important}
@@ -333,45 +333,10 @@ class MainActivity : ComponentActivity() {
               `;
               document.head.appendChild(style);
 
-              // Poster art becomes a dim, blurred full-screen ambience as the
-              // user moves through cards. The poster itself remains opaque.
-              const backdrop=document.createElement('div');
-              backdrop.id='oew-tv-artwork-backdrop';
-              Object.assign(backdrop.style,{
-                position:'fixed',inset:'-24px',zIndex:'0',
-                pointerEvents:'none',opacity:'0',
-                backgroundPosition:'center',backgroundSize:'cover',
-                backgroundRepeat:'no-repeat',filter:'blur(16px) brightness(.78)',
-                transition:'opacity .25s ease'
-              });
-              document.body.prepend(backdrop);
-              const setArtwork=node=>{
-                const card=node?.closest?.('.tile,.explore-card');
-                if(!card)return;
-                const poster=card.querySelector('.cover .poster-image');
-                const image=card.dataset.hoverBackdrop || poster?.getAttribute('src') || '';
-                // Allow same-server artwork and trusted TMDB images on Explore.
-                const trusted=image.startsWith('/api/artwork/') ||
-                  image.startsWith('https://image.tmdb.org/t/p/');
-                if(trusted){
-                  backdrop.style.backgroundImage=
-                    'linear-gradient(90deg,rgba(6,10,18,.38),rgba(6,10,18,.28)),'+
-                    'url("'+image.replaceAll('"','%22')+'")';
-                  backdrop.style.opacity='.92';
-                  document.body.classList.add('oew-tv-artwork-active');
-                }else{
-                  backdrop.style.opacity='0';
-                  backdrop.style.backgroundImage='none';
-                  document.body.classList.remove('oew-tv-artwork-active');
-                }
-              };
-              document.addEventListener('focusin',event=>setArtwork(event.target),true);
-              document.addEventListener('mouseover',event=>setArtwork(event.target),{passive:true});
-              const posterObserver=new MutationObserver(()=>{
-                const active=document.activeElement;
-                if(active?.closest?.('.tile,.explore-card'))setArtwork(active);
-              });
-              posterObserver.observe(document.body,{childList:true,subtree:true});
+              // The server's shell.js owns the cinematic backdrop on Home,
+              // Movies, TV and Explore. It resolves actual widescreen backdrop_url
+              // from metadata, handles focus and hover, and fades between images.
+              // Do not add a second WebView backdrop based on poster images.
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
               const visible=node=>{
                 if (!node.isConnected || node.closest('[hidden],[inert],[aria-hidden="true"]')) return false;
