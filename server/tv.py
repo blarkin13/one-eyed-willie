@@ -7,9 +7,9 @@ from pydantic import BaseModel
 
 from .catalog import episode_info
 from .library import db
-from .artwork import localize, local_show_poster
+from .artwork import localize, local_show_poster, register_remote
 from .metadata import show_metadata as tmdb_show_metadata, season_metadata, token_status
-from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tvmaze_season_metadata
+from .tvmaze import show_metadata as tvmaze_show_metadata, season_metadata as tvmaze_season_metadata, show_cast as tvmaze_show_cast
 from .arr import sonarr_metadata
 
 def show_metadata(title, year=None):
@@ -168,7 +168,17 @@ def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_len
 @router.get("/show")
 def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show, meta, seasons = merged_show(library_id, key)
+    cast = []
+    if meta.get("source") == "TVmaze":
+        for actor in tvmaze_show_cast(meta.get("tvmaze_id")):
+            cast.append({"name": actor["name"], "character": actor["character"],
+                         "photo": register_remote(actor.get("photo_url"))})
     result = {
+        "cast": cast,
+        "rating": meta.get("rating"),
+        "network": meta.get("network"),
+        "genres": meta.get("genres") or [],
+        "trailer_key": meta.get("trailer_key"),
         "library_id": library_id, "key": key, "title": show["title"],
         "year": show["year"], "overview": meta.get("overview", ""),
         "poster_url": meta.get("poster_url"),
