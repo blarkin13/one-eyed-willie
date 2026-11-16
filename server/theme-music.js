@@ -1,4 +1,4 @@
-/* Background audio from a local theme or the user's connected Plex library. */
+/* Background audio from local files or on-demand TelevisionTunes personal listening copies. */
 (()=>{
   'use strict';
   let active=null;
@@ -20,14 +20,9 @@
     if(!preferences[kind==='tv'?'tv_theme_music':'movie_theme_music'])return;
     if(!found.available||!found.url){
       const reasons={
-        plex_not_connected:'Connect Plex in Settings → Connections for automatic theme music.',
-        plex_config_error:'Plex theme connection needs attention in Settings → Connections.',
-        not_in_plex_library:'This title was not found in your connected Plex library.',
-        ambiguous_plex_match:'Multiple matching titles in Plex; theme cannot be selected safely.',
-        no_theme_in_plex:'Plex has no theme music for this title.',
-        plex_metadata_unavailable:'Plex did not return theme information for this title.',
-        plex_unreachable:'Could not reach Plex to find this theme.',
-        unsupported_plex_theme:'Plex returned an unsupported theme reference.'
+        tv_only_source:'Movie theme playback requires a local theme file.',
+        title_not_recognized:'This TV show could not be identified for theme lookup.',
+        not_available_from_source:'No matching downloadable theme was available from TelevisionTunes.'
       };
       const hint=document.createElement('span');
       hint.className='theme-music-hint';
