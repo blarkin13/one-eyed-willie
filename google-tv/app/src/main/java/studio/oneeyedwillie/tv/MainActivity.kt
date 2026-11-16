@@ -457,7 +457,67 @@ class MainActivity : ComponentActivity() {
                 body.oew-tv-backdrop-active .explore-grid::before,
                 body.oew-tv-backdrop-active .movie-grid::before,
                 body.oew-tv-backdrop-active .tv-grid::before{display:none!important}
-                /* No smooth page scrolling or shelf snap while using D-pad. */
+                /* TV movie detail: compact top-aligned hero, with Play and
+                   Resume in the first viewport even at narrow WebView widths.
+                   Override the server's 75vh cinematic hero and mobile
+                   single-column breakpoint only in the Android TV app. */
+                body[data-page="movies"] .workspace>.content:has(.movie-detail-hero){
+                  padding:0 0 42px!important;max-width:none!important
+                }
+                body[data-page="movies"] .movie-back{
+                  margin:12px clamp(22px,3vw,55px) 0!important
+                }
+                body[data-page="movies"] #movie-status{margin:6px 22px!important}
+                body[data-page="movies"] .movie-detail-hero{
+                  display:grid!important;
+                  grid-template-columns:clamp(105px,15vw,175px) minmax(0,1fr)!important;
+                  align-items:start!important;justify-content:start!important;
+                  gap:clamp(16px,2.7vw,35px)!important;
+                  min-height:0!important;height:auto!important;
+                  padding:15px clamp(22px,3vw,55px) 30px!important;
+                  margin:0!important
+                }
+                body[data-page="movies"] .movie-detail-hero[hidden]{display:none!important}
+                body[data-page="movies"] .movie-detail-poster{
+                  display:block;width:100%!important;
+                  max-width:175px!important;max-height:265px!important;
+                  height:auto!important;aspect-ratio:2/3!important;
+                  object-fit:cover!important;margin:0!important;
+                  align-self:start!important
+                }
+                body[data-page="movies"] .movie-detail-poster[hidden]{display:none!important}
+                body[data-page="movies"] .movie-detail-data{
+                  min-width:0!important;margin:0!important;
+                  display:flex!important;flex-direction:column!important;
+                  align-items:flex-start!important;gap:0!important
+                }
+                body[data-page="movies"] .movie-detail-data .eyebrow{margin:0 0 5px!important}
+                body[data-page="movies"] .movie-detail-data h1{
+                  font-size:clamp(1.65rem,3.8vw,3.25rem)!important;
+                  line-height:1.05!important;margin:0 0 9px!important
+                }
+                body[data-page="movies"] .movie-detail-data .movie-meta{
+                  margin:3px 0 8px!important;font-size:.84rem!important
+                }
+                body[data-page="movies"] .movie-detail-data .movie-description{
+                  order:5!important;line-height:1.45!important;
+                  margin:9px 0 12px!important;font-size:.9rem!important;
+                  max-width:760px!important
+                }
+                body[data-page="movies"] .movie-detail-actions{
+                  order:4!important;margin:5px 0 4px!important;
+                  gap:12px!important
+                }
+                body[data-page="movies"] .movie-detail-progress,
+                body[data-page="movies"] #progress-label,
+                body[data-page="movies"] .movie-detail-genres,
+                body[data-page="movies"] .movie-detail-credit{
+                  order:6!important;margin-top:7px!important
+                }
+                body[data-page="movies"] .movie-detail-actions .media-icon-action{
+                  width:52px!important;height:52px!important
+                }
+                                /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{
                   scroll-snap-type:none!important;scroll-behavior:auto!important;
