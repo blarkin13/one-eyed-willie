@@ -156,7 +156,7 @@ class CompactLayoutTests(unittest.TestCase):
 
     def test_stable_tv_season_hero_and_compact_actions(self):
         page = (SERVER / "tv_detail.html").read_text()
-        self.assertIn("height:clamp(292px,44vh,400px)", page)
+        self.assertIn("height:clamp(315px,44vh,400px)", page)
         self.assertIn(".season-episode-summary{height:2.8em", page)
         self.assertIn(".season-episode-format{height:29px", page)
         self.assertIn("grid-auto-columns:clamp(122px,15vw,200px)", page)
