@@ -800,7 +800,7 @@ async function renderSeason(){
       });
       option('Fix match',()=>openMatchDialog());
       option('Shuffle season',()=>{
-        if(typeof WilliePlayer?.shuffleSeason!=='function')
+        if(typeof window.WilliePlayer?.shuffleSeason!=='function')
           throw Error('Shuffle playback is not ready. Reload the page and try again.');
         WilliePlayer.shuffleSeason(available.map(ep=>({
           id:ep.id,title:data.show.title+' · '+(ep.title||'Episode '+ep.episode),
