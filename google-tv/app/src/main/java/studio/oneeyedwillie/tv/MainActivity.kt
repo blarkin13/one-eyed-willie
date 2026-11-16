@@ -415,6 +415,76 @@ class MainActivity : ComponentActivity() {
     companion object {
         private val TV_REMOTE_SCRIPT = """
             (() => {
+              // Google TV remote navigation may focus a search box while the
+              // viewer is just moving through the interface. A focused text
+              // input remains read-only until OK/Select or a real click.
+              // The fields remain focusable and keep their existing values.
+              if(!window.__oewTvInputGateInstalled){
+                window.__oewTvInputGateInstalled=true;
+                const protectedFields=new WeakSet();
+                let editingField=null;
+                let refocusing=false;
+                const isTextField=node=>node instanceof HTMLTextAreaElement ||
+                  (node instanceof HTMLInputElement &&
+                    ['text','search','email','password','tel','url','number'].includes(node.type));
+                const protect=node=>{
+                  if(!isTextField(node)||node.disabled||node===editingField||node.readOnly)return;
+                  node.readOnly=true;
+                  protectedFields.add(node);
+                };
+                const scan=root=>{
+                  if(root.nodeType!==1&&root.nodeType!==9&&root.nodeType!==11)return;
+                  protect(root);
+                  root.querySelectorAll?.('input,textarea').forEach(protect);
+                };
+                scan(document);
+                new MutationObserver(records=>{
+                  for(const record of records)
+                    for(const node of record.addedNodes)scan(node);
+                }).observe(document.documentElement,{childList:true,subtree:true});
+                const notify=mode=>{
+                  try{prompt('oewtv:edit:'+mode,'')}catch(_){}
+                };
+                const endEditing=()=>{
+                  if(!editingField)return false;
+                  const field=editingField;
+                  editingField=null;
+                  if(field.isConnected)field.readOnly=true;
+                  notify('end');
+                  return true;
+                };
+                window.__willieTvEndTextEdit=endEditing;
+                const beginEditing=field=>{
+                  if(!protectedFields.has(field)||field.disabled)return false;
+                  if(editingField===field)return true;
+                  if(editingField)endEditing();
+                  editingField=field;
+                  field.readOnly=false;
+                  // WebView may have focused the field in read-only mode.
+                  // Recreate its input connection only after explicit Select.
+                  refocusing=true;
+                  field.blur();
+                  field.focus({preventScroll:true});
+                  refocusing=false;
+                  notify('begin');
+                  return true;
+                };
+                document.addEventListener('focusin',event=>protect(event.target),true);
+                document.addEventListener('focusout',event=>{
+                  if(!refocusing&&event.target===editingField)endEditing();
+                },true);
+                document.addEventListener('keydown',event=>{
+                  if(!['Enter',' '].includes(event.key)||!isTextField(event.target))return;
+                  if(!protectedFields.has(event.target)||editingField===event.target)return;
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  beginEditing(event.target);
+                },true);
+                document.addEventListener('click',event=>{
+                  if(isTextField(event.target)&&protectedFields.has(event.target))
+                    beginEditing(event.target);
+                },true);
+              }
               // Intercept every existing Play/Resume entry point even if the
               // deferred server player.js loads after this WebView callback.
               const nativeOpen=(id,title,options={})=>{
