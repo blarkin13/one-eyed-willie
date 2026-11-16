@@ -376,8 +376,10 @@ function createCard(item){
   meta.textContent=details.join(' · ');
  button.append(cover,title,meta);
  if(item.watched){
-   const flag=document.createElement('span');flag.className='watched-badge';flag.textContent='✓ Watched';
-   flag.setAttribute('aria-label','Watched');article.append(flag);
+   const flag=document.createElement('span');flag.className='watched-badge';
+   flag.setAttribute('aria-label','Watched');flag.title='Watched';
+   flag.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>';
+   article.append(flag);
  }
  article.append(button);
  if(item.poster_url?.startsWith('/api/artwork/')){
