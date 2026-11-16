@@ -521,6 +521,9 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "metadata_source": "TMDB (manual match)" if manual_id else ("Local movie files" if nfo else ("Radarr" if radarr else ("TMDB" if extras else None))),
         "manual_match": manual_id,
     }
+    if enrich:
+        from .video_info import video_format
+        result["video_format"] = video_format(video)
     if enrich and isinstance(result.get("poster_url"), str):
         from .poster_index import remember
         remember("movies", library_id, key, result["poster_url"])
