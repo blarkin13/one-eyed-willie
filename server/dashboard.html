@@ -215,14 +215,22 @@ function updateHomeFeature(link,item){
       :'Continue from where you left off.')
       :'Select this title to see full details.')).trim();
   genres.textContent=Array.isArray(info.genres)?info.genres.filter(Boolean).join(' · '):'';
-  if(!prefersReducedMotion()) {
-   copy.classList.remove('is-changing');
-  }
-  setHomeFeatureArt(feature,state,info.backdrop_url||item.backdrop_url,serial);
+  // Keep the old art visible until the next image has actually loaded.
+  // Blanking it during every metadata request would defeat the crossfade.
+  if(details!==null||validHomeArt(item.backdrop_url))
+   setHomeFeatureArt(feature,state,info.backdrop_url||item.backdrop_url,serial);
+ };
+ const finishFade=()=>{
+  if(state.serial!==serial)return;
+  requestAnimationFrame(()=>{if(state.serial===serial)copy.classList.remove('is-changing')});
  };
  if(!prefersReducedMotion())copy.classList.add('is-changing');
- render();
- homeDetails(item).then(details=>render(details));
+ render(null);
+ finishFade();
+ homeDetails(item).then(details=>{
+  if(state.serial!==serial)return;
+  render(details);
+ });
 }
 function selectHomePoster(event){
  const link=event.target?.closest?.('body[data-page="home"] .shelf-track .tile-button');
@@ -413,6 +421,7 @@ function tile(item, watching=false){
 function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  const target=byId(id);target.replaceChildren();
  if(!Array.isArray(items)||!items.length){
+  target.closest('.shelf')?.querySelector(':scope > .home-feature')?.remove();
   const empty=document.createElement('div');empty.className='shelf-empty';
   const title=document.createElement('h3');title.textContent=emptyTitle;
   const info=document.createElement('p');info.textContent=emptyDescription;
