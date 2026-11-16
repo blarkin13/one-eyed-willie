@@ -281,6 +281,19 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("data.network", page)
         self.assertIn("data.genres", page)
 
+    def test_series_shuffles_all_available_seasons_beside_play(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        play = page.index("button.id='series-play-button'")
+        shuffle = page.index("shuffle.id='series-shuffle-button'")
+        watch = page.index("actions.append(bulkWatchedControl(data,'show')")
+        self.assertLess(play, shuffle)
+        self.assertLess(shuffle, watch)
+        self.assertIn("shuffle.title='Shuffle play series'", page)
+        self.assertIn("WilliePlayer.shuffleSeason(episodes.map(", page)
+        self.assertIn("id:episode.id,title:data.title+' · '+episode.title", page)
+        player = (SERVER / "player.js").read_text()
+        self.assertIn("autoPlayNext=seasonShuffle", player)
+
     def test_native_and_browser_shuffle_queue(self):
         player = (SERVER / "player.js").read_text()
         self.assertIn("function shuffleSeason(episodes)", player)
