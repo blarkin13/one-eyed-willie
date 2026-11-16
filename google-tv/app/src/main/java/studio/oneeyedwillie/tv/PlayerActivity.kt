@@ -184,19 +184,17 @@ class PlayerActivity : ComponentActivity() {
                    dp(if (large) 15 else 14), dp(if (large) 15 else 14))
         isFocusable = true
         isFocusableInTouchMode = true
-        val idle = GradientDrawable().apply {
+        background = GradientDrawable().apply {
             cornerRadius = dp(40).toFloat()
-            setColor(if (large) 0x2AF4EFE4 else Color.TRANSPARENT)
+            setColor(Color.TRANSPARENT)
         }
-        background = idle
         setOnFocusChangeListener { button, hasFocus ->
-            button.background = GradientDrawable().apply {
-                cornerRadius = dp(40).toFloat()
-                setColor(if (hasFocus) 0x48F4EFE4 else if (large) 0x2AF4EFE4 else Color.TRANSPARENT)
-                if (hasFocus) setStroke(dp(2), 0xFFF4EFE4.toInt())
-            }
-            button.animate().scaleX(if (hasFocus) 1.10f else 1f)
-                .scaleY(if (hasFocus) 1.10f else 1f).setDuration(110).start()
+            // Match every server page: focused playback icons enlarge without
+            // white rectangles, circular outlines, or focus background boxes.
+            button.animate().scaleX(if (hasFocus) 1.16f else 1f)
+                .scaleY(if (hasFocus) 1.16f else 1f)
+                .alpha(if (hasFocus) 1f else .88f)
+                .setDuration(110).start()
             if (hasFocus) showChrome()
         }
         setOnClickListener {
