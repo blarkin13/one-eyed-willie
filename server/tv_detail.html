@@ -768,7 +768,8 @@ async function renderSeason(){
     ];
     // TV classifications (TV-MA, TV-14...) belong with duration, not below the thumbnails.
     if(data.show.content_rating)fields.push(data.show.content_rating);
-    epMeta.replaceChildren(...fields.filter(Boolean).map(value=>el('span','',value)));
+    epMeta.replaceChildren(...fields.filter(Boolean).map(value=>
+      el('span',value===data.show.content_rating?'season-parental-inline':'',value)));
     epOverview.textContent=episode.overview||data.season.overview||'No description available.';
     format.replaceChildren();
     const renderFormat=details=>{
@@ -946,7 +947,7 @@ async function renderSeason(){
     const show=await loadJson('/api/tv/show?'+new URLSearchParams({
       library_id:data.show.library_id,key:data.show.key
     }));
-    const extras=showExtras({...show,title:data.show.title},{includeFacts:false});
+    const extras=showExtras({...show,title:data.show.title+' Season '+state.season_number},{includeFacts:false});
     extras.querySelectorAll('h2').forEach(h=>{
       if(h.textContent==='Cast')h.textContent='Cast & Crew';
     });
