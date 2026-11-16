@@ -41,9 +41,15 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val web = browser
-                if (web != null && web.canGoBack()) web.goBack()
-                else if (web != null && web.url != origin + "/") web.loadUrl(origin + "/")
-                else showSetup()
+                if (web == null) { showSetup(); return }
+                // Closing the tiny episode menu must never navigate away from
+                // the season page. Evaluation is asynchronous on the UI thread.
+                web.evaluateJavascript("Boolean(window.__willieCloseSeasonMenu?.())") { result ->
+                    if (result == "true") return@evaluateJavascript
+                    if (web.canGoBack()) web.goBack()
+                    else if (web.url != origin + "/") web.loadUrl(origin + "/")
+                    else showSetup()
+                }
             }
         })
         val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
@@ -385,9 +391,9 @@ class MainActivity : ComponentActivity() {
                   outline:0!important;box-shadow:none!important
                 }
                 .tile-button:focus-visible .cover,.tile-button:focus .cover {
-                  outline:2px solid #ccdae6!important;outline-offset:4px!important;
-                  border-color:#a1b6c7!important;
-                  transform:none!important;box-shadow:0 9px 28px #0008!important;
+                  outline:0!important;box-shadow:none!important;
+                  border-color:transparent!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 .tile-button:hover .cover{transform:none!important}
                 .tile:focus-within{transform:none!important}
@@ -403,8 +409,8 @@ class MainActivity : ComponentActivity() {
                   border:0!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
-                  outline:2px solid #ccdae6!important;outline-offset:3px!important;
-                  border-color:#a1b6c7!important;box-shadow:0 9px 28px #0008!important
+                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) :is(strong,small){
                   outline:0!important;box-shadow:none!important;
@@ -424,8 +430,8 @@ class MainActivity : ComponentActivity() {
                 }
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible .cover,
                 body[data-page="explore"] .explore-card .detail-trigger:focus .cover{
-                  outline:2px solid #ccdae6!important;outline-offset:3px!important;
-                  border-color:#a1b6c7!important;box-shadow:0 9px 28px #0008!important
+                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="explore"] .explore-card:focus-within{
                   outline:none!important;box-shadow:none!important
@@ -702,8 +708,9 @@ class MainActivity : ComponentActivity() {
                   border-radius:50%!important;padding:10px!important
                 }
                 body[data-page="movies"] .movie-detail-actions .media-icon-action:focus-visible{
-                  outline:2px solid #d3e8fc!important;outline-offset:2px!important;
-                  background:#2b46648f!important
+                  outline:0!important;box-shadow:none!important;
+                  background:transparent!important;
+                  transform:scale(1.16)!important;filter:brightness(1.25)!important
                 }
                 body[data-page="movies"] .movie-detail-progress{
                   order:8!important;margin:5px 0 0!important;height:4px!important
@@ -773,8 +780,8 @@ class MainActivity : ComponentActivity() {
                 body[data-page="movies"] .cast-person:focus .cast-blank,
                 body[data-page="movies"] .cast-person:focus-visible img,
                 body[data-page="movies"] .cast-person:focus-visible .cast-blank{
-                  outline:2px solid #d4e8fb!important;outline-offset:3px!important;
-                  box-shadow:0 6px 20px #0008!important
+                  outline:0!important;box-shadow:none!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="movies"] .cast-person strong,
                 body[data-page="movies"] .cast-person span{
@@ -794,6 +801,42 @@ class MainActivity : ComponentActivity() {
                   body[data-page="movies"] .movie-detail-data h1{
                     font-size:clamp(1.6rem,4.5vw,2.7rem)!important
                   }
+                }
+                /* Shared scale selection on all TV screens: the artwork/icon
+                   grows, without either a card border or a second white box. */
+                body[data-page] :is(a,button,select,[tabindex="0"]):is(:focus,:focus-visible){
+                  outline:0!important;outline-offset:0!important;
+                  box-shadow:none!important;filter:brightness(1.16)
+                }
+                body[data-page] .tile-button:is(:focus,:focus-visible) .cover,
+                body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
+                body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
+                  outline:0!important;border-color:transparent!important;
+                  box-shadow:none!important;transform:scale(1.07)!important;
+                  filter:brightness(1.16)!important;position:relative;z-index:3
+                }
+                body[data-page] .season-episode-tile:is(:focus,:focus-visible){
+                  outline:0!important;border-color:transparent!important;
+                  box-shadow:none!important;transform:scale(1.07)!important;
+                  filter:brightness(1.16)!important;z-index:3
+                }
+                body[data-page] .season-episode-tile.is-selected{
+                  border-color:transparent!important;box-shadow:none!important
+                }
+                body[data-page] :is(.media-icon-action,.icon-only-control,.nav-link,
+                  .season-tabs a):is(:focus,:focus-visible){
+                  outline:0!important;box-shadow:none!important;
+                  transform:scale(1.16)!important;filter:brightness(1.24)!important;
+                  background:transparent!important;color:#fff!important
+                }
+                body[data-page] :is(.cast-person,.tv-cast-person,.credit-cast a)
+                  :is(:focus,:focus-visible) :is(img,.cast-blank,.tv-actor-image,.credit-empty-photo){
+                  outline:0!important;box-shadow:none!important;
+                  transform:scale(1.07)!important;filter:brightness(1.15)!important
+                }
+                body[data-page] .explore-card:focus-within,
+                body[data-page] .person-credit-link:is(:focus,:focus-visible){
+                  outline:0!important;box-shadow:none!important;border-color:transparent!important
                 }
                 /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
@@ -1024,10 +1067,101 @@ class MainActivity : ComponentActivity() {
                 root.scrollTop=target;
                 return Math.abs(root.scrollTop-before)>1;
               };
+              // Detail pages use vertical *sections*, not a search for the
+              // nearest item under the currently focused column. Libraries
+              // and poster grids retain spatial navigation.
+              // Comma-separated selectors express priority, not DOM order.
+              // Season 1 must win over Specials; the selected episode must win
+              // over Episode 1 when moving back into a horizontal episode rail.
+              const firstPreferred=(selectors)=>{
+                for(const raw of selectors.split(',')){
+                  const choice=[...document.querySelectorAll(raw.trim())].find(isVisible);
+                  if(choice)return choice;
+                }
+                return null;
+              };
+              const primaryDetailAction=()=>{
+                const path=location.pathname;
+                if(path==='/tv/show')
+                  return firstPreferred('#series-play-button,.series-controls button:not(:disabled)');
+                if(path==='/tv/season')
+                  return firstPreferred('.season-episode-tile.is-selected,.season-episode-tile');
+                if(path==='/movie')
+                  return document.querySelector('#play-movie');
+                if(path==='/credit')
+                  return document.querySelector('.credit-actions button:not(:disabled)');
+                if(path==='/person')
+                  return document.querySelector('.person-credits .person-credit-link');
+                return null;
+              };
+              // On wrapped season/filmography grids, Down/Up takes the
+              // leftmost card of the next/previous row. No season becomes
+              // inaccessible simply because its row is below the first row.
+              const firstOfAdjacentGridRow=(active,direction,rootSelector,itemSelector)=>{
+                const root=active?.closest?.(rootSelector);
+                if(!root||!['up','down'].includes(direction))return null;
+                const entries=[...root.querySelectorAll(itemSelector)].filter(isVisible);
+                const top=rect(active).top;
+                const next=entries.filter(node=>{
+                  const difference=rect(node).top-top;
+                  return direction==='down'?difference>15:difference< -15;
+                });
+                if(!next.length)return null;
+                const rowTop=direction==='down'
+                  ?Math.min(...next.map(node=>rect(node).top))
+                  :Math.max(...next.map(node=>rect(node).top));
+                const row=next.filter(node=>Math.abs(rect(node).top-rowTop)<15)
+                  .sort((a,b)=>rect(a).left-rect(b).left);
+                return row[0]||null;
+              };
+              const detailSections=()=>{
+                const path=location.pathname;
+                if(path==='/tv/show')return [
+                  {scope:'.series-controls', first:'#series-play-button,.series-controls button:not(:disabled)'},
+                  {scope:'.season-grid', first:'#series-first-season,.season-grid .tile-button'},
+                  {scope:'.tv-extras .tv-cast', first:'.tv-extras .tv-cast .tv-cast-person'},
+                  {scope:'.tv-extras .tv-reviews', first:'.tv-extras .tv-reviews button'}
+                ];
+                if(path==='/tv/season')return [
+                  {scope:'.season-tabs', first:'.season-tabs a[aria-current="page"],.season-tabs a[href]'},
+                  {scope:'.season-episode-track', first:'.season-episode-tile.is-selected,.season-episode-tile'},
+                  {scope:'.season-actions-row', first:'#season-play-button'},
+                  {scope:'.season-support .tv-cast', first:'.season-support .tv-cast .tv-cast-person'},
+                  {scope:'.season-support .tv-reviews', first:'.season-support .tv-reviews button'}
+                ];
+                if(path==='/movie')return [
+                  {scope:'.movie-detail-actions', first:'#play-movie'},
+                  {scope:'.movie-cast', first:'.movie-cast .cast-person'},
+                  {scope:'.movie-reviews', first:'.movie-reviews button'}
+                ];
+                if(path==='/credit')return [
+                  {scope:'.credit-actions', first:'.credit-actions button:not(:disabled)'},
+                  {scope:'.credit-cast', first:'.credit-cast a[href]'},
+                  {scope:'.credit-reviews', first:'.credit-reviews button'}
+                ];
+                if(path==='/person')return [
+                  {scope:'.person-sources', first:'.person-sources a[href]'},
+                  {scope:'.person-credits', first:'.person-credits .person-credit-link'}
+                ];
+                return [];
+              };
+              const moveThroughSections=(active,direction)=>{
+                if(direction!=='up'&&direction!=='down')return false;
+                const lanes=detailSections();
+                const index=lanes.findIndex(lane=>active?.closest?.(lane.scope));
+                if(index<0)return false;
+                const delta=direction==='down'?1:-1;
+                for(let i=index+delta;i>=0&&i<lanes.length;i+=delta){
+                  const item=firstPreferred(lanes[i].first);
+                  if(item){readingScroll=false;return focusNode(item)}
+                }
+                if(scrollRead(direction))readingScroll=true;
+                return true;
+              };
               const move=direction=>{
                 // Native D-pad must stay inside modal dialogs, including
                 // episode actions and the subsequent Fix Match results dialog.
-                const menu=document.querySelector('dialog[open]');
+                const menu=document.querySelector('dialog[open],.season-more-popover');
                 if(menu){
                   const options=[...menu.querySelectorAll(
                     'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
@@ -1059,7 +1193,9 @@ class MainActivity : ComponentActivity() {
                     // Leave the rail at the content item closest to the
                     // current selection, never trap focus inside the menu.
                     const posters=allPosters();
-                    const target=findAdjacent(active,'right',posters)||posters[0]||
+                    const preferred=primaryDetailAction();
+                    const target=(preferred&&isVisible(preferred)?preferred:null)||
+                      findAdjacent(active,'right',posters)||posters[0]||
                       nodes.find(node=>!isMenu(node));
                     return focusNode(target);
                   }
@@ -1070,6 +1206,16 @@ class MainActivity : ComponentActivity() {
                   const next=index+(direction==='down'?1:-1);
                   return focusNode(menu[Math.max(0,Math.min(menu.length-1,next))]);
                 }
+                if(direction==='up'||direction==='down'){
+                  const rowTarget=firstOfAdjacentGridRow(
+                    active,direction,'.season-grid','.tile-button')||
+                    firstOfAdjacentGridRow(
+                      active,direction,'.person-credits','.person-credit-link');
+                  if(rowTarget){readingScroll=false;return focusNode(rowTarget)}
+                }
+                // Page-level vertical navigation moves to the first item of the
+                // next logical section, including Series actions -> Season 1.
+                if(moveThroughSections(active,direction))return true;
                 // Horizontal season/episode rails must follow DOM order rather
                 // than global spatial search. D-pad focus must scroll each rail
                 // to reveal its next item, including items initially offscreen.
@@ -1105,7 +1251,11 @@ class MainActivity : ComponentActivity() {
                 }
                 if(direction==='left'||direction==='right')readingScroll=false;
                 const posters=allPosters();
-                if(!nodes.includes(active))return focusNode(posters[0]||nodes.find(n=>!isMenu(n)));
+                if(!nodes.includes(active)){
+                  const preferred=primaryDetailAction();
+                  return focusNode((preferred&&isVisible(preferred)?preferred:null)||
+                    posters[0]||nodes.find(n=>!isMenu(n)));
+                }
                 const from=rect(active);
                 const sameRowLeft=posters.some(node=>{
                   if(node===active)return false;

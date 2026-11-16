@@ -192,15 +192,71 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("previousButton.querySelector('.season-video-quality')?.remove()", page)
         self.assertIn("if(data.show.content_rating)fields.push(data.show.content_rating)", page)
         self.assertIn("season-parental-inline", page)
-        self.assertIn("const rt=el('a','season-rt-link'", page)
+        self.assertIn("const rt=el('span','season-fact','RT '+score+'%')", page)
         self.assertIn("data.show.rotten_tomatoes", page)
         self.assertIn("data.show.network", page)
         self.assertIn("data.show.genres", page)
         self.assertNotIn("actions.append(el('span','season-actions-label'", page)
-        self.assertNotIn("Reviews · TMDB community", page)
-        self.assertIn("rtReviewsLink", page)
+        self.assertIn("Reviews · TMDB community", page)
+        self.assertIn("const reviews=Array.isArray(data.reviews)", page)
+        self.assertNotIn("rtReviewsLink", page)
         self.assertIn("showExtras({...show,title:data.show.title+' Season '", page)
         self.assertIn(".season-support .tv-cast{grid-auto-columns:clamp(76px,8vw,108px)", page)
+
+    def test_enlarged_episode_cards_without_double_focus_boxes(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("grid-auto-columns:clamp(168px,20vw,270px)", page)
+        self.assertIn("grid-auto-columns:clamp(145px,34vw,218px)", page)
+        self.assertIn(".season-episode-tile.is-selected:not(:focus):not(:focus-visible){", page)
+        self.assertIn("transform:scale(1.045)!important", page)
+        self.assertIn("outline:0!important;box-shadow:none!important", page)
+
+    def test_small_season_menu_keyboard_outside_and_remote_back(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("const menu=el('div','season-more-popover')", page)
+        self.assertIn("menu.setAttribute('role','menu')", page)
+        self.assertIn("document.addEventListener('pointerdown',outside,true)", page)
+        self.assertIn("window.__willieCloseSeasonMenu=()=>", page)
+        self.assertIn("if(['Escape','Backspace','BrowserBack','GoBack'].includes(event.key))", page)
+        self.assertNotIn("const dialog=el('dialog','season-overflow-dialog')", page)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
+                   "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("Boolean(window.__willieCloseSeasonMenu?.())", android)
+        self.assertIn("dialog[open],.season-more-popover", android)
+
+    def test_series_vertical_selection_order_uses_first_of_each_section(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("button.id='series-play-button'", page)
+        self.assertIn("card.querySelector('.tile-button').id='series-first-season'", page)
+        self.assertIn("if(actions && event.key==='ArrowDown')", page)
+        self.assertIn("const leftmostAdjacentSeason=(active,direction)=>", page)
+        self.assertIn("else if(grid){", page)
+        self.assertIn("const nextRow=leftmostAdjacentSeason(active,event.key)", page)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
+                   "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("const detailSections=()=>", android)
+        self.assertIn("if(path==='/tv/show')return [", android)
+        self.assertIn("if(moveThroughSections(active,direction))return true", android)
+        self.assertIn("scope:'.season-grid'", android)
+        self.assertIn("scope:'.movie-detail-actions'", android)
+        self.assertIn("const firstPreferred=(selectors)=>", android)
+        self.assertIn("for(const raw of selectors.split(','))", android)
+        self.assertIn("const item=firstPreferred(lanes[i].first)", android)
+        self.assertIn("const firstOfAdjacentGridRow=(active,direction", android)
+        self.assertIn("firstOfAdjacentGridRow(", android)
+        self.assertIn("'.season-grid','.tile-button'", android)
+
+    def test_system_wide_scale_selection_instead_of_outline(self):
+        css = (SERVER / "ui.css").read_text()
+        self.assertIn("html body[data-page] :is(a,button,select,[tabindex=\"0\"])", css)
+        self.assertIn("transform:scale(1.07)!important", css)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
+                   "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("body[data-page] .season-episode-tile.is-selected", android)
+        player = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
+                  "studio" / "oneeyedwillie" / "tv" / "PlayerActivity.kt").read_text()
+        self.assertIn("button.animate().scaleX(if (hasFocus) 1.16f else 1f)", player)
+        self.assertNotIn("if (hasFocus) setStroke(dp(2)", player)
 
     def test_series_actions_and_clamped_description(self):
         page = (SERVER / "tv_detail.html").read_text()

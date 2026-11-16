@@ -518,3 +518,96 @@ body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
 .settings-editor-dialog label{display:block;margin:15px 0 6px;font-weight:650;font-size:.88rem}
 .settings-editor-dialog .folder-list{max-height:240px}
 @media(max-width:800px){.settings-grid,.settings-two-col{grid-template-columns:minmax(0,1fr)}.settings-tile{min-height:130px}.settings-card{padding:17px}.settings-list-row{align-items:flex-start}}
+
+
+/* One consistent visual focus language throughout the server, libraries,
+   media pages, dialogs, settings, and Android WebView: no double outlines.
+   Keyboard/remote focus is still visible via enlargement and brightness. */
+:where(a,button,[role="button"],select,[tabindex="0"]):focus-visible{
+  outline:none!important;outline-offset:0!important;box-shadow:none!important;
+  filter:brightness(1.17);transform:scale(1.07);
+  transform-origin:center;position:relative;z-index:3;
+}
+:where(input,textarea):focus-visible{
+  outline:none!important;box-shadow:none!important;
+  border-bottom-color:#d8efff!important;
+}
+:where(.tile-button,.detail-trigger,.person-credit-link,.cast-person,
+  .tv-cast-person,.credit-cast a):is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;
+}
+:where(.tile-button,.detail-trigger,.person-credit-link):is(:focus,:focus-visible){
+  transform:none!important;
+}
+:where(.tile-button,.detail-trigger,.person-credit-link):is(:focus,:focus-visible)
+  :is(.cover,.explore-poster,.person-credit-poster){
+  outline:0!important;border-color:transparent!important;
+  box-shadow:none!important;transform:scale(1.065)!important;
+  filter:brightness(1.14);position:relative;z-index:2;
+}
+:where(.cast-person,.tv-cast-person,.credit-cast a):is(:focus,:focus-visible)
+  :is(img,.cast-blank,.tv-actor-image,.credit-empty-photo){
+  outline:0!important;border-color:transparent!important;
+  box-shadow:none!important;transform:scale(1.065)!important;
+  filter:brightness(1.14);
+}
+:where(.season-episode-tile):is(:focus,:focus-visible){
+  outline:none!important;box-shadow:none!important;
+  border-color:transparent!important;
+  transform:scale(1.065)!important;filter:brightness(1.12);
+}
+:where(.season-episode-tile).is-selected{
+  border-color:transparent!important;box-shadow:none!important;
+}
+:where(.media-icon-action,.icon-only-control):is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;background:transparent!important;
+  transform:scale(1.17)!important;color:#fff!important;
+  filter:brightness(1.25);
+}
+@media(prefers-reduced-motion:no-preference){
+  :where(.tile-button,.detail-trigger,.person-credit-link,.cast-person,.tv-cast-person,
+  .media-icon-action,.icon-only-control,.season-episode-tile,.cover,.explore-poster)
+  {transition:transform .13s ease,filter .13s ease}
+}
+
+
+/* Highest-specificity shared override for individual page styles. This is
+   intentionally after base rules and uses both page and control selectors. */
+html body[data-page] :is(a,button,select,[tabindex="0"]):is(:focus,:focus-visible){
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  filter:brightness(1.16)
+}
+html body[data-page] :is(.media-icon-action,.icon-only-control):is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;background:transparent!important;
+  transform:scale(1.16)!important;color:#fff!important
+}
+html body[data-page] :is(.tile-button,.detail-trigger):is(:focus,:focus-visible) .cover,
+html body[data-page] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster,
+html body[data-page] .explore-card .detail-trigger:is(:focus,:focus-visible) .cover{
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  border-color:transparent!important;transform:scale(1.07)!important;
+  filter:brightness(1.13)
+}
+html body[data-page] .season-episode-tile:is(:focus,:focus-visible),
+html body[data-page] .season-episode-tile.is-selected{
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  border-color:transparent!important
+}
+html body[data-page] .season-episode-tile:is(:focus,:focus-visible){
+  transform:scale(1.075)!important;filter:brightness(1.16)
+}
+html body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+  transform:scale(1.045)!important;filter:brightness(1.1)
+}
+html body[data-page] :is(.cast-person,.tv-cast-person,.credit-cast a):is(:focus,:focus-visible)
+ :is(img,.cast-blank,.tv-actor-image,.credit-empty-photo){
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  transform:scale(1.07)!important;filter:brightness(1.13)
+}
+
+/* The browser player uses dynamic buttons rather than media-icon-action. */
+html body[data-page] :is(.willie-controls,.willie-toolbar) button:is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;
+  background:transparent!important;transform:scale(1.16)!important;
+  filter:brightness(1.23)!important
+}

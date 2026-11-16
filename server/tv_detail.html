@@ -285,6 +285,53 @@ body.tv-season-mode #loading:empty{display:none}
   .season-action-facts .season-fact{max-width:130px}
   .season-support .tv-cast{grid-auto-columns:85px}
 }
+
+/* Comfortable episode stills with a single, borderless selected scale state. */
+.season-episode-track{grid-auto-columns:clamp(168px,20vw,270px);gap:clamp(15px,1.8vw,26px);
+  padding-top:14px;padding-bottom:14px}
+.season-episode-tile,.season-episode-tile.is-selected{
+  border-color:transparent!important;box-shadow:none!important}
+.season-episode-tile:is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+  transform:scale(1.07)!important;filter:brightness(1.13)}
+.season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+  transform:scale(1.045)!important;filter:brightness(1.1)}
+.season-support .tv-cast-person:is(:focus,:focus-visible) .tv-actor-image{
+  outline:0!important;box-shadow:none!important;transform:scale(1.07)!important}
+.season-actions-row .media-icon-action:is(:focus,:focus-visible),
+.tv-show-hero .media-icon-action:is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;
+  transform:scale(1.16)!important;filter:brightness(1.25)}
+/* Small anchored menu, not a full-screen modal. Scroll its four items with a remote. */
+.season-more-popover{position:fixed;z-index:1100;
+  width:min(242px,calc(100vw - 24px));background:#0e1b2beF;
+  color:#e3f0fc;border:1px solid #446078;border-radius:9px;
+  padding:5px;box-shadow:0 12px 28px #000a}
+.season-more-popover[hidden]{display:none}
+.season-more-popover .season-overflow-item{display:block;width:100%;min-height:40px;
+  text-align:left;background:transparent!important;color:inherit;border:0!important;
+  border-radius:5px;padding:9px 10px;cursor:pointer;font-size:.86rem;white-space:normal}
+.season-more-popover .season-overflow-item:is(:focus,:focus-visible,:hover){
+  outline:0!important;box-shadow:none!important;
+  background:#203d58!important;filter:brightness(1.16);
+  transform:scale(1.025)!important}
+.tv-reviews{grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:10px}
+.tv-review{padding:13px 14px}
+.tv-review:not(.expanded) p{-webkit-line-clamp:4}
+.tv-review .review-expand:is(:focus,:focus-visible){outline:0!important;transform:scale(1.05)}
+@media(max-width:720px){
+  .season-episode-track{grid-auto-columns:clamp(145px,34vw,218px);
+    gap:14px;padding-top:14px;padding-bottom:14px}
+}
+
+/* Keep the selected episode modestly enlarged while focus is on Play. */
+.season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+  transform:scale(1.045)!important;filter:brightness(1.1);
+  border-color:transparent!important;outline:0!important;box-shadow:none!important
+}
+.season-episode-tile.is-selected:is(:focus,:focus-visible){
+  transform:scale(1.075)!important;outline:0!important;box-shadow:none!important
+}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -581,15 +628,6 @@ function openTvTrailer(key,title){
  close.onclick=()=>dialog.close();dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
  dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
 }
-function rtSearchUrl(title){
- return 'https://www.rottentomatoes.com/search?search='+encodeURIComponent(String(title||''));
-}
-function rtReviewsLink(title,label='Read critic reviews on Rotten Tomatoes'){
- const link=el('a','tv-rt-review-link',label);
- link.href=rtSearchUrl(title);link.rel='noreferrer';
- link.setAttribute('aria-label',label+' (opens Rotten Tomatoes search)');
- return link;
-}
 function showExtras(data,{includeFacts=true}={}){
  const section=el('section','tv-extras');
  const facts=el('div','tv-facts');
@@ -614,8 +652,33 @@ function showExtras(data,{includeFacts=true}={}){
    }
    section.append(grid);
  }
- section.append(el('h2','','Reviews'));
- section.append(rtReviewsLink(data.title||data.show?.title));
+ const reviews=Array.isArray(data.reviews)?data.reviews.filter(review=>review.excerpt):[];
+ if(reviews.length){
+   section.append(el('h2','','Reviews · TMDB community'));
+   const grid=el('div','tv-reviews');
+   for(const review of reviews){
+     const entry=el('article','tv-review');
+     entry.append(el('strong','',review.author||'TMDB contributor'));
+     const excerpt=el('p','',String(review.excerpt)
+       .replace(/\*\*(.*?)\*\*/g,'$1').replace(/\n\s*\n/g,'\n').trim());
+     entry.append(excerpt);
+     if(excerpt.textContent.length>165){
+       const more=el('button','review-expand','Read more');more.type='button';
+       more.setAttribute('aria-expanded','false');
+       more.onclick=()=>{
+         const expanded=entry.classList.toggle('expanded');
+         more.textContent=expanded?'Show less':'Read more';
+         more.setAttribute('aria-expanded',String(expanded));
+       };
+       entry.append(more);
+     }
+     grid.append(entry);
+   }
+   section.append(grid);
+ }else{
+   section.append(el('h2','','Reviews'));
+   section.append(el('p','muted','No reviews are available from the configured metadata provider.'));
+ }
  return section;
 }
 function coverCard(item,title,subtitle,href){
@@ -651,6 +714,7 @@ function seriesControls(data){
      ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>'
      :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
    const identifier='S'+String(next.season).padStart(2,'0')+'E'+String(next.episode).padStart(2,'0');
+   button.id='series-play-button';
    button.title=resume?'Resume '+identifier:next.replay?'Replay '+identifier:'Play next episode · '+identifier;
    button.setAttribute('aria-label',button.title);
    button.onclick=()=>WilliePlayer.open(next.media_id,data.title+' · '+identifier,{restart:!resume});
@@ -660,6 +724,12 @@ function seriesControls(data){
  const facts=el('div','series-controls-facts');
  const rating=el('span','series-fact-chip',data.content_rating||'TV rating unavailable');
  rating.title='TV parental rating';facts.append(rating);
+ if(Number.isInteger(data.rotten_tomatoes)){
+   facts.append(el('span','series-fact-chip','RT '+data.rotten_tomatoes+'%'));
+ }
+ if(data.metadata_source==='TMDB'&&Number(data.rating)>0)
+   facts.append(el('span','series-fact-chip',
+     'TMDB '+Number(data.rating).toFixed(1)+'/10'));
  if(data.imdb_id&&/^tt[0-9]{7,9}$/.test(data.imdb_id)){
    const link=el('a','series-fact-chip',
      data.imdb_rating>0?'IMDb ★ '+Number(data.imdb_rating).toFixed(1)+'/10':'IMDb');
@@ -689,11 +759,65 @@ async function renderShow(){
  const grid=el('div','season-grid');
  for(const season of data.seasons){
   if(season.number===null)continue;
-  grid.appendChild(coverCard(season,season.name,season.watched_count+' / '+season.episode_count+' watched',
-    seasonHref(data.library_id,data.key,season.number)));
+  const card=coverCard(season,season.name,season.watched_count+' / '+season.episode_count+' watched',
+    seasonHref(data.library_id,data.key,season.number));
+  if(season.number===1)card.querySelector('.tile-button').id='series-first-season';
+  grid.appendChild(card);
  }
  view.appendChild(grid);
  view.append(showExtras(data,{includeFacts:false}));
+ const leftmostAdjacentSeason=(active,direction)=>{
+   if(!active?.closest('.season-grid'))return null;
+   const cards=[...grid.querySelectorAll('.tile-button')];
+   const top=active.getBoundingClientRect().top;
+   const eligible=cards.filter(card=>{
+     const diff=card.getBoundingClientRect().top-top;
+     return direction==='ArrowDown'?diff>15:diff< -15;
+   });
+   if(!eligible.length)return null;
+   const adjacentTop=direction==='ArrowDown'
+     ?Math.min(...eligible.map(card=>card.getBoundingClientRect().top))
+     :Math.max(...eligible.map(card=>card.getBoundingClientRect().top));
+   return eligible.filter(card=>Math.abs(card.getBoundingClientRect().top-adjacentTop)<15)
+     .sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left)[0]||null;
+ };
+ const showFirst=(selector)=>view.querySelector(selector);
+ const jump=(node,event)=>{
+   if(!node)return false;
+   event.preventDefault();node.focus({preventScroll:true});
+   node.scrollIntoView({block:'nearest',inline:'nearest'});return true;
+ };
+ view.addEventListener('keydown',event=>{
+   if(!['ArrowUp','ArrowDown'].includes(event.key) ||
+      document.querySelector('dialog[open],.season-more-popover'))return;
+   const active=document.activeElement;
+   const actions=active?.closest('.series-controls');
+   const grid=active?.closest('.season-grid');
+   const cast=active?.closest('.tv-cast');
+   const reviews=active?.closest('.tv-reviews');
+   const firstAction=showFirst('#series-play-button')||
+     showFirst('.series-controls button:not(:disabled)');
+   const firstSeason=showFirst('#series-first-season')||
+     showFirst('.season-grid .tile-button');
+   const firstCast=showFirst('.tv-cast .tv-cast-person');
+   const firstReview=showFirst('.tv-reviews button');
+   if((active===document.body||active===document.documentElement)&&event.key==='ArrowDown')
+     jump(firstAction,event);
+   else if(actions && event.key==='ArrowDown')
+     jump(firstSeason,event);
+   else if(grid){
+     const nextRow=leftmostAdjacentSeason(active,event.key);
+     if(nextRow)jump(nextRow,event);
+     else if(event.key==='ArrowUp')jump(firstAction,event);
+     else jump(firstCast,event);
+   }
+   else if(cast && event.key==='ArrowUp')
+     jump(firstSeason,event);
+   else if(cast && event.key==='ArrowDown')
+     jump(firstReview,event);
+   else if(reviews && event.key==='ArrowUp')
+     jump(firstCast,event);
+ },true);
  if(data.seasons.some(s=>s.number===null)){
    const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
    view.appendChild(note);
@@ -745,7 +869,13 @@ async function renderSeason(){
   const actions=el('div','season-actions-row');
   const support=el('div','season-support');
   view.append(episodeRail.shell,actions,support);
+  let activeEpisodeMenu=null;
+  window.__willieCloseSeasonMenu=()=>{
+    if(!activeEpisodeMenu)return false;
+    activeEpisodeMenu.close();return true;
+  };
   const selectEpisode=episode=>{
+    activeEpisodeMenu?.close(false);
     const previousButton=allCards.get(selected?.id);
     if(previousButton&&selected.id!==episode.id){
       previousButton.classList.remove('is-selected');
@@ -788,6 +918,8 @@ async function renderSeason(){
         .then(details=>{formatCache.set(episode.id,details.video_format||{});renderFormat(details.video_format||{});})
         .catch(()=>{formatCache.set(episode.id,{})});
     }
+    const actionHadFocus=actions.contains(document.activeElement);
+    const actionFocusId=actionHadFocus?document.activeElement.id:'';
     actions.replaceChildren();
     const play=playbackButton(episode.id,data.show.title+' · '+epTitle.textContent);
     play.id='season-play-button';
@@ -800,21 +932,60 @@ async function renderSeason(){
     const more=el('button','media-icon-action season-more-button');
     more.type='button';more.title='Episode and season options';
     more.setAttribute('aria-label','Episode and season options');
-    more.setAttribute('aria-haspopup','dialog');
+
     more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+    more.setAttribute('aria-haspopup','menu');
+    more.setAttribute('aria-expanded','false');
     more.onclick=()=>{
-      const dialog=el('dialog','season-overflow-dialog');
-      dialog.setAttribute('aria-label','Episode and season options');
-      dialog.append(el('h2','','Episode and season options'));
-      let chosenAction=false;
+      if(activeEpisodeMenu){activeEpisodeMenu.close();return}
+      const menu=el('div','season-more-popover');
+      menu.setAttribute('role','menu');
+      menu.setAttribute('aria-label','Episode and season options');
+      menu.id='season-actions-menu';
+      more.setAttribute('aria-controls',menu.id);
+      more.setAttribute('aria-expanded','true');
+      const closeMenu=(restore=true)=>{
+        if(!menu.isConnected)return;
+        menu.remove();
+        document.removeEventListener('pointerdown',outside,true);
+        document.removeEventListener('keydown',keys,true);
+        window.removeEventListener('scroll',onScroll,true);
+        activeEpisodeMenu=null;
+        more.setAttribute('aria-expanded','false');
+        if(restore&&more.isConnected)more.focus({preventScroll:true});
+      };
+      const outside=event=>{
+        if(!menu.contains(event.target)&&!more.contains(event.target))closeMenu(false);
+      };
+      const onScroll=event=>{
+        if(event.target instanceof Node&&menu.contains(event.target))return;
+        closeMenu(false);
+      };
+      const keys=event=>{
+        if(!menu.contains(document.activeElement))return;
+        if(['Escape','Backspace','BrowserBack','GoBack'].includes(event.key)){
+          event.preventDefault();event.stopImmediatePropagation();closeMenu();return;
+        }
+        if(!['ArrowDown','ArrowUp'].includes(event.key))return;
+        event.preventDefault();event.stopImmediatePropagation();
+        const buttons=[...menu.querySelectorAll('[role="menuitem"]')];
+        const i=buttons.indexOf(document.activeElement);
+        const next=Math.max(0,Math.min(buttons.length-1,
+          i+(event.key==='ArrowDown'?1:-1)));
+        buttons[next]?.focus({preventScroll:true});
+      };
       const option=(label,run)=>{
         const button=el('button','season-overflow-item',label);
-        button.type='button';
+        button.type='button';button.setAttribute('role','menuitem');
         button.onclick=async()=>{
-          chosenAction=true;dialog.close();
-          try{await run()}catch(error){loading.textContent=error.message;}
+          closeMenu(false);
+          try{await run()}catch(error){loading.textContent=error.message}
+          finally{
+            if(!document.querySelector('dialog[open],.willie-player'))
+              document.getElementById('season-play-button')?.focus({preventScroll:true});
+          }
         };
-        dialog.append(button);
+        menu.append(button);
       };
       option(episode.watched?'Mark episode unwatched':'Mark episode watched',async()=>{
         const response=await fetch('/api/watch/'+episode.id+'/watched',{
@@ -850,34 +1021,38 @@ async function renderSeason(){
           resume:canResume(ep)
         })));
       });
-      dialog.addEventListener('close',()=>{
-        dialog.remove();
-        // Don't steal focus from the Fix Match / trailer dialog or player
-        // launched by an overflow action.
-        if(document.querySelector('dialog[open],.willie-player'))return;
-        const focus=chosenAction?allCards.get(selected.id)
-          :(more.isConnected?more:allCards.get(selected.id));
-        focus?.focus({preventScroll:true});
-      });
-      dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
-      document.body.append(dialog);
-      dialog.showModal();
-      dialog.querySelector('.season-overflow-item')?.focus();
+      document.body.append(menu);
+      const rect=more.getBoundingClientRect();
+      menu.style.left=Math.max(8,Math.min(innerWidth-menu.offsetWidth-8,rect.left))+'px';
+      menu.style.top=(rect.bottom+menu.offsetHeight+8<=innerHeight
+        ?rect.bottom+4:Math.max(8,rect.top-menu.offsetHeight-4))+'px';
+      activeEpisodeMenu={close:closeMenu};
+      document.addEventListener('pointerdown',outside,true);
+      document.addEventListener('keydown',keys,true);
+      window.addEventListener('scroll',onScroll,true);
+      menu.querySelector('[role="menuitem"]')?.focus({preventScroll:true});
     };
     actions.append(more);
     const facts=el('div','season-action-facts');
     const score=data.show.rotten_tomatoes;
-    const rt=el('a','season-rt-link',
-      Number.isInteger(score)&&score>=0&&score<=100?'RT '+score+'%':'Rotten Tomatoes');
-    rt.href=rtSearchUrl(data.show.title);
-    rt.rel='noreferrer';
-    rt.title='View Rotten Tomatoes critic ratings and reviews';
-    rt.setAttribute('aria-label',rt.title);
-    facts.append(rt);
+    if(Number.isInteger(score)&&score>=0&&score<=100){
+      const rt=el('span','season-fact','RT '+score+'%');
+      rt.title='Rotten Tomatoes critic score';facts.append(rt);
+    }
+    if(data.metadata_source==='TMDB'&&Number(data.show.rating)>0){
+      const tmdb=el('span','season-fact','TMDB '+Number(data.show.rating).toFixed(1)+'/10');
+      tmdb.title='TMDB community rating';facts.append(tmdb);
+    }
     if(data.show.network)facts.append(el('span','season-fact',data.show.network));
     if(Array.isArray(data.show.genres)&&data.show.genres.length)
       facts.append(el('span','season-fact',data.show.genres.join(' · ')));
     actions.append(facts);
+    // Progress refresh can rebuild the action row while the remote is on Play.
+    // Restore the same action instead of losing focus to the document body.
+    if(actionHadFocus){
+      const replacement=actionFocusId&&document.getElementById(actionFocusId);
+      (replacement||play).focus({preventScroll:true});
+    }
   };
   for(const episode of available){
     const button=el('button','season-episode-tile');button.type='button';
