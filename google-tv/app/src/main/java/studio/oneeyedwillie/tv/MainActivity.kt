@@ -457,126 +457,201 @@ class MainActivity : ComponentActivity() {
                 body.oew-tv-backdrop-active .explore-grid::before,
                 body.oew-tv-backdrop-active .movie-grid::before,
                 body.oew-tv-backdrop-active .tv-grid::before{display:none!important}
-                /* TV movie detail: compact top-aligned hero, with Play and
-                   Resume in the first viewport even at narrow WebView widths.
-                   Override the server's 75vh cinematic hero and mobile
-                   single-column breakpoint only in the Android TV app. */
+                /* Cinematic TV movie details: one glance shows artwork,
+                   title, playback actions and the opening cast row. */
                 body[data-page="movies"] .workspace>.content:has(.movie-detail-hero){
                   padding:0 0 42px!important;max-width:none!important
                 }
                 body[data-page="movies"] .movie-back{
-                  margin:12px clamp(22px,3vw,55px) 0!important
+                  position:relative!important;z-index:5!important;
+                  margin:10px clamp(26px,5.2vw,84px) 0!important;
+                  font-size:.88rem!important
                 }
-                body[data-page="movies"] #movie-status{margin:6px 22px!important}
+                body[data-page="movies"] #movie-status{
+                  margin:0 clamp(26px,5.2vw,84px)!important
+                }
+                body[data-page="movies"] #movie-status:empty{display:none!important}
                 body[data-page="movies"] .movie-detail-hero{
-                  display:grid!important;
-                  grid-template-columns:clamp(105px,15vw,175px) minmax(0,1fr)!important;
-                  align-items:start!important;justify-content:start!important;
-                  gap:clamp(16px,2.7vw,35px)!important;
-                  min-height:0!important;height:auto!important;
-                  padding:15px clamp(22px,3vw,55px) 30px!important;
-                  margin:0!important
+                  display:flex!important;flex-direction:row!important;
+                  align-items:flex-end!important;justify-content:flex-start!important;
+                  box-sizing:border-box!important;
+                  width:100%!important;height:auto!important;
+                  min-height:clamp(275px,49vh,500px)!important;
+                  padding:12px clamp(26px,5.2vw,84px) 23px!important;
+                  margin:0!important;border:0!important;border-radius:0!important;
+                  background:transparent!important;gap:0!important;
+                  isolation:isolate!important;overflow:hidden!important
                 }
                 body[data-page="movies"] .movie-detail-hero[hidden]{display:none!important}
-                body[data-page="movies"] .movie-detail-poster{
-                  display:block;width:100%!important;
-                  max-width:175px!important;max-height:265px!important;
-                  height:auto!important;aspect-ratio:2/3!important;
-                  object-fit:cover!important;margin:0!important;
-                  align-self:start!important
+                body[data-page="movies"] .movie-detail-hero::after{
+                  background:
+                    linear-gradient(90deg,#080d16f2 0%,#080d16cf 35%,#080d165a 67%,#080d1619 100%),
+                    linear-gradient(0deg,#080d16f8 0%,#080d1600 65%)!important
                 }
-                body[data-page="movies"] .movie-detail-poster[hidden]{display:none!important}
+                body[data-page="movies"] .movie-detail-backdrop{
+                  display:block!important;position:absolute!important;
+                  inset:0!important;width:100%!important;height:100%!important;
+                  object-fit:cover!important;object-position:center 28%!important;
+                  opacity:.90!important;filter:none!important
+                }
+                body[data-page="movies"] .movie-detail-backdrop[hidden]{display:none!important}
+                /* The cinematic backdrop is already the artwork. Don't use
+                   a second oversized portrait taking room from the actions. */
+                body[data-page="movies"] .movie-detail-hero>.movie-detail-poster{
+                  display:none!important
+                }
                 body[data-page="movies"] .movie-detail-data{
-                  min-width:0!important;margin:0!important;
                   display:flex!important;flex-direction:column!important;
-                  align-items:flex-start!important;gap:0!important
+                  align-items:flex-start!important;
+                  width:min(64%,760px)!important;max-width:100%!important;
+                  min-width:0!important;gap:0!important;
+                  margin:0!important;padding:0!important;
+                  position:relative!important;z-index:1!important
                 }
-                body[data-page="movies"] .movie-detail-data .eyebrow{margin:0 0 5px!important}
+                body[data-page="movies"] .movie-detail-data .eyebrow{display:none!important}
                 body[data-page="movies"] .movie-detail-data h1{
-                  font-size:clamp(1.65rem,3.8vw,3.25rem)!important;
-                  line-height:1.05!important;margin:0 0 9px!important
+                  order:1!important;font-size:clamp(2rem,4.3vw,4rem)!important;
+                  line-height:1.02!important;letter-spacing:-.055em!important;
+                  margin:0 0 8px!important;font-weight:770!important
                 }
                 body[data-page="movies"] .movie-detail-data .movie-meta{
-                  margin:3px 0 8px!important;font-size:.84rem!important
+                  order:2!important;display:flex!important;flex-wrap:wrap!important;
+                  font-size:.89rem!important;line-height:1.25!important;
+                  letter-spacing:-.012em!important;margin:0 0 6px!important
+                }
+                body[data-page="movies"] .movie-detail-data .movie-ratings{
+                  order:3!important;display:flex!important;flex-wrap:wrap!important;
+                  gap:5px 16px!important;max-width:100%!important;
+                  margin:1px 0 8px!important
+                }
+                body[data-page="movies"] .movie-detail-data .rating-item{
+                  display:inline-flex!important;align-items:baseline!important;
+                  gap:5px!important;font-size:.84rem!important;
+                  line-height:1.2!important;letter-spacing:-.012em!important
+                }
+                body[data-page="movies"] .movie-detail-data .rating-item strong{
+                  font-size:.72rem!important
+                }
+                body[data-page="movies"] .movie-detail-genres{
+                  order:4!important;font-size:.86rem!important;
+                  margin:0 0 6px!important;line-height:1.24!important
                 }
                 body[data-page="movies"] .movie-detail-data .movie-description{
-                  order:5!important;line-height:1.45!important;
-                  margin:9px 0 12px!important;font-size:.9rem!important;
-                  max-width:760px!important
+                  order:5!important;font-size:clamp(.88rem,1.35vw,1rem)!important;
+                  line-height:1.31!important;letter-spacing:-.012em!important;
+                  margin:0 0 7px!important;max-width:650px!important;
+                  display:-webkit-box!important;-webkit-box-orient:vertical!important;
+                  -webkit-line-clamp:3!important;overflow:hidden!important
+                }
+                body[data-page="movies"] .movie-detail-credit{
+                  order:6!important;font-size:.78rem!important;
+                  margin:0 0 6px!important;line-height:1.2!important
                 }
                 body[data-page="movies"] .movie-detail-actions{
-                  order:4!important;margin:5px 0 4px!important;
-                  gap:12px!important
-                }
-                body[data-page="movies"] .movie-detail-progress,
-                body[data-page="movies"] #progress-label,
-                body[data-page="movies"] .movie-detail-genres,
-                body[data-page="movies"] .movie-detail-credit{
-                  order:6!important;margin-top:7px!important
+                  order:7!important;display:flex!important;flex-wrap:wrap!important;
+                  align-items:center!important;gap:11px!important;
+                  margin:3px 0 3px!important
                 }
                 body[data-page="movies"] .movie-detail-actions .media-icon-action{
-                  width:52px!important;height:52px!important
+                  width:48px!important;height:48px!important;min-height:48px!important;
+                  background:transparent!important;border:0!important;
+                  border-radius:50%!important;padding:10px!important
                 }
-                                /* Movie cast focus is a portrait, not the actor's entire
-                   multi-line biography/role card. Long roles on a TV used
-                   to create huge D-pad scroll jumps and boxes around text. */
+                body[data-page="movies"] .movie-detail-actions .media-icon-action:focus-visible{
+                  outline:2px solid #d3e8fc!important;outline-offset:2px!important;
+                  background:#2b46648f!important
+                }
+                body[data-page="movies"] .movie-detail-progress{
+                  order:8!important;margin:5px 0 0!important;height:4px!important
+                }
+                body[data-page="movies"] #progress-label{
+                  order:9!important;font-size:.76rem!important;
+                  margin:3px 0 0!important;line-height:1.2!important
+                }
+                body[data-page="movies"] .movie-detail-data>p:has(#imdb-link){
+                  order:10!important;margin:5px 0 0!important;font-size:.77rem!important
+                }
+                /* Cast immediately follows the cinematic hero rather than
+                   waiting behind the ratings, studios and technical facts. */
+                body[data-page="movies"] .movie-expanded{
+                  display:flex!important;flex-direction:column!important;
+                  padding:0 clamp(26px,5.2vw,84px) 42px!important;
+                  max-width:none!important;gap:0!important
+                }
+                body[data-page="movies"] .movie-expanded[hidden]{display:none!important}
+                body[data-page="movies"] #cast-section{
+                  order:1!important;border:0!important;
+                  padding:6px 0 23px!important;margin:0!important
+                }
+                body[data-page="movies"] #cast-section h2{
+                  font-size:1.15rem!important;margin:0 0 11px!important
+                }
+                body[data-page="movies"] .movie-facts{
+                  order:2!important;gap:10px!important;
+                  margin:13px 0 24px!important;padding-top:18px!important;
+                  border-top:1px solid #27364a!important
+                }
+                body[data-page="movies"] #reviews-section{order:3!important}
+                body[data-page="movies"] .movie-block{
+                  padding:20px 0 30px!important
+                }
+                body[data-page="movies"] .movie-block h2{
+                  margin-bottom:13px!important
+                }
+                body[data-page="movies"] .movie-fact-list{
+                  gap:5px 16px!important;line-height:1.26!important;
+                  letter-spacing:-.012em!important
+                }
+                body[data-page="movies"] .movie-cast{
+                  display:grid!important;grid-auto-flow:column!important;
+                  grid-auto-columns:clamp(92px,10vw,122px)!important;
+                  gap:clamp(13px,1.8vw,22px)!important;overflow-x:auto!important;
+                  overflow-y:hidden!important;padding:5px 5px 12px!important;
+                  scroll-snap-type:none!important
+                }
+                body[data-page="movies"] .cast-person{
+                  display:flex!important;flex-direction:column!important;
+                  min-width:0!important;gap:3px!important;
+                  text-decoration:none!important;color:inherit!important
+                }
+                body[data-page="movies"] .cast-person img,
+                body[data-page="movies"] .cast-person .cast-blank{
+                  box-sizing:border-box!important;
+                  width:100%!important;aspect-ratio:1/1!important;
+                  height:auto!important;object-fit:cover!important;
+                  border-radius:50%!important
+                }
                 body[data-page="movies"] .cast-person:focus,
-                body[data-page="movies"] .cast-person:focus-visible,
-                body[data-page="movies"] .cast-person:focus-within{
-                  outline:0!important;outline-offset:0!important;
-                  box-shadow:none!important;background:transparent!important
+                body[data-page="movies"] .cast-person:focus-visible{
+                  outline:0!important;box-shadow:none!important
                 }
                 body[data-page="movies"] .cast-person:focus img,
                 body[data-page="movies"] .cast-person:focus .cast-blank,
                 body[data-page="movies"] .cast-person:focus-visible img,
                 body[data-page="movies"] .cast-person:focus-visible .cast-blank{
-                  outline:2px solid #cbdff0!important;outline-offset:4px!important;
-                  box-shadow:0 7px 22px #0008!important
+                  outline:2px solid #d4e8fb!important;outline-offset:3px!important;
+                  box-shadow:0 6px 20px #0008!important
                 }
                 body[data-page="movies"] .cast-person strong,
                 body[data-page="movies"] .cast-person span{
-                  display:-webkit-box!important;-webkit-box-orient:vertical;
-                  -webkit-line-clamp:2;overflow:hidden!important
+                  display:-webkit-box!important;-webkit-box-orient:vertical!important;
+                  -webkit-line-clamp:1!important;overflow:hidden!important;
+                  line-height:1.22!important;letter-spacing:-.012em!important;
+                  font-size:.78rem!important
                 }
-                body[data-page="movies"] .movie-cast{scroll-snap-type:none!important}
-                /* Denser TV typography: keep text readable from a couch while
-                   avoiding loosely spaced synopsis, facts and cast labels. */
-                body[data-page="movies"] .movie-detail-data h1{
-                  letter-spacing:-.055em!important;line-height:1.04!important;
-                  margin-bottom:7px!important
+                body[data-page="movies"] .cast-person strong{
+                  margin-top:5px!important;font-size:.84rem!important
                 }
-                body[data-page="movies"] .movie-detail-data .movie-description{
-                  letter-spacing:-.013em!important;line-height:1.3!important;
-                  margin:6px 0 8px!important
+                @media(max-width:650px){
+                  body[data-page="movies"] .movie-detail-data{width:80%!important}
+                  body[data-page="movies"] .movie-detail-hero{
+                    min-height:clamp(275px,56vh,420px)!important
+                  }
+                  body[data-page="movies"] .movie-detail-data h1{
+                    font-size:clamp(1.6rem,4.5vw,2.7rem)!important
+                  }
                 }
-                body[data-page="movies"] .movie-detail-data .movie-meta,
-                body[data-page="movies"] .movie-detail-genres,
-                body[data-page="movies"] .movie-detail-credit,
-                body[data-page="movies"] #progress-label{
-                  letter-spacing:-.012em!important;line-height:1.24!important
-                }
-                body[data-page="movies"] .movie-detail-genres,
-                body[data-page="movies"] .movie-detail-credit,
-                body[data-page="movies"] #progress-label{
-                  margin-top:4px!important;margin-bottom:4px!important
-                }
-                body[data-page="movies"] .movie-facts{gap:11px!important;margin-bottom:23px!important}
-                body[data-page="movies"] .movie-ratings{gap:8px 18px!important}
-                body[data-page="movies"] .rating-item{
-                  letter-spacing:-.012em!important;line-height:1.2!important
-                }
-                body[data-page="movies"] .movie-fact-list{
-                  gap:5px 17px!important;line-height:1.28!important;
-                  letter-spacing:-.012em!important
-                }
-                body[data-page="movies"] .movie-block{padding:23px 0 28px!important}
-                body[data-page="movies"] .movie-block h2{margin-bottom:15px!important}
-                body[data-page="movies"] .cast-person{gap:3px!important}
-                body[data-page="movies"] .cast-person strong,
-                body[data-page="movies"] .cast-person span{
-                  line-height:1.25!important;letter-spacing:-.012em!important
-                }
-                                /* No smooth page scrolling or shelf snap while using D-pad. */
+                /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{
                   scroll-snap-type:none!important;scroll-behavior:auto!important;
@@ -590,6 +665,15 @@ class MainActivity : ComponentActivity() {
                 }
               `;
               document.head.appendChild(style);
+
+              // Move the existing ratings strip into the TV hero. The server
+              // continues updating the same #rating-list node when metadata loads.
+              if(document.getElementById('movie-detail')){
+                const ratings=document.getElementById('rating-list');
+                const details=document.querySelector('.movie-detail-data');
+                if(ratings&&details&&ratings.parentElement!==details)
+                  details.appendChild(ratings);
+              }
 
               // Exactly the server's widescreen metadata endpoints and visual
               // treatment, but driven by Android TV focus even on older servers.
