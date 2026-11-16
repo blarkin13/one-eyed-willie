@@ -118,6 +118,10 @@ def home():
 def person_page():
     return FileResponse(Path(__file__).with_name("person.html"), media_type="text/html")
 
+@app.get("/credit")
+def credit_title_page():
+    return FileResponse(Path(__file__).with_name("credit_detail.html"), media_type="text/html")
+
 
 @app.get("/movie")
 def movie_page():
