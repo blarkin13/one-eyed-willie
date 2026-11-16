@@ -154,6 +154,44 @@ class CompactLayoutTests(unittest.TestCase):
         css = (SERVER / "ui.css").read_text()
         self.assertIn(".watched-badge svg", css)
 
+    def test_stable_tv_season_hero_and_compact_actions(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("height:clamp(292px,44vh,400px)", page)
+        self.assertIn(".season-episode-summary{height:2.8em", page)
+        self.assertIn(".season-episode-format{height:29px", page)
+        self.assertIn("grid-auto-columns:clamp(122px,15vw,200px)", page)
+        self.assertIn("className", page)
+        self.assertIn("option('Shuffle season'", page)
+        self.assertIn("option('Fix match'", page)
+        self.assertIn("Mark episode unwatched", page)
+        self.assertIn("Mark season watched", page)
+        self.assertIn("trailerButton(data.show.trailer_key", page)
+        self.assertIn("actions.replaceChildren()", page)
+
+    def test_series_actions_and_clamped_description(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("showHero.append(seriesControls(data))", page)
+        self.assertIn("seriesDescriptionDialog(title,overview)", page)
+        self.assertIn("series-overview", page)
+        self.assertIn("Play next episode", page)
+        self.assertIn("data.imdb_rating", page)
+        self.assertIn("data.content_rating", page)
+        self.assertIn("data.network", page)
+        self.assertIn("data.genres", page)
+
+    def test_native_and_browser_shuffle_queue(self):
+        player = (SERVER / "player.js").read_text()
+        self.assertIn("function shuffleSeason(episodes)", player)
+        self.assertIn("shuffleQueue=list.slice(1)", player)
+        self.assertIn("shuffleQueue.shift()", player)
+        android_root = SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" / "studio" / "oneeyedwillie" / "tv"
+        activity = (android_root / "MainActivity.kt").read_text()
+        native_player = (android_root / "PlayerActivity.kt").read_text()
+        self.assertIn("window.WilliePlayer.shuffleSeason=nativeShuffle", activity)
+        self.assertIn("payload.shuffle_queue", activity)
+        self.assertIn("seasonShuffle = intent.hasExtra", native_player)
+        self.assertIn('following.putExtra("shuffle_queue",remaining.toString())', native_player)
+
     def test_trailer_controls_are_not_required_when_embedded_trailers_are_removed(self):
         movie = (SERVER / "movie_detail.html").read_text()
         tv = (SERVER / "tv_detail.html").read_text()
