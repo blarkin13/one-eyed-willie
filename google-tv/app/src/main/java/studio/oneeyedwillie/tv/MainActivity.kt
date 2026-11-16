@@ -1024,6 +1024,17 @@ class MainActivity : ComponentActivity() {
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
+                // Intentional TV navigation: every episode tile leads DOWN to
+                // the current Play action, even when the tile is scrolled
+                // horizontally beyond the location of the action row.
+                if(direction==='down'&&active?.matches?.('.season-episode-tile')){
+                  const play=document.getElementById('season-play-button');
+                  if(play&&isVisible(play)){readingScroll=false;return focusNode(play)}
+                }
+                if(direction==='up'&&active?.id==='season-play-button'){
+                  const episode=document.querySelector('.season-episode-tile.is-selected');
+                  if(episode&&isVisible(episode)){readingScroll=false;return focusNode(episode)}
+                }
                 if(isMenu(active)){
                   if(direction==='right'){
                     // Leave the rail at the content item closest to the
