@@ -1,4 +1,4 @@
-/* Background audio from local files or on-demand TelevisionTunes personal listening copies. */
+/* Background audio from a user's own local theme file, never external streams. */
 (()=>{
   'use strict';
   let active=null;
@@ -17,43 +17,7 @@
       if(!responses.every(r=>r.ok))return;
       [preferences,found]=await Promise.all(responses.map(r=>r.json()));
     }catch(_){return}
-    if(!preferences[kind==='tv'?'tv_theme_music':'movie_theme_music'])return;
-    if(!found.available||!found.url){
-      const reasons={
-        tv_only_source:'Movie theme playback requires a local theme file.',
-        title_not_recognized:'This TV show could not be identified for theme lookup.',
-        not_available_from_source:'No matching TV theme page was found on TelevisionTunes.',
-        source_title_mismatch:'TelevisionTunes returned a different show title.',
-        source_download_link_unrecognized:'TelevisionTunes changed its download links; automatic theme retrieval is unavailable.',
-        source_access_denied:'TelevisionTunes blocked automatic access to its theme music.',
-        source_unreachable:'Could not reach TelevisionTunes for this theme.',
-        source_dns_failure:'The server cannot resolve the TelevisionTunes hostname (DNS).',
-        source_tls_failure:'The server could not establish a secure HTTPS connection to TelevisionTunes.',
-        source_timeout:'TelevisionTunes did not respond before the connection timed out.',
-        source_connection_refused:'The connection to TelevisionTunes was refused.',
-        source_network_error:'The server could not connect to TelevisionTunes.',
-        source_http_error:'TelevisionTunes returned an unexpected HTTP error.',
-        source_page_not_found:'The matching TelevisionTunes page could not be found.',
-        unexpected_source_response:'TelevisionTunes returned an unexpected response instead of a theme MP3.'
-      };
-      const hint=document.createElement('span');
-      hint.className='theme-music-hint';
-      hint.textContent=reasons[found.reason]||'No theme music available for this title.';
-      hint.setAttribute('role','status');
-      container.replaceChildren(hint);
-      if(kind==='tv'&&typeof found.source_page==='string'
-          &&/^https:\/\/televisiontunes\.com\/[A-Za-z0-9_%()-]+\.html$/.test(found.source_page)){
-        const link=document.createElement('a');
-        link.href=found.source_page;
-        link.target='_blank';
-        link.rel='noopener noreferrer';
-        link.className='theme-source-link';
-        link.textContent='View theme on TelevisionTunes';
-        link.title='Open the source website to listen or download manually';
-        container.append(link);
-      }
-      return;
-    }
+    if(!found.available||!found.url||!preferences[kind==='tv'?'tv_theme_music':'movie_theme_music'])return;
     const audio=new Audio();
     audio.src=found.url;
     audio.volume=0;
@@ -62,12 +26,12 @@
     const volume=Math.max(0,Math.min(1,(Number(preferences.theme_volume)||0)/100));
     const fade=!!preferences.theme_fade&&
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    let muted=false,disposed=false,frame=0,armed=false,playing=false;
+    let muted=false,disposed=false,frame=0,armed=false;
     const button=document.createElement('button');
     button.type='button';button.className='media-icon-action theme-music-toggle';
     const update=()=>{
       button.innerHTML=icon(muted);
-      button.title=armed?'Play theme music':muted?'Unmute theme music':'Mute theme music';
+      button.title=muted?'Unmute theme music':'Mute theme music';
       button.setAttribute('aria-label',button.title);
       button.setAttribute('aria-pressed',String(muted));
     };
@@ -99,17 +63,10 @@
       try{
         await audio.play();
         armed=false;
-        playing=true;
-        update();
         if(fade)ramp(volume,650);
-      }catch(error){
-        // A visible Play control is necessary when browser autoplay is blocked.
+      }catch(_){
+        // Browser autoplay is frequently restricted: try again on user gesture.
         armed=true;
-        update();
-        if(error?.name!=='NotAllowedError'){
-          button.title='Theme audio could not play — press to retry';
-          button.setAttribute('aria-label',button.title);
-        }
       }
     };
     const gesture=(event)=>{
@@ -121,11 +78,9 @@
     document.addEventListener('pointerdown',gesture,true);
     document.addEventListener('keydown',gesture,true);
     button.onclick=()=>{
-      if(armed){play();return}
-      muted=!muted;
-      if(muted){cancelAnimationFrame(frame);audio.pause();playing=false}
-      update();
-      if(!muted)play();
+      muted=!muted;update();
+      if(muted){cancelAnimationFrame(frame);audio.pause()}
+      else play();
     };
     const stopOnPlay=(event)=>{
       if(event.target?.closest?.('#play-movie,#resume-movie,#series-play-button,#series-shuffle-button,#season-play-button,.season-episode-tile,#trailer-movie,.tv-trailer-launch')){
