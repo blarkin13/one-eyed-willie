@@ -4,10 +4,7 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.content.res.ColorStateList
-import android.graphics.Canvas
 import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Path
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaPlayer
 import android.view.inputmethod.InputMethodManager
@@ -54,97 +51,42 @@ class MainActivity : ComponentActivity() {
     private var loadingSpinner: ProgressBar? = null
     private var loadingActions: LinearLayout? = null
     private var loadingRetry: Button? = null
-    private var loadingShipAnimation: ObjectAnimator? = null
-    private var loadingWaveAnimation: ValueAnimator? = null
+    private val startupSounds = mutableListOf<MediaPlayer>()
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var playedStartupSound = false
-    private var startupSound: MediaPlayer? = null
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
-    // Subtle white ink crests reach well beyond the hull. They sit behind the
-    // ship art on a pure black, edge-to-edge loading screen.
-    private class LoadingWaves(context: android.content.Context) : View(context) {
-        var drift = 0f
-            set(value) { field = value; invalidate() }
-
-        override fun onDraw(canvas: Canvas) {
-            super.onDraw(canvas)
-            val w = width.toFloat()
-            val h = height.toFloat()
-            if (w <= 0 || h <= 0) return
-            val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-                color = Color.WHITE
-                style = Paint.Style.STROKE
-                strokeCap = Paint.Cap.ROUND
-                strokeJoin = Paint.Join.ROUND
-            }
-            for (layer in 0..2) {
-                ink.alpha = when (layer) { 0 -> 185; 1 -> 110; else -> 65 }
-                ink.strokeWidth = (h * if (layer == 0) .005f else .003f).coerceAtLeast(1.8f)
-                val y = h * (.755f + layer * .028f)
-                val segment = w / 10f
-                for (i in 0..10) {
-                    val x = i * segment - segment * .43f +
-                        ((drift * (if (layer % 2 == 0) 1f else -1f)) % segment)
-                    val wave = Path().apply {
-                        moveTo(x, y + ((i + layer) % 3 - 1) * h * .008f)
-                        cubicTo(x + segment * .22f, y - h * .023f,
-                            x + segment * .34f, y + h * .019f,
-                            x + segment * .57f, y)
-                        cubicTo(x + segment * .70f, y - h * .013f,
-                            x + segment * .83f, y + h * .003f,
-                            x + segment * .89f, y + h * .005f)
-                    }
-                    canvas.drawPath(wave, ink)
-                }
-            }
-        }
-    }
-
-    // All visuals are native, so they appear before the server or WebView loads.
+    // The actual 1920x1080 user-supplied artwork covers the TV at its
+    // natural aspect ratio. No enlarged launcher icon, drawn waves or rocking.
     private fun createLoadingOverlay(): FrameLayout {
         val overlay = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
             isClickable = true
             isFocusable = true
         }
-        val ocean = LoadingWaves(this)
-        overlay.addView(ocean, FrameLayout.LayoutParams(
+        val art = ImageView(this).apply {
+            setImageResource(R.drawable.tv_loading_screen)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "One-Eyed Willie loading artwork"
+        }
+        overlay.addView(art, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
-        loadingWaveAnimation = ValueAnimator.ofFloat(0f, resources.displayMetrics.widthPixels / 10f).apply {
-            duration = 3300L
-            repeatCount = ValueAnimator.INFINITE
-            repeatMode = ValueAnimator.REVERSE
-            addUpdateListener { ocean.drift = it.animatedValue as Float }
-        }
-        val content = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(dp(24), 0, dp(24), 0)
-        }
-        val ship = ImageView(this).apply {
-            setImageResource(R.drawable.tv_ship_icon)
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "One-Eyed Willie pirate ship"
-        }
-        val artWidth = (resources.displayMetrics.widthPixels * .74f).toInt()
-        val artHeight = (resources.displayMetrics.heightPixels * .82f).toInt()
-        content.addView(ship, LinearLayout.LayoutParams(artWidth, artHeight))
-        loadingShipAnimation = ObjectAnimator.ofFloat(ship, "rotation", -2.2f, 2.2f, -2.2f).apply {
-            duration = 2900L
-            repeatCount = ValueAnimator.INFINITE
-        }
         loadingCaption = TextView(this).apply {
-            // Never show labels or a spinner while loading normally.
             visibility = View.GONE
             textSize = 19f
             gravity = Gravity.CENTER
             setTextColor(0xFFF0EBE5.toInt())
         }
-        content.addView(loadingCaption, LinearLayout.LayoutParams(
+        val errorControls = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(18), dp(14), dp(18), dp(14))
+            setBackgroundColor(0xE6000000.toInt())
+        }
+        errorControls.addView(loadingCaption, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ))
         loadingRetry = Button(this).apply {
@@ -168,34 +110,38 @@ class MainActivity : ComponentActivity() {
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { leftMargin = dp(12) })
         }
-        content.addView(loadingActions, LinearLayout.LayoutParams(
+        errorControls.addView(loadingActions, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(16) })
-        overlay.addView(content, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
+        ).apply { topMargin = dp(12) })
+        overlay.addView(errorControls, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.CENTER
         ))
         return overlay
     }
 
-    // A short original WAV bundled with the APK, played once per app launch,
-    // rather than each time the viewer changes pages.
+    // Play the two uploaded real-world recordings once on cold startup.
+    // The clips are quiet and layered, never restarted during navigation.
     private fun playStartupSoundOnce() {
         if (playedStartupSound) return
         playedStartupSound = true
-        try {
-            startupSound = MediaPlayer.create(this, R.raw.loading_audio)?.apply {
-                setVolume(0.24f, 0.24f)
-                setOnCompletionListener { finished ->
-                    finished.release()
-                    if (startupSound === finished) startupSound = null
+        intArrayOf(R.raw.loading_boat_creak, R.raw.loading_wood_creak)
+            .forEachIndexed { index, resource ->
+                try {
+                    val sound = MediaPlayer.create(this, resource) ?: return@forEachIndexed
+                    startupSounds.add(sound)
+                    val volume = if (index == 0) 0.20f else 0.14f
+                    sound.setVolume(volume, volume)
+                    sound.setOnCompletionListener { completed ->
+                        startupSounds.remove(completed)
+                        completed.release()
+                    }
+                    sound.start()
+                } catch (_: Exception) {
+                    // Audio is optional. Playback/connection must never fail
+                    // because a sound effect cannot be decoded.
                 }
-                start()
             }
-        } catch (_: Exception) {
-            startupSound?.release()
-            startupSound = null
-        }
     }
 
     private fun showLoading() {
@@ -208,12 +154,6 @@ class MainActivity : ComponentActivity() {
             alpha = 1f
             visibility = View.VISIBLE
         }
-        if (android.provider.Settings.Global.getFloat(
-                contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
-            ) != 0f) {
-            loadingShipAnimation?.start()
-            loadingWaveAnimation?.start()
-        }
         playStartupSoundOnce()
     }
 
@@ -223,8 +163,6 @@ class MainActivity : ComponentActivity() {
         loadingCaption?.visibility = View.VISIBLE
         loadingSpinner?.visibility = View.GONE
         loadingActions?.visibility = View.VISIBLE
-        loadingShipAnimation?.cancel()
-        loadingWaveAnimation?.cancel()
         loadingOverlay?.apply {
             animate().cancel()
             alpha = 1f
@@ -235,8 +173,6 @@ class MainActivity : ComponentActivity() {
 
     private fun finishLoading(web: WebView, serial: Int) {
         if (browser !== web || loadingFailed || serial != pageLoadSerial) return
-        loadingShipAnimation?.cancel()
-        loadingWaveAnimation?.cancel()
         loadingOverlay?.animate()?.alpha(0f)?.setDuration(180L)?.withEndAction {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
@@ -288,8 +224,6 @@ class MainActivity : ComponentActivity() {
 
     private fun showSetup(error: String = "") {
         tvTextEditing = false
-        loadingShipAnimation?.cancel()
-        loadingWaveAnimation?.cancel()
         loadingOverlay?.animate()?.cancel()
         loadingOverlay = null
         loadingCaption = null
@@ -672,10 +606,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        loadingShipAnimation?.cancel()
-        loadingWaveAnimation?.cancel()
-        startupSound?.release()
-        startupSound = null
+        startupSounds.toList().forEach { it.release() }
+        startupSounds.clear()
         loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false
@@ -1318,6 +1250,42 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .sidebar .nav-link[aria-current="page"]:not(
                   [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
                   color:#8B5CF6!important
+                }
+                /* Focused media actions on every movie, TV, and season screen.
+                   Color the glyph only: no colored control backgrounds or rings.
+                   Strong selectors also override detail-page-specific !important
+                   focus rules shipped by the server. */
+                body[data-page] :is(.movie-detail-actions,.tv-show-hero,
+                  .season-actions-row,.episode-actions,.episode-detail-actions,
+                  .season-hero-actions,.season-overflow-dialog,.tv-match-head,
+                  .movie-match-head) :is(.media-icon-action,.watch-icon-control,
+                  .icon-only-control,.season-more-button,.season-rail-arrow)
+                  :is(:focus,:focus-visible),
+                body[data-page] :is(.media-icon-action,.watch-icon-control,
+                  .icon-only-control,.season-more-button,.season-rail-arrow,
+                  .tv-trailer-launch,.catalog-tool-icon,.explore-icon-link)
+                  :is(:focus,:focus-visible){
+                  color:#8B5CF6!important;
+                  background:transparent!important;
+                  border-color:transparent!important;
+                  outline:0!important;box-shadow:none!important
+                }
+                body[data-page] :is(.movie-detail-actions,.tv-show-hero,
+                  .season-actions-row,.episode-actions,.episode-detail-actions,
+                  .season-hero-actions,.tv-match-head,.movie-match-head)
+                  :is(.media-icon-action,.watch-icon-control,.icon-only-control,
+                  .season-more-button,.tv-trailer-launch):is(:focus,:focus-visible)
+                  :is(svg,i,.fa,.nav-icon),
+                body[data-page] :is(.media-icon-action,.watch-icon-control,
+                  .icon-only-control,.season-more-button,.tv-trailer-launch,
+                  .catalog-tool-icon,.explore-icon-link):is(:focus,:focus-visible)
+                  :is(svg,i,.fa){
+                  color:#8B5CF6!important;
+                }
+                /* Leave branded Radarr/Sonarr icons untouched. */
+                body[data-page] [data-service-nav="radarr"] :is(svg,img,i),
+                body[data-page] [data-service-nav="sonarr"] :is(svg,img,i){
+                  filter:none!important
                 }
                 /* Avoid competing browser snap while the D-pad animation runs. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
