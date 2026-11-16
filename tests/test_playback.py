@@ -8,7 +8,7 @@ from fastapi import HTTPException
 
 from server import library, playback
 from server.catalog import catalog
-from server.home import PlaybackUpdate, home_shelves, update_playback
+from server.home import PlaybackUpdate, home_shelves, home_revision, update_playback
 
 
 class PlaybackTests(unittest.TestCase):
@@ -109,6 +109,31 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(shelf[0]["position_seconds"], 900)
         self.assertEqual(shelf[0]["play_state"], "resume")
         self.assertEqual(playback.watch_status(2)["position_seconds"], 900)
+
+    def test_home_revision_changes_with_playback_without_catalog_rescan(self):
+        initial = home_revision()
+        update_playback(PlaybackUpdate(
+            media_id=2, position_seconds=90, duration_seconds=0
+        ))
+        updated = home_revision()
+        self.assertEqual(initial["catalog_revision"], updated["catalog_revision"])
+        self.assertNotEqual(initial["progress_revision"], updated["progress_revision"])
+        shelf = home_shelves()
+        self.assertEqual(shelf["progress_revision"], updated["progress_revision"])
+        self.assertEqual(shelf["continue_watching"][0]["media_id"], 2)
+        update_playback(PlaybackUpdate(
+            media_id=2, position_seconds=120, duration_seconds=0
+        ))
+        # Second heartbeat can share same SQLite timestamp second.
+        self.assertNotEqual(updated["progress_revision"],
+                            home_revision()["progress_revision"])
+
+    def test_home_player_refreshes_after_progress_change(self):
+        page = (Path(__file__).resolve().parents[1] / "server/dashboard.html").read_text()
+        self.assertIn("'/api/home/revision'", page)
+        self.assertIn("result.progress_revision", page)
+        self.assertIn("progress!==homeProgressRevision", page)
+        self.assertIn("await load({preserveFocus:true})", page)
 
     def test_near_end_progress_sets_watched(self):
         result = update_playback(PlaybackUpdate(
