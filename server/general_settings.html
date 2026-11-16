@@ -17,6 +17,15 @@
 <form id="playback-form">
 <label class="setting-toggle"><input type="checkbox" id="auto-next"> Automatically play the next available unwatched TV episode</label>
 <p class="settings-muted">An eight-second countdown lets you cancel before the next episode starts. Movies are unaffected.</p>
+<div class="settings-two-col">
+<label class="setting-toggle"><input type="checkbox" id="tv-theme"> Play local TV show theme music</label>
+<label class="setting-toggle"><input type="checkbox" id="movie-theme"> Play local movie theme music</label>
+<label class="setting-toggle"><input type="checkbox" id="theme-loop"> Loop theme music while browsing</label>
+<label class="setting-toggle"><input type="checkbox" id="theme-fade"> Fade theme audio in and out</label>
+</div>
+<label for="theme-volume">Theme music volume: <output id="theme-volume-label">25%</output></label>
+<input type="range" id="theme-volume" min="0" max="100" value="25" step="5">
+<p class="settings-muted">Automatically detects a theme.mp3, theme.m4a, theme.ogg, theme.flac or theme.wav file in each title's folder. Browsers may require a remote/key press or click before starting sound. No online music downloads.</p>
 <div class="form-actions"><button class="primary-button" type="submit">Save playback settings</button></div>
 </form></div>
 </section>
@@ -98,14 +107,26 @@ function notice(message,error=false){
 async function loadPlayback(){
  const data=await api('/api/settings/playback');
  el('auto-next').checked=!!data.auto_play_next;
+ el('tv-theme').checked=!!data.tv_theme_music;
+ el('movie-theme').checked=!!data.movie_theme_music;
+ el('theme-loop').checked=!!data.theme_loop;
+ el('theme-fade').checked=!!data.theme_fade;
+ el('theme-volume').value=Number.isFinite(data.theme_volume)?data.theme_volume:25;
+ el('theme-volume-label').textContent=el('theme-volume').value+'%';
 }
 el('playback-form').onsubmit=async event=>{
  event.preventDefault();
  try{await api('/api/settings/playback',{method:'PUT',body:JSON.stringify({
-  auto_play_next:el('auto-next').checked
+  auto_play_next:el('auto-next').checked,
+  tv_theme_music:el('tv-theme').checked,
+  movie_theme_music:el('movie-theme').checked,
+  theme_loop:el('theme-loop').checked,
+  theme_fade:el('theme-fade').checked,
+  theme_volume:Number(el('theme-volume').value)
  })});notice('Playback settings saved.')}
  catch(error){notice(error.message,true)}
 };
+el('theme-volume').oninput=()=>{el('theme-volume-label').textContent=el('theme-volume').value+'%'};
 async function loadMaintenance(){
  const data=await api('/api/maintenance/settings');
  const container=el('maintenance-tasks');container.replaceChildren();
