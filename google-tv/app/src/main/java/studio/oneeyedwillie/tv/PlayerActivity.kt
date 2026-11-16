@@ -238,8 +238,8 @@ class PlayerActivity : ComponentActivity() {
         }
         playButton.contentDescription = "Play or pause"
         buttons.addView(playButton)
-        buttons.addView(control("↶ 10") { seekTo(currentPosition()-10) }.apply { contentDescription = "Rewind ten seconds" })
-        buttons.addView(control("10 ↷") { seekTo(currentPosition()+10) }.apply { contentDescription = "Forward ten seconds" })
+        buttons.addView(control("↶ 10") { seekBy(-10.0) }.apply { contentDescription = "Rewind ten seconds" })
+        buttons.addView(control("10 ↷") { seekBy(10.0) }.apply { contentDescription = "Forward ten seconds" })
         buttons.addView(control("CC") { showCaptions() })
         buttons.addView(control("✓") { toggleWatched() }.apply { contentDescription = "Mark watched or unwatched" })
         buttons.addView(control("ⓘ") { showDiagnostics() }.apply { contentDescription = "Playback diagnostics" })
@@ -279,10 +279,16 @@ class PlayerActivity : ComponentActivity() {
         playButton.text = if(player?.isPlaying==true)"❚❚" else "▶"
     }
 
+    private fun seekBy(delta: Double) {
+        val base = if (pendingSeekAction != null) pendingSeek else currentPosition()
+        seekTo(base + delta)
+    }
+
     private fun seekTo(seconds: Double) {
         pendingSeek = seconds.coerceIn(0.0, if (currentDuration() > 0) currentDuration() else 1e7)
         pendingSeekAction?.let(handler::removeCallbacks)
         val action = Runnable {
+            pendingSeekAction = null
             val target = pendingSeek
             if (hlsMode) {
                 val relative = target - hlsOffset
