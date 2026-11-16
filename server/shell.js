@@ -60,22 +60,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
-  const settingsSections=[
-    ['general','/settings/general','General'],
-    ['libraries','/settings/libraries','Library'],
-    ['metadata','/settings/metadata','Metadata'],
-    ['connections','/settings/connections','Connections'],
-  ];
-  if(inSettings){
-    const subnav=document.createElement('nav');subnav.className='settings-shortcuts';
-    subnav.setAttribute('aria-label','Settings sections');
-    settingsSections.forEach(([id,href,name])=>{
-      const link=document.createElement('a');link.href=href;link.textContent=name;link.title=name;
-      if(page===id||(['remote','playback','maintenance'].includes(page)&&id==='general'))
-        link.setAttribute('aria-current','page');
-      subnav.append(link);
-    });target.append(subnav);
-  }
+  // The gear is the only Settings destination in the sidebar.
+  // General, Library, Metadata and Connections live on /settings only.
   const icons={
     film:['fa-film','film'],tv:['fa-tv','tv'],folder:['fa-folder','services'],
     clapperboard:['fa-clapperboard','film'],star:['fa-star','film'],
