@@ -901,6 +901,8 @@ async function renderSeason(){
         .then(details=>{formatCache.set(episode.id,details.video_format||{});renderFormat(details.video_format||{});})
         .catch(()=>{formatCache.set(episode.id,{})});
     }
+    const actionHadFocus=actions.contains(document.activeElement);
+    const actionFocusId=actionHadFocus?document.activeElement.id:'';
     actions.replaceChildren();
     const play=playbackButton(episode.id,data.show.title+' · '+epTitle.textContent);
     play.id='season-play-button';
@@ -1028,6 +1030,12 @@ async function renderSeason(){
     if(Array.isArray(data.show.genres)&&data.show.genres.length)
       facts.append(el('span','season-fact',data.show.genres.join(' · ')));
     actions.append(facts);
+    // Progress refresh can rebuild the action row while the remote is on Play.
+    // Restore the same action instead of losing focus to the document body.
+    if(actionHadFocus){
+      const replacement=actionFocusId&&document.getElementById(actionFocusId);
+      (replacement||play).focus({preventScroll:true});
+    }
   };
   for(const episode of available){
     const button=el('button','season-episode-tile');button.type='button';
