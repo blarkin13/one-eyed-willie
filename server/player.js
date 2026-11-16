@@ -6,7 +6,7 @@
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
   let chromeTimer=null, seekTimer=null, stallTimer=null;
-  let queuedSeek=null, recoveryAttempts=0, lastRecovery=0;
+  let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
   function revealChrome(){
     if(!current)return;
     current.classList.remove('willie-chrome-hidden');
@@ -214,7 +214,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     clearInterval(monitor);monitor=null;
     clearTimeout(chromeTimer);chromeTimer=null;
     clearTimeout(seekTimer);seekTimer=null;queuedSeek=null;
-    clearTimeout(stallTimer);stallTimer=null;recoveryAttempts=0;
+    clearTimeout(stallTimer);stallTimer=null;recoveryAttempts=0;recoveryHandler=null;
     video.pause();destroyStream();
     video.removeAttribute('src');video.load();
     current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;captionsSelect=null;
@@ -275,7 +275,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         hls.on(Hls.Events.ERROR,(_event,data)=>{
           if(data.fatal){
             message('Recovering HLS stream: '+(data.details||data.type));
-            recoverStream();
+            recoveryHandler?.();
           }
         });
         hls.loadSource(url);
@@ -353,6 +353,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       recoveryAttempts++;lastRecovery=now;
       queueSeek(playerPosition(video),true);
     }
+    recoveryHandler=recoverStream;
     function queueSeek(seconds,forceRestart=false){
       if(!status)return;
       const duration=Number(status.duration_seconds)||1e7;
