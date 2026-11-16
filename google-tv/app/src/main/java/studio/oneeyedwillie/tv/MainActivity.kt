@@ -1006,9 +1006,13 @@ class MainActivity : ComponentActivity() {
                 return Math.abs(root.scrollTop-before)>1;
               };
               const move=direction=>{
-                const menu=document.querySelector('dialog.season-overflow-dialog[open]');
+                // Native D-pad must stay inside modal dialogs, including
+                // episode actions and the subsequent Fix Match results dialog.
+                const menu=document.querySelector('dialog[open]');
                 if(menu){
-                  const options=[...menu.querySelectorAll('button:not(:disabled)')];
+                  const options=[...menu.querySelectorAll(
+                    'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
+                  )].filter(isVisible);
                   const index=options.indexOf(document.activeElement);
                   if(direction==='up'||direction==='down'){
                     const step=direction==='down'?1:-1;
