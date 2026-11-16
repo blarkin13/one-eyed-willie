@@ -84,6 +84,20 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("object-fit:contain", css)
         self.assertNotIn('font-family:"Pirata One"', css)
 
+    def test_cast_profile_stacks_portrait_above_bio_on_mobile(self):
+        page = (SERVER / "person.html").read_text()
+        self.assertIn('class="person-hero"', page)
+        self.assertIn('class="person-photo-frame"', page)
+        self.assertIn('id="person-name"', page)
+        self.assertIn('id="person-bio"', page)
+        self.assertIn(".person-hero > *{min-width:0}", page)
+        self.assertIn(".person-photo-frame{position:relative;width:100%;min-width:0;min-height:0;", page)
+        self.assertIn("@media(max-width:700px){", page)
+        mobile = page.split("@media(max-width:700px){", 1)[1].split("}", 1)[0]
+        self.assertIn("grid-template-columns:minmax(0,1fr)", mobile)
+        self.assertNotIn("grid-template-columns:105px minmax(0,1fr)", page)
+        self.assertIn(".person-credits{grid-template-columns:repeat(2,minmax(0,1fr))", page)
+
     def test_home_has_explicit_favicon(self):
         home = (SERVER / "dashboard.html").read_text()
         shell = (SERVER / "shell.js").read_text()
