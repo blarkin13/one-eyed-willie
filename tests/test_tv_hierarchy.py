@@ -62,6 +62,30 @@ class TVHierarchyTests(unittest.TestCase):
         self.assertIn("year", result["show"])
         self.assertTrue(result["show"]["backdrop_url"].startswith("/api/artwork/"))
 
+    def test_long_season_and_multiple_seasons_are_not_truncated(self):
+        with library.db() as conn:
+            conn.executemany(
+                "INSERT INTO media (id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES (?,?,?,?,?,?,CURRENT_TIMESTAMP)",
+                [
+                    (200 + episode, 1,
+                     f"/media/TV/Severance/Season 01/Severance.S01E{episode:02d}.mkv",
+                     f"S01E{episode:02d}", 10, 0)
+                    for episode in range(3, 31)
+                ] + [
+                    (300 + season, 1,
+                     f"/media/TV/Severance/Season {season:02d}/Severance.S{season:02d}E01.mkv",
+                     f"S{season:02d}E01", 10, 0)
+                    for season in range(3, 13)
+                ],
+            )
+        with patch.object(tv, "show_metadata", return_value={}), patch.object(
+            tv, "season_metadata", return_value={}
+        ):
+            result = tv.season_details(library_id=1, key="severance:", season_number=1)
+        self.assertEqual([item["episode"] for item in result["episodes"]], list(range(1, 31)))
+        self.assertEqual([item["number"] for item in result["seasons"]], list(range(1, 13)))
+
     def test_episode_details_preserve_media_identity(self):
         with patch.object(tv, "show_metadata", return_value={}), patch.object(
             tv, "season_metadata", return_value={}

@@ -89,6 +89,19 @@ body.tv-season-mode #loading:empty{display:none}
 .season-tabs a[aria-current="page"]{outline:1px solid #a9d8fa;outline-offset:-1px;
   color:#e8f5ff;background:#183653c9}
 .season-tabs a:focus-visible{outline:2px solid #d0e7ff;outline-offset:2px}
+.season-rail-shell{display:flex;align-items:center;width:100%;min-width:0;gap:0}
+.season-rail-shell--seasons{max-width:min(900px,100%);margin-bottom:30px}
+.season-rail-shell--episodes{background:linear-gradient(180deg,#081322e9,#0b1b32f0)}
+.season-rail-shell .season-tabs{flex:1;min-width:0;max-width:none;margin:0}
+.season-rail-shell .season-episode-track{flex:1;min-width:0;padding-left:12px;padding-right:12px}
+.season-rail-arrow{flex:0 0 clamp(30px,4vw,56px);display:grid;place-items:center;
+  align-self:stretch;border:0;padding:0;background:transparent;color:#c9dff0;
+  cursor:pointer;opacity:.95}
+.season-rail-arrow svg{display:block;width:25px;height:25px}
+.season-rail-arrow:disabled{opacity:.17;cursor:default}
+.season-rail-shell:not(.has-overflow) .season-rail-arrow{display:none}
+.season-rail-arrow:focus-visible{outline:2px solid #cfe9ff;outline-offset:-3px}
+.season-rail-shell--seasons .season-rail-arrow{align-self:flex-start;height:45px}
 .season-hero-copy{max-width:min(690px,64%);padding:12px 0 3px;min-width:0}
 .season-show-name{font-size:clamp(1.65rem,3.7vw,3.35rem);font-weight:850;
   letter-spacing:-.055em;line-height:1.03;margin:0 0 10px;text-shadow:0 2px 13px #000b}
@@ -146,7 +159,8 @@ body.tv-season-mode #loading:empty{display:none}
 @media(max-width:720px){
   .tv-season-cinema{min-height:clamp(300px,53vh,440px);
     padding:14px 22px 23px}
-  .season-tabs{max-width:100%;margin-bottom:13px}
+  .season-tabs{max-width:100%;margin-bottom:0}
+  .season-rail-shell--seasons{margin-bottom:13px}
   .season-hero-copy{max-width:88%}
   .season-show-name{font-size:clamp(1.7rem,5vw,2.6rem)}
   .season-episode-summary{-webkit-line-clamp:3}
@@ -175,6 +189,66 @@ function el(tag,cls,text){
   const node=document.createElement(tag);if(cls)node.className=cls;
   if(text!==undefined&&text!==null)node.textContent=String(text);
   return node;
+}
+
+/* Only scroll the horizontal rail: scrollIntoView also moves the whole page
+   on some Android WebViews, leaving the selected item offscreen. */
+function revealRailItem(rail,item){
+ if(!rail||!item)return;
+ const viewport=rail.getBoundingClientRect(),card=item.getBoundingClientRect();
+ const padding=14;
+ const delta=card.left<viewport.left+padding
+   ?card.left-viewport.left-padding
+   :card.right>viewport.right-padding
+     ?card.right-viewport.right+padding:0;
+ if(Math.abs(delta)>1)rail.scrollLeft+=delta;
+}
+function setupSeasonRail(rail,kind){
+ const shell=el('div','season-rail-shell season-rail-shell--'+kind);
+ const makeArrow=forward=>{
+   const button=el('button','season-rail-arrow');button.type='button';
+   button.dataset.seasonScrollArrow='true';
+   const name=kind==='seasons'?'seasons':'episodes';
+   const action=forward?'Next':'Previous';
+   button.title=action+' '+name;button.setAttribute('aria-label',action+' '+name);
+   button.setAttribute('aria-controls',rail.id);
+   button.innerHTML=forward
+     ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 4 8 8-8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+     :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 4-8 8 8 8" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+   button.onclick=()=>rail.scrollBy({left:(forward?1:-1)*rail.clientWidth*.8,behavior:'smooth'});
+   return button;
+ };
+ const back=makeArrow(false),next=makeArrow(true);
+ shell.append(back,rail,next);
+ const update=()=>{
+   const max=Math.max(0,rail.scrollWidth-rail.clientWidth);
+   shell.classList.toggle('has-overflow',max>3);
+   back.disabled=max<=3||rail.scrollLeft<=2;
+   next.disabled=max<=3||rail.scrollLeft>=max-2;
+ };
+ rail.addEventListener('scroll',update,{passive:true});
+ rail.addEventListener('focusin',event=>{
+   if(event.target instanceof Element&&rail.contains(event.target))
+     revealRailItem(rail,event.target);
+   update();
+ });
+ // Desktop keyboard and TV remote both traverse every item in order.
+ // TV handles D-pad events itself, while browsers use these arrow keys.
+ rail.addEventListener('keydown',event=>{
+   if(!['ArrowLeft','ArrowRight'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey)return;
+   const entries=[...rail.querySelectorAll(rail.matches('.season-tabs')?'a[href]':'.season-episode-tile')];
+   const index=entries.indexOf(document.activeElement);
+   if(index<0)return;
+   const target=entries[index+(event.key==='ArrowRight'?1:-1)];
+   if(!target)return;
+   event.preventDefault();
+   target.focus({preventScroll:true});
+   revealRailItem(rail,target);
+ });
+ if(typeof ResizeObserver==='function')new ResizeObserver(update).observe(rail);
+ window.addEventListener('resize',update,{passive:true});
+ requestAnimationFrame(update);
+ return {shell,update};
 }
 function watchIcon(watched){
  return watched
@@ -473,7 +547,7 @@ async function renderSeason(){
   const cinema=el('section','tv-season-cinema');
   const backdrop=image('','season-backdrop','');
   backdrop.hidden=true;backdrop.loading='eager';cinema.append(backdrop);
-  const tabs=el('nav','season-tabs');tabs.setAttribute('aria-label','Show and seasons');
+  const tabs=el('nav','season-tabs');tabs.id='season-tabs';tabs.setAttribute('aria-label','Show and seasons');
   const showLink=el('a','','Show');showLink.href=showHref(data.show.library_id,data.show.key);
   tabs.append(showLink);
   for(const season of data.seasons||[]){
@@ -483,7 +557,7 @@ async function renderSeason(){
     if(season.number===state.season_number)link.setAttribute('aria-current','page');
     tabs.append(link);
   }
-  cinema.append(tabs);
+  const tabsRail=setupSeasonRail(tabs,'seasons');cinema.append(tabsRail.shell);
   const copy=el('div','season-hero-copy');
   const showName=el('h1','season-show-name',data.show.title);
   const epTitle=el('h2','season-episode-title');
@@ -492,11 +566,12 @@ async function renderSeason(){
   const format=el('div','season-episode-format');
   copy.append(showName,epTitle,epMeta,epOverview,format);
   cinema.append(copy);view.append(cinema);
-  const track=el('div','season-episode-track');
+  const track=el('div','season-episode-track');track.id='season-episodes';
   track.setAttribute('aria-label','Episodes in '+data.season.name);
+  const episodeRail=setupSeasonRail(track,'episodes');
   const actions=el('div','season-actions-row');
   const support=el('div','season-support');
-  view.append(track,actions,support);
+  view.append(episodeRail.shell,actions,support);
   const selectEpisode=episode=>{
     selected=episode;
     for(const [id,button] of allCards){
@@ -595,9 +670,10 @@ async function renderSeason(){
   }
   selectEpisode(selected);
   const selectedTile=allCards.get(selected.id);
-  if(selectedTile)track.scrollLeft=Math.max(0,selectedTile.offsetLeft-track.offsetLeft-track.clientWidth*.52);
+  if(selectedTile)revealRailItem(track,selectedTile);
   const currentTab=tabs.querySelector('[aria-current="page"]');
-  if(currentTab)tabs.scrollLeft=Math.max(0,currentTab.offsetLeft-tabs.offsetLeft-tabs.clientWidth*.60);
+  if(currentTab)revealRailItem(tabs,currentTab);
+  tabsRail.update();episodeRail.update();
   // Reuse the show's existing cast/crew, metadata and review source.
   // Playback and episode selection stay usable if enrichment is unavailable.
   try{
