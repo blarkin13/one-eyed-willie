@@ -202,6 +202,10 @@ class PlayerActivity : ComponentActivity() {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(32), dp(18), dp(32), 0)
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0x7A000000, 0x00000000, 0x00000000)
+            )
         }
         val heading = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -248,6 +252,7 @@ class PlayerActivity : ComponentActivity() {
             text = "0:00"
             textSize = 15f
             setTextColor(0xFFF4EFE4.toInt())
+            minWidth = dp(74)
             setPadding(0, 0, dp(11), 0)
         }
         totalTime = TextView(this).apply {
