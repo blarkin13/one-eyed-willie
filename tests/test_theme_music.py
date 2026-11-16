@@ -147,7 +147,7 @@ class LocalThemeTests(unittest.TestCase):
              patch.object(theme_music, "_fetch", return_value=(page, "text/html")) as fetch:
             info = theme_music.theme_info(2)
             self.assertFalse(info["available"])
-            self.assertEqual(info["reason"], "not_available_from_source")
+            self.assertEqual(info["reason"], "source_title_mismatch")
             self.assertEqual(fetch.call_count, 1)
         self.assertFalse(list(cache.glob("*.mp3")) if cache.exists() else False)
 
