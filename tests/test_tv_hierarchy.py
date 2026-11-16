@@ -115,12 +115,16 @@ class TVHierarchyTests(unittest.TestCase):
             "trailer_key": "abcdefghijk",
         }
         with patch.object(tv, "show_metadata", return_value=fake), patch.object(
-            tv, "imdb_details", return_value={"rating": 8.7, "content_rating": "TV-MA"}
+            tv, "imdb_details", return_value={
+                "rating": 8.7, "content_rating": "TV-MA", "rotten_tomatoes": 92
+            }
         ):
             series = tv.show_details(library_id=1, key="severance:")
             season = tv.season_details(library_id=1, key="severance:", season_number=1)
         self.assertEqual(series["content_rating"], "TV-MA")
         self.assertEqual(series["imdb_rating"], 8.7)
+        self.assertEqual(series["rotten_tomatoes"], 92)
+        self.assertEqual(season["show"]["rotten_tomatoes"], 92)
         self.assertEqual(series["network"], "Apple TV+")
         self.assertEqual(series["next_episode"]["media_id"], 101)
         self.assertEqual(season["show"]["content_rating"], "TV-MA")
@@ -167,6 +171,33 @@ class TMDBSafetyTests(unittest.TestCase):
             result = metadata.show_metadata_by_id(901)
         self.assertEqual(result["content_rating"], "TV-14")
         self.assertEqual(result["imdb_id"], "tt12345678")
+
+    def test_omdb_rotten_tomatoes_score_requires_explicit_source(self):
+        import io
+        import json
+        sample = {"Response": "True", "imdbRating": "8.8", "Rated": "TV-MA",
+                  "Ratings": [
+                      {"Source": "Internet Movie Database", "Value": "8.8/10"},
+                      {"Source": "Rotten Tomatoes", "Value": "94%"},
+                  ]}
+        with patch.dict("os.environ", {"OMDB_API_KEY": "example-key"}), patch.object(
+            metadata, "_cache_get", return_value=None
+        ), patch.object(metadata, "_cache_put"), patch.object(
+            metadata.urllib.request, "urlopen",
+            return_value=io.BytesIO(json.dumps(sample).encode())
+        ):
+            score = metadata.imdb_details("tt11280740")
+        self.assertEqual(score["rotten_tomatoes"], 94)
+        self.assertEqual(score["rating"], 8.8)
+        sample["Ratings"][1]["Value"] = "110%"
+        with patch.dict("os.environ", {"OMDB_API_KEY": "example-key"}), patch.object(
+            metadata, "_cache_get", return_value=None
+        ), patch.object(metadata, "_cache_put"), patch.object(
+            metadata.urllib.request, "urlopen",
+            return_value=io.BytesIO(json.dumps(sample).encode())
+        ):
+            invalid = metadata.imdb_details("tt11280740")
+        self.assertIsNone(invalid["rotten_tomatoes"])
 
     def test_image_urls_are_sanitized(self):
         self.assertEqual(
