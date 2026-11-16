@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 import threading
 from pathlib import Path
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from server.library import router
 from server.catalog import catalog, start_background_scans
 from server.connections import router as connections_router
@@ -186,7 +186,8 @@ def brand_logo():
 
 @app.get("/assets/shell.js")
 def ui_shell():
-    return FileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript")
+    return FileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "no-store"})
 
 @app.get("/assets/player.js")
 def player_script():
@@ -214,7 +215,8 @@ def general_settings_page():
 
 @app.get("/settings/playback")
 def playback_settings_page():
-    return FileResponse(Path(__file__).with_name("playback_settings.html"), media_type="text/html")
+    # Legacy bookmarks go to the single, canonical playback settings section.
+    return RedirectResponse(url="/settings/general#playback-heading", status_code=307)
 
 
 @app.get("/settings/libraries")
