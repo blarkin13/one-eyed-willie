@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import URLError
 
 from fastapi import HTTPException
 
@@ -20,6 +21,9 @@ class LocalThemeTests(unittest.TestCase):
         self.root_patch = patch.object(library, "MEDIA_ROOT", self.media)
         self.theme_root_patch = patch.object(theme_music, "MEDIA_ROOT", self.media)
         self.playback_root_patch = patch("server.playback.MEDIA_ROOT", self.media)
+        self.no_network = patch.object(theme_music, "_fetch", side_effect=URLError("blocked in tests"))
+        self.no_network.start()
+        self.addCleanup(self.no_network.stop)
         for item in (self.db_patch, self.root_patch, self.theme_root_patch, self.playback_root_patch):
             item.start()
             self.addCleanup(item.stop)
@@ -72,92 +76,54 @@ class LocalThemeTests(unittest.TestCase):
         with patch.object(theme_music, "MAX_BYTES", 1):
             self.assertIsNone(theme_music.theme_for_media(2))
 
-    def test_connected_plex_theme_is_discovered_without_local_mp3(self):
-        from server import plex_import
-        setting = {"url": "http://plex:32400", "token": "private-token"}
-        def details(url, token, path, params=None):
-            return {"Metadata": [{"theme": "/library/metadata/123/theme/987"}]}
-        with patch.object(plex_import, "_require_config", return_value=setting), \
-             patch.object(theme_music, "_plex_index", return_value={
-                 ("show", "severance"): [(2022, 123)],
-                 ("movie", "interstellar"): [(2014, 123)]
-             }), \
-             patch.object(plex_import, "_plex_get", side_effect=details):
+    def test_televisiontunes_automatically_downloads_exact_big_bang_theme(self):
+        title = "The Big Bang Theory"
+        show_folder = self.media / "TV" / title / "Season 01"
+        show_folder.mkdir(parents=True)
+        episode = show_folder / "The Big Bang Theory.S01E01.mkv"
+        episode.write_bytes(b"episode")
+        with library.db() as conn:
+            conn.execute("UPDATE media SET path=? WHERE id=2", (str(episode),))
+        page = (b'<html><h1>The Big Bang Theory</h1><a href="'
+                b'/download.php?f=Big_Bang_Theory_%28The%29">Download MP3</a></html>')
+        audio = b"ID3" + b"theme-data"
+        def fake_fetch(url, accept, limit):
+            if url.endswith(".html"):
+                self.assertIn("Big_Bang_Theory_(The)", url)
+                return page, "text/html"
+            self.assertIn("/download.php?f=Big_Bang_Theory_", url)
+            return audio, "audio/mpeg"
+        cache = self.media.parent / "theme-cache"
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
+             patch.object(theme_music, "_fetch", side_effect=fake_fetch) as fetch:
+            result = theme_music.theme_info(2)
+            self.assertTrue(result["available"])
+            self.assertEqual(result["source"], "televisiontunes")
+            self.assertEqual(theme_music.theme_audio(2).media_type, "audio/mpeg")
+            self.assertEqual(fetch.call_count, 2)
+        self.assertEqual(len(list(cache.glob("*.mp3"))), 1)
+
+    def test_wrong_title_or_unavailable_site_never_returns_audio(self):
+        cache = self.media.parent / "another-cache"
+        page = b'<html><h1>Different Show</h1><a href="/download.php?f=Severance">MP3</a></html>'
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
+             patch.object(theme_music, "_fetch", return_value=(page, "text/html")) as fetch:
             info = theme_music.theme_info(2)
-            self.assertTrue(info["available"])
-            self.assertEqual(info["source"], "plex")
-            self.assertEqual(info["url"], "/api/themes/2/audio")
-            self.assertTrue(theme_music.theme_info(1)["available"])
+            self.assertFalse(info["available"])
+            self.assertEqual(info["reason"], "not_available_from_source")
+            self.assertEqual(fetch.call_count, 1)
+        self.assertFalse(list(cache.glob("*.mp3")) if cache.exists() else False)
 
-    def test_local_theme_has_priority_over_plex(self):
-        theme = self.movie_folder / "theme.mp3"
-        theme.write_bytes(b"audio")
-        with patch.object(theme_music, "_plex_theme", side_effect=AssertionError("plex not needed")):
-            self.assertEqual(theme_music.theme_info(1)["source"], "local")
+    def test_movies_never_download_from_tv_only_source(self):
+        with patch.object(theme_music, "_fetch") as fetch:
+            info = theme_music.theme_info(1)
+            self.assertEqual(info["reason"], "tv_only_source")
+            fetch.assert_not_called()
 
-    def test_wrong_or_ambiguous_plex_match_and_untrusted_theme_rejected(self):
-        from server import plex_import
-        setting = {"url": "http://plex:32400", "token": "private-token"}
-        with patch.object(plex_import, "_require_config", return_value=setting), \
-             patch.object(theme_music, "_plex_index", return_value={
-                 ("show", "severance"): [(2022, 123), (2022, 124)]
-             }), \
-             patch.object(plex_import, "_plex_get") as getter:
-            self.assertIsNone(theme_music._plex_theme(2))
-            getter.assert_not_called()
-        with patch.object(plex_import, "_require_config", return_value=setting), \
-             patch.object(theme_music, "_plex_index", return_value={
-                 ("show", "severance"): [(2022, 123)]
-             }), \
-             patch.object(plex_import, "_plex_get", return_value={
-                 "Metadata": [{"theme": "https://untrusted.example/bad.mp3"}]
-             }):
-            self.assertIsNone(theme_music._plex_theme(2))
-
-    def test_theme_lookup_reports_plex_missing_and_unavailable_cases(self):
-        from server import plex_import
-        settings = {"url": "http://plex:32400", "token": "private-token"}
-        with patch.object(plex_import, "_require_config", side_effect=HTTPException(409)), \
-             patch.object(theme_music, "_plex_index") as index:
-            result = theme_music.theme_info(2)
-            self.assertEqual(result["reason"], "plex_not_connected")
-            index.assert_not_called()
-        with patch.object(plex_import, "_require_config", return_value=settings), \
-             patch.object(theme_music, "_plex_index", return_value={
-                 ("show", "severance"): [(2022, 123)]
-             }), \
-             patch.object(plex_import, "_plex_get", return_value={
-                 "Metadata": [{"theme": None}]
-             }):
-            result = theme_music.theme_info(2)
-            self.assertEqual(result["reason"], "no_theme_in_plex")
-            self.assertFalse(result["available"])
-        with patch.object(plex_import, "_require_config", return_value=settings), \
-             patch.object(theme_music, "_plex_index", return_value={}):
-            self.assertEqual(theme_music.theme_info(1)["reason"], "not_in_plex_library")
-
-    def test_auto_play_blocked_ui_has_play_fallback_and_diagnostic_status(self):
-        js = (Path(__file__).resolve().parents[1] / "server/theme-music.js").read_text()
-        self.assertIn("if(armed){play();return}", js)
-        self.assertIn("armed?'Play theme music'", js)
-        self.assertIn("reasons[found.reason]", js)
-        self.assertIn("role','status'", js)
-
-    def test_plex_catalog_is_bounded_and_cached(self):
-        from server import plex_import
-        setting = {"url": "http://plex:32400", "token": "private-token"}
-        def plex_data(url, token, path, params=None):
-            if path == "/library/sections":
-                return {"Directory": [{"type": "show", "key": "1"}]}
-            return {"Metadata": [{"type": "show", "title": "Severance",
-                                  "year": 2022, "ratingKey": "123"}],
-                    "totalSize": 1}
-        with patch.object(plex_import, "_plex_get", side_effect=plex_data) as request:
-            theme_music._index.update(url=None, expires=0, items={})
-            self.assertEqual(theme_music._plex_index(setting)[("show", "severance")],
-                             [(2022, 123)])
-            theme_music._plex_index(setting)
-            self.assertEqual(request.call_count, 2)
+    def test_local_theme_preferred_to_download(self):
+        (self.show_folder / "theme.ogg").write_bytes(b"audio")
+        with patch.object(theme_music, "_fetch", side_effect=AssertionError("not needed")):
+            self.assertEqual(theme_music.theme_info(2)["source"], "local")
 
     def test_settings_keep_legacy_autoplay_and_validate_volume(self):
         defaults = playback_settings.get_preferences()
