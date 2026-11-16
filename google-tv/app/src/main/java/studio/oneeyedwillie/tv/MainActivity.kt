@@ -795,6 +795,42 @@ class MainActivity : ComponentActivity() {
                     font-size:clamp(1.6rem,4.5vw,2.7rem)!important
                   }
                 }
+                /* Shared scale selection on all TV screens: the artwork/icon
+                   grows, without either a card border or a second white box. */
+                body[data-page] :is(a,button,select,[tabindex="0"]):is(:focus,:focus-visible){
+                  outline:0!important;outline-offset:0!important;
+                  box-shadow:none!important;filter:brightness(1.16)
+                }
+                body[data-page] .tile-button:is(:focus,:focus-visible) .cover,
+                body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
+                body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
+                  outline:0!important;border-color:transparent!important;
+                  box-shadow:none!important;transform:scale(1.07)!important;
+                  filter:brightness(1.16)!important;position:relative;z-index:3
+                }
+                body[data-page] .season-episode-tile:is(:focus,:focus-visible){
+                  outline:0!important;border-color:transparent!important;
+                  box-shadow:none!important;transform:scale(1.07)!important;
+                  filter:brightness(1.16)!important;z-index:3
+                }
+                body[data-page] .season-episode-tile.is-selected{
+                  border-color:transparent!important;box-shadow:none!important
+                }
+                body[data-page] :is(.media-icon-action,.icon-only-control,.nav-link,
+                  .season-tabs a):is(:focus,:focus-visible){
+                  outline:0!important;box-shadow:none!important;
+                  transform:scale(1.16)!important;filter:brightness(1.24)!important;
+                  background:transparent!important;color:#fff!important
+                }
+                body[data-page] :is(.cast-person,.tv-cast-person,.credit-cast a)
+                  :is(:focus,:focus-visible) :is(img,.cast-blank,.tv-actor-image,.credit-empty-photo){
+                  outline:0!important;box-shadow:none!important;
+                  transform:scale(1.07)!important;filter:brightness(1.15)!important
+                }
+                body[data-page] .explore-card:focus-within,
+                body[data-page] .person-credit-link:is(:focus,:focus-visible){
+                  outline:0!important;box-shadow:none!important;border-color:transparent!important
+                }
                 /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{
