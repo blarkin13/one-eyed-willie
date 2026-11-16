@@ -113,6 +113,26 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
 .movie-match-choice img{width:55px;aspect-ratio:2/3;object-fit:cover}
 .movie-match-choice span{display:grid;gap:5px}
 .movie-match-choice small{color:#a7bbcf;line-height:1.4}
+
+/* Movie source quality badges sit next to playback controls. */
+.movie-video-format{display:inline-flex;align-items:center;flex-wrap:wrap;gap:7px;margin-left:8px}
+.movie-video-format:empty{display:none}
+.movie-video-format .video-format-badge{display:inline-flex;align-items:center;min-height:28px;
+  padding:3px 9px;border:1px solid #69819b;border-radius:6px;background:#101d2da8;
+  color:#deedff;letter-spacing:.045em;font:750 .74rem/1.2 system-ui,-apple-system,sans-serif;white-space:nowrap}
+.movie-video-format .video-format-badge.hdr{border-color:#91bfae;color:#baf0d6}
+.movie-reviews{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,275px),1fr));gap:13px!important;align-items:start}
+.movie-review{padding:16px 17px!important;background:#0f1b29d9;border:1px solid #283b50!important;
+  border-radius:11px;min-width:0}
+.movie-review strong{display:block;font-size:.88rem;line-height:1.24}
+.movie-review p{color:#b6c9dc;white-space:pre-line;line-height:1.35!important;
+  font-size:.84rem;margin:9px 0 2px;overflow-wrap:anywhere}
+.movie-review:not(.expanded) p{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:4;overflow:hidden}
+.movie-review .review-expand{display:inline-flex;margin:9px 0 0;padding:5px 2px;
+  border:0;background:transparent;color:#abd6fa;font-size:.82rem;font-weight:650;cursor:pointer}
+.movie-review .review-expand:hover,.movie-review .review-expand:focus-visible{
+  text-decoration:underline;text-underline-offset:4px}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -151,6 +171,7 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
         title="Mark watched" aria-label="Mark watched">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
+      <div id="video-format" class="movie-video-format" aria-label="Source video format"></div>
     </div>
     <div id="progress-track" class="movie-detail-progress" hidden><span id="progress-fill"></span></div>
     <p id="progress-label" class="muted"></p>
@@ -258,6 +279,12 @@ async function loadMovie(){
    $('movie-title').textContent=movie.title;
    document.title=movie.title+' · One-Eyed Willie';
    $('movie-description').textContent=movie.overview||'No description available for this movie yet.';
+   const format=$('video-format');format.replaceChildren();
+   for(const [label,kind] of [[movie.video_format?.resolution,'resolution'],[movie.video_format?.hdr,'hdr']]){
+     if(!label)continue;
+     const badge=document.createElement('span');badge.className='video-format-badge '+kind;
+     badge.textContent=label;badge.title='Source file: '+label;format.append(badge);
+   }
    $('movie-meta').textContent=[
      movie.year||null,movie.runtime?movie.runtime+' min':null,
      movie.watched?'✓ Watched':null].filter(Boolean).join('  ·  ');
@@ -347,9 +374,25 @@ function renderExtras(data){
  $('reviews-unavailable').hidden=comments.length>0;
  for(const review of comments){
    const article=document.createElement('article');article.className='movie-review';
-   const author=document.createElement('strong');author.textContent=review.author;
-   const excerpt=document.createElement('p');excerpt.textContent=review.excerpt;
-   article.append(author,excerpt);reviews.append(article);
+   const author=document.createElement('strong');author.textContent=review.author||'TMDB contributor';
+   const excerpt=document.createElement('p');
+   excerpt.textContent=String(review.excerpt).replace(/\\*\\*(.*?)\\*\\*/g,'$1')
+     .replace(/\\n\\s*\\n/g,'\\n').trim();
+   article.append(author,excerpt);
+   if(excerpt.textContent.length>165){
+     const button=document.createElement('button');button.type='button';
+     button.className='review-expand';button.textContent='Read more';
+     button.setAttribute('aria-expanded','false');
+     button.setAttribute('aria-label','Read full review by '+author.textContent);
+     button.onclick=()=>{
+       const expanded=article.classList.toggle('expanded');
+       button.textContent=expanded?'Show less':'Read more';
+       button.setAttribute('aria-expanded',String(expanded));
+     };
+     article.append(button);
+   }
+   reviews.append(article);
+
  }
 }
 // The trailer icon opens a compact overlay instead of a full page section.
