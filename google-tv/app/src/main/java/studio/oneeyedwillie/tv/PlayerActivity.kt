@@ -214,11 +214,11 @@ class PlayerActivity : ComponentActivity() {
             setColor(Color.TRANSPARENT)
         }
         setOnFocusChangeListener { button, hasFocus ->
-            // Ice-blue focused icons with the existing borderless enlargement.
+            // Purple focused icons, retaining the borderless scale transition.
             // Keep their normal off-white color when focus leaves.
             (button as ImageButton).imageTintList =
                 android.content.res.ColorStateList.valueOf(
-                    if (hasFocus) 0xFFA9DDFF.toInt() else 0xFFF4EFE4.toInt()
+                    if (hasFocus) 0xFF8B5CF6.toInt() else 0xFFF4EFE4.toInt()
                 )
             button.animate().scaleX(if (hasFocus) 1.16f else 1f)
                 .scaleY(if (hasFocus) 1.16f else 1f)

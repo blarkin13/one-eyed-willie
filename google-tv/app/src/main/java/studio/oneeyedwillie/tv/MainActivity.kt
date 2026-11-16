@@ -1017,26 +1017,35 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .person-credit-link:is(:focus,:focus-visible){
                   outline:0!important;box-shadow:none!important;border-color:transparent!important
                 }
-                /* TV remote focus: ice-blue monochrome icons, no selection box.
-                   Do not recolor the original Radarr/Sonarr brand art. */
+                /* Purple is an icon-only remote focus cue, never a box or fill.
+                   Service-brand icons retain their original Radarr/Sonarr art. */
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
-                  color:#a9ddff!important
+                  color:#8B5CF6!important;background:transparent!important;
+                  outline:0!important;box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,
-                  .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible) svg{
-                  color:#a9ddff!important
+                  .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible) svg,
+                body[data-page] :is(.willie-controls,.willie-toolbar)
+                  button:is(:focus,:focus-visible){
+                  color:#8B5CF6!important
                 }
-                body[data-page] :is(.willie-controls,.willie-toolbar) button:is(:focus,:focus-visible){
-                  color:#a9ddff!important
+                /* The sidebar has no selected background, outline, side marker,
+                   border or shadow. Only the focused/current icon changes color. */
+                body[data-page] .sidebar .nav-link,
+                body[data-page] .sidebar .nav-link:is(:hover,:focus,:focus-visible),
+                body[data-page] .sidebar .nav-link[aria-current="page"]{
+                  background:transparent!important;border:0!important;
+                  outline:0!important;box-shadow:none!important
                 }
-                body[data-page] .sidebar .nav-link[aria-current="page"]:not(
-                  [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
-                  color:#a9ddff!important
+                body[data-page] .sidebar .nav-link[aria-current="page"]::before{
+                  display:none!important;content:none!important
                 }
                 body[data-page] .sidebar .nav-link:not([data-service-nav="radarr"]):not(
-                  [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon{
-                  color:#a9ddff!important
+                  [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon,
+                body[data-page] .sidebar .nav-link[aria-current="page"]:not(
+                  [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
+                  color:#8B5CF6!important
                 }
                 /* Avoid competing browser snap while the D-pad animation runs. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
@@ -1049,26 +1058,8 @@ class MainActivity : ComponentActivity() {
                     box-shadow 190ms ease-out,background-color 190ms ease-out,
                     border-color 190ms ease-out,color 190ms ease-out!important
                 }
-                /* Deep blue with a white edge remains legible against any poster. */
-                body[data-page] .tile-button:is(:focus,:focus-visible) .cover,
-                body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
-                body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster,
-                body[data-page] .season-episode-tile:is(:focus,:focus-visible){
-                  box-shadow:0 0 0 3px #145b9b,0 0 0 5px #edf5ff,
-                    0 9px 22px #0009!important
-                }
-                body[data-page] :is(dialog[open],.season-more-popover)
-                  :is(button,a,input,select):is(:focus,:focus-visible),
-                body[data-page] .sidebar .nav-link:is(:focus,:focus-visible){
-                  outline:2px solid #edf5ff!important;outline-offset:2px!important;
-                  background-color:#145b9b!important;color:#fff!important;
-                  border-radius:7px!important
-                }
-                body[data-page] :is(.media-icon-action,.icon-only-control,
-                  .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
-                  filter:brightness(1.35)!important;
-                  box-shadow:0 0 0 2px #216ba9!important
-                }
+                /* Retain the original borderless poster scale animation.
+                   No extra blue/white rings or selected-control backgrounds. */
                 @media(prefers-reduced-motion:reduce){
                   body[data-page] :is(.cover,.person-credit-poster,.season-episode-tile,
                     .cast-person img,.cast-blank,.nav-link,.media-icon-action,
