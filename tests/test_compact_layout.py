@@ -37,6 +37,50 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertNotIn('class="page-head"', page)
         self.assertIn('class="sr-only">Home', page)
 
+    def test_home_selected_poster_shows_cinematic_details_above_each_shelf(self):
+        page = (SERVER / "dashboard.html").read_text()
+        self.assertIn("function makeHomeFeature(shelf)", page)
+        self.assertIn("shelf.insertBefore(feature,shelf.querySelector('.section-heading'))", page)
+        self.assertIn("function updateHomeFeature(link,item)", page)
+        self.assertIn("link._homeItem=item", page)
+        self.assertIn("document.addEventListener('focusin',selectHomePoster,true)", page)
+        self.assertIn("document.addEventListener('pointerover',selectHomePoster", page)
+        self.assertIn("const first=track.querySelector('.tile-button')", page)
+        self.assertIn("updateHomeFeature(first,first._homeItem)", page)
+        self.assertIn("const label=item.kind==='tv'?'TV SERIES':'MOVIE'", page)
+        self.assertIn("item.play_state==='next'?'UP NEXT':'CONTINUE WATCHING'", page)
+        self.assertIn("info.overview", page)
+        self.assertIn("info.content_rating", page)
+        self.assertIn("info.network", page)
+        self.assertIn("info.certification", page)
+        self.assertIn("info.tmdb_rating", page)
+        self.assertIn("info.genres", page)
+
+    def test_home_details_backdrop_crossfades_without_stale_responses(self):
+        page = (SERVER / "dashboard.html").read_text()
+        self.assertIn("const serial=++state.serial", page)
+        self.assertIn("if(state.serial!==serial||!feature.isConnected)return", page)
+        self.assertIn("layers[next].classList.add('is-visible')", page)
+        self.assertIn("layers[1-next].classList.remove('is-visible')", page)
+        self.assertIn("if(details!==null||validHomeArt(item.backdrop_url))", page)
+        self.assertIn("homeDetailsCache=new Map()", page)
+        self.assertIn("prefers-reduced-motion:reduce", page)
+        self.assertIn("min-height:clamp(220px,35vh,350px)", page)
+        self.assertNotIn("position:fixed", page)
+
+    def test_google_tv_home_dpad_moves_by_shelf_with_animated_scroll(self):
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
+                   "java" / "studio" / "oneeyedwillie" / "tv" /
+                   "MainActivity.kt").read_text()
+        self.assertIn("document.body.dataset.page==='home'", android)
+        self.assertIn("active.closest('.shelf-track,.section-heading')", android)
+        self.assertIn("document.querySelectorAll('.content > .shelf')", android)
+        self.assertIn("rows[next].querySelectorAll('.shelf-track .tile-button')", android)
+        self.assertIn("first.focus({preventScroll:true})", android)
+        self.assertIn("row.getBoundingClientRect().top-10", android)
+        self.assertIn("window.scrollTo({top,behavior:reduced?'instant':'smooth'})", android)
+        self.assertIn("prefers-reduced-motion: reduce", android)
+
     def test_totals_in_libraries_settings(self):
         page = (SERVER / "index.html").read_text()
         self.assertIn('id="overview-movies"', page)
