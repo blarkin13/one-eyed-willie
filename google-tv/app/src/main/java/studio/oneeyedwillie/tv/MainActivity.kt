@@ -4,7 +4,10 @@ import android.animation.ObjectAnimator
 import android.animation.ValueAnimator
 import android.content.Intent
 import android.content.res.ColorStateList
+import android.graphics.Canvas
 import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.drawable.GradientDrawable
 import android.media.MediaPlayer
 import android.view.inputmethod.InputMethodManager
@@ -52,6 +55,7 @@ class MainActivity : ComponentActivity() {
     private var loadingActions: LinearLayout? = null
     private var loadingRetry: Button? = null
     private var loadingShipAnimation: ObjectAnimator? = null
+    private var loadingWaveAnimation: ValueAnimator? = null
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var playedStartupSound = false
@@ -59,47 +63,90 @@ class MainActivity : ComponentActivity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
-    // Native overlay is available immediately, before any remote server HTML.
+    // Subtle white ink crests reach well beyond the hull. They sit behind the
+    // ship art on a pure black, edge-to-edge loading screen.
+    private class LoadingWaves(context: android.content.Context) : View(context) {
+        var drift = 0f
+            set(value) { field = value; invalidate() }
+
+        override fun onDraw(canvas: Canvas) {
+            super.onDraw(canvas)
+            val w = width.toFloat()
+            val h = height.toFloat()
+            if (w <= 0 || h <= 0) return
+            val ink = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.WHITE
+                style = Paint.Style.STROKE
+                strokeCap = Paint.Cap.ROUND
+                strokeJoin = Paint.Join.ROUND
+            }
+            for (layer in 0..2) {
+                ink.alpha = when (layer) { 0 -> 185; 1 -> 110; else -> 65 }
+                ink.strokeWidth = (h * if (layer == 0) .005f else .003f).coerceAtLeast(1.8f)
+                val y = h * (.755f + layer * .028f)
+                val segment = w / 10f
+                for (i in 0..10) {
+                    val x = i * segment - segment * .43f +
+                        ((drift * (if (layer % 2 == 0) 1f else -1f)) % segment)
+                    val wave = Path().apply {
+                        moveTo(x, y + ((i + layer) % 3 - 1) * h * .008f)
+                        cubicTo(x + segment * .22f, y - h * .023f,
+                            x + segment * .34f, y + h * .019f,
+                            x + segment * .57f, y)
+                        cubicTo(x + segment * .70f, y - h * .013f,
+                            x + segment * .83f, y + h * .003f,
+                            x + segment * .89f, y + h * .005f)
+                    }
+                    canvas.drawPath(wave, ink)
+                }
+            }
+        }
+    }
+
+    // All visuals are native, so they appear before the server or WebView loads.
     private fun createLoadingOverlay(): FrameLayout {
         val overlay = FrameLayout(this).apply {
-            background = GradientDrawable(
-                GradientDrawable.Orientation.TOP_BOTTOM,
-                intArrayOf(0xFF080D16.toInt(), 0xFF101929.toInt(), 0xFF080D16.toInt())
-            )
+            setBackgroundColor(Color.BLACK)
             isClickable = true
+            isFocusable = true
+        }
+        val ocean = LoadingWaves(this)
+        overlay.addView(ocean, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        loadingWaveAnimation = ValueAnimator.ofFloat(0f, resources.displayMetrics.widthPixels / 10f).apply {
+            duration = 3300L
+            repeatCount = ValueAnimator.INFINITE
+            repeatMode = ValueAnimator.REVERSE
+            addUpdateListener { ocean.drift = it.animatedValue as Float }
         }
         val content = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
-            setPadding(dp(24), dp(22), dp(24), dp(22))
+            setPadding(dp(24), 0, dp(24), 0)
         }
         val ship = ImageView(this).apply {
             setImageResource(R.drawable.tv_ship_icon)
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "One-Eyed Willie pirate ship"
         }
-        content.addView(ship, LinearLayout.LayoutParams(dp(150), dp(150)))
-        loadingShipAnimation = ObjectAnimator.ofFloat(ship, "rotation", -3f, 3f, -3f).apply {
-            duration = 2200L
+        val artWidth = (resources.displayMetrics.widthPixels * .74f).toInt()
+        val artHeight = (resources.displayMetrics.heightPixels * .82f).toInt()
+        content.addView(ship, LinearLayout.LayoutParams(artWidth, artHeight))
+        loadingShipAnimation = ObjectAnimator.ofFloat(ship, "rotation", -2.2f, 2.2f, -2.2f).apply {
+            duration = 2900L
             repeatCount = ValueAnimator.INFINITE
         }
         loadingCaption = TextView(this).apply {
-            text = "Loading your library…"
-            textSize = 21f
+            // Never show labels or a spinner while loading normally.
+            visibility = View.GONE
+            textSize = 19f
             gravity = Gravity.CENTER
             setTextColor(0xFFF0EBE5.toInt())
         }
         content.addView(loadingCaption, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
-        ).apply { topMargin = dp(15) })
-        loadingSpinner = ProgressBar(this, null, android.R.attr.progressBarStyleLarge).apply {
-            isIndeterminate = true
-            indeterminateTintList = ColorStateList.valueOf(0xFF8B5CF6.toInt())
-        }
-        content.addView(loadingSpinner, LinearLayout.LayoutParams(dp(34), dp(34)).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            topMargin = dp(18)
-        })
+        ))
         loadingRetry = Button(this).apply {
             text = "Retry"
             setTextColor(Color.BLACK)
@@ -125,7 +172,7 @@ class MainActivity : ComponentActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
         ).apply { topMargin = dp(16) })
         overlay.addView(content, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT,
             Gravity.CENTER
         ))
         return overlay
@@ -153,8 +200,8 @@ class MainActivity : ComponentActivity() {
 
     private fun showLoading() {
         loadingFailed = false
-        loadingCaption?.text = "Loading your library…"
-        loadingSpinner?.visibility = View.VISIBLE
+        loadingCaption?.visibility = View.GONE
+        loadingSpinner?.visibility = View.GONE
         loadingActions?.visibility = View.GONE
         loadingOverlay?.apply {
             animate().cancel()
@@ -165,6 +212,7 @@ class MainActivity : ComponentActivity() {
                 contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
             ) != 0f) {
             loadingShipAnimation?.start()
+            loadingWaveAnimation?.start()
         }
         playStartupSoundOnce()
     }
@@ -172,9 +220,11 @@ class MainActivity : ComponentActivity() {
     private fun showLoadingFailure(message: String) {
         loadingFailed = true
         loadingCaption?.text = message
+        loadingCaption?.visibility = View.VISIBLE
         loadingSpinner?.visibility = View.GONE
         loadingActions?.visibility = View.VISIBLE
         loadingShipAnimation?.cancel()
+        loadingWaveAnimation?.cancel()
         loadingOverlay?.apply {
             animate().cancel()
             alpha = 1f
@@ -186,6 +236,7 @@ class MainActivity : ComponentActivity() {
     private fun finishLoading(web: WebView, serial: Int) {
         if (browser !== web || loadingFailed || serial != pageLoadSerial) return
         loadingShipAnimation?.cancel()
+        loadingWaveAnimation?.cancel()
         loadingOverlay?.animate()?.alpha(0f)?.setDuration(180L)?.withEndAction {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
@@ -238,6 +289,7 @@ class MainActivity : ComponentActivity() {
     private fun showSetup(error: String = "") {
         tvTextEditing = false
         loadingShipAnimation?.cancel()
+        loadingWaveAnimation?.cancel()
         loadingOverlay?.animate()?.cancel()
         loadingOverlay = null
         loadingCaption = null
@@ -358,6 +410,13 @@ class MainActivity : ComponentActivity() {
                 web: WebView, url: String, message: String,
                 defaultValue: String?, result: JsPromptResult
             ): Boolean {
+                // Never leak internal TV IPC messages into JavaScript prompt
+                // dialogs. Ignore untrusted/stale WebView frames instead.
+                if ((message.startsWith("oewtv:") || message.startsWith("oewtv.")) &&
+                    (!sameOrigin(url) || browser !== web)) {
+                    result.cancel()
+                    return true
+                }
                 if (sameOrigin(url) && browser === web &&
                     (message == "oewtv:awake:1" || message == "oewtv:awake:0")) {
                     // Restrict the playback-only stay-awake signal to our
@@ -385,8 +444,14 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
-                if (!sameOrigin(url) || !message.startsWith("oewtv:play:"))
+                if (!message.startsWith("oewtv:play:")) {
+                    // Unknown internal protocol messages are not UI prompts.
+                    if (message.startsWith("oewtv:") || message.startsWith("oewtv.")) {
+                        result.cancel()
+                        return true
+                    }
                     return super.onJsPrompt(web, url, message, defaultValue, result)
+                }
                 try {
                     val payload = JSONObject(Uri.decode(message.removePrefix("oewtv:play:")))
                     val id = payload.optInt("id")
@@ -575,14 +640,22 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // If the embedded browser player was interrupted by a system dialog,
-        // restore stay-awake only when a video is still actually playing.
-        browser?.evaluateJavascript(
-            """(() => {
-              const v=document.querySelector('.willie-player video');
-              try{prompt('oewtv:awake:'+(v&&!v.paused&&!v.ended?'1':'0'),'')}catch(_){}
-            })()""", null
-        )
+        // Read the player state via the JavaScript evaluation callback.
+        // Never use JS prompt() here: after a second launch/resume it can
+        // surface oewtv:awake:0 as a visible browser dialog.
+        val activeWeb = browser
+        if (activeWeb != null && sameOrigin(activeWeb.url.orEmpty())) {
+            activeWeb.evaluateJavascript(
+                """(() => {
+                  const v = document.querySelector('.willie-player video');
+                  return Boolean(v && !v.paused && !v.ended);
+                })()""".trimIndent()
+            ) { state ->
+                if (browser === activeWeb && !isFinishing &&
+                    sameOrigin(activeWeb.url.orEmpty()))
+                    activeWeb.keepScreenOn = state == "true"
+            }
+        }
         // Native Media3 playback runs in another Activity. Refresh the
         // underlying season page's watched flags and resume positions when
         // returning to its WebView, without navigating away from the show.
@@ -600,6 +673,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         loadingShipAnimation?.cancel()
+        loadingWaveAnimation?.cancel()
         startupSound?.release()
         startupSound = null
         loadingOverlay?.animate()?.cancel()
