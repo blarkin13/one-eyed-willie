@@ -308,11 +308,15 @@ def season_details(
         })
     result = {
         "show": {"library_id": library_id, "key": key, "title": meta.get("title") or show["title"],
-                 "poster_url": meta.get("poster_url"), "overview": meta.get("overview", "")},
+                 "poster_url": meta.get("poster_url"), "backdrop_url": meta.get("backdrop_url"),
+                 "overview": meta.get("overview", ""), "year": show["year"]},
         "season": {**season,
                    "overview": detail.get("overview") or season["overview"],
                    "poster_url": detail.get("poster_url") or season["poster_url"]},
         "episodes": entries,
+        "seasons": [{"number": entry["number"], "name": entry["name"],
+                     "episode_count": entry["episode_count"]} for entry in seasons
+                    if entry["number"] is not None],
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
     result = localize(result)

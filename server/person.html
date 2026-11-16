@@ -54,7 +54,6 @@ body[data-page="movies"] .person-credit-link:is(:focus,:focus-visible) small{
 </style></head>
 <body data-page="movies"><div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content person-content">
-<a class="person-back" href="javascript:history.back()" id="person-back">← Back to title</a>
 <p id="person-status" role="status">Loading cast profile…</p>
 <section class="person-hero" id="person-hero" hidden>
 <div class="person-photo-frame"><img id="person-photo" class="person-portrait" alt="" hidden><div id="person-photo-fallback" class="person-photo-fallback" aria-hidden="true"></div></div>
@@ -69,8 +68,6 @@ const params=new URLSearchParams(location.search);
 const name=params.get('name')||'';
 const status=document.getElementById('person-status');
 const byId=id=>document.getElementById(id);
-if(document.referrer && !document.referrer.startsWith(location.origin))byId('person-back').href='/movies';
-if(!document.referrer)byId('person-back').href='/movies';
 function sourceLink(label,url){
  if(typeof url!=='string'||!url.startsWith('https://'))return;
  const link=document.createElement('a');link.href=url;link.textContent=label;link.target='_blank';link.rel='noopener noreferrer';

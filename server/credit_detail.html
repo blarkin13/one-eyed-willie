@@ -92,7 +92,6 @@
 <body data-page="credit"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content credit-page">
-<a class="credit-back" id="credit-back" href="/movies">← Back to filmography</a>
 <p id="status" class="status-line" role="status">Loading title details…</p>
 <section id="hero" class="credit-hero" hidden>
  <img id="backdrop" class="credit-backdrop" alt="" hidden>
@@ -161,8 +160,6 @@ $('provider-icon').innerHTML=kind==='movie'
 $('provider-icon').classList.add(provider);
 target.title='Add to '+(kind==='movie'?'Radarr':'Sonarr');
 target.setAttribute('aria-label',target.title);
-$('credit-back').href=document.referrer&&document.referrer.startsWith(location.origin)
- ?document.referrer:kind==='movie'?'/movies':'/tv';
 const allowedImage=url=>typeof url==='string'&&
  (url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/'));
 function image(url,alt,cls){
