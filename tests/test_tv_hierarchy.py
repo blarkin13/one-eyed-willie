@@ -86,6 +86,46 @@ class TVHierarchyTests(unittest.TestCase):
         self.assertEqual([item["episode"] for item in result["episodes"]], list(range(1, 31)))
         self.assertEqual([item["number"] for item in result["seasons"]], list(range(1, 13)))
 
+    def test_show_next_episode_prefers_partial_then_first_unwatched(self):
+        episodes = [
+            {"id": 1, "season": 1, "episode": 1, "watched": True,
+             "position_seconds": 0, "duration_seconds": 0},
+            {"id": 2, "season": 1, "episode": 2, "watched": False,
+             "position_seconds": 0, "duration_seconds": 0},
+            {"id": 3, "season": 1, "episode": 3, "watched": False,
+             "position_seconds": 240, "duration_seconds": 1800},
+            {"id": 4, "season": 0, "episode": 1, "watched": False,
+             "position_seconds": 0, "duration_seconds": 0},
+        ]
+        selected = tv.next_for_series(episodes)
+        self.assertEqual(selected["media_id"], 3)
+        self.assertTrue(selected["resume"])
+        episodes[2]["watched"] = True
+        self.assertEqual(tv.next_for_series(episodes)["media_id"], 2)
+        episodes[1]["watched"] = True
+        episodes[3]["watched"] = True
+        replay = tv.next_for_series(episodes)
+        self.assertEqual(replay["media_id"], 1)
+        self.assertTrue(replay["replay"])
+
+    def test_series_metadata_exposes_parental_rating_and_verified_imdb(self):
+        fake = {
+            "title": "Severance", "rating": 8.1, "genres": ["Drama"],
+            "content_rating": "TV-MA", "imdb_id": "tt11280740", "network": "Apple TV+",
+            "trailer_key": "abcdefghijk",
+        }
+        with patch.object(tv, "show_metadata", return_value=fake), patch.object(
+            tv, "imdb_details", return_value={"rating": 8.7, "content_rating": "TV-MA"}
+        ):
+            series = tv.show_details(library_id=1, key="severance:")
+            season = tv.season_details(library_id=1, key="severance:", season_number=1)
+        self.assertEqual(series["content_rating"], "TV-MA")
+        self.assertEqual(series["imdb_rating"], 8.7)
+        self.assertEqual(series["network"], "Apple TV+")
+        self.assertEqual(series["next_episode"]["media_id"], 101)
+        self.assertEqual(season["show"]["content_rating"], "TV-MA")
+        self.assertEqual(season["show"]["trailer_key"], "abcdefghijk")
+
     def test_episode_details_preserve_media_identity(self):
         with patch.object(tv, "show_metadata", return_value={}), patch.object(
             tv, "season_metadata", return_value={}
