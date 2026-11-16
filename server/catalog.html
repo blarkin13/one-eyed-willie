@@ -611,9 +611,11 @@ function drawAlphabet(items){
    nav.append(a);
  }
 }
-async function load({preserveFocus=false}={}){
+let catalogRevision=null;
+async function load({preserveFocus=false,quiet=false}={}){
  const thisRequest=++requestId;
- loading=true;$('status').textContent='Loading titles…';
+ loading=true;
+ if(!quiet)$('status').textContent='Loading titles…';
  const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value});
  if(selectedGenre)params.set('genre',selectedGenre);
  if(Number.isInteger(selectedLibraryId)&&selectedLibraryId>0)params.set('library_id',String(selectedLibraryId));
@@ -622,6 +624,8 @@ async function load({preserveFocus=false}={}){
   if(!response.ok)throw Error('Server returned '+response.status);
   const data=await response.json();if(thisRequest!==requestId)return;
   total=data.total;const entries=Array.isArray(data.items)?data.items:[];
+  // Revision travels with the catalog snapshot, avoiding a poll/load race.
+  if(Number.isSafeInteger(data.revision))catalogRevision=data.revision;
   updateGenreChoices(data.genres);
   // Metadata refreshes must not throw D-pad focus back to the page body
   // or change the scroll position while the viewer browses poster rows.
@@ -882,7 +886,38 @@ $('refresh-metadata').addEventListener('click',async()=>{
  }
 });
 
+/* One tiny revision request per 15 seconds. Only rebuild posters after an
+   actual media change; preserve focused TV poster and the current scroll. */
+const CATALOG_POLL_MS=15000;
+let catalogPollTimer=null,catalogPollRunning=false;
+async function checkLiveCatalog(){
+ if(catalogPollRunning)return;
+ catalogPollRunning=true;
+ try{
+  if(document.hidden||loading)return;
+  const response=await fetch('/api/catalog/revision',{cache:'no-store'});
+  if(!response.ok)return;
+  const data=await response.json();
+  if(Number.isSafeInteger(data.revision)&&catalogRevision!==null&&
+     data.revision!==catalogRevision&&!loading&&!document.hidden){
+   await load({preserveFocus:true,quiet:true});
+  }
+ }catch(_){/* Keep current posters if the server temporarily disconnects. */}
+ finally{
+  catalogPollRunning=false;
+  clearTimeout(catalogPollTimer);
+  catalogPollTimer=setTimeout(checkLiveCatalog,CATALOG_POLL_MS);
+ }
+}
+document.addEventListener('visibilitychange',()=>{
+ if(!document.hidden&&!catalogPollRunning){
+  clearTimeout(catalogPollTimer);
+  checkLiveCatalog();
+ }
+});
+window.addEventListener('pagehide',()=>clearTimeout(catalogPollTimer));
 load();
 checkMetadata();
+catalogPollTimer=setTimeout(checkLiveCatalog,CATALOG_POLL_MS);
 </script>
 </body></html>
