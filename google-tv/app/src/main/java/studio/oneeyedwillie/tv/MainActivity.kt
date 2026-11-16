@@ -1224,6 +1224,12 @@ class MainActivity : ComponentActivity() {
                         shelf.scrollWidth-shelf.clientWidth,shelf.scrollLeft+deltaX));
                     }
                     r=rect(node);
+                    // Home poster Left/Right is horizontal navigation only.
+                    // The dedicated Up/Down shelf handler animates vertical
+                    // movement; this instant scroll used to fight it and
+                    // make the first focus on a newly loaded shelf jump.
+                    if(document.body.dataset.page==='home' &&
+                      shelf.matches('.shelf-track'))return true;
                   }
                   const delta=r.top<padding?r.top-padding:
                     r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
