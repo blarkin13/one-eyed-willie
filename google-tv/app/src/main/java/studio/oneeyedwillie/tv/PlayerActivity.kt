@@ -333,29 +333,138 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private val subtitleLanguages = arrayOf(
+        "English" to "en", "Spanish" to "es", "French" to "fr",
+        "German" to "de", "Italian" to "it", "Portuguese" to "pt",
+        "Japanese" to "ja", "Korean" to "ko"
+    )
+
+    /** Existing tracks plus the same OpenSubtitles workflow as server/player.js. */
     private fun showCaptions() {
         showChrome()
         network.execute {
             try {
-                val data=request("/api/stream/subtitles/$mediaId")
-                val tracks=data.optJSONArray("tracks")
-                val labels=mutableListOf("Off")
-                val ids=mutableListOf<String?>(null)
-                if(tracks!=null)for(i in 0 until tracks.length()){
-                    val item=tracks.optJSONObject(i) ?: continue
-                    labels.add(item.optString("label","Subtitles"))
-                    ids.add(item.optString("id"))
+                val tracks = request("/api/stream/subtitles/$mediaId").optJSONArray("tracks")
+                val labels = mutableListOf("Off")
+                val ids = mutableListOf<String?>(null)
+                if (tracks != null) for (i in 0 until tracks.length()) {
+                    val item = tracks.optJSONObject(i) ?: continue
+                    val id = item.optString("id")
+                    // Track IDs must follow the server's allowed subtitle scheme.
+                    if (!Regex("^(external|embedded)-[0-9]{1,3}$|^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(-[a-z]{2})?$").matches(id))
+                        continue
+                    labels.add(item.optString("label", "Subtitles").take(80))
+                    ids.add(id)
+                }
+                labels.add("Search OpenSubtitles…")
+                handler.post {
+                    if (shuttingDown) return@post
+                    AlertDialog.Builder(this).setTitle("Closed Captions")
+                        .setSingleChoiceItems(
+                            labels.toTypedArray(), ids.indexOf(selectedCaption).coerceAtLeast(0)
+                        ) { dialog, index ->
+                            dialog.dismiss()
+                            if (index == labels.lastIndex) {
+                                chooseSubtitleLanguage()
+                            } else {
+                                selectedCaption = ids[index]
+                                applyCaption()
+                                showChrome()
+                            }
+                        }
+                        .setNegativeButton("Cancel", null).show()
+                }
+            } catch (error: Exception) {
+                handler.post { if (!shuttingDown) showMessage("Subtitles unavailable: ${error.message}") }
+            }
+        }
+    }
+
+    private fun chooseSubtitleLanguage() {
+        showChrome()
+        AlertDialog.Builder(this).setTitle("Search subtitle language")
+            .setItems(subtitleLanguages.map { it.first }.toTypedArray()) { _, index ->
+                searchOpenSubtitles(subtitleLanguages[index].second)
+            }
+            .setNegativeButton("Cancel", null).show()
+    }
+
+    private fun searchOpenSubtitles(language: String) {
+        if (shuttingDown || subtitleLanguages.none { it.second == language }) return
+        showMessage("Searching OpenSubtitles…")
+        network.execute {
+            try {
+                val query = java.net.URLEncoder.encode(language, "UTF-8")
+                val results = request("/api/stream/subtitles/$mediaId/search?language=$query")
+                    .optJSONArray("results")
+                if (results == null || results.length() == 0) {
+                    handler.post { if (!shuttingDown) showMessage("No subtitle matches found.") }
+                    return@execute
+                }
+                val options = mutableListOf<Pair<Int, String>>()
+                val names = mutableListOf<String>()
+                for (i in 0 until results.length()) {
+                    val item = results.optJSONObject(i) ?: continue
+                    val fileId = item.optInt("file_id")
+                    if (fileId <= 0) continue
+                    val release = item.optString("release", "Subtitle").take(130)
+                    val text = buildString {
+                        append(release)
+                        append(" · ")
+                        append(item.optString("language", language))
+                        if (item.optBoolean("hearing_impaired", false)) append(" · SDH")
+                        val downloads = item.optInt("downloads", 0)
+                        if (downloads > 0) append(" · ").append(downloads).append(" downloads")
+                    }
+                    names.add(text)
+                    options.add(fileId to language)
                 }
                 handler.post {
-                    if(shuttingDown)return@post
-                    AlertDialog.Builder(this).setTitle("Subtitles")
-                        .setSingleChoiceItems(labels.toTypedArray(),ids.indexOf(selectedCaption).coerceAtLeast(0)){dialog,index->
-                            selectedCaption=ids[index]
-                            applyCaption()
-                            dialog.dismiss()
-                        }.setNegativeButton("Cancel",null).show()
+                    if (shuttingDown) return@post
+                    message.visibility = View.GONE
+                    if (options.isEmpty()) {
+                        showMessage("No downloadable subtitle matches found.")
+                        return@post
+                    }
+                    AlertDialog.Builder(this).setTitle("OpenSubtitles results")
+                        .setItems(names.toTypedArray()) { _, selected ->
+                            val (id, lang) = options[selected]
+                            downloadSubtitle(id, lang)
+                        }
+                        .setNegativeButton("Cancel", null)
+                        .setNeutralButton("Change language") { _, _ -> chooseSubtitleLanguage() }
+                        .show()
                 }
-            }catch(error:Exception){handler.post{showMessage("Subtitles unavailable: "+error.message)}}
+            } catch (error: Exception) {
+                handler.post { if (!shuttingDown) showMessage("Subtitle search failed: ${error.message}") }
+            }
+        }
+    }
+
+    private fun downloadSubtitle(fileId: Int, language: String) {
+        if (fileId <= 0 || subtitleLanguages.none { it.second == language } || shuttingDown) return
+        showMessage("Downloading subtitle…")
+        network.execute {
+            try {
+                val query = java.net.URLEncoder.encode(language, "UTF-8")
+                val result = request(
+                    "/api/stream/subtitles/$mediaId/download?language=$query",
+                    "POST", JSONObject().put("file_id", fileId)
+                )
+                val trackId = result.optString("track_id")
+                if (!Regex("^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(-[a-z]{2})?$")
+                        .matches(trackId))
+                    throw IllegalStateException("Server did not return a valid subtitle track")
+                handler.post {
+                    if (shuttingDown) return@post
+                    selectedCaption = trackId
+                    applyCaption()
+                    message.visibility = View.GONE
+                    showChrome()
+                }
+            } catch (error: Exception) {
+                handler.post { if (!shuttingDown) showMessage("Subtitle download failed: ${error.message}") }
+            }
         }
     }
 
@@ -426,24 +535,33 @@ class PlayerActivity : ComponentActivity() {
     private fun resolveUrl(path: String): String =
         URI(server + "/").resolve(path).toString()
 
-    private fun request(path: String, method: String = "GET"): JSONObject {
+    private fun request(
+        path: String, method: String = "GET", payload: JSONObject? = null
+    ): JSONObject {
         val connection = URL(resolveUrl(path)).openConnection() as HttpURLConnection
         try {
             connection.requestMethod = method
             connection.connectTimeout = 7000
-            connection.readTimeout = 10000
+            connection.readTimeout =
+                if (path.contains("/search") || path.contains("/download")) 45_000 else 10_000
             connection.setRequestProperty("Accept", "application/json")
             if (method == "POST") {
                 connection.doOutput = true
-                connection.setFixedLengthStreamingMode(0)
-                connection.outputStream.use { }
+                val bytes = payload?.toString()?.toByteArray(Charsets.UTF_8) ?: ByteArray(0)
+                if (payload != null)
+                    connection.setRequestProperty("Content-Type", "application/json")
+                connection.setFixedLengthStreamingMode(bytes.size)
+                connection.outputStream.use { it.write(bytes) }
             }
             val code = connection.responseCode
             val body = (if (code in 200..299) connection.inputStream else connection.errorStream)
                 ?.bufferedReader()?.use { it.readText() }.orEmpty()
-            if (code !in 200..299) throw IllegalStateException(
-                "Server returned HTTP $code for $path"
-            )
+            if (code !in 200..299) {
+                val detail = try {
+                    JSONObject(body).optString("detail").takeIf { it.isNotBlank() }
+                } catch (_: Exception) { null }
+                throw IllegalStateException(detail ?: "Server returned HTTP $code")
+            }
             return JSONObject(body)
         } finally {
             connection.disconnect()
