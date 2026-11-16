@@ -518,3 +518,12 @@ body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
 .settings-editor-dialog label{display:block;margin:15px 0 6px;font-weight:650;font-size:.88rem}
 .settings-editor-dialog .folder-list{max-height:240px}
 @media(max-width:800px){.settings-grid,.settings-two-col{grid-template-columns:minmax(0,1fr)}.settings-tile{min-height:130px}.settings-card{padding:17px}.settings-list-row{align-items:flex-start}}
+
+
+/* Locally bundled official Radarr and Sonarr logos are not recolored. */
+.integration-logo{display:inline-block;width:24px;height:24px;object-fit:contain;vertical-align:middle;flex:none}
+.sidebar .nav-brand-icon .integration-logo{display:block;width:27px;height:27px;max-width:none}
+.manager-nav .integration-logo,.connection-quicklinks .integration-logo{width:21px;height:21px;margin-right:7px}
+.manager-nav a,.connection-quicklinks a{display:inline-flex;align-items:center;gap:3px}
+.connection-head .integration-logo{width:34px;height:34px}
+.credit-actions button .integration-logo{width:34px;height:34px}
