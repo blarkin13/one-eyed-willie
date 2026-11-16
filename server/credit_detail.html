@@ -102,7 +102,7 @@
   <p id="overview" class="credit-overview"></p>
   <div class="credit-actions">
    <button id="add-title" type="button" title="Add to media manager" aria-label="Add to media manager">
-    <svg id="provider-icon" class="credit-arr-icon" viewBox="0 0 24 24" aria-hidden="true"></svg>
+    <img id="provider-icon" class="integration-logo credit-arr-icon" src="/assets/brand/radarr.svg" alt="" aria-hidden="true">
    </button>
    <button id="trailer" type="button" hidden title="Play trailer" aria-label="Play trailer">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>
@@ -154,9 +154,7 @@ const target=$('add-title');
 let selected=null,detail=null,trailerKey=null;
 $('eyebrow').textContent=kind==='movie'?'MOVIE':'TV SERIES';
 document.body.dataset.page=kind==='movie'?'movies':'tv';
-$('provider-icon').innerHTML=kind==='movie'
- ?'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="4.8" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'
- :'<path d="M3 12c3-6 6 6 9 0s6-6 9 0M3 17c3-6 6 6 9 0s6-6 9 0M3 7c3-6 6 6 9 0s6-6 9 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>';
+$('provider-icon').src='/assets/brand/'+provider+'.svg';
 $('provider-icon').classList.add(provider);
 target.title='Add to '+(kind==='movie'?'Radarr':'Sonarr');
 target.setAttribute('aria-label',target.title);
