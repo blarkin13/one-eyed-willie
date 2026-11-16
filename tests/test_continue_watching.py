@@ -130,8 +130,9 @@ class ContinueWatchingTests(unittest.TestCase):
         methods=[route.methods for route in app.routes
                  if getattr(route,"path","")=="/api/playback/progress"]
         self.assertTrue(any("POST" in x for x in methods),
-                        [(getattr(route,"path",None),getattr(route,"methods",None))
-                         for route in app.routes])
+                        [(type(route).__name__,repr(route)[:100],
+                          getattr(route,"path",None),getattr(route,"methods",None))
+                         for route in app.routes[:12]])
         self.assertTrue(any("PUT" in x for x in methods))
 
 
