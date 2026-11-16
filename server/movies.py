@@ -348,12 +348,12 @@ def _movie_extras(radarr):
                          "character": str(person.get("character") or "")[:90],
                          "photo": register_remote(image_url(person.get("profile_path"), "w185"))})
         user_reviews = []
-        for review in (reviews or {}).get("results", [])[:4]:
+        for review in (reviews or {}).get("results", [])[:12]:
             if not isinstance(review, dict):
                 continue
             user_reviews.append({
                 "author": str(review.get("author") or "TMDB contributor")[:80],
-                "excerpt": str(review.get("content") or "")[:850],
+                "excerpt": str(review.get("content") or "")[:3500],
                 "source": "TMDB",
             })
         videos = (details or {}).get("videos") or {}
