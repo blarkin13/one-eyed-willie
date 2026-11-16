@@ -17,6 +17,8 @@ from server.sabnzbd import router as sabnzbd_router
 from server.subtitles import router as subtitles_router
 from server.subtitle_provider import router as subtitle_provider_router
 from server.hls import router as hls_router, init_cache, cleanup_loop
+from server.media_probe import warm_media_profiles
+from server.hardware import hardware_supported
 from server.artwork import router as artwork_router
 from server.movies import router as movies_router
 from server.arr import router as arr_router
@@ -37,6 +39,11 @@ async def lifespan(app: FastAPI):
     maintenance_thread = threading.Thread(target=maintenance_loop, args=(maintenance_stop,), daemon=True, name='maintenance-scheduler')
     maintenance_thread.start()
     stop, thread = start_background_scans()
+    probe_stop = threading.Event()
+    probe_thread = threading.Thread(target=warm_media_profiles, args=(probe_stop,), daemon=True)
+    probe_thread.start()
+    threading.Thread(target=hardware_supported, daemon=True,
+                     name="transcoder-hardware-preflight").start()
     posters_stop = threading.Event()
     poster_thread = threading.Thread(target=poster_loop, args=(posters_stop,), daemon=True, name='poster-prefetch')
     poster_thread.start()
@@ -46,6 +53,8 @@ async def lifespan(app: FastAPI):
         posters_stop.set()
         posters_thread = poster_thread
         posters_thread.join(timeout=3)
+        probe_stop.set()
+        probe_thread.join(timeout=3)
         stop.set()
         thread.join(timeout=5)
         maintenance_stop.set()

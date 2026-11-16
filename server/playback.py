@@ -17,6 +17,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 
 from .library import MEDIA_ROOT, db
+from .media_probe import inspect_media
 
 router = APIRouter(prefix="/api/watch")
 TRANSCODE_SLOTS = asyncio.Semaphore(2)
@@ -24,6 +25,17 @@ TRANSCODE_SLOTS = asyncio.Semaphore(2)
 BROWSER_TYPES = {
     ".mp4": "video/mp4", ".m4v": "video/mp4", ".mov": "video/quicktime",
     ".webm": "video/webm", ".ogv": "video/ogg",
+}
+
+# These containers can be served to capable native players (e.g. Media3).
+DIRECT_TYPES = {
+    **BROWSER_TYPES,
+    ".mkv": "video/x-matroska",
+    ".avi": "video/x-msvideo",
+    ".ts": "video/mp2t",
+    ".m2ts": "video/mp2t",
+    ".mpg": "video/mpeg",
+    ".mpeg": "video/mpeg",
 }
 
 
@@ -84,6 +96,7 @@ def watch_status(media_id: int):
         "position_seconds": progress["position_seconds"] if progress else 0,
         "duration_seconds": (progress["duration_seconds"] if progress and progress["duration_seconds"] else probe_duration(file)),
         "extension": file.suffix.lower(),
+        "media": inspect_media(file),
         "mode": "direct" if file.suffix.lower() in BROWSER_TYPES else "compatible",
         "stream_url": f"/api/watch/{media_id}/stream",
         "compatible_url": f"/api/watch/{media_id}/transcode",
@@ -121,10 +134,10 @@ def mark_watched(media_id: int, update: WatchedRequest):
 def stream_media(media_id: int):
     _, file = _item(media_id)
     suffix = file.suffix.lower()
-    if suffix not in BROWSER_TYPES:
-        raise HTTPException(415, "This file requires compatibility playback")
+    if suffix not in DIRECT_TYPES:
+        raise HTTPException(415, "This file is not supported for direct streaming")
     return FileResponse(
-        file, media_type=BROWSER_TYPES[suffix], filename=None,
+        file, media_type=DIRECT_TYPES[suffix], filename=None,
         headers={
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",

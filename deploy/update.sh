@@ -14,6 +14,18 @@ GH_TOKEN="$(runuser -u brian -- /snap/bin/gh auth token)"
 export GH_TOKEN
 test -n "$GH_TOKEN"
 
+# Preserve the existing remote HTTPS deployment and Intel GPU device bindings.
+# Plain docker compose previously silently recreated the app without the GPU.
+compose_files=(-f compose.yaml)
+if docker container inspect one-eyed-willie-https >/dev/null 2>&1; then
+  compose_files=(-f compose.remote.yaml)
+fi
+if [[ -c /dev/dri/renderD128 ]]; then
+  export WILLIE_RENDER_GID="$(stat -c '%g' /dev/dri/renderD128)"
+  compose_files+=(-f compose.gpu.yaml)
+fi
+compose() { docker compose "${compose_files[@]}" "$@"; }
+
 git_auth='!f() { printf "%s\\n" "username=x-access-token" "password=$GH_TOKEN"; }; f'
 git -c safe.directory="$APP_DIR" -c "credential.helper=$git_auth" fetch --quiet origin main
 unset GH_TOKEN
@@ -28,15 +40,15 @@ fi
 echo "One-Eyed Willie: updating $current -> $target"
 # This directory is a deployment checkout; do not make local code edits here.
 git -c safe.directory="$APP_DIR" reset --hard "$target"
-if ! docker compose build; then
+if ! compose config --quiet || ! compose build; then
   echo "Build failed; restoring previous checkout"
   git -c safe.directory="$APP_DIR" reset --hard "$current"
   exit 1
 fi
-if ! docker compose up -d --no-build; then
+if ! compose up -d --no-build; then
   echo "Deployment failed; rolling back"
   git -c safe.directory="$APP_DIR" reset --hard "$current"
-  docker compose up -d --build
+  compose up -d --build
   exit 1
 fi
 
@@ -54,6 +66,6 @@ if [[ "$healthy" == true ]]; then
 else
   echo "Health check failed; restoring $current"
   git -c safe.directory="$APP_DIR" reset --hard "$current"
-  docker compose up -d --build
+  compose up -d --build
   exit 1
 fi

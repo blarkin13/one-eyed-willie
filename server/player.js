@@ -5,7 +5,8 @@
   let current=null, mediaId=0, status=null, hls=null, session=null;
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
-  let chromeTimer=null;
+  let chromeTimer=null, seekTimer=null, stallTimer=null;
+  let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
   function revealChrome(){
     if(!current)return;
     current.classList.remove('willie-chrome-hidden');
@@ -122,6 +123,28 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const result=base+(Number.isFinite(time)&&time>=0?time:0);
     return Number.isFinite(result)?Math.max(0,result):0;
   }
+  // Do not infer playback support from .mp4/.mkv alone. FFprobe provides
+  // actual stream codecs and the browser reports formats it can decode.
+  function browserCanDirect(video, info) {
+    const media=info?.media;
+    if(!media?.video_codec)return info?.mode==='direct';
+    const ext=String(media.container||'').toLowerCase();
+    const types={mp4:'video/mp4',m4v:'video/mp4',mov:'video/mp4',
+      webm:'video/webm',ogv:'video/ogg'};
+    const mime=types[ext];
+    if(!mime)return false;
+    const videos={h264:'avc1.42E01E',hevc:'hvc1',vp9:'vp09.00.10.08',
+      vp8:'vp8',av1:'av01.0.05M.08',theora:'theora'};
+    const audios={aac:'mp4a.40.2',mp3:'mp3',ac3:'ac-3',eac3:'ec-3',
+      opus:'opus',vorbis:'vorbis'};
+    const vc=videos[media.video_codec],ac=media.audio_codec?audios[media.audio_codec]:null;
+    if(!vc||(media.audio_codec&&!ac))return false;
+    // Reject unexpected codec/container combinations before testing a MIME.
+    if(mime==='video/webm'&&!['vp8','vp9','av1'].includes(media.video_codec))return false;
+    if(mime==='video/mp4'&&!['h264','hevc','av1','vp9'].includes(media.video_codec))return false;
+    const codecs=vc+(ac?', '+ac:'');
+    return !!video.canPlayType(mime+'; codecs="'+codecs+'"');
+  }
   function destroyStream(){
     if(hls){hls.destroy();hls=null}
     const old=session;session=null;
@@ -190,6 +213,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     window.removeEventListener('pagehide',onPageHide);
     clearInterval(monitor);monitor=null;
     clearTimeout(chromeTimer);chromeTimer=null;
+    clearTimeout(seekTimer);seekTimer=null;queuedSeek=null;
+    clearTimeout(stallTimer);stallTimer=null;recoveryAttempts=0;recoveryHandler=null;
     video.pause();destroyStream();
     video.removeAttribute('src');video.load();
     current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;captionsSelect=null;
@@ -216,6 +241,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
   async function playHls(startSeconds){
     if(!current||switching)return;
     switching=true;
+    clearTimeout(stallTimer);stallTimer=null;
     const surface=current,video=surface.querySelector('video');
     const seek=Math.max(0,Math.min(Number(status?.duration_seconds)||1e7,startSeconds));
     await saveProgress(true);
@@ -241,13 +267,21 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       const url=ready.playlist;
       message('Starting '+ready.engine+' playback…');
       if(video.canPlayType('application/vnd.apple.mpegurl')){
+        // EVENT playlists are seekable from the beginning; Safari may otherwise
+        // jump to the currently advertised live edge.
+        video.addEventListener('loadedmetadata',()=>{
+          if(current===surface&&playbackMode==='hls')video.currentTime=0;
+        },{once:true});
         video.src=url;
       }else{
         const Hls=await loadHlsLibrary();
         if(!Hls.isSupported())throw Error('This browser does not support HLS playback.');
-        hls=new Hls({lowLatencyMode:false,maxBufferLength:20,liveSyncDurationCount:3});
+        hls=new Hls({lowLatencyMode:false,maxBufferLength:30,liveSyncDurationCount:3,startPosition:0});
         hls.on(Hls.Events.ERROR,(_event,data)=>{
-          if(data.fatal)message('HLS stream error: '+(data.details||data.type));
+          if(data.fatal){
+            message('Recovering HLS stream: '+(data.details||data.type));
+            recoveryHandler?.();
+          }
         });
         hls.loadSource(url);
         hls.attachMedia(video);
@@ -313,11 +347,48 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         document.dispatchEvent(new CustomEvent('willie:watch-updated'));
       }catch(error){message(error.message)}
     };
+    function recoverStream(){
+      if(current!==surface||switching||video.paused)return;
+      const now=Date.now();
+      if(now-lastRecovery>60000)recoveryAttempts=0;
+      if(recoveryAttempts>=2){
+        message('Playback stalled. Please retry playback or check the server logs.');
+        return;
+      }
+      recoveryAttempts++;lastRecovery=now;
+      queueSeek(playerPosition(video),true);
+    }
+    recoveryHandler=recoverStream;
+    function queueSeek(seconds,forceRestart=false){
+      if(!status)return;
+      const duration=Number(status.duration_seconds)||1e7;
+      const target=Math.max(0,Math.min(duration,seconds));
+      queuedSeek=target;
+      clearTimeout(seekTimer);
+      seekTimer=setTimeout(()=>{
+        if(current!==surface)return;
+        if(switching){queueSeek(queuedSeek,forceRestart);return;}
+        const desired=queuedSeek;queuedSeek=null;
+        if(playbackMode!=='hls'){
+          video.currentTime=desired;
+          return;
+        }
+        const relative=desired-offset;
+        if(!forceRestart&&relative>=0){
+          for(let n=0;n<video.seekable.length;n++){
+            if(relative>=video.seekable.start(n)&&relative<video.seekable.end(n)-0.25){
+              video.currentTime=relative;
+              return;
+            }
+          }
+        }
+        playHls(desired);
+      },200);
+    }
     const seekBy=delta=>{
       if(!status)return;
-      const target=playerPosition(video)+delta;
-      if(playbackMode==='hls')playHls(target);
-      else video.currentTime=Math.max(0,Math.min(video.duration||1e7,target));
+      const currentTarget=queuedSeek??playerPosition(video);
+      queueSeek(currentTarget+delta);
     };
     backward.onclick=()=>seekBy(-10);forward.onclick=()=>seekBy(10);
     const subtitles=document.createElement('button');setIcon(subtitles,'subtitle','Subtitles');
@@ -480,8 +551,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       const duration=Number(status.duration_seconds)||video.duration;
       if(!Number.isFinite(duration)||duration<=0)return;
       const target=duration*Number(slider.value)/1000;
-      if(playbackMode==='hls')playHls(target);
-      else video.currentTime=target;
+      queueSeek(target);
     });
     monitor=setInterval(()=>{
       if(current!==surface)return;
@@ -499,8 +569,16 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       // events, including some native HLS implementations.
       if(!video.paused&&!video.ended&&started)saveProgress();
     },500);
-    video.addEventListener('playing',()=>{started=true;setIcon(playPause,'pause','Pause');message('');concealChromeSoon()});
-    video.addEventListener('pause',()=>{setIcon(playPause,'play','Play');revealChrome()});
+    video.addEventListener('playing',()=>{
+      started=true;clearTimeout(stallTimer);stallTimer=null;
+      setIcon(playPause,'pause','Pause');message('');concealChromeSoon();
+    });
+    video.addEventListener('waiting',()=>{
+      if(!started||video.paused||playbackMode!=='hls')return;
+      clearTimeout(stallTimer);
+      stallTimer=setTimeout(()=>{if(current===surface&&!video.paused)recoverStream()},15000);
+    });
+    video.addEventListener('pause',()=>{clearTimeout(stallTimer);stallTimer=null;setIcon(playPause,'play','Play');revealChrome()});
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{
@@ -514,7 +592,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     });
     video.addEventListener('error',()=>{
       if(playbackMode==='direct')playHls(playerPosition(video));
-      else message('Unable to decode HLS stream. Check FFmpeg and media format.');
+      else recoverStream();
     });
     message('Opening video…');
     requestJson('/api/watch/'+id+'/status').then(data=>{
@@ -535,7 +613,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         if(video.ended)showNextCountdown();
       }).catch(()=>{next.hidden=true});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
-      if(data.mode==='direct'){
+      if(browserCanDirect(video,data)){
         playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
         if(resume>5)video.addEventListener('loadedmetadata',()=>{
           if(Number.isFinite(video.duration)&&resume<video.duration-4)video.currentTime=resume;
