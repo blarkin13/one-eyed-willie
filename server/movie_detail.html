@@ -6,6 +6,7 @@
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <script defer src="/assets/player.js?v=continue-next-1"></script>
+<script defer src="/assets/theme-music.js?v=1"></script>
 <style>
 .movie-back{display:inline-flex;align-items:center;gap:9px;color:#b8d2ec;font-size:.92rem;margin:0 0 20px}
 .movie-back:hover{color:#fff}
@@ -158,6 +159,7 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
         title="Resume from saved position" aria-label="Resume from saved position">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
       </button>
+      <span id="movie-theme-control" class="theme-control-slot"></span>
       <button id="trailer-movie" type="button" class="secondary-button media-icon-action" hidden
         aria-label="Play trailer" title="Play trailer">
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>
@@ -324,6 +326,9 @@ async function loadMovie(){
    trailer.hidden=!/^[A-Za-z0-9_-]{11}$/.test(movie.trailer_key||'');
    renderExtras(movie);
    $('movie-detail').hidden=false;$('expanded').hidden=false;$('movie-status').textContent='';
+   if(!document.querySelector('#movie-theme-control .theme-music-toggle')){
+     window.WillieThemeMusic?.attach(movie.media_id,'movies',$('movie-theme-control'));
+   }
  }catch(error){$('movie-status').textContent=error.message}
 }
 function renderExtras(data){

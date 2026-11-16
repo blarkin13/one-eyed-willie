@@ -861,3 +861,15 @@ html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:fo
  #library-editor .library-art-adjustments{grid-template-columns:1fr;gap:14px}
  #library-editor .library-header-preview-image{width:95%}
 }
+
+
+/* Show/movie theme control is an unboxed media icon, like Play and Shuffle. */
+.theme-control-slot{display:inline-flex;align-items:center;justify-content:center;flex:none}
+.theme-music-toggle{display:inline-grid;place-items:center;width:44px;height:44px;
+  min-width:44px!important;margin:0;padding:7px!important;
+  background:transparent!important;border:0!important;cursor:pointer;
+  color:#e8f3fd;border-radius:10px}
+.theme-music-toggle svg{width:27px;height:27px;display:block}
+.theme-music-toggle:hover,.theme-music-toggle:focus-visible{
+  color:#a9ddff!important;background:transparent!important}
+.theme-music-toggle[aria-pressed="true"]{color:#8190a4}
