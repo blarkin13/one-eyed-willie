@@ -493,7 +493,7 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
     if manual_id:
         radarr = {**radarr, "tmdb_id": manual_id}
     extras = _movie_extras(radarr) if (enrich or manual_id) else {}
-    return {
+    result = {
         **extras,
         "ratings": radarr.get("ratings") or {},
         "studio": radarr.get("studio") or "",
@@ -518,6 +518,10 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "metadata_source": "TMDB (manual match)" if manual_id else ("Local movie files" if nfo else ("Radarr" if radarr else ("TMDB" if extras else None))),
         "manual_match": manual_id,
     }
+    if enrich and isinstance(result.get("poster_url"), str):
+        from .poster_index import remember
+        remember("movies", library_id, key, result["poster_url"])
+    return result
 
 
 @router.get("/details")

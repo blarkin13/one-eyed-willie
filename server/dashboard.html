@@ -56,24 +56,85 @@
 <script>
 const byId=id=>document.getElementById(id);
 const moviePosterJobs=[];
+const movieDetailQueue=[];
+let movieDetailActive=0;
+const movieDetailObserver='IntersectionObserver' in window
+  ?new IntersectionObserver(entries=>{
+     for(const entry of entries){
+       if(!entry.isIntersecting)continue;
+       movieDetailObserver.unobserve(entry.target);
+       entry.target._loadMovieDetailPoster?.();
+     }
+   },{rootMargin:'240px'}):null;
+
+function appendMoviePoster(cover,item,src,fromDetails=false){
+  if(!cover?.isConnected||!src?.startsWith('/api/artwork/'))return false;
+  const current=cover.querySelector('.poster-image');
+  if(current)current.remove();
+  const img=document.createElement('img');
+  img.className='poster-image';img.alt=item.title+' poster';
+  img.loading='lazy';img.decoding='async';
+  const original=src.startsWith('/api/artwork/thumb/')
+    ?src.replace('/api/artwork/thumb/','/api/artwork/'):null;
+  let retried=false;
+  img.onerror=()=>{
+    if(original&&!retried){
+      retried=true;img.src=original;return;
+    }
+    img.remove();
+    if(!fromDetails)queueMovieDetailPoster(cover,item);
+  };
+  cover.append(img);img.src=src;
+  return true;
+}
+function queueMovieDetailPoster(cover,item){
+  if(cover.dataset.movieDetailRequested||!item.library_id||!item.key)return;
+  cover.dataset.movieDetailRequested='1';
+  const card=cover.closest('.tile');
+  const enqueue=()=>{movieDetailQueue.push({cover,item});runMovieDetailQueue()};
+  if(movieDetailObserver&&card){
+    card._loadMovieDetailPoster=enqueue;
+    movieDetailObserver.observe(card);
+  }else enqueue();
+}
+function runMovieDetailQueue(){
+  while(movieDetailActive<2&&movieDetailQueue.length){
+    const {cover,item}=movieDetailQueue.shift();
+    if(!cover.isConnected)continue;
+    movieDetailActive++;
+    const query=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+    fetch('/api/movies/details?'+query,{cache:'no-store'})
+      .then(r=>r.ok?r.json():null)
+      .then(data=>{
+        if(data?.poster_url?.startsWith('/api/artwork/'))
+          appendMoviePoster(cover,item,data.poster_url,true);
+      }).catch(()=>{}).finally(()=>{movieDetailActive--;runMovieDetailQueue()});
+  }
+}
 function fetchMoviePosters(){
- const jobs=moviePosterJobs.splice(0);
- if(!jobs.length)return;
- fetch('/api/movies/posters',{method:'POST',headers:{'Content-Type':'application/json'},
-   body:JSON.stringify({items:jobs.map(job=>({
-    library_id:job.item.library_id,key:job.item.key
-   }))})})
- .then(response=>response.ok?response.json():null)
- .then(data=>{
-   if(!data?.items)return;
-   const byKey=new Map(data.items.map(entry=>[entry.library_id+'|'+entry.key,entry.poster_url]));
-   for(const {cover,item} of jobs){
-     const src=byKey.get(item.library_id+'|'+item.key);
-     if(!src?.startsWith('/api/artwork/')||!cover.isConnected)continue;
-     const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
-     img.src=src;img.loading='lazy';cover.append(img);
-   }
- }).catch(()=>{});
+  const jobs=moviePosterJobs.splice(0);
+  if(!jobs.length)return;
+  // Keep each request bounded; missing matches resolve lazily from the
+  // authoritative details route rather than leaving a blank poster forever.
+  const groups=[];
+  for(let i=0;i<jobs.length;i+=50)groups.push(jobs.slice(i,i+50));
+  Promise.all(groups.map(part=>fetch('/api/movies/posters',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({items:part.map(job=>({
+      library_id:job.item.library_id,key:job.item.key
+    }))})
+  }).then(response=>response.ok?response.json():null)
+    .then(data=>{
+      const byKey=new Map((data?.items||[])
+        .map(entry=>[entry.library_id+'|'+entry.key,entry.poster_url]));
+      for(const {cover,item} of part){
+        if(!cover.isConnected)continue;
+        const src=byKey.get(item.library_id+'|'+item.key);
+        if(!src?.startsWith('/api/artwork/'))
+          queueMovieDetailPoster(cover,item);
+        else appendMoviePoster(cover,item,src);
+      }
+    }).catch(()=>{for(const {cover,item} of part)queueMovieDetailPoster(cover,item)})));
 }
 const posterJobs=[];let activePosters=0;
 function loadPoster(cover,item){
@@ -128,8 +189,19 @@ function tile(item, watching=false){
     indicator.textContent='✓ Watched';article.append(indicator);
   }
   if(item.poster_url?.startsWith('/api/artwork/')){
+    // This card is not connected yet: append the indexed image now and
+    // check any failed thumbnail after the card enters the document.
     const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
-    img.src=item.poster_url;img.loading='lazy';img.decoding='async';cover.append(img);
+    img.loading='lazy';img.decoding='async';
+    const src=item.poster_url;
+    const original=src.startsWith('/api/artwork/thumb/')
+      ?src.replace('/api/artwork/thumb/','/api/artwork/'):null;
+    let retried=false;
+    img.onerror=()=>{
+      if(original&&!retried){retried=true;img.src=original;return;}
+      img.remove();queueMovieDetailPoster(cover,item);
+    };
+    img.src=src;cover.append(img);
   }else if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
   else if(item.kind==='movies'&&item.library_id&&item.key)moviePosterJobs.push({cover,item});
   if(watching){
