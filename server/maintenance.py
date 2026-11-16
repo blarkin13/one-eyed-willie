@@ -220,13 +220,17 @@ def _preview_key(row):
     return hashlib.sha256(f'v2:{row["id"]}:{row["size"]}:{row["mtime_ns"]}'.encode()).hexdigest()[:24]
 
 
+def _preview_complete(directory):
+    return all((directory / f"{i:03}.jpg").is_file() for i in range(PREVIEW_FRAMES))
+
+
 def _create_preview(row):
     path = _safe_media(row)
     if path is None:
         return False
     token = _preview_key(row)
     target = PREVIEWS / token
-    if (target / f"{PREVIEW_FRAMES - 1:03}.jpg").is_file():
+    if _preview_complete(target):
         return False
     try:
         PREVIEWS.mkdir(parents=True, exist_ok=True)
@@ -244,7 +248,11 @@ def _create_preview(row):
         if duration <= 15:
             return False
         success = 0
-        for index in range(PREVIEW_FRAMES):
+        # Fill the middle and quarters first, so thumbnails cover the entire
+        # timeline while the rest are generated in the background.
+        priority = [11, 5, 17, 2, 8, 14, 20, 0, 23]
+        order = priority + [i for i in range(PREVIEW_FRAMES) if i not in priority]
+        for index in order:
             if not (target / f"{index:03}.jpg").exists():
                 offset = max(1, duration * (index + 1) / (PREVIEW_FRAMES + 1))
                 command = ["nice", "-n", "15", "/usr/bin/ffmpeg", "-nostdin",
@@ -363,7 +371,7 @@ def _run_task(name):
         for row in _next_media_batch(name, 20):
             if done >= MAX_PREVIEWS:
                 break
-            if (PREVIEWS / _preview_key(row) / f"{PREVIEW_FRAMES - 1:03}.jpg").is_file():
+            if _preview_complete(PREVIEWS / _preview_key(row)):
                 continue
             if _create_preview(row):
                 done += 1
