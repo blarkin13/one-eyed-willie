@@ -97,7 +97,21 @@ document.addEventListener('DOMContentLoaded', () => {
       const normalized=name.toLocaleLowerCase().replace(/[^a-z0-9]/g,'');
       const isDefault=(library.kind==='movies'&&normalized==='movies')||
         (library.kind==='tv'&&(normalized==='tvshows'||normalized==='tv'));
-      if(isDefault&&!library.sidebar_hidden&&library.icon==='folder'&&library.font==='default')continue;
+      if(isDefault){
+        // A standard Movies/TV Shows library decorates the existing combined
+        // entry instead of creating a second identically named sidebar link.
+        const base=nav.querySelector('a[data-nav-id="'+library.kind+'"]');
+        if(base){
+          const font=['default','serif','condensed','mono','rounded'].includes(library.font)?
+            library.font:'default';
+          base.classList.add('library-font--'+font);
+          const appearance=icons[library.icon]||icons.folder;
+          const oldIcon=base.querySelector('.nav-icon');
+          if(oldIcon&&library.icon!=='folder')oldIcon.replaceWith(glyph(appearance[0],appearance[1]));
+          if(library.sidebar_hidden)base.classList.add('sidebar-hidden');
+        }
+        continue;
+      }
       const link=document.createElement('a');
       link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+new URLSearchParams({library_id:String(library.id)});
       link.title=name;link.setAttribute('aria-label',name+' library');
@@ -113,6 +127,8 @@ document.addEventListener('DOMContentLoaded', () => {
       link.append(caption);
       nav.append(link);
     }
+    // Only actual custom library entries are appended; standard collections
+    // share the existing Movies and TV Shows menu destinations.
     const links=new Map([...nav.querySelectorAll('a[data-nav-id]')].map(a=>[a.dataset.navId,a]));
     if(layout&&Array.isArray(layout.order)){
       const hidden=new Set(Array.isArray(layout.hidden)?layout.hidden:[]);
