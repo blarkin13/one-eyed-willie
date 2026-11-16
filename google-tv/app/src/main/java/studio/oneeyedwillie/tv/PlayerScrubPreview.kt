@@ -40,6 +40,7 @@ internal class PlayerScrubPreview(
     private val framePattern = Regex("^/api/maintenance/preview/$mediaId/0(?:0[0-9]|1[0-9]|2[0-3])\\.jpg$")
     private var frames: List<Frame> = emptyList()
     private var currentUrl: String? = null
+    private var lastPosition = 0.0
     private var desiredUrl: String? = null
     private var disposed = false
     private var refreshCount = 0
@@ -94,6 +95,7 @@ internal class PlayerScrubPreview(
     fun show(seconds: Double) {
         if (disposed) return
         handler.removeCallbacks(hideAction)
+        lastPosition = seconds
         view.visibility = View.VISIBLE
         val sec = seconds.coerceAtLeast(0.0).toLong()
         timestamp.text = if (sec >= 3600)
@@ -115,6 +117,10 @@ internal class PlayerScrubPreview(
             return
         }
         imageAction?.let(handler::removeCallbacks)
+        currentUrl = null
+        image.setImageDrawable(null)
+        placeholder.text = "Loading thumbnail…"
+        placeholder.visibility = View.VISIBLE
         val requestedUrl = nearest.url
         val action = Runnable { fetchImage(requestedUrl) }
         imageAction = action
@@ -155,6 +161,10 @@ internal class PlayerScrubPreview(
                     handler.post {
                         if (disposed) return@post
                         frames = incoming
+                        if (view.visibility == View.VISIBLE) {
+                            show(lastPosition)
+                            hideSoon()
+                        }
                         if (generating && refreshCount++ < 30) {
                             handler.postDelayed({ if (!disposed) refresh() }, 3000)
                         }
