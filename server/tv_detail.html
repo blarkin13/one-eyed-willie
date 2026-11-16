@@ -750,6 +750,7 @@ async function renderSeason(){
     if(previousButton&&selected.id!==episode.id){
       previousButton.classList.remove('is-selected');
       previousButton.setAttribute('aria-pressed','false');
+      previousButton.querySelector('.season-video-quality')?.remove();
     }
     selected=episode;
     const activeButton=allCards.get(episode.id);
@@ -765,14 +766,21 @@ async function renderSeason(){
         ?'S'+String(episode.season).padStart(2,'0')+' · E'+String(episode.episode).padStart(2,'0'):null,
       episode.air_date||null,episode.runtime?episode.runtime+' min':null
     ];
+    // TV classifications (TV-MA, TV-14...) belong with duration, not below the thumbnails.
+    if(data.show.content_rating)fields.push(data.show.content_rating);
     epMeta.replaceChildren(...fields.filter(Boolean).map(value=>el('span','',value)));
     epOverview.textContent=episode.overview||data.season.overview||'No description available.';
     format.replaceChildren();
     const renderFormat=details=>{
       if(selected.id!==episode.id)return;
-      format.replaceChildren();
-      for(const label of [details?.resolution,details?.hdr].filter(Boolean))
-        format.append(el('span','',label));
+      const tile=allCards.get(episode.id);
+      tile?.querySelector('.season-video-quality')?.remove();
+      const labels=[details?.resolution,details?.hdr].filter(Boolean);
+      if(!tile||!labels.length)return;
+      const badges=el('span','season-video-quality');
+      badges.setAttribute('aria-label','Video quality: '+labels.join(', '));
+      for(const label of labels)badges.append(el('span','',label));
+      tile.append(badges);
     };
     if(formatCache.has(episode.id))renderFormat(formatCache.get(episode.id));
     else{
@@ -781,12 +789,14 @@ async function renderSeason(){
         .catch(()=>{formatCache.set(episode.id,{})});
     }
     actions.replaceChildren();
-    actions.append(playbackButton(episode.id,data.show.title+' · '+epTitle.textContent));
-    if(canResume(episode))
-      actions.append(playbackButton(episode.id,data.show.title+' · '+epTitle.textContent,true));
+    const play=playbackButton(episode.id,data.show.title+' · '+epTitle.textContent);
+    play.id='season-play-button';
+    actions.append(play);
+    if(canResume(episode)){
+      const resume=playbackButton(episode.id,data.show.title+' · '+epTitle.textContent,true);
+      resume.id='season-resume-button';actions.append(resume);
+    }
     actions.append(trailerButton(data.show.trailer_key,data.show.title));
-    const age=el('span','season-parental-rating',data.show.content_rating||'TV —');
-    age.title=data.show.content_rating?'TV parental rating':'TV parental rating unavailable';actions.append(age);
     const more=el('button','media-icon-action season-more-button');
     more.type='button';more.title='Episode and season options';
     more.setAttribute('aria-label','Episode and season options');
@@ -855,7 +865,19 @@ async function renderSeason(){
       dialog.querySelector('.season-overflow-item')?.focus();
     };
     actions.append(more);
-    actions.append(el('span','season-actions-label',available.length+' episodes · '+data.season.name));
+    const facts=el('div','season-action-facts');
+    const score=data.show.rotten_tomatoes;
+    const rt=el('a','season-rt-link',
+      Number.isInteger(score)&&score>=0&&score<=100?'RT '+score+'%':'Rotten Tomatoes');
+    rt.href=rtSearchUrl(data.show.title);
+    rt.target='_blank';rt.rel='noopener noreferrer';
+    rt.title='View Rotten Tomatoes critic ratings and reviews';
+    rt.setAttribute('aria-label',rt.title);
+    facts.append(rt);
+    if(data.show.network)facts.append(el('span','season-fact',data.show.network));
+    if(Array.isArray(data.show.genres)&&data.show.genres.length)
+      facts.append(el('span','season-fact',data.show.genres.join(' · ')));
+    actions.append(facts);
   };
   for(const episode of available){
     const button=el('button','season-episode-tile');button.type='button';
@@ -877,6 +899,22 @@ async function renderSeason(){
     allCards.set(episode.id,button);track.append(button);
   }
   selectEpisode(selected);
+  // Web keyboard parity: Down from any episode always targets Play.
+  track.addEventListener('keydown',event=>{
+    if(event.key!=='ArrowDown')return;
+    const episodeTile=document.activeElement?.closest('.season-episode-tile');
+    if(!episodeTile)return;
+    const play=document.getElementById('season-play-button');
+    if(play){event.preventDefault();play.focus();}
+  });
+  actions.addEventListener('keydown',event=>{
+    if(event.key!=='ArrowUp'||document.activeElement?.id!=='season-play-button')return;
+    const episodeTile=allCards.get(selected.id);
+    if(episodeTile){
+      event.preventDefault();episodeTile.focus({preventScroll:true});
+      revealRailItem(track,episodeTile);
+    }
+  });
   const selectedTile=allCards.get(selected.id);
   if(selectedTile)revealRailItem(track,selectedTile);
   const currentTab=tabs.querySelector('[aria-current="page"]');
@@ -908,7 +946,7 @@ async function renderSeason(){
     const show=await loadJson('/api/tv/show?'+new URLSearchParams({
       library_id:data.show.library_id,key:data.show.key
     }));
-    const extras=showExtras(show);
+    const extras=showExtras({...show,title:data.show.title},{includeFacts:false});
     extras.querySelectorAll('h2').forEach(h=>{
       if(h.textContent==='Cast')h.textContent='Cast & Crew';
     });
