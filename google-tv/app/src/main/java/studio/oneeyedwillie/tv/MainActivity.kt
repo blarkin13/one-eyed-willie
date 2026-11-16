@@ -362,6 +362,12 @@ class MainActivity : ComponentActivity() {
                   gap:32px 20px!important}
                 /* Fit five comfortable posters across TV WebView's CSS viewport.
                    Android TV often reports ~960 CSS px even on a 1080p set. */
+                /* Home-only trial: 60% of the current poster dimensions,
+                   preserving the original 2:3 artwork ratio. */
+                body[data-page="home"] .shelf-track{
+                  grid-auto-columns:clamp(87px,10.8vw,130.8px)!important;
+                  gap:16px!important
+                }
                 .shelf-track{grid-auto-columns:clamp(145px,18vw,218px)!important;
                   gap:19px!important}
                 .discovery-row{grid-auto-columns:clamp(145px,18vw,218px)!important;
