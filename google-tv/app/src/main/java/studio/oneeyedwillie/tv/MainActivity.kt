@@ -239,6 +239,11 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         val web = browser
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null && web.canGoBack()) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
+                web.goBack()
+            return true
+        }
         if (direction != null && web != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 web.evaluateJavascript(
@@ -457,7 +462,14 @@ class MainActivity : ComponentActivity() {
                 body.oew-tv-backdrop-active .explore-grid::before,
                 body.oew-tv-backdrop-active .movie-grid::before,
                 body.oew-tv-backdrop-active .tv-grid::before{display:none!important}
-                /* Cinematic TV movie details: one glance shows artwork,
+                /* Android TV has a Back key. Don't add browser-only links
+                   to the cinematic movie page or the D-pad focus sequence. */
+                body[data-page="movies"] .movie-back,
+                body[data-page="movies"] #imdb-link,
+                body[data-page="movies"] .movie-detail-data>p:has(#imdb-link){
+                  display:none!important
+                }
+                                /* Cinematic TV movie details: one glance shows artwork,
                    title, playback actions and the opening cast row. */
                 body[data-page="movies"] .workspace>.content:has(.movie-detail-hero){
                   padding:0 0 42px!important;max-width:none!important
@@ -855,6 +867,20 @@ class MainActivity : ComponentActivity() {
                 }
                 return best;
               };
+              // Text sections (reviews, technical facts, long descriptions)
+              // don't have focusable children. The remote must still scroll
+              // through them after the last selectable item.
+              let readingScroll=false;
+              const scrollRead=direction=>{
+                const root=document.scrollingElement||document.documentElement;
+                const amount=Math.round(Math.min(240,Math.max(115,innerHeight*.29)));
+                const before=root.scrollTop;
+                const max=Math.max(0,root.scrollHeight-root.clientHeight);
+                const target=Math.max(0,Math.min(max,before+
+                  (direction==='down'?amount:-amount)));
+                root.scrollTop=target;
+                return Math.abs(root.scrollTop-before)>1;
+              };
               const move=direction=>{
                 const nodes=candidates();
                 if(!nodes.length)return false;
@@ -875,6 +901,18 @@ class MainActivity : ComponentActivity() {
                   const next=index+(direction==='down'?1:-1);
                   return focusNode(menu[Math.max(0,Math.min(menu.length-1,next))]);
                 }
+                // While reading below the last selectable element, move the
+                // document by a modest distance per press instead of snapping
+                // focus back to a cast portrait or to the hero.
+                if(readingScroll && (direction==='up'||direction==='down')){
+                  scrollRead(direction);
+                  if(direction==='up'){
+                    const r=rect(active);
+                    if(r.bottom>30 && r.top<innerHeight*.76)readingScroll=false;
+                  }
+                  return true;
+                }
+                if(direction==='left'||direction==='right')readingScroll=false;
                 const posters=allPosters();
                 if(!nodes.includes(active))return focusNode(posters[0]||nodes.find(n=>!isMenu(n)));
                 const from=rect(active);
@@ -897,6 +935,12 @@ class MainActivity : ComponentActivity() {
                 const other=nodes.filter(node=>!isMenu(node));
                 const next=findAdjacent(active,direction,other);
                 if(next)return focusNode(next);
+                if(direction==='up'||direction==='down'){
+                  if(scrollRead(direction)){
+                    readingScroll=true;
+                    return true;
+                  }
+                }
                 return true;
               };
               window.__willieTvMove=move;
