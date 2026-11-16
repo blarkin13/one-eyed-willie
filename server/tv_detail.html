@@ -586,7 +586,7 @@ function rtSearchUrl(title){
 }
 function rtReviewsLink(title,label='Read critic reviews on Rotten Tomatoes'){
  const link=el('a','tv-rt-review-link',label);
- link.href=rtSearchUrl(title);link.target='_blank';link.rel='noopener noreferrer';
+ link.href=rtSearchUrl(title);link.rel='noreferrer';
  link.setAttribute('aria-label',label+' (opens Rotten Tomatoes search)');
  return link;
 }
@@ -871,7 +871,7 @@ async function renderSeason(){
     const rt=el('a','season-rt-link',
       Number.isInteger(score)&&score>=0&&score<=100?'RT '+score+'%':'Rotten Tomatoes');
     rt.href=rtSearchUrl(data.show.title);
-    rt.target='_blank';rt.rel='noopener noreferrer';
+    rt.rel='noreferrer';
     rt.title='View Rotten Tomatoes critic ratings and reviews';
     rt.setAttribute('aria-label',rt.title);
     facts.append(rt);
