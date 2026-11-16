@@ -42,6 +42,7 @@ class TVHierarchyTests(unittest.TestCase):
         fake_show = {
             "tmdb_id": 999, "overview": "Show synopsis",
             "poster_url": "https://image.tmdb.org/t/p/w342/mock.jpg",
+            "backdrop_url": "https://image.tmdb.org/t/p/w780/stage.jpg",
             "seasons": [{"number": 1, "name": "Season One", "overview": "Season synopsis",
                          "poster_url": "https://image.tmdb.org/t/p/w342/season.jpg"}],
         }
@@ -57,6 +58,9 @@ class TVHierarchyTests(unittest.TestCase):
         self.assertEqual(result["episodes"][1]["title"], "The Test")
         self.assertEqual(result["episodes"][1]["overview"], "Episode synopsis")
         self.assertEqual(result["episodes"][1]["id"], 102)
+        self.assertEqual([entry["number"] for entry in result["seasons"]], [1, 2])
+        self.assertEqual(result["show"]["year"], 0)
+        self.assertTrue(result["show"]["backdrop_url"].startswith("/api/artwork/"))
 
     def test_episode_details_preserve_media_identity(self):
         with patch.object(tv, "show_metadata", return_value={}), patch.object(
