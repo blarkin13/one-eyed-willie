@@ -294,6 +294,21 @@ class CompactLayoutTests(unittest.TestCase):
         player = (SERVER / "player.js").read_text()
         self.assertIn("autoPlayNext=seasonShuffle", player)
 
+    def test_focus_tints_white_icons_blue_without_focus_boxes(self):
+        css = (SERVER / "ui.css").read_text()
+        self.assertIn("--willie-icon-focus:#a9ddff", css)
+        self.assertIn("color:var(--willie-icon-focus)!important", css)
+        self.assertIn('data-service-nav="radarr"', css)
+        self.assertIn('data-service-nav="sonarr"', css)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
+                   "java" / "studio" / "oneeyedwillie" / "tv")
+        browser = (android / "MainActivity.kt").read_text()
+        native = (android / "PlayerActivity.kt").read_text()
+        self.assertIn("color:#a9ddff!important", browser)
+        self.assertIn("0xFFA9DDFF.toInt()", native)
+        self.assertIn("0xFFF4EFE4.toInt()", native)
+        self.assertIn("button.animate().scaleX(if (hasFocus) 1.16f else 1f)", native)
+
     def test_native_and_browser_shuffle_queue(self):
         player = (SERVER / "player.js").read_text()
         self.assertIn("function shuffleSeason(episodes)", player)
