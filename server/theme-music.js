@@ -41,6 +41,17 @@
       hint.textContent=reasons[found.reason]||'No theme music available for this title.';
       hint.setAttribute('role','status');
       container.replaceChildren(hint);
+      if(kind==='tv'&&typeof found.source_page==='string'
+          &&/^https:\/\/televisiontunes\.com\/[A-Za-z0-9_%()-]+\.html$/.test(found.source_page)){
+        const link=document.createElement('a');
+        link.href=found.source_page;
+        link.target='_blank';
+        link.rel='noopener noreferrer';
+        link.className='theme-source-link';
+        link.textContent='View theme on TelevisionTunes';
+        link.title='Open the source website to listen or download manually';
+        container.append(link);
+      }
       return;
     }
     const audio=new Audio();
