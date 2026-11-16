@@ -391,9 +391,9 @@ class MainActivity : ComponentActivity() {
                   outline:0!important;box-shadow:none!important
                 }
                 .tile-button:focus-visible .cover,.tile-button:focus .cover {
-                  outline:2px solid #ccdae6!important;outline-offset:4px!important;
-                  border-color:#a1b6c7!important;
-                  transform:none!important;box-shadow:0 9px 28px #0008!important;
+                  outline:0!important;box-shadow:none!important;
+                  border-color:transparent!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 .tile-button:hover .cover{transform:none!important}
                 .tile:focus-within{transform:none!important}
@@ -409,8 +409,8 @@ class MainActivity : ComponentActivity() {
                   border:0!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
-                  outline:2px solid #ccdae6!important;outline-offset:3px!important;
-                  border-color:#a1b6c7!important;box-shadow:0 9px 28px #0008!important
+                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) :is(strong,small){
                   outline:0!important;box-shadow:none!important;
@@ -430,8 +430,8 @@ class MainActivity : ComponentActivity() {
                 }
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible .cover,
                 body[data-page="explore"] .explore-card .detail-trigger:focus .cover{
-                  outline:2px solid #ccdae6!important;outline-offset:3px!important;
-                  border-color:#a1b6c7!important;box-shadow:0 9px 28px #0008!important
+                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="explore"] .explore-card:focus-within{
                   outline:none!important;box-shadow:none!important
@@ -708,8 +708,9 @@ class MainActivity : ComponentActivity() {
                   border-radius:50%!important;padding:10px!important
                 }
                 body[data-page="movies"] .movie-detail-actions .media-icon-action:focus-visible{
-                  outline:2px solid #d3e8fc!important;outline-offset:2px!important;
-                  background:#2b46648f!important
+                  outline:0!important;box-shadow:none!important;
+                  background:transparent!important;
+                  transform:scale(1.16)!important;filter:brightness(1.25)!important
                 }
                 body[data-page="movies"] .movie-detail-progress{
                   order:8!important;margin:5px 0 0!important;height:4px!important
@@ -779,8 +780,8 @@ class MainActivity : ComponentActivity() {
                 body[data-page="movies"] .cast-person:focus .cast-blank,
                 body[data-page="movies"] .cast-person:focus-visible img,
                 body[data-page="movies"] .cast-person:focus-visible .cast-blank{
-                  outline:2px solid #d4e8fb!important;outline-offset:3px!important;
-                  box-shadow:0 6px 20px #0008!important
+                  outline:0!important;box-shadow:none!important;
+                  transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="movies"] .cast-person strong,
                 body[data-page="movies"] .cast-person span{
