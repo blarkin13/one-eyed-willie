@@ -779,24 +779,13 @@ html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:fo
 @media(prefers-reduced-motion:reduce){#library-editor *{scroll-behavior:auto}}
 
 
-/* Playful, non-looping ship greeting when the icon rail expands.
+/* Non-looping ship movement when the icon rail expands.
    The original artwork stays unmodified and remains the Home link. */
 .sidebar .brand{position:relative}
-.sidebar .brand-yarr{display:none;pointer-events:none;user-select:none}
 @media(min-width:701px){
-  .sidebar .brand-yarr{
-    display:block;position:absolute;left:76px;top:22px;z-index:2;
-    color:#f4efe4;font-family:Georgia,"Times New Roman",serif;
-    font-size:1.4rem;font-weight:700;font-style:italic;letter-spacing:.02em;
-    line-height:1.1;white-space:nowrap;opacity:0;
-    transform:translate(-7px,5px) rotate(-5deg);
-  }
   .sidebar.brand-yarr-open .brand-logo{
     animation:willie-ship-greeting 950ms ease-in-out 1 both;
     transform-origin:50% 70%;
-  }
-  .sidebar.brand-yarr-open .brand-yarr{
-    animation:willie-yarr-greeting 1400ms ease-out 1 both;
   }
   @keyframes willie-ship-greeting{
     0%,100%{transform:translate(0,0) rotate(0)}
@@ -804,16 +793,9 @@ html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:fo
     48%{transform:translate(9px,2px) rotate(4deg)}
     72%{transform:translate(4px,-3px) rotate(-2deg)}
   }
-  @keyframes willie-yarr-greeting{
-    0%,9%{opacity:0;transform:translate(-7px,5px) rotate(-5deg)}
-    26%,60%{opacity:1;transform:translate(0,0) rotate(-2deg)}
-    100%{opacity:0;transform:translate(4px,-4px) rotate(0)}
-  }
 }
 @media(prefers-reduced-motion:reduce){
-  .sidebar.brand-yarr-open .brand-logo,
-  .sidebar.brand-yarr-open .brand-yarr{animation:none!important;transform:none!important}
-  .sidebar.brand-yarr-open .brand-yarr{opacity:1}
+  .sidebar.brand-yarr-open .brand-logo{animation:none!important;transform:none!important}
 }
 
 
