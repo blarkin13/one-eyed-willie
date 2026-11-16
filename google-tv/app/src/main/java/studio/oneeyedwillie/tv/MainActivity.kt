@@ -1413,6 +1413,37 @@ class MainActivity : ComponentActivity() {
                       active,direction,'.person-credits','.person-credit-link');
                   if(rowTarget){readingScroll=false;return focusNode(rowTarget)}
                 }
+                // Home is cinematic row-by-row navigation, not spatial
+                // navigation between whichever posters happen to line up.
+                // Scroll each *whole shelf* (details + posters) into view;
+                // the previous shelf and its details leave the viewport.
+                if(document.body.dataset.page==='home' &&
+                  (direction==='up'||direction==='down')){
+                  const shelf=active?.closest?.('.shelf');
+                  if(shelf && active.closest('.shelf-track,.section-heading')){
+                    const rows=[...document.querySelectorAll('.content > .shelf')]
+                      .filter(row=>[...row.querySelectorAll('.shelf-track .tile-button')]
+                        .some(isVisible));
+                    const index=rows.indexOf(shelf);
+                    const next=index+(direction==='down'?1:-1);
+                    if(index>=0&&next>=0&&next<rows.length){
+                      const first=[...rows[next].querySelectorAll('.shelf-track .tile-button')]
+                        .find(isVisible);
+                      if(first){
+                        readingScroll=false;
+                        first.focus({preventScroll:true});
+                        const row=rows[next];
+                        const root=document.scrollingElement||document.documentElement;
+                        const top=Math.max(0,root.scrollTop+
+                          row.getBoundingClientRect().top-10);
+                        const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+                        window.scrollTo({top,behavior:reduced?'instant':'smooth'});
+                        return true;
+                      }
+                    }
+                    return true;
+                  }
+                }
                 // Page-level vertical navigation moves to the first item of the
                 // next logical section, including Series actions -> Season 1.
                 if(moveThroughSections(active,direction))return true;
