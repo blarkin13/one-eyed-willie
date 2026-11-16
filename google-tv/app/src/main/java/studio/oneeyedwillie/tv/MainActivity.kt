@@ -599,7 +599,9 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         // Never hold the display awake when browsing or watching is backgrounded.
         browser?.keepScreenOn = false
-        browser?.let { if (tvTextEditing) finishTvTextEditing(it) }
+        // Google TV's keyboard may be a full-screen IME activity. Opening it
+        // pauses this Activity; ending editing here would instantly close it.
+        // Keep text editing alive until Back, another field, or page change.
         super.onPause()
     }
 
