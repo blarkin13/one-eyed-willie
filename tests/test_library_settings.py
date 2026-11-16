@@ -123,7 +123,7 @@ class LibrarySettingsTests(unittest.TestCase):
         ))
         self.assertEqual(result["order"], order)
         self.assertIn("sonarr", result["hidden"])
-        self.assertFalse(next(x for x in library.libraries() if x["id"]==first["id"])["sidebar_hidden"])
+        self.assertTrue(next(x for x in library.libraries() if x["id"]==first["id"])["sidebar_hidden"])
         # The API stores library visibility with the library itself.
         # It is reflected in the GET list after committing the update.
         self.assertFalse(next(x for x in result["items"] if x["id"]=="library:"+str(first["id"]))["visible"])
