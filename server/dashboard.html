@@ -31,6 +31,41 @@
 .progress-track{height:4px;border-radius:4px;background:#2c394b;margin-top:9px;overflow:hidden}.progress-fill{height:100%;background:#a3d4ff;border-radius:4px}
 .shelf-action{font-size:.84rem;color:#b4d6ff;font-weight:650}.page-lead{max-width:650px;color:#9aa9bc}
 @media(max-width:620px){.shelf{margin-top:31px}.shelf-track{grid-auto-columns:minmax(145px,42%);gap:12px}.shelf-empty{padding:19px}.shelf-title{font-size:1.1rem}}
+
+/* Cinematic Home selection: information belongs to the focused poster, never
+   a permanently fixed banner. The whole hero scrolls away with the first row. */
+.home-feature{height:clamp(235px,31vh,355px);min-height:235px;position:relative;
+ display:flex;align-items:flex-end;margin:0 0 18px;padding:20px clamp(18px,3.2vw,46px);
+ overflow:hidden;isolation:isolate;border-radius:12px;
+ background:linear-gradient(115deg,#111c2c,#0b1424);color:#edf6ff}
+.home-feature::after{content:"";position:absolute;inset:0;z-index:-1;
+ background:linear-gradient(90deg,#090f1af5 0%,#090f1ad5 40%,#090f1a42 100%),
+ linear-gradient(0deg,#09111c9a,transparent 65%);pointer-events:none}
+.home-feature-art{position:absolute;inset:0;z-index:-2;width:100%;height:100%;
+ object-fit:cover;object-position:center 34%;opacity:0;transform:scale(1.035);
+ transition:opacity .32s ease,transform .62s ease}
+.home-feature-art.is-visible{opacity:1;transform:scale(1)}
+.home-feature-copy{width:min(660px,90%);max-height:100%;overflow:hidden}
+.home-feature-eyebrow{font-size:.72rem;text-transform:uppercase;letter-spacing:.12em;
+ color:#b9d3ee;font-weight:750;margin:0 0 4px}
+.home-feature-title{font-size:clamp(1.65rem,3.2vw,3.3rem);font-weight:800;
+ line-height:1.1;letter-spacing:-.045em;margin:0 0 7px;
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+.home-feature-meta{display:flex;gap:8px 15px;align-items:center;flex-wrap:wrap;
+ font-size:.83rem;font-weight:650;color:#cadcf0;margin:0 0 8px}
+.home-feature-meta:empty{display:none}
+.home-feature-summary{font-size:clamp(.82rem,1.1vw,.96rem);line-height:1.5;
+ max-width:620px;margin:0;color:#d3dfeb;
+ display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
+.home-feature-copy.is-changing{animation:home-feature-enter .26s ease both}
+@keyframes home-feature-enter{from{opacity:.25;transform:translateY(7px)}
+ to{opacity:1;transform:translateY(0)}}
+body[data-page=home] .shelf{scroll-margin-top:16px}
+@media(max-width:700px){.home-feature{height:235px;padding:16px 20px;margin-bottom:12px}
+ .home-feature-title{font-size:1.7rem}.home-feature-summary{-webkit-line-clamp:2}
+ .home-feature-copy{width:95%}}
+@media(prefers-reduced-motion:reduce){.home-feature-art{transition:none;transform:none}
+ .home-feature-copy.is-changing{animation:none}}
 </style></head>
 <body data-page="home">
 <div class="app-shell">
@@ -38,6 +73,15 @@
   <div class="workspace">
     <main class="content">
       <h1 class="sr-only">Home</h1>
+      <section class="home-feature" id="home-feature" aria-label="Selected media details">
+        <img class="home-feature-art" id="home-feature-art" alt="" aria-hidden="true">
+        <div class="home-feature-copy" id="home-feature-copy">
+          <p class="home-feature-eyebrow" id="home-feature-type">YOUR LIBRARY</p>
+          <h2 class="home-feature-title" id="home-feature-title">Select a title</h2>
+          <div class="home-feature-meta" id="home-feature-meta"></div>
+          <p class="home-feature-summary" id="home-feature-summary">Choose a movie or show to see its details.</p>
+        </div>
+      </section>
       <p id="status" class="status-line" role="status">Loading…</p>
       <section class="shelf" aria-labelledby="continue-heading">
         <div class="section-heading"><div><h2 id="continue-heading" class="shelf-title">Continue Watching</h2></div></div>
@@ -57,6 +101,67 @@
 </div>
 <script>
 const byId=id=>document.getElementById(id);
+const homeFeatureCache=new Map();
+const homeItems=new WeakMap();
+let homeFeatureSerial=0,homeFeatureArtworkSerial=0;
+const homeArt=byId('home-feature-art'),homeCopy=byId('home-feature-copy');
+function displayHomeFeature(link){
+ const item=homeItems.get(link);if(!item)return;
+ const serial=++homeFeatureSerial;
+ const meta=byId('home-feature-meta'),summary=byId('home-feature-summary');
+ // Fill immediately from the shelf model; metadata request enriches it later.
+ byId('home-feature-type').textContent=item.kind==='movies'?'MOVIE':'TV SERIES';
+ byId('home-feature-title').textContent=item.title||'Untitled';
+ meta.textContent=[item.year,item.subtitle].filter(Boolean).join(' · ');
+ summary.textContent=item.play_state==='resume'?'Continue watching where you left off.':
+   item.play_state==='next'?'Your next episode is ready.':'';
+ homeCopy.classList.remove('is-changing');void homeCopy.offsetWidth;
+ homeCopy.classList.add('is-changing');
+ const identity=item.kind+'|'+item.library_id+'|'+item.key;
+ if(!homeFeatureCache.has(identity)){
+   const query=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+   const url=(item.kind==='tv'?'/api/tv/show?':'/api/movies/details?')+query;
+   homeFeatureCache.set(identity,fetch(url,{cache:'force-cache'}).then(r=>{
+     if(!r.ok)throw Error('Metadata unavailable');return r.json();
+   }).catch(()=>null));
+   if(homeFeatureCache.size>100)homeFeatureCache.delete(homeFeatureCache.keys().next().value);
+ }
+ homeFeatureCache.get(identity).then(details=>{
+   if(serial!==homeFeatureSerial||!link.isConnected||!details)return;
+   const facts=[item.year||details.year,
+     details.runtime?details.runtime+' min':null,
+     details.content_rating||null,
+     Number(details.rating)>0?(Number(details.rating).toFixed(1)+'/10'):null,
+     ...(Array.isArray(details.genres)?details.genres.slice(0,2):[])].filter(Boolean);
+   meta.textContent=[...new Set(facts.map(String))].join(' · ');
+   summary.textContent=details.overview||summary.textContent;
+   const artwork=details.backdrop_url;
+   if(typeof artwork==='string'&&
+       (artwork.startsWith('/api/artwork/')||artwork.startsWith('https://image.tmdb.org/t/p/'))){
+     const artSerial=++homeFeatureArtworkSerial;
+     const img=new Image();
+     img.onload=()=>{
+       if(serial!==homeFeatureSerial||artSerial!==homeFeatureArtworkSerial)return;
+       homeArt.classList.remove('is-visible');
+       homeArt.src=artwork;
+       requestAnimationFrame(()=>homeArt.classList.add('is-visible'));
+     };
+     img.src=artwork;
+   }else{
+     ++homeFeatureArtworkSerial;
+     homeArt.classList.remove('is-visible');homeArt.removeAttribute('src');
+   }
+ });
+}
+document.addEventListener('focusin',event=>{
+ const link=event.target.closest?.('.shelf-track .tile-button');
+ if(link)displayHomeFeature(link);
+});
+document.addEventListener('pointerover',event=>{
+ const link=event.target.closest?.('.shelf-track .tile-button');
+ if(link&&link!==document.activeElement)displayHomeFeature(link);
+});
+
 const moviePosterJobs=[];
 const movieDetailQueue=[];
 let movieDetailActive=0;
@@ -163,6 +268,7 @@ function tile(item, watching=false){
   link.href=item.kind==='tv'&&item.library_id&&item.key
     ?'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
     :'/movie?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
+  homeItems.set(link,item);
   link.setAttribute('aria-label',watching
     ?(nextEpisode?'Play next episode of ':'Resume ')+item.title+' · '+(item.subtitle||'')
     :'Browse '+item.title);
@@ -258,6 +364,9 @@ async function load(){
     shelf('recent-tv',data.recent_tv,'No TV shows yet','');
     fetchMoviePosters();
     byId('status').textContent='';
+    const focus=document.activeElement?.closest?.('.shelf-track .tile-button');
+    const initial=focus||document.querySelector('.shelf-track .tile-button');
+    if(initial)displayHomeFeature(initial);
   }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
 }
 document.addEventListener('willie:watch-updated',load);
