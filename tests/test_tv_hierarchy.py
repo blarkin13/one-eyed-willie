@@ -150,6 +150,24 @@ class TVHierarchyTests(unittest.TestCase):
 
 
 class TMDBSafetyTests(unittest.TestCase):
+    def test_tmdb_tv_details_extract_us_age_rating_and_imdb_id(self):
+        details = {
+            "id": 901, "name": "Test Series", "seasons": [],
+            "credits": {"cast": []}, "videos": {"results": []},
+            "reviews": {"results": []},
+            "content_ratings": {"results": [
+                {"iso_3166_1": "GB", "rating": "15"},
+                {"iso_3166_1": "US", "rating": "TV-14"},
+            ]},
+            "external_ids": {"imdb_id": "tt12345678"},
+        }
+        with patch.object(metadata, "token_status", return_value=True), patch.object(
+            metadata, "_call", return_value=details
+        ):
+            result = metadata.show_metadata_by_id(901)
+        self.assertEqual(result["content_rating"], "TV-14")
+        self.assertEqual(result["imdb_id"], "tt12345678")
+
     def test_image_urls_are_sanitized(self):
         self.assertEqual(
             metadata.image_url("/poster123.jpg"),
