@@ -267,11 +267,16 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       const url=ready.playlist;
       message('Starting '+ready.engine+' playback…');
       if(video.canPlayType('application/vnd.apple.mpegurl')){
+        // EVENT playlists are seekable from the beginning; Safari may otherwise
+        // jump to the currently advertised live edge.
+        video.addEventListener('loadedmetadata',()=>{
+          if(current===surface&&playbackMode==='hls')video.currentTime=0;
+        },{once:true});
         video.src=url;
       }else{
         const Hls=await loadHlsLibrary();
         if(!Hls.isSupported())throw Error('This browser does not support HLS playback.');
-        hls=new Hls({lowLatencyMode:false,maxBufferLength:20,liveSyncDurationCount:3});
+        hls=new Hls({lowLatencyMode:false,maxBufferLength:30,liveSyncDurationCount:3,startPosition:0});
         hls.on(Hls.Events.ERROR,(_event,data)=>{
           if(data.fatal){
             message('Recovering HLS stream: '+(data.details||data.type));
