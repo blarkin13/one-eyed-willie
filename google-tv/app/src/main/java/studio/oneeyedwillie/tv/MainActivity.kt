@@ -41,9 +41,15 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val web = browser
-                if (web != null && web.canGoBack()) web.goBack()
-                else if (web != null && web.url != origin + "/") web.loadUrl(origin + "/")
-                else showSetup()
+                if (web == null) { showSetup(); return }
+                // Closing the tiny episode menu must never navigate away from
+                // the season page. Evaluation is asynchronous on the UI thread.
+                web.evaluateJavascript("Boolean(window.__willieCloseSeasonMenu?.())") { result ->
+                    if (result == "true") return@evaluateJavascript
+                    if (web.canGoBack()) web.goBack()
+                    else if (web.url != origin + "/") web.loadUrl(origin + "/")
+                    else showSetup()
+                }
             }
         })
         val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
@@ -1060,10 +1066,57 @@ class MainActivity : ComponentActivity() {
                 root.scrollTop=target;
                 return Math.abs(root.scrollTop-before)>1;
               };
+              // Detail pages use vertical *sections*, not a search for the
+              // nearest item under the currently focused column. Libraries
+              // and poster grids retain spatial navigation.
+              const detailSections=()=>{
+                const path=location.pathname;
+                if(path==='/tv/show')return [
+                  {scope:'.series-controls', first:'#series-play-button,.series-controls button:not(:disabled)'},
+                  {scope:'.season-grid', first:'#series-first-season,.season-grid .tile-button'},
+                  {scope:'.tv-extras .tv-cast', first:'.tv-extras .tv-cast .tv-cast-person'},
+                  {scope:'.tv-extras .tv-reviews', first:'.tv-extras .tv-reviews button'}
+                ];
+                if(path==='/tv/season')return [
+                  {scope:'.season-tabs', first:'.season-tabs a[aria-current="page"],.season-tabs a[href]'},
+                  {scope:'.season-episode-track', first:'.season-episode-tile.is-selected,.season-episode-tile'},
+                  {scope:'.season-actions-row', first:'#season-play-button'},
+                  {scope:'.season-support .tv-cast', first:'.season-support .tv-cast .tv-cast-person'},
+                  {scope:'.season-support .tv-reviews', first:'.season-support .tv-reviews button'}
+                ];
+                if(path==='/movie')return [
+                  {scope:'.movie-detail-actions', first:'#play-movie'},
+                  {scope:'.movie-cast', first:'.movie-cast .cast-person'},
+                  {scope:'.movie-reviews', first:'.movie-reviews button'}
+                ];
+                if(path==='/credit')return [
+                  {scope:'.credit-actions', first:'.credit-actions button:not(:disabled)'},
+                  {scope:'.credit-cast', first:'.credit-cast a[href]'},
+                  {scope:'.credit-reviews', first:'.credit-reviews button'}
+                ];
+                if(path==='/person')return [
+                  {scope:'.person-sources', first:'.person-sources a[href]'},
+                  {scope:'.person-credits', first:'.person-credits .person-credit-link'}
+                ];
+                return [];
+              };
+              const moveThroughSections=(active,direction)=>{
+                if(direction!=='up'&&direction!=='down')return false;
+                const lanes=detailSections();
+                const index=lanes.findIndex(lane=>active?.closest?.(lane.scope));
+                if(index<0)return false;
+                const delta=direction==='down'?1:-1;
+                for(let i=index+delta;i>=0&&i<lanes.length;i+=delta){
+                  const item=[...document.querySelectorAll(lanes[i].first)].find(isVisible);
+                  if(item){readingScroll=false;return focusNode(item)}
+                }
+                if(scrollRead(direction))readingScroll=true;
+                return true;
+              };
               const move=direction=>{
                 // Native D-pad must stay inside modal dialogs, including
                 // episode actions and the subsequent Fix Match results dialog.
-                const menu=document.querySelector('dialog[open]');
+                const menu=document.querySelector('dialog[open],.season-more-popover');
                 if(menu){
                   const options=[...menu.querySelectorAll(
                     'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
@@ -1106,6 +1159,9 @@ class MainActivity : ComponentActivity() {
                   const next=index+(direction==='down'?1:-1);
                   return focusNode(menu[Math.max(0,Math.min(menu.length-1,next))]);
                 }
+                // Page-level vertical navigation moves to the first item of the
+                // next logical section, including Series actions -> Season 1.
+                if(moveThroughSections(active,direction))return true;
                 // Horizontal season/episode rails must follow DOM order rather
                 // than global spatial search. D-pad focus must scroll each rail
                 // to reveal its next item, including items initially offscreen.
