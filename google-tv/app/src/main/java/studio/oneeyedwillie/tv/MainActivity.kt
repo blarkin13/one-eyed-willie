@@ -1070,6 +1070,20 @@ class MainActivity : ComponentActivity() {
               // Detail pages use vertical *sections*, not a search for the
               // nearest item under the currently focused column. Libraries
               // and poster grids retain spatial navigation.
+              const primaryDetailAction=()=>{
+                const path=location.pathname;
+                if(path==='/tv/show')
+                  return document.querySelector('#series-play-button,.series-controls button:not(:disabled)');
+                if(path==='/tv/season')
+                  return document.querySelector('.season-episode-tile.is-selected,.season-episode-tile');
+                if(path==='/movie')
+                  return document.querySelector('#play-movie');
+                if(path==='/credit')
+                  return document.querySelector('.credit-actions button:not(:disabled)');
+                if(path==='/person')
+                  return document.querySelector('.person-credits .person-credit-link');
+                return null;
+              };
               const detailSections=()=>{
                 const path=location.pathname;
                 if(path==='/tv/show')return [
@@ -1149,7 +1163,9 @@ class MainActivity : ComponentActivity() {
                     // Leave the rail at the content item closest to the
                     // current selection, never trap focus inside the menu.
                     const posters=allPosters();
-                    const target=findAdjacent(active,'right',posters)||posters[0]||
+                    const preferred=primaryDetailAction();
+                    const target=(preferred&&isVisible(preferred)?preferred:null)||
+                      findAdjacent(active,'right',posters)||posters[0]||
                       nodes.find(node=>!isMenu(node));
                     return focusNode(target);
                   }
@@ -1198,7 +1214,11 @@ class MainActivity : ComponentActivity() {
                 }
                 if(direction==='left'||direction==='right')readingScroll=false;
                 const posters=allPosters();
-                if(!nodes.includes(active))return focusNode(posters[0]||nodes.find(n=>!isMenu(n)));
+                if(!nodes.includes(active)){
+                  const preferred=primaryDetailAction();
+                  return focusNode((preferred&&isVisible(preferred)?preferred:null)||
+                    posters[0]||nodes.find(n=>!isMenu(n)));
+                }
                 const from=rect(active);
                 const sameRowLeft=posters.some(node=>{
                   if(node===active)return false;
