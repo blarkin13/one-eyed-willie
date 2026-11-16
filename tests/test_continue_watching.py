@@ -126,14 +126,21 @@ class ContinueWatchingTests(unittest.TestCase):
         self.assertEqual(next_cards[0]["media_id"],4)
 
     def test_post_endpoint_supports_unload_beacon(self):
+        # New FastAPI releases can defer include_router flattening into
+        # internal _IncludedRouter entries. Inspect the source router.
+        from server.home import router as home_router
         from server.main import app
-        methods=[route.methods for route in app.routes
-                 if getattr(route,"path","")=="/api/playback/progress"]
-        self.assertTrue(any("POST" in x for x in methods),
-                        [(type(route).__name__,repr(route)[:100],
-                          getattr(route,"path",None),getattr(route,"methods",None))
-                         for route in app.routes[:12]])
-        self.assertTrue(any("PUT" in x for x in methods))
+        paths=[route.methods for route in home_router.routes
+               if route.path=="/api/playback/progress"]
+        self.assertTrue(any("POST" in methods for methods in paths))
+        self.assertTrue(any("PUT" in methods for methods in paths))
+        # Make sure this router actually belongs to the application.
+        self.assertTrue(any(
+            getattr(route,"original_router",None) is home_router or
+            route is home_router or
+            (getattr(route,"path",None)=="/api/playback/progress")
+            for route in app.routes
+        ))
 
 
 if __name__=="__main__":
