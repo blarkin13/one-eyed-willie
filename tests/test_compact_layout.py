@@ -354,7 +354,7 @@ class CompactLayoutTests(unittest.TestCase):
 
     def test_metadata_refresh_keeps_current_library_poster_focus(self):
         page = (SERVER / "catalog.html").read_text()
-        self.assertIn("async function load({preserveFocus=false}={})", page)
+        self.assertIn("async function load({preserveFocus=false}={},quiet=false)", page)
         self.assertIn("load({preserveFocus:true})", page)
         self.assertIn("previouslyFocused.dataset.hoverLibraryId", page)
         self.assertIn("previouslyFocused.dataset.hoverKey", page)
