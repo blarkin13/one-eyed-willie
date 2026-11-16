@@ -80,7 +80,11 @@ def default_png(kind: str) -> bytes:
     class Scaled:
         def line(self,coords,**kw):
             kw["width"]=kw.get("width",1)*multiplier
-            draw.line(tuple(v*multiplier for v in coords),**kw)
+            if coords and isinstance(coords[0], (tuple, list)):
+                points=[(x*multiplier,y*multiplier) for x,y in coords]
+            else:
+                points=tuple(v*multiplier for v in coords)
+            draw.line(points,**kw)
         def ellipse(self,rect,**kw):
             if "width" in kw:kw["width"]*=multiplier
             draw.ellipse(tuple(v*multiplier for v in rect),**kw)
