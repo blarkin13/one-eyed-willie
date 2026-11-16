@@ -135,8 +135,12 @@ body.tv-season-mode #loading:empty{display:none}
   padding:3px 6px;border-radius:5px;font-weight:750;font-size:.78rem;
   background:#091628d9;color:#eef8ff}
 .season-episode-tile .season-episode-watched{position:absolute;left:7px;top:6px;
-  padding:3px 7px;border-radius:6px;background:#071f22dc;color:#b5f4d4;
-  font-size:.78rem;font-weight:850}
+  display:grid;place-items:center;width:30px;height:30px;border-radius:50%;
+  background:#0a1b2ae6;color:#d4ebf4;border:1px solid #82b8cc;pointer-events:none}
+.season-episode-tile .season-episode-watched svg{width:20px;height:20px;display:block}
+.watch-icon-control[data-watch-scope="season"]{position:relative}
+.watch-icon-control[data-watch-scope="season"]::after{content:"S";position:absolute;
+  right:0;bottom:0;font-size:10px;line-height:1;font-weight:800;color:inherit}
 .season-actions-row{display:flex;align-items:center;flex-wrap:wrap;gap:14px;
   min-height:69px;padding:7px clamp(25px,5.2vw,87px) 8px;
   background:#0b1b32f0}
@@ -250,16 +254,23 @@ function setupSeasonRail(rail,kind){
  requestAnimationFrame(update);
  return {shell,update};
 }
-function watchIcon(watched){
- return watched
-  ? '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M4 4v6h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>'
-  : '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 12 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+function anchorIcon(){
+ return '<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>';
+}
+function syncEpisodeWatchedBadge(tile,watched){
+ if(!tile)return;
+ tile.querySelector('.season-episode-watched')?.remove();
+ if(!watched)return;
+ const flag=el('span','season-episode-watched');
+ flag.setAttribute('aria-label','Watched');flag.title='Watched';
+ flag.innerHTML=anchorIcon();tile.append(flag);
 }
 function updateWatchIcon(button,watched,scope='episode'){
  const action=watched?'Mark '+scope+' unwatched':'Mark '+scope+' watched';
  button.title=action;button.setAttribute('aria-label',action);
  button.setAttribute('aria-pressed',String(!!watched));
- button.innerHTML=watchIcon(watched);
+ button.dataset.watchScope=scope;
+ button.innerHTML=anchorIcon();
 }
 function playbackButton(id,title,resume=false){
  const button=el('button',resume?'secondary-button media-icon-action':'primary-button media-icon-action');
@@ -274,7 +285,7 @@ function playbackButton(id,title,resume=false){
 }
 function canResume(item){
  const p=Number(item.position_seconds)||0,d=Number(item.duration_seconds)||0;
- return !item.watched&&d>0&&p>=30&&p<d*.95;
+ return !item.watched&&p>=30&&(d<=0||p<d*.95);
 }
 function image(src,cls,alt){
   const node=el('img',cls);node.alt=alt||'';
@@ -542,7 +553,8 @@ async function renderSeason(){
     view.append(el('h1','',data.show.title),el('p','muted','No local episodes were found in this season.'));
     return;
   }
-  let selected=available[available.length-1];
+  // Open at the first episode that still needs watching, not the end of the list.
+  let selected=available.find(episode=>!episode.watched)||available[0];
   const allCards=new Map(),formatCache=new Map();
   const cinema=el('section','tv-season-cinema');
   const backdrop=image('','season-backdrop','');
@@ -579,8 +591,10 @@ async function renderSeason(){
       button.classList.toggle('is-selected',active);
       button.setAttribute('aria-pressed',String(active));
       const item=available.find(x=>x.id===id);
-      button.setAttribute('aria-label',(active?'Selected ':'Select ')+'episode '+
-        (item?.episode??'')+', '+(item?.title||''));
+      const action=canResume(item)?'Resume':'Play';
+      const label=action+' episode '+(item?.episode??'')+', '+(item?.title||'')+
+        (item?.watched?' (watched)':'');
+      button.setAttribute('aria-label',label);button.title=label;
     }
     const picture=episode.still_url||data.show.backdrop_url;
     if(typeof picture==='string'&&picture.startsWith('/api/artwork/')){
@@ -622,10 +636,9 @@ async function renderSeason(){
         });
         if(!r.ok)throw Error('Could not change watched status');
         episode.watched=!episode.watched;
-        const tile=allCards.get(episode.id);
-        tile?.querySelector('.season-episode-watched')?.remove();
-        if(episode.watched)tile?.append(el('span','season-episode-watched','✓'));
-        updateWatchIcon(watched,episode.watched);
+        syncEpisodeWatchedBadge(allCards.get(episode.id),episode.watched);
+        selectEpisode(episode);
+        actions.querySelector('.watch-icon-control')?.focus({preventScroll:true});
       }catch(err){loading.textContent=err.message}
       finally{watched.disabled=false}
     };
@@ -646,9 +659,7 @@ async function renderSeason(){
         if(!r.ok)throw Error('Could not update season watched status');
         for(const ep of available){
           ep.watched=next;
-          const tile=allCards.get(ep.id);
-          tile?.querySelector('.season-episode-watched')?.remove();
-          if(next)tile?.append(el('span','season-episode-watched','✓'));
+          syncEpisodeWatchedBadge(allCards.get(ep.id),next);
         }
         selectEpisode(selected);
       }catch(err){loading.textContent=err.message}
@@ -664,8 +675,12 @@ async function renderSeason(){
       button.append(image(episode.still_url,'','Episode '+episode.episode+' still'));
     else button.append(el('div','season-tile-placeholder',data.show.title));
     button.append(el('span','season-episode-chip',episode.episode!=null?'E'+episode.episode:'EP'));
-    if(episode.watched)button.append(el('span','season-episode-watched','✓'));
-    button.onclick=()=>selectEpisode(episode);
+    syncEpisodeWatchedBadge(button,episode.watched);
+    // Merely moving focus changes the hero selection; only OK/click plays.
+    button.addEventListener('focus',()=>selectEpisode(episode));
+    button.onclick=()=>WilliePlayer.open(episode.id,
+      data.show.title+' · '+(episode.title||'Episode '+(episode.episode??'')),
+      {restart:!canResume(episode)});
     allCards.set(episode.id,button);track.append(button);
   }
   selectEpisode(selected);
@@ -674,6 +689,26 @@ async function renderSeason(){
   const currentTab=tabs.querySelector('[aria-current="page"]');
   if(currentTab)revealRailItem(tabs,currentTab);
   tabsRail.update();episodeRail.update();
+  // Refresh watched flags and resume positions when the player closes or
+  // Android TV returns from its native playback activity.
+  const refreshEpisodeProgress=async()=>{
+    try{
+      const updated=await loadJson('/api/tv/season?'+new URLSearchParams({
+        library_id:state.library_id,key:state.key,season_number:state.season_number
+      }));
+      const byId=new Map((updated.episodes||[]).map(episode=>[episode.id,episode]));
+      for(const episode of available){
+        const fresh=byId.get(episode.id);
+        if(!fresh)continue;
+        episode.watched=fresh.watched;
+        episode.position_seconds=fresh.position_seconds;
+        episode.duration_seconds=fresh.duration_seconds;
+        syncEpisodeWatchedBadge(allCards.get(episode.id),episode.watched);
+      }
+      selectEpisode(selected);
+    }catch(_){/* Keep the last usable state if the server is temporarily unavailable. */}
+  };
+  document.addEventListener('willie:watch-updated',refreshEpisodeProgress);
   // Reuse the show's existing cast/crew, metadata and review source.
   // Playback and episode selection stay usable if enrichment is unavailable.
   try{

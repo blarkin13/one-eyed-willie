@@ -193,7 +193,9 @@ function tile(item, watching=false){
   link.append(cover,title,meta);
   if(item.watched){
     const indicator=document.createElement('span');indicator.className='watched-badge';
-    indicator.textContent='✓ Watched';article.append(indicator);
+    indicator.setAttribute('aria-label','Watched');indicator.title='Watched';
+    indicator.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>';
+    article.append(indicator);
   }
   if(item.poster_url?.startsWith('/api/artwork/')){
     // This card is not connected yet: append the indexed image now and

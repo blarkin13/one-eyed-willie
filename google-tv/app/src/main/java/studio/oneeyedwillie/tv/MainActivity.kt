@@ -278,6 +278,16 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(TV_REMOTE_SCRIPT, null)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Native Media3 playback runs in another Activity. Refresh the
+        // underlying season page's watched flags and resume positions when
+        // returning to its WebView, without navigating away from the show.
+        browser?.evaluateJavascript(
+            "document.dispatchEvent(new Event('willie:watch-updated'))", null
+        )
+    }
+
     override fun onDestroy() {
         browser?.destroy()
         browser = null
@@ -431,19 +441,18 @@ class MainActivity : ComponentActivity() {
                 body[data-page="home"] .shelf-track .tile h3{
                   margin:5px 0 2px!important;line-height:1.17!important
                 }
-                /* Compact watched icon instead of a full-width text badge. */
+                /* The server supplies the same anchor-based watched flag on
+                   Google TV as in the browser, without a checkmark overlay. */
                 body[data-page="home"] .watched-badge{
                   position:absolute!important;top:6px!important;right:6px!important;
                   z-index:5!important;display:grid!important;place-items:center!important;
-                  width:21px!important;height:21px!important;
+                  width:24px!important;height:24px!important;
                   padding:0!important;border-radius:50%!important;
-                  background:#092819df!important;border:1px solid #b4e4c8!important;
-                  color:transparent!important;font-size:0!important;
-                  pointer-events:none!important
+                  background:#091929e8!important;border:1px solid #7faec4!important;
+                  color:#d7edf8!important;pointer-events:none!important
                 }
-                body[data-page="home"] .watched-badge::after{
-                  content:"✓";color:#d3f8e3!important;
-                  font:700 13px/1 system-ui,sans-serif!important
+                body[data-page="home"] .watched-badge svg{
+                  display:block!important;width:17px!important;height:17px!important
                 }
                 .shelf-track{grid-auto-columns:clamp(145px,18vw,218px)!important;
                   gap:19px!important}
