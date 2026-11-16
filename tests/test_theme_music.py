@@ -151,6 +151,27 @@ class LocalThemeTests(unittest.TestCase):
             self.assertEqual(fetch.call_count, 1)
         self.assertFalse(list(cache.glob("*.mp3")) if cache.exists() else False)
 
+    def test_network_failures_are_classified_without_leaking_details(self):
+        import socket
+        import ssl
+        from urllib.error import URLError
+        check = theme_music._network_failure
+        self.assertEqual(check(URLError(socket.gaierror(socket.EAI_NONAME, "dns"))),
+                         "source_dns_failure")
+        self.assertEqual(check(URLError(ssl.SSLError("certificate verify failed"))),
+                         "source_tls_failure")
+        self.assertEqual(check(URLError(socket.timeout("timed out"))),
+                         "source_timeout")
+        self.assertEqual(check(URLError(ConnectionRefusedError("refused"))),
+                         "source_connection_refused")
+
+    def test_timeout_message_is_distinct_from_missing_theme(self):
+        import socket
+        cache = self.media.parent / "timeouts-cache"
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
+             patch.object(theme_music, "_fetch", side_effect=URLError(socket.timeout("timeout"))):
+            self.assertEqual(theme_music.theme_info(2)["reason"], "source_timeout")
+
     def test_movies_never_download_from_tv_only_source(self):
         with patch.object(theme_music, "_fetch") as fetch:
             info = theme_music.theme_info(1)

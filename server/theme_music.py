@@ -8,6 +8,8 @@ import hashlib
 import time
 import html
 import os
+import socket
+import ssl
 import re
 import tempfile
 import threading
@@ -114,6 +116,23 @@ def _norm(text):
     return re.sub(r"[^a-z0-9]", "", text.casefold())
 
 
+def _network_failure(error):
+    """Classify transport failures without exposing server paths or tokens."""
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, ssl.SSLError):
+        return "source_tls_failure"
+    if isinstance(reason, (socket.timeout, TimeoutError)):
+        return "source_timeout"
+    if isinstance(reason, socket.gaierror):
+        return "source_dns_failure"
+    if isinstance(reason, OSError):
+        if reason.errno in (socket.EAI_AGAIN, socket.EAI_NONAME):
+            return "source_dns_failure"
+        if isinstance(reason, ConnectionRefusedError):
+            return "source_connection_refused"
+    return "source_network_error"
+
+
 def _download_theme(media_id):
     from .catalog import episode_info
     item, video = _item(media_id)
@@ -194,10 +213,14 @@ def _download_theme(media_id):
                     # agents to work around access restrictions.
                     failure = "source_access_denied"
                     break
-                if error.code not in (404, 410):
-                    failure = "source_unreachable"
-            except (urllib.error.URLError, OSError, ValueError):
-                failure = "source_unreachable"
+                if error.code in (404, 410):
+                    failure = "source_page_not_found"
+                else:
+                    failure = "source_http_error"
+            except (urllib.error.URLError, OSError) as error:
+                failure = _network_failure(error)
+            except ValueError:
+                failure = "unexpected_source_response"
         _failures[key] = (time.monotonic() + FAILURE_TTL, failure)
         return None, failure
 
