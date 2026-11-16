@@ -5,6 +5,7 @@ fetches only an exact show match on first use, never bulk crawls the site and
 never sends the site's recordings to third parties.
 """
 import hashlib
+import time
 import html
 import os
 import re
@@ -28,6 +29,8 @@ MIME = {".mp3": "audio/mpeg", ".m4a": "audio/mp4", ".ogg": "audio/ogg",
         ".flac": "audio/flac", ".wav": "audio/wav"}
 MAX_BYTES = 50 * 1024 * 1024
 _lock = threading.RLock()
+_failures = {}  # short-lived failure diagnostics; do not retry every page view
+FAILURE_TTL = 120
 
 
 def theme_for_media(media_id):
@@ -125,20 +128,32 @@ def _download_theme(media_id):
         tail = re.sub(r"[^A-Za-z0-9]+", "_", title[4:]).strip("_")
         candidates.insert(0, tail + "_(The)")
     directory = Path(os.environ.get("THEME_CACHE_DIR", "/data/theme-cache"))
-    cached = directory / (hashlib.sha256(title.casefold().encode()).hexdigest() + ".mp3")
+    key = hashlib.sha256(title.casefold().encode()).hexdigest()
+    cached = directory / (key + ".mp3")
     with _lock:
         if cached.is_file() and not cached.is_symlink() and 0 < cached.stat().st_size <= MAX_BYTES:
+            _failures.pop(key, None)
             return cached, None
-        for slug in dict.fromkeys(candidates):
-            page_url = "https://televisiontunes.com/" + urllib.parse.quote(slug, safe="_()") + ".html"
+        previous = _failures.get(key)
+        if previous and previous[0] > time.monotonic():
+            return None, previous[1]
+
+        failure = "not_available_from_source"
+        for candidate in dict.fromkeys(candidates):
+            page_url = "https://televisiontunes.com/" + urllib.parse.quote(candidate, safe="_()") + ".html"
             try:
                 page_bytes, kind = _fetch(page_url, "text/html", 750_000)
                 if "html" not in kind:
+                    failure = "unexpected_source_response"
                     continue
                 page = _ThemePage()
                 page.feed(page_bytes.decode("utf-8", "replace"))
-                # Exact show title required. Skip mismatches and all redirects.
-                if _norm(html.unescape(page.heading.strip())) != _norm(title):
+                # The site has presented both "The Big Bang Theory" and
+                # "The Big Bang Theory - Theme Song" as H1 text.
+                heading = html.unescape(page.heading).strip()
+                normalized = _norm(heading)
+                if normalized not in (_norm(title), _norm(title + " - Theme Song")):
+                    failure = "source_title_mismatch"
                     continue
                 download_url = None
                 for href in page.links:
@@ -147,16 +162,19 @@ def _download_theme(media_id):
                             ("televisiontunes.com", "www.televisiontunes.com")
                             or url.path != "/download.php"):
                         continue
-                    if urllib.parse.parse_qs(url.query).get("f") == [slug]:
+                    if urllib.parse.parse_qs(url.query).get("f") == [candidate]:
                         download_url = urllib.parse.urlunsplit(url)
                         break
                 if not download_url:
+                    failure = "source_download_link_unrecognized"
                     continue
                 audio, content_type = _fetch(download_url, "audio/mpeg", MAX_BYTES)
                 if not (content_type.startswith("audio/mpeg")
                         or content_type.startswith("application/octet-stream")):
+                    failure = "unexpected_source_response"
                     continue
                 if not audio.startswith((b"ID3", b"\xff\xfb", b"\xff\xf3", b"\xff\xf2")):
+                    failure = "unexpected_source_response"
                     continue
                 directory.mkdir(parents=True, exist_ok=True, mode=0o700)
                 fd, tmp = tempfile.mkstemp(prefix=".theme-", dir=directory)
@@ -168,11 +186,20 @@ def _download_theme(media_id):
                 finally:
                     if os.path.exists(tmp):
                         os.unlink(tmp)
+                _failures.pop(key, None)
                 return cached, None
-            except (OSError, ValueError, urllib.error.URLError):
-                continue
-    return None, "not_available_from_source"
-
+            except urllib.error.HTTPError as error:
+                if error.code in (401, 403, 429):
+                    # Respect the site's decision; do not rotate hosts or user
+                    # agents to work around access restrictions.
+                    failure = "source_access_denied"
+                    break
+                if error.code not in (404, 410):
+                    failure = "source_unreachable"
+            except (urllib.error.URLError, OSError, ValueError):
+                failure = "source_unreachable"
+        _failures[key] = (time.monotonic() + FAILURE_TTL, failure)
+        return None, failure
 
 @router.get("/{media_id}/info")
 def theme_info(media_id: int):
