@@ -33,7 +33,7 @@
 <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Connections</h1>
 <p>Connect your existing media managers once. They handle library management; One-Eyed Willie handles browsing.</p></div>
 <a class="primary-button" href="/explore">Explore More</a></div>
-<div class="connection-quicklinks"><a href="/radarr">Radarr dashboard</a><a href="/sonarr">Sonarr dashboard</a><a href="/sabnzbd">SABnzbd dashboard</a></div>
+<div class="connection-quicklinks"><a href="/radarr"><img class="integration-logo" src="/assets/brand/radarr.svg" alt="">Radarr dashboard</a><a href="/sonarr"><img class="integration-logo" src="/assets/brand/sonarr.svg" alt="">Sonarr dashboard</a><a href="/sabnzbd">SABnzbd dashboard</a></div>
 <div class="connection-grid" id="connections"></div>
 <section class="connection-card" aria-labelledby="opensubtitles-heading" style="margin-top:18px;max-width:760px">
 <div class="connection-head"><h2 id="opensubtitles-heading">OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
@@ -103,6 +103,11 @@ function build(){
    const header=document.createElement('div');header.className='connection-head';
    const name=document.createElement('h2');name.textContent=provider.title;
    const state=document.createElement('span');state.className='integration-state';state.textContent='Checking…';
+   if(provider.id==='radarr'||provider.id==='sonarr'){
+     const icon=document.createElement('img');icon.className='integration-logo';
+     icon.src='/assets/brand/'+provider.id+'.svg';icon.alt='';
+     header.append(icon);
+   }
    header.append(name,state);
    const desc=document.createElement('p');desc.className='connection-kind';desc.textContent=provider.desc;
    const summary=document.createElement('div');summary.className='connection-state';
