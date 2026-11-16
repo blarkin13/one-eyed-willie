@@ -79,6 +79,70 @@ class CatalogMetadataTests(unittest.TestCase):
         self.assertEqual(catalog(kind="tv", sort="length")["items"][0]["runtime"], 47)
         self.assertEqual(catalog(kind="tv", genre="Thriller")["total"], 1)
 
+    def test_partial_manager_fields_are_completed_by_automatic_lookup(self):
+        # A rating alone must not suppress genres and runtime enrichment.
+        radarr = [{"title": "The Thing", "year": 1982,
+                   "ratings": {"imdb": {"value": 8.2}}, "genres": [], "runtime": None}]
+        sonarr = [{"title": "Severance", "year": 2022,
+                   "rating": 8.6, "genres": ["Drama"], "runtime": None}]
+        with patch.object(movies, "_snapshot", return_value=radarr), \
+             patch.object(movies, "_details", return_value={
+                 "genres": ["Horror"], "runtime": 109
+             }) as details, \
+             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989"}), \
+             patch.object(arr, "_request", return_value=sonarr), \
+             patch.object(tv, "show_metadata", return_value={
+                 "genres": ["Mystery"], "rating": 9.0, "runtime": 52
+             }) as show:
+            report = catalog_metadata.sync_once()
+        self.assertEqual(report["available"], 2)
+        self.assertEqual(report["missing"], 0)
+        details.assert_called_once()
+        show.assert_called_once()
+        movie = catalog(kind="movies")["items"][0]
+        self.assertEqual(movie["genres"], ["Horror"])
+        self.assertEqual(movie["rating"], 8.2)
+        self.assertEqual(movie["runtime"], 109)
+        series = catalog(kind="tv")["items"][0]
+        self.assertEqual(series["genres"], ["Drama"])
+        self.assertEqual(series["rating"], 8.6)
+        self.assertEqual(series["runtime"], 52)
+        # An unchanged second pass is still 100% available.
+        with patch.object(movies, "_snapshot", return_value=radarr), \
+             patch.object(movies, "_details", return_value={
+                 "genres": ["Horror"], "runtime": 109
+             }), \
+             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989"}), \
+             patch.object(arr, "_request", return_value=sonarr), \
+             patch.object(tv, "show_metadata", return_value={
+                 "genres": ["Mystery"], "runtime": 52
+             }):
+            report = catalog_metadata.sync_once()
+        self.assertEqual(report["updated"], 0)
+        self.assertEqual(report["available"], 2)
+
+    def test_auto_refresh_on_changed_library_even_during_cooldown(self):
+        # Reset worker state after this test to avoid leaking to other tests.
+        before = dict(catalog_metadata._state)
+        self.addCleanup(lambda: catalog_metadata._state.update(before))
+        catalog_metadata._state.update({
+            "running": False, "total": 2, "missing": 0,
+            "last_finished": 10**12, "last_signature": (2, 2, 0, 2)
+        })
+        with patch.object(catalog_metadata, "_library_signature",
+                          side_effect=[(2, 2, 0, 2), (3, 3, 0, 2)]), \
+             patch.object(catalog_metadata.threading.Thread, "start") as start:
+            self.assertFalse(catalog_metadata.start_refresh())
+            self.assertTrue(catalog_metadata.start_refresh())
+        start.assert_called_once()
+        self.assertTrue(catalog_metadata._state["running"])
+
+    def test_library_ui_does_not_require_manual_refresh(self):
+        page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
+        self.assertNotIn('id="refresh-metadata"', page)
+        self.assertNotIn("Genres, ratings and runtimes are unavailable for these titles", page)
+        self.assertIn("retried automatically", page)
+
     def test_older_poster_is_preserved_and_missing_data_never_erases_fields(self):
         identity = ("movies", 1, "the thing:1982")
         image = "/api/artwork/" + "a" * 64

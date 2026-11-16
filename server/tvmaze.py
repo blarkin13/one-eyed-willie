@@ -132,6 +132,7 @@ def show_metadata_by_id(show_id, show=None):
         "seasons": seasons,
         "source": "TVmaze",
         "rating": (show.get("rating") or {}).get("average"),
+        "runtime": show.get("averageRuntime") or show.get("runtime"),
         "status": show.get("status"),
         "network": (show.get("network") or show.get("webChannel") or {}).get("name"),
         "genres": show.get("genres") or [],
