@@ -113,7 +113,7 @@ def _resolve(kind, library_id, key, title, year):
         return register_remote(meta.get("poster_url")) if meta else None
     from .movies import _details, _snapshot
     try:
-        detail = _details(library_id, key, snapshot=_snapshot(), enrich=False)
+        detail = _details(library_id, key, snapshot=_snapshot(), enrich=True)
     except Exception:
         log.exception("Poster lookup failed for movie %s", key)
         return None
