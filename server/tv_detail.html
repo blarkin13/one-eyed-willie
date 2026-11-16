@@ -720,6 +720,26 @@ function seriesControls(data){
    button.onclick=()=>WilliePlayer.open(next.media_id,data.title+' · '+identifier,{restart:!resume});
    actions.append(button);
  }
+ const episodes=Array.isArray(data.shuffle_episodes)?data.shuffle_episodes:[];
+ if(episodes.length){
+   const shuffle=el('button','media-icon-action series-shuffle-play');
+   shuffle.type='button';
+   shuffle.id='series-shuffle-button';
+   shuffle.title='Shuffle play series';
+   shuffle.setAttribute('aria-label','Shuffle play series');
+   shuffle.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h2.4c4.4 0 5.4 14 11.4 14H20m-4-3 4 3-4 3M4 19h2.4c2.7 0 4.1-4.4 5.2-7m2.2-3.4c1.1-2.1 2.3-3.6 4-3.6H20m-4-3 4 3-4 3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/></svg>';
+   shuffle.onclick=()=>{
+     if(typeof window.WilliePlayer?.shuffleSeason!=='function'){
+       loading.textContent='Shuffle playback is not ready. Reload the page and try again.';
+       return;
+     }
+     WilliePlayer.shuffleSeason(episodes.map(episode=>({
+       id:episode.id,title:data.title+' · '+episode.title,
+       resume:episode.resume
+     })));
+   };
+   actions.append(shuffle);
+ }
  actions.append(bulkWatchedControl(data,'show'),matchButton(),trailerButton(data.trailer_key,data.title));
  const facts=el('div','series-controls-facts');
  const rating=el('span','series-fact-chip',data.content_rating||'TV rating unavailable');
