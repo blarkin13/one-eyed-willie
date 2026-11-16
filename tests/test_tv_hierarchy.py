@@ -38,6 +38,23 @@ class TVHierarchyTests(unittest.TestCase):
         self.assertEqual([season["episode_count"] for season in result["seasons"]], [2, 1])
         self.assertEqual(result["episode_count"], 3)
 
+    def test_series_shuffle_contains_only_local_episodes_including_other_seasons(self):
+        with library.db() as conn:
+            conn.execute(
+                "INSERT INTO playback_progress(media_id,position_seconds,duration_seconds,completed) "
+                "VALUES(102,180,1800,0)"
+            )
+        with patch.object(tv, "show_metadata", return_value={}):
+            result = tv.show_details(library_id=1, key="severance:")
+        entries = result["shuffle_episodes"]
+        self.assertEqual({entry["id"] for entry in entries}, {101, 102, 103})
+        self.assertEqual([entry["title"] for entry in entries],
+                         ["S01E01", "S01E02", "S02E01"])
+        self.assertTrue(next(entry for entry in entries if entry["id"] == 102)["resume"])
+        self.assertFalse(next(entry for entry in entries if entry["id"] == 101)["resume"])
+        self.assertNotIn("/media/", str(entries))
+        self.assertEqual(len(entries), len({entry["id"] for entry in entries}))
+
     def test_season_episodes_join_real_metadata(self):
         fake_show = {
             "tmdb_id": 999, "overview": "Show synopsis",
