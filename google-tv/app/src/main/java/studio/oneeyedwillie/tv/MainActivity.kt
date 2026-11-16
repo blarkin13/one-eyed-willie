@@ -171,7 +171,8 @@ class MainActivity : ComponentActivity() {
                     web.post {
                         if (browser === web)
                             play(id, payload.optBoolean("restart", false),
-                                payload.optString("title", "Now Playing"))
+                                payload.optString("title", "Now Playing"),
+                                payload.optJSONArray("shuffle_queue")?.toString())
                     }
                 } catch (_: Exception) {
                     result.confirm("INVALID")
@@ -215,14 +216,16 @@ class MainActivity : ComponentActivity() {
             actual.port == saved.port && actual.userInfo == null
     } catch (_: Exception) { false }
 
-    private fun play(mediaId: Int, restart: Boolean = false, title: String = "") {
+    private fun play(mediaId: Int, restart: Boolean = false, title: String = "",
+                     shuffleQueue: String? = null) {
         if (mediaId <= 0) return
         startActivity(Intent(this, PlayerActivity::class.java)
             .putExtra("url", "$origin/api/playback/$mediaId/stream")
             .putExtra("media_id", mediaId)
             .putExtra("restart", restart)
             .putExtra("title", title.take(160))
-            .putExtra("server", origin))
+            .putExtra("server", origin)
+            .apply { if (shuffleQueue != null) putExtra("shuffle_queue", shuffleQueue) })
     }
 
     /**
@@ -309,14 +312,32 @@ class MainActivity : ComponentActivity() {
                 // JS click handlers; keep the URL route as a fallback.
                 const payload={id:mediaId,restart:Boolean(options?.restart),
                                title:String(title||'Now Playing').slice(0,160)};
+                if(Array.isArray(options?.shuffleQueue))
+                  payload.shuffle_queue=options.shuffleQueue.slice(0,500);
                 let ack=null;
                 try{ack=prompt('oewtv:play:'+encodeURIComponent(JSON.stringify(payload)),'')}
                 catch(_){}
                 if(ack!=='ACK')location.href='oewtv://play/'+mediaId+'?'+query.toString();
               };
+              const nativeShuffle=(episodes)=>{
+                if(!Array.isArray(episodes))return;
+                const list=episodes.slice(0,500)
+                  .filter(item=>Number.isInteger(item?.id)&&item.id>0)
+                  .map(item=>({media_id:item.id,title:String(item.title||'Episode').slice(0,160),
+                    restart:!item.resume}));
+                for(let i=list.length-1;i>0;i--){
+                  const j=Math.floor(Math.random()*(i+1));
+                  [list[i],list[j]]=[list[j],list[i]];
+                }
+                if(!list.length)return;
+                const first=list[0];
+                nativeOpen(first.media_id,first.title,
+                  {restart:first.restart,shuffleQueue:list.slice(1)});
+              };
               const installPlayerHook=()=>{
                 if(!window.WilliePlayer)window.WilliePlayer={open:nativeOpen,close:()=>{}};
                 else window.WilliePlayer.open=nativeOpen;
+                window.WilliePlayer.shuffleSeason=nativeShuffle;
                 window.WilliePlayer.__androidTv=true;
               };
               installPlayerHook();
@@ -985,6 +1006,17 @@ class MainActivity : ComponentActivity() {
                 return Math.abs(root.scrollTop-before)>1;
               };
               const move=direction=>{
+                const menu=document.querySelector('dialog.season-overflow-dialog[open]');
+                if(menu){
+                  const options=[...menu.querySelectorAll('button:not(:disabled)')];
+                  const index=options.indexOf(document.activeElement);
+                  if(direction==='up'||direction==='down'){
+                    const step=direction==='down'?1:-1;
+                    const next=Math.max(0,Math.min(options.length-1,index+step));
+                    return focusNode(options[next]||options[0]);
+                  }
+                  return true;
+                }
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
