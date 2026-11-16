@@ -159,7 +159,7 @@ def _download_theme(media_id):
 
         failure = "not_available_from_source"
         for candidate in dict.fromkeys(candidates):
-            page_url = "https://televisiontunes.com/" + urllib.parse.quote(candidate, safe="_()") + ".html"
+            page_url = "https://televisiontunes.com/" + urllib.parse.quote(candidate, safe="_") + ".html"
             try:
                 page_bytes, kind = _fetch(page_url, "text/html", 750_000)
                 if "html" not in kind:
@@ -224,6 +224,22 @@ def _download_theme(media_id):
         _failures[key] = (time.monotonic() + FAILURE_TTL, failure)
         return None, failure
 
+def _source_page_url(media_id):
+    """Site page for a title; safe external fallback without the MP3 downloader."""
+    from .catalog import episode_info
+    item, video = _item(media_id)
+    if item["kind"] != "tv":
+        return None
+    title = str(episode_info(str(video), item["root"]).get("title") or "").strip()
+    if not title:
+        return None
+    if title.casefold().startswith("the "):
+        slug = re.sub(r"[^A-Za-z0-9]+", "_", title[4:]).strip("_") + "_(The)"
+    else:
+        slug = re.sub(r"[^A-Za-z0-9]+", "_", title).strip("_")
+    return "https://televisiontunes.com/" + urllib.parse.quote(slug, safe="_") + ".html"
+
+
 @router.get("/{media_id}/info")
 def theme_info(media_id: int):
     local = theme_for_media(media_id)
@@ -234,6 +250,7 @@ def theme_info(media_id: int):
     return {"available": bool(downloaded),
             "source": "televisiontunes" if downloaded else None,
             "reason": reason,
+            "source_page": _source_page_url(media_id) if not downloaded else None,
             "url": f"/api/themes/{media_id}/audio" if downloaded else None}
 
 

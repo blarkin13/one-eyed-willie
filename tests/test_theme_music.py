@@ -90,7 +90,7 @@ class LocalThemeTests(unittest.TestCase):
         audio = b"ID3" + b"theme-data"
         def fake_fetch(url, accept, limit):
             if url.endswith(".html"):
-                self.assertIn("Big_Bang_Theory_(The)", url)
+                self.assertIn("Big_Bang_Theory_%28The%29", url)
                 return page, "text/html"
             self.assertIn("/download.php?f=Big_Bang_Theory_", url)
             return audio, "audio/mpeg"
@@ -171,6 +171,21 @@ class LocalThemeTests(unittest.TestCase):
         with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
              patch.object(theme_music, "_fetch", side_effect=URLError(socket.timeout("timeout"))):
             self.assertEqual(theme_music.theme_info(2)["reason"], "source_timeout")
+
+    def test_source_page_uses_canonical_encoded_parentheses(self):
+        from server import theme_music
+        folder = self.media / "TV" / "The Big Bang Theory" / "Season 01"
+        folder.mkdir(parents=True)
+        episode = folder / "The Big Bang Theory.S01E01.mkv"
+        episode.write_bytes(b"episode")
+        with library.db() as conn:
+            conn.execute("UPDATE media SET path=? WHERE id=2", (str(episode),))
+        self.assertEqual(
+            theme_music._source_page_url(2),
+            "https://televisiontunes.com/Big_Bang_Theory_%28The%29.html")
+        self.assertEqual(
+            theme_music.theme_info(2)["source_page"],
+            "https://televisiontunes.com/Big_Bang_Theory_%28The%29.html")
 
     def test_movies_never_download_from_tv_only_source(self):
         with patch.object(theme_music, "_fetch") as fetch:
