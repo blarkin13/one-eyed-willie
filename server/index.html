@@ -2,80 +2,283 @@
 <html lang="en"><head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Libraries</title>
-<link rel="stylesheet" href="/assets/ui.css?v=services-1">
-<script defer src="/assets/shell.js?v=services-1"></script>
-<style>
-#add-dialog label{display:block;margin:15px 0 6px;font-size:.9rem;color:#d3ddeb;font-weight:650}
-#add-dialog input,#add-dialog select{display:block;width:100%;background:#101823;color:white;border:1px solid #3e4c60;border-radius:9px;padding:12px}
-#add-dialog .library-actions{margin-top:20px}
-#library-list{display:grid;gap:13px}
-#library-list .form-card{margin:0;max-width:none}
-</style>
+<title>Library Settings · One-Eyed Willie</title>
+<link rel="stylesheet" href="/assets/ui.css?v=settings-v2">
+<script defer src="/assets/shell.js?v=settings-v2"></script>
 </head><body data-page="libraries">
-<div class="app-shell">
- <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
- <div class="workspace">
-  <main class="content">
-   <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Libraries</h1><p>Manage your movie and TV folders on the server.</p></div>
-     <button class="primary-button" type="button" onclick="openAdd()">+ Add library</button></div>
-   <p class="message" id="message" role="status"></p>
-   <section id="library-list" aria-label="Configured libraries"></section>
-   <section class="form-card" aria-labelledby="overview-title">
-     <h2 id="overview-title">Library overview</h2>
-     <div class="stats" aria-label="Library totals">
-       <div class="stat"><strong id="overview-movies">—</strong><span>Movies</span></div>
-       <div class="stat"><strong id="overview-tv">—</strong><span>TV Shows</span></div>
-     </div>
-   </section>
-   <div class="form-card"><h2>Library safety</h2><p>Media folders are mounted read-only. Scans update the catalog, never the original files. Automatic rescans run every five minutes.</p></div>
-  </main>
- </div>
+<div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<div class="page-head"><div><p class="eyebrow"><a href="/settings">Settings</a> / Library</p>
+<h1>Library</h1><p>Edit your collections, folders, and sidebar appearance.</p></div>
+<button class="primary-button" id="create-library" type="button">+ Add library</button></div>
+<p class="message" id="message" role="status" aria-live="polite"></p>
+<section id="library-list" class="settings-list" aria-label="Configured libraries"></section>
+
+<section class="settings-card" aria-labelledby="overview-title">
+<h2 id="overview-title">Library overview</h2>
+<div class="stats" aria-label="Library totals">
+<div class="stat"><strong id="overview-movies">—</strong><span>Movies</span></div>
+<div class="stat"><strong id="overview-tv">—</strong><span>TV Shows</span></div>
+</div></section>
+<section class="settings-card"><h2>Media safety</h2>
+<p>The original media drive is read-only. Adding folders or scanning only updates the library index. Removing a folder removes its entries from the index after the next scan; the video files stay on disk.</p></section>
+</main></div></div>
+
+<dialog id="library-editor" class="settings-editor-dialog" aria-labelledby="editor-heading">
+<div class="dialog-inner"><form id="library-form">
+<div class="settings-subhead"><h2 id="editor-heading">Add library</h2>
+<button class="secondary-button" type="button" id="close-library">Close</button></div>
+<label for="library-name">Library name</label>
+<input id="library-name" type="text" maxlength="80" required placeholder="e.g. Movies, Kids, Documentaries">
+<label for="library-kind">Library type</label>
+<select id="library-kind"><option value="movies">Movies</option><option value="tv">TV Shows</option></select>
+<p class="settings-muted" id="kind-notice">Type determines how movies or TV episodes are grouped.</p>
+<div class="settings-two-col">
+<div><label for="library-icon">Sidebar icon</label><select id="library-icon"></select></div>
+<div><label for="library-font">Sidebar font</label><select id="library-font"></select></div>
 </div>
-<dialog id="add-dialog" aria-labelledby="dialog-heading">
- <div class="dialog-inner"><form id="add-form">
-  <div class="dialog-heading"><div><p class="eyebrow">Settings / Libraries</p><h2 id="dialog-heading">Add a library</h2></div>
-    <button type="button" class="icon-button" onclick="document.getElementById('add-dialog').close()" aria-label="Close">×</button></div>
-  <label for="name">Library name</label><input id="name" maxlength="80" required placeholder="Movies">
-  <label for="kind">Type</label><select id="kind"><option value="movies">Movies</option><option value="tv">TV Shows</option></select>
-  <label>Folder on server</label><div class="library-path" id="current-path">/media</div>
-  <div class="folder-list" id="folders"></div>
-  <p class="muted" id="folder-status">Choose a folder or use the current directory.</p>
-  <div class="library-actions">
-    <button type="submit" class="primary-button">Save library</button>
-    <button type="button" class="secondary-button" onclick="document.getElementById('add-dialog').close()">Cancel</button>
-  </div>
- </form></div>
-</dialog>
+<label class="setting-toggle"><input type="checkbox" id="library-visible" checked> Show collection in the sidebar</label>
+<p class="settings-muted">The combined Movies and TV Shows sections remain available unless hidden in General settings.</p>
+<div id="library-new-path">
+<label>Initial media folder</label>
+<div class="library-path" id="new-folder-path">/media</div>
+<button type="button" class="secondary-button" id="choose-initial-folder">Choose folder</button>
+</div>
+<div class="form-actions">
+<button type="submit" class="primary-button" id="library-save">Save library</button>
+<button type="button" class="secondary-button" id="cancel-library">Cancel</button></div>
+<p id="editor-message" class="message" role="status"></p>
+</form></div></dialog>
+
+<dialog id="folder-editor" class="settings-editor-dialog" aria-labelledby="folder-heading">
+<div class="dialog-inner">
+<div class="settings-subhead"><h2 id="folder-heading">Choose media folder</h2>
+<button type="button" id="close-folder" class="secondary-button">Close</button></div>
+<p class="settings-muted">Browse the directories mounted under /media. Folder selection is server-side; this does not create, delete, or move folders on disk.</p>
+<div class="library-path" id="current-path">/media</div>
+<div class="folder-list" id="folders"></div>
+<p id="folder-status" class="message" role="status"></p>
+<div class="form-actions">
+<button class="primary-button" id="folder-select" type="button">Use this folder</button>
+<button class="secondary-button" id="folder-cancel" type="button">Cancel</button>
+</div></div></dialog>
+
 <script>
 const byId=id=>document.getElementById(id);
-let chosen='/media', current='/media', busy=false;
-const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-async function api(path,opts={}){let r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',...(opts.headers||{})}});if(!r.ok){let x=await r.json().catch(()=>({}));throw Error(x.detail||'Request failed')}return r.json()}
-function notify(s,error=false){byId('message').textContent=s;byId('message').className='message'+(error?' error':'')}
-async function load(){try{const libs=await api('/api/libraries');const target=byId('library-list');target.innerHTML='';
-if(!libs.length){target.innerHTML='<div class="form-card muted">No libraries configured yet. Add a Movies or TV Shows folder to begin.</div>';return}
-for(const lib of libs){let el=document.createElement('article');el.className='form-card';
-el.innerHTML='<div class="library-row"><div><h2>'+escapeHTML(lib.name)+'</h2><div class="muted">'+(lib.kind==='movies'?'Movies':'TV Shows')+' · '+lib.media_count+' video files</div><p class="library-path">'+escapeHTML(lib.path)+'</p><div class="muted">'+(lib.last_scanned?'Last scanned: '+escapeHTML(new Date(lib.last_scanned).toLocaleString()):'Not scanned yet')+'</div></div><div class="library-actions"><button class="secondary-button scan">Scan now</button><button class="danger-button remove">Remove</button></div></div>';
-el.querySelector('.scan').onclick=()=>scan(lib.id);el.querySelector('.remove').onclick=()=>remove(lib.id,lib.name);target.appendChild(el)}}catch(e){notify(e.message,true)}}
-async function browse(path){try{let result=await api('/api/folders?path='+encodeURIComponent(path));current=result.path;chosen=current;byId('current-path').textContent=current;
-let target=byId('folders');target.innerHTML='';if(current!='/media'){let b=document.createElement('button');b.type='button';b.className='folder';b.textContent='← Parent folder';b.onclick=()=>browse(current.slice(0,current.lastIndexOf('/'))||'/media');target.appendChild(b)}
-for(let folder of result.folders){let b=document.createElement('button');b.type='button';b.className='folder';b.textContent='📁 '+folder.name;b.onclick=()=>browse(folder.path);target.appendChild(b)}
-byId('folder-status').textContent='Selected folder: '+current}catch(e){byId('folder-status').textContent=e.message}}
-function openAdd(){byId('name').value='Movies';byId('kind').value='movies';byId('add-dialog').showModal();browse('/media')}
-byId('kind').onchange=()=>byId('name').value=byId('kind').value==='movies'?'Movies':'TV Shows';
-byId('add-form').onsubmit=async e=>{e.preventDefault();try{await api('/api/libraries',{method:'POST',body:JSON.stringify({name:byId('name').value,kind:byId('kind').value,path:chosen})});byId('add-dialog').close();notify('Library saved. Select Scan now to catalog the files.');await load()}catch(ex){byId('folder-status').textContent=ex.message}};
-async function scan(id){notify('Scanning files. This can take some time for large libraries.');try{let result=await api('/api/libraries/'+id+'/scan',{method:'POST'});notify('Scan complete: '+result.found+' files found'+(result.errors?' ('+result.errors+' errors)':''));await load();await loadOverview()}catch(e){notify(e.message,true)}}
-async function remove(id,name){if(!confirm('Remove '+name+' from One-Eyed Willie? Your original media files will not be deleted.'))return;try{await api('/api/libraries/'+id,{method:'DELETE'});notify('Library removed; media files were not deleted.');await load()}catch(e){notify(e.message,true)}}
+const safeText=value=>String(value??'');
+const escapeHTML=s=>safeText(s).replace(/[&<>"']/g,c=>({
+ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+}[c]));
+const icons={
+ film:['Film','fa-film'],tv:['Television','fa-tv'],folder:['Folder','fa-folder'],
+ clapperboard:['Clapperboard','fa-clapperboard'],star:['Star','fa-star'],
+ heart:['Heart','fa-heart'],ghost:['Ghost','fa-ghost'],
+ rocket:['Rocket','fa-rocket'],book:['Book','fa-book'],
+ play:['Play','fa-play'],music:['Music','fa-music'],archive:['Archive','fa-box-archive']
+};
+const fonts={default:'Default',serif:'Classic serif',condensed:'Condensed',
+ mono:'Monospace',rounded:'Rounded'};
+let libraries=[],editing=null,folderTarget=null,chosen='/media',current='/media',working=false;
+async function api(path,options={}){
+ const r=await fetch(path,{cache:'no-store',...options,
+  headers:{'Content-Type':'application/json',...(options.headers||{})}});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(typeof data.detail==='string'?data.detail:'Request failed ('+r.status+')');
+ return data;
+}
+function notify(s,error=false){
+ byId('message').textContent=s;byId('message').className='message'+(error?' error':'');
+}
+function fillOptions(select,options){
+ select.replaceChildren();
+ Object.entries(options).forEach(([value,label])=>{
+  const option=document.createElement('option');option.value=value;
+  option.textContent=Array.isArray(label)?label[0]:label;select.append(option);
+ });
+}
+fillOptions(byId('library-icon'),icons);fillOptions(byId('library-font'),fonts);
+async function load(){
+ try{
+  libraries=await api('/api/libraries');
+  const target=byId('library-list');target.replaceChildren();
+  if(!libraries.length){
+   const empty=document.createElement('p');empty.className='settings-card settings-muted';
+   empty.textContent='No libraries configured. Add a Movies or TV Shows library to get started.';
+   target.append(empty);return;
+  }
+  for(const lib of libraries){
+   const article=document.createElement('article');article.className='settings-card';
+   const head=document.createElement('div');head.className='library-settings-row';
+   const logo=document.createElement('span');logo.className='library-settings-icon';logo.setAttribute('aria-hidden','true');
+   const glyph=document.createElement('i');
+   glyph.className='fa-solid '+(icons[lib.icon]||icons.folder)[1];logo.append(glyph);
+   const details=document.createElement('div');details.className='library-settings-details';
+   const title=document.createElement('h3');title.textContent=lib.name;
+   const caption=document.createElement('p');caption.className='settings-muted';
+   const folderCount=Array.isArray(lib.folders)?lib.folders.length:1;
+   caption.textContent=(lib.kind==='tv'?'TV Shows':'Movies')+' · '+
+    lib.media_count+' files · '+folderCount+' folder'+(folderCount!==1?'s':'')+
+    ' · Sidebar: '+(lib.sidebar_hidden?'Hidden':'Visible')+
+    ' · Font: '+(fonts[lib.font]||'Default');
+   details.append(title,caption);
+   const actions=document.createElement('div');actions.className='settings-row-actions';
+   for(const [label,cls,callback] of [
+    ['Edit','secondary-button',()=>openEdit(lib)],
+    ['Scan','secondary-button',()=>scan(lib.id)],
+    ['Remove','danger-button',()=>removeLibrary(lib)]
+   ]){
+    const button=document.createElement('button');
+    button.type='button';button.className=cls;button.textContent=label;button.onclick=callback;
+    actions.append(button);
+   }
+   head.append(logo,details,actions);article.append(head);
+   const sub=document.createElement('div');sub.className='settings-subhead';
+   const titleFolders=document.createElement('h4');titleFolders.textContent='Media folders';
+   const add=document.createElement('button');add.type='button';add.className='secondary-button';
+   add.textContent='+ Add folder';add.onclick=()=>openFolder('add',lib.id);
+   sub.append(titleFolders,add);article.append(sub);
+   const folders=document.createElement('div');folders.className='library-settings-folders';
+   for(const folder of lib.folders||[{id:null,path:lib.path}]){
+    const row=document.createElement('div');row.className='settings-list-row';
+    const path=document.createElement('span');path.className='library-path';
+    path.textContent=folder.path+(folder.path===lib.path?' · Primary':'');
+    row.append(path);
+    if((lib.folders||[]).length>1){
+     const del=document.createElement('button');del.type='button';
+     del.className='secondary-button';del.textContent='Remove folder';
+     del.setAttribute('aria-label','Remove '+folder.path+' from '+lib.name);
+     del.onclick=()=>removeFolder(lib,folder);row.append(del);
+    }
+    folders.append(row);
+   }
+   article.append(folders);
+   const scanText=document.createElement('p');scanText.className='settings-muted';
+   scanText.textContent=lib.last_scanned?
+    'Last scan: '+new Date(lib.last_scanned).toLocaleString():
+    'Scan needed to index the current media folders.';
+   article.append(scanText);target.append(article);
+  }
+ }catch(error){notify(error.message,true)}
+}
+function openAdd(){
+ editing=null;
+ byId('editor-heading').textContent='Add library';
+ byId('library-name').value='Movies';
+ byId('library-kind').value='movies';byId('library-kind').disabled=false;
+ byId('library-icon').value='folder';byId('library-font').value='default';
+ byId('library-visible').checked=true;
+ chosen='/media';byId('new-folder-path').textContent=chosen;
+ byId('library-new-path').hidden=false;
+ byId('editor-message').textContent='';
+ byId('library-editor').showModal();
+ byId('library-name').focus();
+}
+function openEdit(lib){
+ editing=lib.id;byId('editor-heading').textContent='Edit '+lib.name;
+ byId('library-name').value=lib.name;
+ byId('library-kind').value=lib.kind;byId('library-kind').disabled=true;
+ byId('library-icon').value=icons[lib.icon]?lib.icon:'folder';
+ byId('library-font').value=fonts[lib.font]?lib.font:'default';
+ byId('library-visible').checked=!lib.sidebar_hidden;
+ byId('library-new-path').hidden=true;byId('editor-message').textContent='';
+ byId('library-editor').showModal();
+ byId('library-name').focus();
+}
+byId('create-library').onclick=openAdd;
+byId('close-library').onclick=()=>byId('library-editor').close();
+byId('cancel-library').onclick=()=>byId('library-editor').close();
+byId('library-kind').onchange=()=>{
+ if(editing!==null)return;
+ byId('library-name').value=byId('library-kind').value==='movies'?'Movies':'TV Shows';
+};
+byId('library-form').onsubmit=async event=>{
+ event.preventDefault();
+ const payload={name:byId('library-name').value.trim(),
+  icon:byId('library-icon').value,font:byId('library-font').value,
+  sidebar_hidden:!byId('library-visible').checked};
+ if(working)return;working=true;byId('library-save').disabled=true;
+ try{
+  if(editing===null)await api('/api/libraries',{method:'POST',body:JSON.stringify({
+   ...payload,kind:byId('library-kind').value,path:chosen
+  })});
+  else await api('/api/libraries/'+editing,{method:'PATCH',body:JSON.stringify(payload)});
+  byId('library-editor').close();notify('Library saved.');
+  await load();await loadOverview();
+ }catch(error){byId('editor-message').textContent=error.message}
+ finally{working=false;byId('library-save').disabled=false}
+};
+function openFolder(target,libraryId=null){
+ folderTarget={target,libraryId};
+ byId('folder-heading').textContent=target==='add'?'Add media folder':'Select initial folder';
+ byId('folder-editor').showModal();
+ browse('/media');
+}
+byId('choose-initial-folder').onclick=()=>openFolder('initial');
+byId('close-folder').onclick=()=>byId('folder-editor').close();
+byId('folder-cancel').onclick=()=>byId('folder-editor').close();
+async function browse(path){
+ try{
+  const result=await api('/api/folders?path='+encodeURIComponent(path));
+  current=result.path;byId('current-path').textContent=current;
+  byId('folder-status').textContent='Selected: '+current;
+  const list=byId('folders');list.replaceChildren();
+  if(current!=='/media'){
+   const parent=document.createElement('button');parent.type='button';
+   parent.className='folder';parent.textContent='← Parent folder';
+   parent.onclick=()=>browse(current.slice(0,current.lastIndexOf('/'))||'/media');
+   list.append(parent);
+  }
+  for(const folder of result.folders){
+   const button=document.createElement('button');button.type='button';
+   button.className='folder';button.textContent=folder.name;
+   button.onclick=()=>browse(folder.path);list.append(button);
+  }
+ }catch(error){byId('folder-status').textContent=error.message}
+}
+byId('folder-select').onclick=async()=>{
+ if(!folderTarget)return;
+ try{
+  if(folderTarget.target==='initial'){
+   chosen=current;byId('new-folder-path').textContent=chosen;
+   byId('folder-editor').close();return;
+  }
+  const id=folderTarget.libraryId;
+  byId('folder-select').disabled=true;
+  await api('/api/libraries/'+id+'/folders',{method:'POST',body:JSON.stringify({path:current})});
+  byId('folder-editor').close();
+  notify('Folder added. Scanning the updated library now.');
+  await scan(id);
+ }catch(error){byId('folder-status').textContent=error.message}
+ finally{byId('folder-select').disabled=false}
+};
+async function scan(id){
+ notify('Scanning library folders. Larger libraries can take a while.');
+ try{const result=await api('/api/libraries/'+id+'/scan',{method:'POST'});
+  notify('Scan complete: '+result.found+' files'+(result.errors?' · '+result.errors+' errors':''));
+  await load();await loadOverview();
+ }catch(error){notify(error.message,true)}
+}
+async function removeFolder(lib,folder){
+ if(!confirm('Remove '+folder.path+' from '+lib.name+'? The files will remain on disk. The next scan will remove them from the library index and may clear their playback history.'))return;
+ try{await api('/api/libraries/'+lib.id+'/folders/'+folder.id,{method:'DELETE'});
+  notify('Folder removed. Updating catalog now.');await scan(lib.id);
+ }catch(error){notify(error.message,true)}
+}
+async function removeLibrary(lib){
+ if(!confirm('Remove '+lib.name+' from One-Eyed Willie? Video files will not be deleted; saved playback progress for this library will be removed.'))return;
+ try{await api('/api/libraries/'+lib.id,{method:'DELETE'});
+  notify('Library removed. Original media files remain untouched.');
+  await load();await loadOverview();
+ }catch(error){notify(error.message,true)}
+}
 async function loadOverview(){
  try{
-  const r=await fetch('/api/home',{cache:'no-store'});
-  if(!r.ok)throw Error('Library totals unavailable');
-  const data=await r.json();
+  const data=await api('/api/home');
   byId('overview-movies').textContent=Number(data.totals?.movies||0).toLocaleString();
   byId('overview-tv').textContent=Number(data.totals?.tv||0).toLocaleString();
  }catch(error){
-  byId('overview-movies').textContent='—';byId('overview-tv').textContent='—';
+  byId('overview-movies').textContent='—';
+  byId('overview-tv').textContent='—';
  }
 }
 load();loadOverview();
