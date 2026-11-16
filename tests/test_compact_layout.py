@@ -84,6 +84,21 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("object-fit:contain", css)
         self.assertNotIn('font-family:"Pirata One"', css)
 
+    def test_ship_greets_only_on_sidebar_expansion(self):
+        shell = (SERVER / "shell.js").read_text()
+        css = (SERVER / "ui.css").read_text()
+        self.assertIn("greeting.textContent='Yarr'", shell)
+        self.assertIn("greeting.setAttribute('aria-hidden','true')", shell)
+        self.assertIn("target.addEventListener('pointerenter',updateRailGreeting)", shell)
+        self.assertIn("target.addEventListener('focusin',updateRailGreeting)", shell)
+        self.assertIn("if(open===railExpanded)return", shell)
+        self.assertIn("target.classList.toggle('brand-yarr-open',open)", shell)
+        self.assertIn("@media(min-width:701px)", css)
+        self.assertIn("animation:willie-ship-greeting 950ms ease-in-out 1 both", css)
+        self.assertIn("animation:willie-yarr-greeting 1400ms ease-out 1 both", css)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", css)
+        self.assertIn(".sidebar.brand-yarr-open .brand-yarr{opacity:1}", css)
+
     def test_cast_profile_stacks_portrait_above_bio_on_mobile(self):
         page = (SERVER / "person.html").read_text()
         self.assertIn('class="person-hero"', page)
