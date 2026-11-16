@@ -10,6 +10,7 @@ from server.remote_config import router as remote_config_router
 from server.home import router as home_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
+from server.theme_music import router as theme_music_router
 from server.sidebar_settings import router as sidebar_settings_router
 from server.plex_import import router as plex_router
 from server.manager_control import router as manager_router
@@ -79,6 +80,7 @@ app.include_router(remote_config_router)
 app.include_router(home_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
+app.include_router(theme_music_router)
 app.include_router(sidebar_settings_router)
 app.include_router(plex_router)
 app.include_router(manager_router)
@@ -227,6 +229,12 @@ def library_appearance_js():
 def ui_shell():
     return FileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript",
                         headers={"Cache-Control": "no-store"})
+
+@app.get("/assets/theme-music.js")
+def theme_music_script():
+    return FileResponse(Path(__file__).with_name("theme-music.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "no-store"})
+
 
 @app.get("/assets/player.js")
 def player_script():
