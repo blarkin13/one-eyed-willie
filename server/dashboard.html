@@ -406,22 +406,71 @@ function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  const first=track.querySelector('.tile-button');
  if(first?._homeItem)updateHomeFeature(first,first._homeItem);
 }
-async function load(){
-  try{
-    const response=await fetch('/api/home',{cache:'no-store'});
-    if(!response.ok)throw Error('Server returned '+response.status);
-    const data=await response.json();
-
-    shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
-    shelf('recent-movies',data.recent_movies,'No movies yet','');
-    shelf('recent-tv',data.recent_tv,'No TV shows yet','');
-    fetchMoviePosters();
-    byId('status').textContent='';
-  }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
+let homeRevision=null,homeRequestId=0,homePollTimer=null,homePollRunning=false;
+async function load({preserveFocus=false}={}){
+ const request=++homeRequestId;
+ try{
+  const response=await fetch('/api/home',{cache:'no-store'});
+  if(!response.ok)throw Error('Server returned '+response.status);
+  const data=await response.json();
+  if(request!==homeRequestId)return;
+  // Preserve the TV remote selection, horizontal shelf positions and page scroll.
+  const focused=preserveFocus?document.activeElement?.closest?.('.shelf-track .tile-button'):null;
+  const focusHref=focused?.getAttribute('href');
+  const shelfPositions=preserveFocus?Object.fromEntries(
+   ['continue-watching','recent-movies','recent-tv'].map(id=>[
+    id,byId(id).querySelector('.shelf-track')?.scrollLeft||0
+   ])
+  ):{};
+  const pageScroll=window.scrollY;
+  shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
+  shelf('recent-movies',data.recent_movies,'No movies yet','');
+  shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  if(preserveFocus){
+   for(const [id,x] of Object.entries(shelfPositions)){
+    const track=byId(id).querySelector('.shelf-track');
+    if(track)track.scrollLeft=x;
+   }
+   const restored=focusHref?[...document.querySelectorAll('.shelf-track .tile-button')]
+     .find(link=>link.getAttribute('href')===focusHref):null;
+   restored?.focus({preventScroll:true});
+   window.scrollTo({top:pageScroll,behavior:'instant'});
+  }
+  if(Number.isSafeInteger(data.revision))homeRevision=data.revision;
+  fetchMoviePosters();
+  byId('status').textContent='';
+ }catch(error){if(request===homeRequestId)byId('status').textContent='Unable to load the home library: '+error.message;}
 }
-document.addEventListener('willie:watch-updated',load);
-// Refresh when returning from a different playback tab or browser page.
-document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
-window.addEventListener('pageshow',event=>{if(event.persisted)load()});
+/* Poll one small integer instead of rebuilding the shelves on every tick. */
+const HOME_POLL_MS=15000;
+async function pollHomeChanges(){
+ if(homePollRunning)return;
+ homePollRunning=true;
+ try{
+  if(document.hidden)return;
+  const response=await fetch('/api/catalog/revision',{cache:'no-store'});
+  if(!response.ok)return;
+  const result=await response.json();
+  if(Number.isSafeInteger(result.revision)&&homeRevision!==null&&
+     result.revision!==homeRevision&&!document.hidden){
+   await load({preserveFocus:true});
+  }
+ }catch(_){/* The existing shelves remain available while offline. */}
+ finally{
+  homePollRunning=false;
+  clearTimeout(homePollTimer);
+  homePollTimer=setTimeout(pollHomeChanges,HOME_POLL_MS);
+ }
+}
+document.addEventListener('willie:watch-updated',()=>load({preserveFocus:true}));
+document.addEventListener('visibilitychange',()=>{
+ if(!document.hidden){
+  load({preserveFocus:true});
+  if(!homePollRunning){clearTimeout(homePollTimer);homePollTimer=setTimeout(pollHomeChanges,HOME_POLL_MS);}
+ }
+});
+window.addEventListener('pageshow',event=>{if(event.persisted)load({preserveFocus:true})});
+window.addEventListener('pagehide',()=>clearTimeout(homePollTimer));
 load();
+homePollTimer=setTimeout(pollHomeChanges,HOME_POLL_MS);
 </script></body></html>
