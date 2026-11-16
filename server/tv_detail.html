@@ -597,21 +597,60 @@ async function loadJson(url){
  const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Unable to load details ('+response.status+')');
  return response.json();
 }
+function trailerButton(key,title){
+ const button=el('button','media-icon-action tv-trailer-launch');button.type='button';
+ const available=/^[A-Za-z0-9_-]{11}$/.test(key||'');
+ button.title=available?'Play trailer':'Trailer not available';
+ button.setAttribute('aria-label',button.title);button.disabled=!available;
+ button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>';
+ if(available)button.onclick=()=>openTvTrailer(key,title);
+ return button;
+}
+function seriesControls(data){
+ const controls=el('div','series-controls');
+ const actions=el('div','series-controls-actions');
+ const next=data.next_episode;
+ if(next?.media_id){
+   const resume=!!next.resume;
+   const button=el('button','media-icon-action');
+   button.type='button';
+   button.innerHTML=resume
+     ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>'
+     :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+   const identifier='S'+String(next.season).padStart(2,'0')+'E'+String(next.episode).padStart(2,'0');
+   button.title=resume?'Resume '+identifier:next.replay?'Replay '+identifier:'Play next episode · '+identifier;
+   button.setAttribute('aria-label',button.title);
+   button.onclick=()=>WilliePlayer.open(next.media_id,data.title+' · '+identifier,{restart:!resume});
+   actions.append(button);
+ }
+ actions.append(bulkWatchedControl(data,'show'),matchButton(),trailerButton(data.trailer_key,data.title));
+ const facts=el('div','series-controls-facts');
+ const rating=el('span','series-fact-chip',data.content_rating||'TV rating unavailable');
+ rating.title='TV parental rating';facts.append(rating);
+ if(data.imdb_id&&/^tt[0-9]{7,9}$/.test(data.imdb_id)){
+   const link=el('a','series-fact-chip',
+     data.imdb_rating>0?'IMDb ★ '+Number(data.imdb_rating).toFixed(1)+'/10':'IMDb');
+   link.href='https://www.imdb.com/title/'+data.imdb_id+'/';
+   link.target='_blank';link.rel='noopener noreferrer';
+   link.title=data.imdb_rating>0?'IMDb rating':'View IMDb rating';
+   facts.append(link);
+ }else{
+   facts.append(el('span','series-fact-chip','IMDb unavailable'));
+ }
+ if(data.network)facts.append(el('span','series-fact-chip',data.network));
+ if(Array.isArray(data.genres)&&data.genres.length)
+   facts.append(el('span','series-fact-chip',data.genres.join(' · ')));
+ controls.append(actions,facts);
+ return controls;
+}
 async function renderShow(){
  if(!Number.isInteger(state.library_id)||!state.library_id||!state.key)throw Error('Select a TV show from the library.');
  const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
  document.title=data.title+' · One-Eyed Willie';
  state.show_title=data.title;
- view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
- const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'),matchButton());
- if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
-   const trailer=el('button','media-icon-action tv-trailer-launch');
-   trailer.type='button';trailer.title='Play trailer';trailer.setAttribute('aria-label','Play trailer');
-   trailer.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>';
-   trailer.onclick=()=>openTvTrailer(data.trailer_key,data.title);
-   showActions.append(trailer);
- }
- view.append(showActions);
+ const showHero=hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES');
+ showHero.append(seriesControls(data));
+ view.append(showHero);
  const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
  view.appendChild(heading);
  const grid=el('div','season-grid');
@@ -621,7 +660,7 @@ async function renderShow(){
     seasonHref(data.library_id,data.key,season.number)));
  }
  view.appendChild(grid);
- view.append(showExtras(data));
+ view.append(showExtras(data,{includeFacts:false}));
  if(data.seasons.some(s=>s.number===null)){
    const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
    view.appendChild(note);
