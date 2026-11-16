@@ -226,7 +226,6 @@ class MainActivity : ComponentActivity() {
         loadingOverlay = null
         loadingErrorPanel = null
         loadingCaption = null
-        loadingSpinner = null
         loadingActions = null
         loadingRetry = null
         browser?.keepScreenOn = false
