@@ -46,6 +46,32 @@ def _describe(media, lib):
         return None
 
 
+def _progress_revision(connection):
+    """Lightweight fingerprint of progress changes for active Home pages.
+
+    Catalog revisions only change when media is scanned; playback updates
+    must also invalidate Continue Watching. Include aggregate positions to
+    distinguish checkpoints within the same SQLite timestamp second.
+    """
+    row = connection.execute(
+        "SELECT COUNT(*), COALESCE(MAX(updated_at), ''), "
+        "COALESCE(SUM(position_seconds), 0), "
+        "COALESCE(SUM(duration_seconds), 0), "
+        "COALESCE(SUM(completed), 0) FROM playback_progress"
+    ).fetchone()
+    return [row[0], row[1], round(row[2], 3), round(row[3], 3), row[4]]
+
+
+@router.get("/home/revision")
+def home_revision():
+    with db() as connection:
+        catalog = connection.execute(
+            "SELECT revision FROM catalog_state WHERE id=1"
+        ).fetchone()[0]
+        progress = _progress_revision(connection)
+    return {"catalog_revision": catalog, "progress_revision": progress}
+
+
 @router.get("/home")
 def home_shelves():
     recent = {"movies": OrderedDict(), "tv": OrderedDict()}
@@ -59,6 +85,7 @@ def home_shelves():
         revision = connection.execute(
             "SELECT revision FROM catalog_state WHERE id=1"
         ).fetchone()[0]
+        progress_revision = _progress_revision(connection)
         libs = {row["id"]: row for row in connection.execute("SELECT id,kind,path FROM libraries")}
         progress = {row["media_id"]: dict(row) for row in connection.execute(
             "SELECT media_id,position_seconds,duration_seconds,completed,updated_at "
@@ -173,6 +200,7 @@ def home_shelves():
         },
         "playback_available": True,
         "revision": revision,
+        "progress_revision": progress_revision,
     }
 
 
