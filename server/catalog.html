@@ -208,33 +208,86 @@ rotateTrivia();
 // Movie posters are looked up in one request per page; actual image bytes are
 // downloaded once and cached privately on the NUC.
 const moviePosterJobs=[];
+const movieFallbackQueue=[];
+let movieFallbackActive=0;
+const movieFallbackObserver='IntersectionObserver' in window
+ ?new IntersectionObserver(entries=>{
+  for(const entry of entries){
+   if(!entry.isIntersecting)continue;
+   movieFallbackObserver.unobserve(entry.target);
+   entry.target._loadMissingMoviePoster?.();
+  }
+ },{rootMargin:'260px'}):null;
+function requestMissingMoviePoster(cover,item){
+ if(cover.dataset.moviePosterRequested||!item.library_id||!item.key)return;
+ cover.dataset.moviePosterRequested='1';
+ const card=cover.closest('.tile');
+ const enqueue=()=>{movieFallbackQueue.push({cover,item});loadMissingMoviePosters()};
+ if(movieFallbackObserver&&card){
+  card._loadMissingMoviePoster=enqueue;
+  movieFallbackObserver.observe(card);
+ }else enqueue();
+}
+function loadMissingMoviePosters(){
+ while(movieFallbackActive<2&&movieFallbackQueue.length){
+  const {cover,item}=movieFallbackQueue.shift();
+  if(!cover.isConnected)continue;
+  movieFallbackActive++;
+  const query=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+  fetch('/api/movies/details?'+query,{cache:'no-store'})
+   .then(r=>r.ok?r.json():null)
+   .then(data=>{
+    if(data?.poster_url?.startsWith('/api/artwork/'))
+     addMoviePoster(cover,item,data.poster_url,true);
+   }).catch(()=>{}).finally(()=>{movieFallbackActive--;loadMissingMoviePosters()});
+ }
+}
+function addMoviePoster(cover,item,src,fromDetails=false){
+ if(!src?.startsWith('/api/artwork/'))return;
+ cover.querySelector('.poster-image')?.remove();
+ const img=document.createElement('img');
+ img.className='poster-image';img.alt=item.title+' poster';
+ img.loading='lazy';img.decoding='async';
+ const full=src.startsWith('/api/artwork/thumb/')
+  ?src.replace('/api/artwork/thumb/','/api/artwork/'):null;
+ let triedFull=false;
+ img.onerror=()=>{
+  if(full&&!triedFull){triedFull=true;img.src=full;return;}
+  img.remove();
+  if(!fromDetails)requestMissingMoviePoster(cover,item);
+ };
+ cover.append(img);img.src=src;
+}
 async function fetchMoviePosters(){
  const jobs=moviePosterJobs.splice(0);
  if(!jobs.length)return;
- // Server caps one poster request at 60. Fetch in bounded batches, while
- // images themselves use native lazy loading and the NUC artwork cache.
  const batches=[];
  for(let i=0;i<jobs.length;i+=50)batches.push(jobs.slice(i,i+50));
  let next=0;
  async function worker(){
-   while(next<batches.length){
-     const part=batches[next++];
-     try{
-       const response=await fetch('/api/movies/posters',{
-         method:'POST',headers:{'Content-Type':'application/json'},
-         body:JSON.stringify({items:part.map(j=>({library_id:j.item.library_id,key:j.item.key}))})});
-       if(!response.ok)continue;
-       const data=await response.json();
-       const map=new Map((data.items||[]).map(e=>[e.library_id+'|'+e.key,e.poster_url]));
-       for(const job of part){
-         const poster=map.get(job.item.library_id+'|'+job.item.key);
-         if(!poster?.startsWith('/api/artwork/')||!job.cover.isConnected)continue;
-         const img=document.createElement('img');img.className='poster-image';
-         img.alt=job.item.title+' poster';img.loading='lazy';img.decoding='async';
-         img.src=poster;job.cover.append(img);
-       }
-     }catch(_){}
+  while(next<batches.length){
+   const part=batches[next++];
+   try{
+    const response=await fetch('/api/movies/posters',{
+     method:'POST',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({items:part.map(j=>({
+      library_id:j.item.library_id,key:j.item.key
+     }))})
+    });
+    if(!response.ok)throw Error('Poster batch unavailable');
+    const data=await response.json();
+    const map=new Map((data.items||[]).map(e=>[e.library_id+'|'+e.key,e.poster_url]));
+    for(const job of part){
+     if(!job.cover.isConnected)continue;
+     const poster=map.get(job.item.library_id+'|'+job.item.key);
+     if(poster?.startsWith('/api/artwork/'))addMoviePoster(job.cover,job.item,poster);
+     else requestMissingMoviePoster(job.cover,job.item);
+    }
+   }catch(_){
+    for(const job of part)if(job.cover.isConnected)
+     requestMissingMoviePoster(job.cover,job.item);
    }
+  }
  }
  await Promise.all([worker(),worker(),worker()]);
 }
@@ -299,8 +352,7 @@ function createCard(item){
  }
  article.append(button);
  if(item.poster_url?.startsWith('/api/artwork/')){
-   const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
-   img.loading='lazy';img.decoding='async';img.src=item.poster_url;cover.append(img);
+   addMoviePoster(cover,item,item.poster_url);
  }else if(type==='tv')observePoster(article,cover,item);
  else moviePosterJobs.push({cover,item});
  return article;
@@ -339,7 +391,7 @@ async function load(){
   const data=await response.json();if(thisRequest!==requestId)return;
   total=data.total;const entries=Array.isArray(data.items)?data.items:[];
   $('items').replaceChildren();
-  moviePosterJobs.length=0;posterQueue.length=0;
+  moviePosterJobs.length=0;posterQueue.length=0;movieFallbackQueue.length=0;
   const fragment=document.createDocumentFragment();
   for(const item of entries){
     const card=createCard(item);
