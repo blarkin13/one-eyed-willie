@@ -126,6 +126,7 @@ class PlayerActivity : ComponentActivity() {
             Gravity.CENTER
         ))
         setContentView(surface)
+        playButton.requestFocus()
         thumbnailPreview.start()
         player = ExoPlayer.Builder(this).build().also { exo ->
             playerView.player = exo
@@ -662,11 +663,35 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if(event.keyCode==KeyEvent.KEYCODE_BACK)return super.dispatchKeyEvent(event)
-        if(event.action==KeyEvent.ACTION_DOWN && ::chrome.isInitialized &&
-            chrome.visibility!=View.VISIBLE){
-            showChrome()
-            return true
+        if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
+        if (event.action == KeyEvent.ACTION_DOWN && ::chrome.isInitialized) {
+            when (event.keyCode) {
+                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
+                    seekBy(10.0)
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_REWIND -> {
+                    seekBy(-10.0)
+                    return true
+                }
+                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
+                    val active = player
+                    if (active?.isPlaying == true) active.pause() else active?.play()
+                    showChrome()
+                    return true
+                }
+            }
+            if (chrome.visibility != View.VISIBLE) {
+                showChrome()
+                // A D-pad left/right press while the overlay is hidden should
+                // seek immediately, not merely expose the buttons.
+                when (event.keyCode) {
+                    KeyEvent.KEYCODE_DPAD_LEFT -> seekBy(-10.0)
+                    KeyEvent.KEYCODE_DPAD_RIGHT -> seekBy(10.0)
+                    else -> playButton.requestFocus()
+                }
+                return true
+            }
         }
         return super.dispatchKeyEvent(event)
     }
