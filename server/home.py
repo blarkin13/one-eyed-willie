@@ -63,7 +63,7 @@ def home_shelves():
         )}
         watched_ids = {media_id for media_id, entry in progress.items() if entry["completed"]}
         rows = connection.execute(
-            ""SELECT id,library_id,path,source_root,added_at,mtime_ns FROM media "
+            "SELECT id,library_id,path,source_root,added_at,mtime_ns FROM media "
             "ORDER BY added_at DESC, mtime_ns DESC, id DESC"
         ).fetchall()
         for row in rows:
