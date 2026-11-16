@@ -5,7 +5,7 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=services-1">
 <script defer src="/assets/shell.js?v=services-1"></script>
-<script defer src="/assets/player.js?v=progress-1"></script>
+<script defer src="/assets/player.js?v=continue-next-1"></script>
 <style>
 .shelf{margin-top:36px}.shelf:first-of-type{margin-top:0}
 .shelf-title{font-size:1.24rem;letter-spacing:-.025em;margin:0}.shelf-desc{color:var(--muted);font-size:.82rem;margin:4px 0 0}
@@ -27,6 +27,7 @@
 .shelf-empty{margin-top:13px;min-height:156px;padding:24px 28px;border:1px dashed #35465a;border-radius:14px;background:linear-gradient(130deg,#161c26,#11161e);display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .shelf-empty h3{font-size:1.03rem;margin:0 0 5px}.shelf-empty p{margin:0;color:var(--muted);max-width:570px;font-size:.89rem}
 .progress-time{font-size:.75rem;color:#b8d4ee;margin-top:9px;font-weight:650}
+.next-episode-badge{display:inline-block;margin-top:8px;color:#b8d6f4;font-size:.75rem;font-weight:700;letter-spacing:.02em}
 .progress-track{height:4px;border-radius:4px;background:#2c394b;margin-top:9px;overflow:hidden}.progress-fill{height:100%;background:#a3d4ff;border-radius:4px}
 .shelf-action{font-size:.84rem;color:#b4d6ff;font-weight:650}.page-lead{max-width:650px;color:#9aa9bc}
 @media(max-width:620px){.shelf{margin-top:31px}.shelf-track{grid-auto-columns:minmax(145px,42%);gap:12px}.shelf-empty{padding:19px}.shelf-title{font-size:1.1rem}}
@@ -156,12 +157,15 @@ function nextPoster(){
   }
 }
 function tile(item, watching=false){
+  const nextEpisode=watching&&item.play_state==='next';
   const article=document.createElement('article');article.className='tile';
   const link=document.createElement('a');link.className='tile-button';
   link.href=item.kind==='tv'&&item.library_id&&item.key
     ?'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
     :'/movie?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
-  link.setAttribute('aria-label',watching?'Resume '+item.title:'Browse '+item.title);
+  link.setAttribute('aria-label',watching
+    ?(nextEpisode?'Play next episode of ':'Resume ')+item.title+' · '+(item.subtitle||'')
+    :'Browse '+item.title);
   if(item.library_id&&item.key){
     link.dataset.hoverKind=item.kind==='movies'?'movies':'tv';
     link.dataset.hoverLibraryId=String(item.library_id);link.dataset.hoverKey=item.key;
@@ -171,7 +175,7 @@ function tile(item, watching=false){
     link.addEventListener('click',event=>{
       if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
       event.preventDefault();
-      WilliePlayer.open(item.media_id,item.title+' · '+(item.subtitle||''));
+      WilliePlayer.open(item.media_id,item.title+' · '+(item.subtitle||''),{restart:nextEpisode});
     });
   }
   const cover=document.createElement('div');
@@ -183,7 +187,9 @@ function tile(item, watching=false){
   const coverTitle=document.createElement('div');coverTitle.className='cover-title';coverTitle.textContent=item.title;
   cover.append(top,initial,coverTitle);
   const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
-  const meta=document.createElement('div');meta.className='tile-meta';meta.textContent=(item.year?item.year+' · ':'')+(item.subtitle||'');
+  const meta=document.createElement('div');meta.className='tile-meta';
+  meta.textContent=(nextEpisode?'Up next · ':'')+
+    (item.year?item.year+' · ':'')+(item.subtitle||'');
   link.append(cover,title,meta);
   if(item.watched){
     const indicator=document.createElement('span');indicator.className='watched-badge';
@@ -205,7 +211,7 @@ function tile(item, watching=false){
     img.src=src;cover.append(img);
   }else if(item.kind==='tv'&&item.library_id&&item.key)loadPoster(cover,item);
   else if(item.kind==='movies'&&item.library_id&&item.key)moviePosterJobs.push({cover,item});
-  if(watching){
+  if(watching&&!nextEpisode){
     const position=Number(item.position_seconds)||0;
     const duration=Number(item.duration_seconds)||0;
     if(duration>0){
@@ -220,6 +226,11 @@ function tile(item, watching=false){
       watched.setAttribute('aria-label','Resume from '+minutes+' minutes');
       link.append(watched);
     }
+  }
+  if(nextEpisode){
+    const marker=document.createElement('span');marker.className='next-episode-badge';
+    marker.textContent='Next episode';
+    link.append(marker);
   }
   article.appendChild(link);return article;
 }
@@ -248,5 +259,8 @@ async function load(){
   }catch(error){byId('status').textContent='Unable to load the home library: '+error.message;}
 }
 document.addEventListener('willie:watch-updated',load);
+// Refresh when returning from a different playback tab or browser page.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)load()});
+window.addEventListener('pageshow',event=>{if(event.persisted)load()});
 load();
 </script></body></html>

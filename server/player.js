@@ -127,42 +127,58 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const old=session;session=null;
     if(old)fetch('/api/stream/hls/'+old,{method:'DELETE',keepalive:true}).catch(()=>{});
   }
-  async function saveProgress(force=false,done=false){
-    if(!current||!started||!mediaId)return;
+  let progressWrite=Promise.resolve();
+  function progressSnapshot(done=false){
+    if(!current||!started||!mediaId)return null;
     const video=current.querySelector('video');
     const position=playerPosition(video);
-    if(position<1&&!done)return;
-    // Fragmented MP4 and live-style HLS timelines can have Infinity duration.
-    // Use the probed duration if known, but save actual watched seconds even
-    // when there is no reliable total duration yet.
+    if(position<1&&!done)return null;
+    // Native HLS and fragmented MP4 often expose an infinite timeline.
     const reported=Number(status?.duration_seconds);
     const timeline=Number(video.duration);
     const duration=Number.isFinite(reported)&&reported>0?reported:
       Number.isFinite(timeline)&&timeline>0?timeline:0;
-    const timestamp=Date.now();
-    if(!force&&timestamp-saveAt<12000)return;
-    saveAt=timestamp;
-    const payload={
+    return {
       media_id:mediaId,duration_seconds:duration,
       position_seconds:duration>0?Math.min(duration,position):position,
       completed:done||Boolean(status?.watched)||(duration>0&&position>=duration*.95)
     };
-    try{
-      await requestJson('/api/playback/progress',{
-        method:'PUT',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify(payload),keepalive:force
-      });
-    }catch(error){
-      // Keep retries enabled; never silently discard the resume point.
-      saveAt=0;
-      console.warn('Could not save playback progress:',error);
-      if(current&&!video.ended)message('Playback progress could not be saved: '+error.message);
-    }
+  }
+  function saveProgress(force=false,done=false){
+    const payload=progressSnapshot(done);
+    if(!payload)return progressWrite;
+    const timestamp=Date.now();
+    if(!force&&timestamp-saveAt<12000)return progressWrite;
+    saveAt=timestamp;
+    // Serialize saves. A delayed heartbeat must never arrive after a final
+    // completed/paused position and overwrite it with older information.
+    progressWrite=progressWrite.catch(()=>{}).then(async()=>{
+      try{
+        await requestJson('/api/playback/progress',{
+          method:'PUT',headers:{'Content-Type':'application/json'},
+          body:JSON.stringify(payload),keepalive:force
+        });
+      }catch(error){
+        saveAt=0;
+        console.warn('Could not save playback progress:',error);
+        if(current&&!current.querySelector('video')?.ended)
+          message('Playback progress could not be saved: '+error.message);
+      }
+    });
+    return progressWrite;
   }
   function onVisibilityChange(){
     if(document.visibilityState==='hidden')saveProgress(true);
   }
   function onPageHide(){
+    // Beacon is not canceled when a viewer navigates away or closes a tab.
+    const payload=progressSnapshot();
+    if(payload&&navigator.sendBeacon){
+      try{
+        const json=new Blob([JSON.stringify(payload)],{type:'application/json'});
+        if(navigator.sendBeacon('/api/playback/progress',json))return;
+      }catch(_){}
+    }
     saveProgress(true);
   }
   function close(){

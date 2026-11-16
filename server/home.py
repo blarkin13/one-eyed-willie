@@ -49,12 +49,19 @@ def _describe(media, lib):
 @router.get("/home")
 def home_shelves():
     recent = {"movies": OrderedDict(), "tv": OrderedDict()}
-    watching = OrderedDict()
+    # Candidates consist of (last activity, priority, media id, card).
+    # A completed TV episode is replaced by the next available unwatched one.
+    candidates = []
+    in_progress_groups = set()
+    tv_episodes = {}
+    descriptions = {}
     with db() as connection:
         libs = {row["id"]: row for row in connection.execute("SELECT id,kind,path FROM libraries")}
-        watched_ids = {r["media_id"] for r in connection.execute(
-            "SELECT media_id FROM playback_progress WHERE completed=1"
+        progress = {row["media_id"]: dict(row) for row in connection.execute(
+            "SELECT media_id,position_seconds,duration_seconds,completed,updated_at "
+            "FROM playback_progress"
         )}
+        watched_ids = {media_id for media_id, entry in progress.items() if entry["completed"]}
         rows = connection.execute(
             "SELECT id,library_id,path,added_at,mtime_ns FROM media "
             "ORDER BY added_at DESC, mtime_ns DESC, id DESC"
@@ -66,47 +73,91 @@ def home_shelves():
             desc = _describe(row, lib)
             if not desc:
                 continue
-            key = desc["group"]
-            if key not in recent[desc["kind"]]:
-                recent[desc["kind"]][key] = {
+            media_id = row["id"]
+            descriptions[media_id] = desc
+            group = desc["group"]
+            if group not in recent[desc["kind"]]:
+                recent[desc["kind"]][group] = {
                     "kind": desc["kind"], "title": desc["title"],
                     "year": desc["year"], "subtitle": desc["subtitle"],
                     "library_id": desc["library_id"], "key": desc["key"],
-                    "media_id": row["id"], "watched": row["id"] in watched_ids,
+                    "media_id": media_id, "watched": media_id in watched_ids,
                     "added_at": row["added_at"],
                 }
+            if desc["kind"] == "tv":
+                # Parse once per indexed episode, not once per new Home card.
+                info = episode_info(row["path"], lib["path"])
+                if info["season"] is not None and info["episode"] is not None:
+                    tv_episodes.setdefault(group, []).append((
+                        info["season"], info["episode"], media_id, desc
+                    ))
 
-        progress_rows = connection.execute(
-            "SELECT m.id,m.path,m.library_id,p.position_seconds,p.duration_seconds,"
-            "p.updated_at FROM playback_progress p JOIN media m ON m.id=p.media_id "
-            "WHERE p.completed=0 AND p.position_seconds>=30 "
-            "AND (p.duration_seconds<=0 OR p.position_seconds < p.duration_seconds*0.95) "
-            "ORDER BY p.updated_at DESC, m.id DESC"
-        ).fetchall()
-        for row in progress_rows:
-            lib = libs.get(row["library_id"])
-            if not lib:
+        for media_id, entry in sorted(
+            progress.items(),
+            key=lambda pair: (pair[1]["updated_at"], pair[0]), reverse=True
+        ):
+            if entry["completed"] or entry["position_seconds"] < 30:
                 continue
-            desc = _describe(row, lib)
-            if not desc or desc["group"] in watching:
+            duration = entry["duration_seconds"]
+            position = entry["position_seconds"]
+            if duration > 0 and position >= duration * .95:
                 continue
-            watching[desc["group"]] = {
-                "media_id": row["id"], "kind": desc["kind"],
-                "title": desc["title"], "year": desc["year"],
-                "library_id": desc["library_id"], "key": desc["key"],
-                "subtitle": desc["subtitle"],
-                "position_seconds": row["position_seconds"],
-                "duration_seconds": row["duration_seconds"],
-                "progress_percent": (round(row["position_seconds"] * 100 / row["duration_seconds"])
-                                     if row["duration_seconds"] > 0 else None),
-                "updated_at": row["updated_at"],
-            }
-            if len(watching) >= 12:
-                break
+            desc = descriptions.get(media_id)
+            if not desc or desc["group"] in in_progress_groups:
+                continue
+            in_progress_groups.add(desc["group"])
+            candidates.append((
+                entry["updated_at"], 1, media_id, {
+                    "media_id": media_id, "kind": desc["kind"],
+                    "title": desc["title"], "year": desc["year"],
+                    "library_id": desc["library_id"], "key": desc["key"],
+                    "subtitle": desc["subtitle"], "play_state": "resume",
+                    "position_seconds": position,
+                    "duration_seconds": duration,
+                    "progress_percent": round(position * 100 / duration) if duration > 0 else None,
+                    "updated_at": entry["updated_at"],
+                }
+            ))
+
+        for group, episodes in tv_episodes.items():
+            if group in in_progress_groups:
+                continue
+            # Completed episodes establish series history. Next means the
+            # first indexed, unwatched episode after the latest completed one,
+            # not an unplayed show which the viewer has never started.
+            completed = [(season, number, media_id) for season, number, media_id, _ in episodes
+                         if media_id in watched_ids]
+            if not completed:
+                continue
+            last_season, last_number, last_id = max(completed)
+            completed_numbers = {(season, number) for season, number, media_id, _ in episodes
+                                 if media_id in watched_ids}
+            options = sorted(
+                ((season, number, media_id, desc)
+                 for season, number, media_id, desc in episodes
+                 if (season, number) > (last_season, last_number)
+                 and (season, number) not in completed_numbers),
+                key=lambda option: (option[0], option[1], option[2]),
+            )
+            if not options:
+                continue
+            _season, _episode, media_id, desc = options[0]
+            last_date = progress[last_id]["updated_at"]
+            candidates.append((
+                last_date, 0, media_id, {
+                    "media_id": media_id, "kind": "tv",
+                    "title": desc["title"], "year": desc["year"],
+                    "library_id": desc["library_id"], "key": desc["key"],
+                    "subtitle": desc["subtitle"], "play_state": "next",
+                    "position_seconds": 0, "duration_seconds": 0,
+                    "progress_percent": None, "updated_at": last_date,
+                }
+            ))
 
     from .poster_index import attach_posters
+    candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     shelves = {
-        "continue_watching": list(watching.values()),
+        "continue_watching": [card for _, _, _, card in candidates[:12]],
         "recent_movies": list(recent["movies"].values())[:16],
         "recent_tv": list(recent["tv"].values())[:16],
     }
@@ -122,18 +173,27 @@ def home_shelves():
 
 
 @router.put("/playback/progress")
+@router.post("/playback/progress")
 def update_playback(item: PlaybackUpdate):
-    # Some HLS/fragmented streams report Infinity or have no known duration.
-    # Preserve the actual watched seconds rather than discard the update.
+    """Persist a resume point, even when HLS has not reported its duration."""
     if item.duration_seconds > 0 and item.position_seconds > item.duration_seconds:
         raise HTTPException(422, "Playback position cannot exceed duration")
-    completed = item.completed or (
-        item.duration_seconds > 0 and item.position_seconds >= item.duration_seconds * 0.95
-    )
     with db() as connection:
         exists = connection.execute("SELECT id FROM media WHERE id=?", (item.media_id,)).fetchone()
         if not exists:
             raise HTTPException(404, "Media item not found")
+        previous = connection.execute(
+            "SELECT duration_seconds,completed FROM playback_progress WHERE media_id=?",
+            (item.media_id,),
+        ).fetchone()
+        # A transient unknown duration must not wipe a previously probed one.
+        duration = item.duration_seconds
+        if duration == 0 and previous and previous["duration_seconds"] >= item.position_seconds:
+            duration = previous["duration_seconds"]
+        # Prevent a late heartbeat from undoing an episode marked watched.
+        completed = bool(item.completed or (previous and previous["completed"]) or (
+            duration > 0 and item.position_seconds >= duration * .95
+        ))
         connection.execute(
             """INSERT INTO playback_progress
                 (media_id,position_seconds,duration_seconds,completed,updated_at)
@@ -143,6 +203,7 @@ def update_playback(item: PlaybackUpdate):
                   duration_seconds=excluded.duration_seconds,
                   completed=excluded.completed,
                   updated_at=CURRENT_TIMESTAMP""",
-            (item.media_id, item.position_seconds, item.duration_seconds, int(completed)),
+            (item.media_id, item.position_seconds, duration, int(completed)),
         )
-    return {"saved": True, "completed": completed}
+    return {"saved": True, "completed": completed,
+            "position_seconds": item.position_seconds, "duration_seconds": duration}
