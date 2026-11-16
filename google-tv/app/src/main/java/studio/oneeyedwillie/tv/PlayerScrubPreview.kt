@@ -165,7 +165,9 @@ internal class PlayerScrubPreview(
                             show(lastPosition)
                             hideSoon()
                         }
-                        if (generating && refreshCount++ < 30) {
+                        val remaining = incoming.size < 24 &&
+                            data.optDouble("duration_seconds", 0.0) > 15
+                        if ((generating || remaining) && refreshCount++ < 30) {
                             handler.postDelayed({ if (!disposed) refresh() }, 3000)
                         }
                     }
