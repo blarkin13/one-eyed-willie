@@ -25,6 +25,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
 import java.net.URI
@@ -59,6 +60,8 @@ class PlayerActivity : ComponentActivity() {
     private var selectedCaption: String? = null
     private var nextMediaId: Int? = null
     private var nextTitle = ""
+    private var seasonShuffle = false
+    private var shuffleQueue = JSONArray()
     private var autoPlayNext = false
     private var pendingSeek = 0.0
     private var pendingSeekAction: Runnable? = null
@@ -83,6 +86,10 @@ class PlayerActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         mediaId = intent.getIntExtra("media_id", -1)
         server = intent.getStringExtra("server")?.trimEnd('/') ?: ""
+        seasonShuffle = intent.hasExtra("shuffle_queue")
+        if (seasonShuffle) shuffleQueue = try {
+            JSONArray(intent.getStringExtra("shuffle_queue") ?: "[]")
+        } catch (_: Exception) { JSONArray() }
         if (mediaId <= 0 || server.isBlank()) { finish(); return }
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
@@ -520,15 +527,13 @@ class PlayerActivity : ComponentActivity() {
     private fun loadNextEpisode() {
         network.execute {
             try {
-                val data=request("/api/tv/next?media_id=$mediaId")
-                val next=data.optJSONObject("next")
+                val next = if (seasonShuffle) shuffleQueue.optJSONObject(0)
+                    else request("/api/tv/next?media_id=$mediaId").optJSONObject("next")
                 val settings=request("/api/settings/playback")
                 handler.post {
                     autoPlayNext=settings.optBoolean("auto_play_next",false)
-                    if(next!=null){
-                        nextMediaId=next.optInt("media_id").takeIf{it>0}
-                        nextTitle=next.optString("title","Next Episode")
-                    }
+                    nextMediaId=next?.optInt("media_id")?.takeIf{it>0}
+                    nextTitle=next?.optString("title","Next Episode") ?: ""
                 }
             }catch(_:Exception){}
         }
@@ -539,7 +544,18 @@ class PlayerActivity : ComponentActivity() {
         AlertDialog.Builder(this).setTitle("Up next")
             .setMessage(nextTitle)
             .setPositiveButton("Play Next"){_,_->
-                startActivity(intent.putExtra("media_id",next).putExtra("title",nextTitle))
+                val following=android.content.Intent(this,PlayerActivity::class.java)
+                    .putExtra("media_id",next).putExtra("title",nextTitle)
+                    .putExtra("server",server)
+                    .putExtra("restart",
+                        if(seasonShuffle)shuffleQueue.optJSONObject(0)?.optBoolean("restart",true) ?: true
+                        else true)
+                if(seasonShuffle){
+                    val remaining=JSONArray()
+                    for(i in 1 until shuffleQueue.length())remaining.put(shuffleQueue.get(i))
+                    following.putExtra("shuffle_queue",remaining.toString())
+                }
+                startActivity(following)
                 finish()
             }.setNegativeButton("Cancel",null).show()
     }
