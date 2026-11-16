@@ -285,6 +285,43 @@ body.tv-season-mode #loading:empty{display:none}
   .season-action-facts .season-fact{max-width:130px}
   .season-support .tv-cast{grid-auto-columns:85px}
 }
+
+/* Comfortable episode stills with a single, borderless selected scale state. */
+.season-episode-track{grid-auto-columns:clamp(168px,20vw,270px);gap:clamp(15px,1.8vw,26px);
+  padding-top:14px;padding-bottom:14px}
+.season-episode-tile,.season-episode-tile.is-selected{
+  border-color:transparent!important;box-shadow:none!important}
+.season-episode-tile:is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+  transform:scale(1.07)!important;filter:brightness(1.13)}
+.season-episode-tile.is-selected:not(:focus):not(:focus-visible){transform:none}
+.season-support .tv-cast-person:is(:focus,:focus-visible) .tv-actor-image{
+  outline:0!important;box-shadow:none!important;transform:scale(1.07)!important}
+.season-actions-row .media-icon-action:is(:focus,:focus-visible),
+.tv-show-hero .media-icon-action:is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;
+  transform:scale(1.16)!important;filter:brightness(1.25)}
+/* Small anchored menu, not a full-screen modal. Scroll its four items with a remote. */
+.season-more-popover{position:fixed;z-index:1100;
+  width:min(242px,calc(100vw - 24px));background:#0e1b2beF;
+  color:#e3f0fc;border:1px solid #446078;border-radius:9px;
+  padding:5px;box-shadow:0 12px 28px #000a}
+.season-more-popover[hidden]{display:none}
+.season-more-popover .season-overflow-item{display:block;width:100%;min-height:40px;
+  text-align:left;background:transparent!important;color:inherit;border:0!important;
+  border-radius:5px;padding:9px 10px;cursor:pointer;font-size:.86rem;white-space:normal}
+.season-more-popover .season-overflow-item:is(:focus,:focus-visible,:hover){
+  outline:0!important;box-shadow:none!important;
+  background:#203d58!important;filter:brightness(1.16);
+  transform:scale(1.025)!important}
+.tv-reviews{grid-template-columns:repeat(auto-fill,minmax(min(100%,290px),1fr));gap:10px}
+.tv-review{padding:13px 14px}
+.tv-review:not(.expanded) p{-webkit-line-clamp:4}
+.tv-review .review-expand:is(:focus,:focus-visible){outline:0!important;transform:scale(1.05)}
+@media(max-width:720px){
+  .season-episode-track{grid-auto-columns:clamp(145px,34vw,218px);
+    gap:14px;padding-top:14px;padding-bottom:14px}
+}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -614,8 +651,33 @@ function showExtras(data,{includeFacts=true}={}){
    }
    section.append(grid);
  }
- section.append(el('h2','','Reviews'));
- section.append(rtReviewsLink(data.title||data.show?.title));
+ const reviews=Array.isArray(data.reviews)?data.reviews.filter(review=>review.excerpt):[];
+ if(reviews.length){
+   section.append(el('h2','','Reviews · TMDB community'));
+   const grid=el('div','tv-reviews');
+   for(const review of reviews){
+     const entry=el('article','tv-review');
+     entry.append(el('strong','',review.author||'TMDB contributor'));
+     const excerpt=el('p','',String(review.excerpt)
+       .replace(/\*\*(.*?)\*\*/g,'$1').replace(/\n\s*\n/g,'\n').trim());
+     entry.append(excerpt);
+     if(excerpt.textContent.length>165){
+       const more=el('button','review-expand','Read more');more.type='button';
+       more.setAttribute('aria-expanded','false');
+       more.onclick=()=>{
+         const expanded=entry.classList.toggle('expanded');
+         more.textContent=expanded?'Show less':'Read more';
+         more.setAttribute('aria-expanded',String(expanded));
+       };
+       entry.append(more);
+     }
+     grid.append(entry);
+   }
+   section.append(grid);
+ }else{
+   section.append(el('h2','','Reviews'));
+   section.append(el('p','muted','No reviews are available from the configured metadata provider.'));
+ }
  return section;
 }
 function coverCard(item,title,subtitle,href){
@@ -660,6 +722,11 @@ function seriesControls(data){
  const facts=el('div','series-controls-facts');
  const rating=el('span','series-fact-chip',data.content_rating||'TV rating unavailable');
  rating.title='TV parental rating';facts.append(rating);
+ if(Number.isInteger(data.rotten_tomatoes)){
+   facts.append(el('span','series-fact-chip','RT '+data.rotten_tomatoes+'%'));
+ }
+ if(Number(data.rating)>0)facts.append(el('span','series-fact-chip',
+   'TMDB '+Number(data.rating).toFixed(1)+'/10'));
  if(data.imdb_id&&/^tt[0-9]{7,9}$/.test(data.imdb_id)){
    const link=el('a','series-fact-chip',
      data.imdb_rating>0?'IMDb ★ '+Number(data.imdb_rating).toFixed(1)+'/10':'IMDb');
@@ -867,13 +934,14 @@ async function renderSeason(){
     actions.append(more);
     const facts=el('div','season-action-facts');
     const score=data.show.rotten_tomatoes;
-    const rt=el('a','season-rt-link',
-      Number.isInteger(score)&&score>=0&&score<=100?'RT '+score+'%':'Rotten Tomatoes');
-    rt.href=rtSearchUrl(data.show.title);
-    rt.rel='noreferrer';
-    rt.title='View Rotten Tomatoes critic ratings and reviews';
-    rt.setAttribute('aria-label',rt.title);
-    facts.append(rt);
+    if(Number.isInteger(score)&&score>=0&&score<=100){
+      const rt=el('span','season-fact','RT '+score+'%');
+      rt.title='Rotten Tomatoes critic score';facts.append(rt);
+    }
+    if(Number(data.show.rating)>0){
+      const tmdb=el('span','season-fact','TMDB '+Number(data.show.rating).toFixed(1)+'/10');
+      tmdb.title='TMDB community rating';facts.append(tmdb);
+    }
     if(data.show.network)facts.append(el('span','season-fact',data.show.network));
     if(Array.isArray(data.show.genres)&&data.show.genres.length)
       facts.append(el('span','season-fact',data.show.genres.join(' · ')));
