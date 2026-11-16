@@ -114,7 +114,7 @@ def show_metadata(title, year=None):
     """Only exact-normalized title matches, avoiding incorrect posters for similar shows."""
     if not token_status():
         return {}
-    key = "tv:v3:" + _simple(title) + ":" + str(year or "")
+    key = "tv:v4:" + _simple(title) + ":" + str(year or "")
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -147,7 +147,7 @@ def show_metadata_by_id(tmdb_id, fallback=None):
     if not token_status() or not isinstance(tmdb_id, int) or tmdb_id <= 0:
         return {}
     details = _call("tv/" + str(tmdb_id), query={
-        "language": "en-US", "append_to_response": "videos,credits,reviews"
+        "language": "en-US", "append_to_response": "videos,credits,reviews,content_ratings,external_ids"
     })
     if not isinstance(details, dict):
         details = fallback
@@ -182,7 +182,15 @@ def show_metadata_by_id(tmdb_id, fallback=None):
         for review in (details.get("reviews") or {}).get("results", [])[:12]
         if isinstance(review, dict) and review.get("content")
     ]
+    ratings = (details.get("content_ratings") or {}).get("results") or []
+    us_rating = next((entry.get("rating") for entry in ratings
+                      if isinstance(entry, dict) and entry.get("iso_3166_1") == "US"
+                      and entry.get("rating")), None)
+    imdb_id = (details.get("external_ids") or {}).get("imdb_id")
+    if not isinstance(imdb_id, str) or not re.fullmatch(r"tt[0-9]{7,9}", imdb_id):
+        imdb_id = None
     metadata = {
+        "content_rating": us_rating, "imdb_id": imdb_id,
         "cast": cast,
         "reviews": reviews,
         "trailer_key": trailer,
@@ -200,6 +208,41 @@ def show_metadata_by_id(tmdb_id, fallback=None):
     }
 
     return metadata
+
+
+def imdb_details(imdb_id):
+    """Optional IMDb-sourced rating via OMDb; never mislabel TMDB votes."""
+    key = os.environ.get("OMDB_API_KEY", "").strip()
+    if not key or not isinstance(imdb_id, str) or not re.fullmatch(r"tt[0-9]{7,9}", imdb_id):
+        return {}
+    cache_key = "omdb:series:v1:" + imdb_id
+    cached = _cache_get(cache_key)
+    if cached is not None:
+        return cached
+    url = "https://www.omdbapi.com/?" + urllib.parse.urlencode(
+        {"apikey": key, "i": imdb_id, "type": "series", "r": "json"}
+    )
+    try:
+        request = urllib.request.Request(url, headers={"User-Agent": "OneEyedWillie/0.6"})
+        with urllib.request.urlopen(request, timeout=4) as response:
+            data = json.loads(response.read(100_000))
+    except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError, ValueError):
+        return {}
+    if not isinstance(data, dict) or data.get("Response") != "True":
+        return {}
+    score = data.get("imdbRating")
+    try:
+        score = float(score)
+        if not 0 < score <= 10:
+            score = None
+    except (TypeError, ValueError):
+        score = None
+    content_rating = data.get("Rated")
+    if not isinstance(content_rating, str) or not re.fullmatch(r"(?:TV-[A-Z0-9-]{1,8}|NR)", content_rating):
+        content_rating = None
+    result = {"rating": score, "content_rating": content_rating}
+    _cache_put(cache_key, result)
+    return result
 
 
 def season_metadata(tmdb_id, season_number):
