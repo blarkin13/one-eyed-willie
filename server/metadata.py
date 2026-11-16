@@ -211,11 +211,11 @@ def show_metadata_by_id(tmdb_id, fallback=None):
 
 
 def imdb_details(imdb_id):
-    """Optional IMDb-sourced rating via OMDb; never mislabel TMDB votes."""
+    """Optional IMDb and Rotten Tomatoes scores via OMDb, when explicitly supplied."""
     key = os.environ.get("OMDB_API_KEY", "").strip()
     if not key or not isinstance(imdb_id, str) or not re.fullmatch(r"tt[0-9]{7,9}", imdb_id):
         return {}
-    cache_key = "omdb:series:v1:" + imdb_id
+    cache_key = "omdb:series:v2:" + imdb_id
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -240,7 +240,16 @@ def imdb_details(imdb_id):
     content_rating = data.get("Rated")
     if not isinstance(content_rating, str) or not re.fullmatch(r"(?:TV-[A-Z0-9-]{1,8}|NR)", content_rating):
         content_rating = None
-    result = {"rating": score, "content_rating": content_rating}
+    rt_score = None
+    for entry in data.get("Ratings", []):
+        if not isinstance(entry, dict) or entry.get("Source") != "Rotten Tomatoes":
+            continue
+        value = entry.get("Value")
+        if isinstance(value, str) and re.fullmatch(r"(?:100|[0-9]{1,2})%", value):
+            rt_score = int(value[:-1])
+        break
+    result = {"rating": score, "content_rating": content_rating,
+              "rotten_tomatoes": rt_score}
     _cache_put(cache_key, result)
     return result
 
