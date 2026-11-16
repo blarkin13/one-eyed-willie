@@ -2,6 +2,10 @@
 
 Lightweight, self-hosted Movies and TV media server. Modern interface, with pirate identity limited to the name and logo.
 
+## Third-party integration branding
+
+The SABnzbd icon bundled as `server/sabnzbd-official.svg` is the unmodified upstream `icons/logo-arrow.svg` from [SABnzbd's source repository](https://github.com/sabnzbd/sabnzbd/blob/develop/icons/logo-arrow.svg). **SABnzbd name and icon © the SABnzbd Team.** Their [branding terms](https://sabnzbd.org/wiki/contact) permit this use by applications connecting through the SABnzbd API; use does not imply endorsement or a guarantee of continued API compatibility. The icon is not licensed under SABnzbd's software license.
+
 ## Initial milestone
 
 - Dockerized FastAPI server on port 8787

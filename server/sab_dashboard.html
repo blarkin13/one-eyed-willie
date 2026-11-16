@@ -33,7 +33,7 @@
 </style></head>
 <body data-page="sabnzbd"><div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content sab-content">
-<div class="page-head"><div><p class="eyebrow">Download manager</p><h1>SABnzbd</h1>
+<div class="page-head"><div><p class="eyebrow">Download manager</p><h1><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt=""> SABnzbd</h1>
 <p>Monitor and control your download queue from One-Eyed Willie.</p></div>
 <div class="sab-toolbar">
 <button type="button" id="sab-reload" class="secondary-button">Refresh</button>
@@ -41,7 +41,7 @@
 <button type="button" id="sab-resume" class="secondary-button" disabled>Resume all</button>
 </div></div>
 <nav class="service-tabs" aria-label="Download services">
-<a href="/radarr">Radarr</a><a href="/sonarr">Sonarr</a><a href="/sabnzbd" aria-current="page">SABnzbd</a>
+<a href="/radarr">Radarr</a><a href="/sonarr">Sonarr</a><a href="/sabnzbd" aria-current="page"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd</a>
 <a href="/settings/connections">Manage connections</a></nav>
 <p id="sab-feedback" role="status" class="sab-note">Connecting to SABnzbd…</p>
 <div id="sab-body" hidden>
@@ -55,6 +55,7 @@
 <section class="sab-section"><h2>Recent history</h2><div id="sab-history" class="sab-table"></div></section>
 </div>
 <p class="sab-note">SABnzbd still runs independently. Download additions from Radarr/Sonarr and file imports continue through their usual connections. Pause/resume changes SABnzbd's live queue.</p>
+<p class="sab-note" role="note"><small>SABnzbd name and icon &copy; the SABnzbd Team. Used for API integration; not an endorsement.</small></p>
 </main></div></div>
 <script>
 const $=id=>document.getElementById(id);

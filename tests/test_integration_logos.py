@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1] / "server"
 
 class IntegrationLogoTests(unittest.TestCase):
     def test_uses_upstream_svg_files(self):
-        for brand in ("radarr", "sonarr"):
+        for brand in ("radarr", "sonarr", "sabnzbd"):
             svg = (ROOT / f"{brand}-official.svg").read_text()
             self.assertTrue(svg.startswith("<svg"))
             self.assertIn("<path", svg)
@@ -27,10 +27,21 @@ class IntegrationLogoTests(unittest.TestCase):
         shell = (ROOT / "shell.js").read_text()
         self.assertIn("'/assets/brand/'+item.id+'.svg'", shell)
         self.assertIn("className='integration-logo'", shell)
-        for filename in ("manager_dashboard.html", "arr_connections.html"):
+        self.assertIn("['radarr','sonarr','sabnzbd'].includes(item.id)", shell)
+        for filename in ("manager_dashboard.html", "arr_connections.html",
+                         "services.html"):
             page = (ROOT / filename).read_text()
-            self.assertIn("/assets/brand/radarr.svg", page)
-            self.assertIn("/assets/brand/sonarr.svg", page)
+            for brand in ("radarr", "sonarr", "sabnzbd"):
+                self.assertIn(f"/assets/brand/{brand}.svg", page, filename)
+        sab = (ROOT / "sab_dashboard.html").read_text()
+        self.assertIn("/assets/brand/sabnzbd.svg", sab)
+        self.assertIn("SABnzbd Team", sab)
+        self.assertIn("name and icon", sab)
+        svg = (ROOT / "sabnzbd-official.svg").read_text()
+        self.assertIn('viewBox="0 0 608 608"', svg)
+        self.assertIn('#FFB300', svg)
+        self.assertIn('#FFCA28', svg)
+        self.assertIn("SABnzbd name and icon", (ROOT.parent / "README.md").read_text())
         credit = (ROOT / "credit_detail.html").read_text()
         self.assertIn("'/assets/brand/'+provider+'.svg'", credit)
         self.assertNotIn("fa-bullseye", credit)
