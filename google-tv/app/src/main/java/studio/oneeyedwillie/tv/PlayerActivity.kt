@@ -928,13 +928,17 @@ class PlayerActivity : ComponentActivity() {
         val active = player ?: return
         val position = (active.currentPosition / 1000.0).coerceAtLeast(0.0) +
             (if (hlsMode) hlsOffset else 0.0)
-        val duration = if (durationSeconds > 0) durationSeconds else active.duration / 1000.0
-        if (mediaId < 1 || server.isBlank() || !duration.isFinite() ||
-            duration <= 0 || position < 0) return
+        // HLS / transcoded streams may report TIME_UNSET (negative) for
+        // their duration. A valid played position must still be persisted:
+        // /api/playback/progress explicitly accepts duration_seconds=0.
+        val knownDuration = currentDuration().takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+        if (mediaId < 1 || server.isBlank() || !position.isFinite() ||
+            position < 1.0 && !finished) return
+        val safePosition = if (knownDuration > 0) position.coerceAtMost(knownDuration) else position
         val body = JSONObject().apply {
             put("media_id", mediaId)
-            put("position_seconds", position.coerceAtMost(duration))
-            put("duration_seconds", duration)
+            put("position_seconds", safePosition)
+            put("duration_seconds", knownDuration)
             put("completed", finished || completed)
         }.toString()
         network.execute {
