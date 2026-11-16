@@ -237,6 +237,7 @@ body.tv-season-mode #loading:empty{display:none}
   .season-show-name{font-size:clamp(1.45rem,4vw,2.3rem)}
   .season-episode-track{grid-auto-columns:clamp(110px,27vw,166px);padding:8px 8px}
   .season-actions-row{padding-left:16px;padding-right:16px}
+  .season-actions-label{display:none}
   .tv-show-hero .hero-poster{max-width:125px;max-height:190px}
   .tv-show-hero .series-controls{gap:6px}
 }
@@ -753,8 +754,8 @@ async function renderSeason(){
     if(canResume(episode))
       actions.append(playbackButton(episode.id,data.show.title+' · '+epTitle.textContent,true));
     actions.append(trailerButton(data.show.trailer_key,data.show.title));
-    const age=el('span','season-parental-rating',data.show.content_rating||'TV rating unavailable');
-    age.title='TV parental rating';actions.append(age);
+    const age=el('span','season-parental-rating',data.show.content_rating||'TV —');
+    age.title=data.show.content_rating?'TV parental rating':'TV parental rating unavailable';actions.append(age);
     const more=el('button','media-icon-action season-more-button');
     more.type='button';more.title='Episode and season options';
     more.setAttribute('aria-label','Episode and season options');
