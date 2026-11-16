@@ -15,6 +15,7 @@ class LocalThemeTests(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         root = Path(temp.name)
+        theme_music._failures.clear()
         self.media = root / "media"
         self.media.mkdir()
         self.db_patch = patch.object(library, "DB_PATH", root / "db.sqlite3")
@@ -103,6 +104,42 @@ class LocalThemeTests(unittest.TestCase):
             self.assertEqual(fetch.call_count, 2)
         self.assertEqual(len(list(cache.glob("*.mp3"))), 1)
 
+    def test_legacy_heading_with_theme_song_suffix_is_accepted(self):
+        title = "The Big Bang Theory"
+        folder = self.media / "TV" / title / "Season 01"
+        folder.mkdir(parents=True)
+        video = folder / "The Big Bang Theory.S01E01.mkv"
+        video.write_bytes(b"episode")
+        with library.db() as conn:
+            conn.execute("UPDATE media SET path=? WHERE id=2", (str(video),))
+        page = (b'<h1>The Big Bang Theory - Theme Song</h1>'
+                b'<a href="/download.php?f=Big_Bang_Theory_%28The%29">MP3</a>')
+        cache = self.media.parent / "legacy-cache"
+        def fake_fetch(url, accept, limit):
+            if url.endswith(".html"):
+                return page, "text/html"
+            return b"ID3music", "audio/mpeg"
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
+             patch.object(theme_music, "_fetch", side_effect=fake_fetch):
+            self.assertTrue(theme_music.theme_info(2)["available"])
+
+    def test_access_denied_reports_distinct_reason_and_does_not_retry_rapidly(self):
+        from urllib.error import HTTPError
+        cache = self.media.parent / "blocked-cache"
+        blocked = HTTPError("https://televisiontunes.com/", 403, "Forbidden", {}, None)
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
+             patch.object(theme_music, "_fetch", side_effect=blocked) as fetch:
+            info = theme_music.theme_info(2)
+            self.assertEqual(info["reason"], "source_access_denied")
+            self.assertEqual(theme_music.theme_info(2)["reason"], "source_access_denied")
+            self.assertEqual(fetch.call_count, 1)
+
+    def test_source_heading_mismatch_reports_precise_reason(self):
+        cache = self.media.parent / "mismatch-cache"
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
+             patch.object(theme_music, "_fetch", return_value=(b"<h1>Other TV Show</h1>", "text/html")):
+            self.assertEqual(theme_music.theme_info(2)["reason"], "source_title_mismatch")
+
     def test_wrong_title_or_unavailable_site_never_returns_audio(self):
         cache = self.media.parent / "another-cache"
         page = b'<html><h1>Different Show</h1><a href="/download.php?f=Severance">MP3</a></html>'
@@ -110,7 +147,7 @@ class LocalThemeTests(unittest.TestCase):
              patch.object(theme_music, "_fetch", return_value=(page, "text/html")) as fetch:
             info = theme_music.theme_info(2)
             self.assertFalse(info["available"])
-            self.assertEqual(info["reason"], "not_available_from_source")
+            self.assertEqual(info["reason"], "source_title_mismatch")
             self.assertEqual(fetch.call_count, 1)
         self.assertFalse(list(cache.glob("*.mp3")) if cache.exists() else False)
 
