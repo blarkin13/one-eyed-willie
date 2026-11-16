@@ -90,7 +90,7 @@ class LocalThemeTests(unittest.TestCase):
         audio = b"ID3" + b"theme-data"
         def fake_fetch(url, accept, limit):
             if url.endswith(".html"):
-                self.assertIn("Big_Bang_Theory_(The)", url)
+                self.assertIn("Big_Bang_Theory_%28The%29", url)
                 return page, "text/html"
             self.assertIn("/download.php?f=Big_Bang_Theory_", url)
             return audio, "audio/mpeg"
