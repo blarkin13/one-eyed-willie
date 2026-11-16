@@ -196,8 +196,27 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
-                // External metadata links may not navigate the embedded trusted browser.
-                return !sameOrigin(uri.toString())
+                // Only open approved HTTPS metadata destinations outside our
+                // embedded server WebView. Rotten Tomatoes review links must be
+                // usable on Google TV instead of silently being blocked.
+                if (!sameOrigin(uri.toString())) {
+                    val host = uri.host?.lowercase().orEmpty()
+                    if (uri.scheme == "https" && host in setOf(
+                            "www.rottentomatoes.com", "rottentomatoes.com",
+                            "www.imdb.com", "www.youtube.com", "youtube.com"
+                        )) {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, uri)
+                                .addCategory(Intent.CATEGORY_BROWSABLE))
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            android.widget.Toast.makeText(this@MainActivity,
+                                "No browser is installed to open this link",
+                                android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    return true
+                }
+                return false
             }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
