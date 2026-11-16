@@ -65,6 +65,7 @@ class MainActivity : ComponentActivity() {
     } catch (_: Exception) { false }
 
     private fun showSetup(error: String = "") {
+        browser?.keepScreenOn = false
         browser?.destroy()
         browser = null
         fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
@@ -167,6 +168,15 @@ class MainActivity : ComponentActivity() {
                 web: WebView, url: String, message: String,
                 defaultValue: String?, result: JsPromptResult
             ): Boolean {
+                if (sameOrigin(url) && browser === web &&
+                    (message == "oewtv:awake:1" || message == "oewtv:awake:0")) {
+                    // Restrict the playback-only stay-awake signal to our
+                    // trusted server origin. Do not disable system-wide sleep.
+                    val awake = message == "oewtv:awake:1"
+                    result.confirm("ACK")
+                    web.post { if (browser === web && !isFinishing) web.keepScreenOn = awake }
+                    return true
+                }
                 if (!sameOrigin(url) || !message.startsWith("oewtv:play:"))
                     return super.onJsPrompt(web, url, message, defaultValue, result)
                 try {
@@ -187,6 +197,10 @@ class MainActivity : ComponentActivity() {
             }
         }
         view.webViewClient = object : WebViewClient() {
+            override fun onPageStarted(web: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                web.keepScreenOn = false
+                super.onPageStarted(web, url, favicon)
+            }
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
                 if (uri.scheme == "oewtv" && uri.host == "play") {
@@ -308,6 +322,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // If the embedded browser player was interrupted by a system dialog,
+        // restore stay-awake only when a video is still actually playing.
+        browser?.evaluateJavascript(
+            """(() => {
+              const v=document.querySelector('.willie-player video');
+              try{prompt('oewtv:awake:'+(v&&!v.paused&&!v.ended?'1':'0'),'')}catch(_){}
+            })()""", null
+        )
         // Native Media3 playback runs in another Activity. Refresh the
         // underlying season page's watched flags and resume positions when
         // returning to its WebView, without navigating away from the show.
@@ -316,7 +338,14 @@ class MainActivity : ComponentActivity() {
         )
     }
 
+    override fun onPause() {
+        // Never hold the display awake when browsing or watching is backgrounded.
+        browser?.keepScreenOn = false
+        super.onPause()
+    }
+
     override fun onDestroy() {
+        browser?.keepScreenOn = false
         browser?.destroy()
         browser = null
         super.onDestroy()
@@ -366,6 +395,25 @@ class MainActivity : ComponentActivity() {
                 window.WilliePlayer.__androidTv=true;
               };
               installPlayerHook();
+              // Fallback HTML5 playback must prevent Android TV inactivity
+              // sleep as well. A capturing listener handles non-bubbling media
+              // events without needing to modify the server's player script.
+              if(!window.__oewTvVideoAwakeHook){
+                window.__oewTvVideoAwakeHook=true;
+                const notifyAwake=(enabled)=>{
+                  try{prompt('oewtv:awake:'+(enabled?'1':'0'),'')}catch(_){}
+                };
+                document.addEventListener('playing',event=>{
+                  const video=event.target;
+                  if(video?.matches?.('.willie-player video'))notifyAwake(true);
+                },true);
+                for(const eventName of ['pause','ended','emptied']){
+                  document.addEventListener(eventName,event=>{
+                    const video=event.target;
+                    if(video?.matches?.('.willie-player video'))notifyAwake(false);
+                  },true);
+                }
+              }
               let hookRetries=0;
               const hookTimer=setInterval(()=>{
                 installPlayerHook();

@@ -16,6 +16,7 @@ import android.os.Looper
 import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -48,6 +49,7 @@ class PlayerActivity : ComponentActivity() {
     private var durationSeconds = 0.0
     private var completed = false
     private var shuttingDown = false
+    private var visibleForPlayback = false
     private var fallbackStarted = false
     private lateinit var message: TextView
     private lateinit var playerView: PlayerView
@@ -92,6 +94,23 @@ class PlayerActivity : ComponentActivity() {
             saveProgress(false)
             handler.postDelayed(this, 15_000)
         }
+    }
+
+    /** Android TV inactivity sleep is not reset by decoding video frames.
+     * Keep the display awake only while this visible player is actively
+     * intending to play (including short network/decoder buffering).
+     * Pausing, finishing, leaving the activity, or errors restore normal sleep.
+     */
+    private fun updatePlaybackScreenAwake() {
+        val active = player
+        val shouldStayAwake = visibleForPlayback && !shuttingDown &&
+            active != null && active.playWhenReady &&
+            (active.playbackState == Player.STATE_READY ||
+             active.playbackState == Player.STATE_BUFFERING)
+        if (shouldStayAwake)
+            window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        else
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -140,6 +159,7 @@ class PlayerActivity : ComponentActivity() {
             playerView.player = exo
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
+                    updatePlaybackScreenAwake()
                     if (state == Player.STATE_READY) {
                         message.visibility = View.GONE
                         scheduleHide()
@@ -151,7 +171,11 @@ class PlayerActivity : ComponentActivity() {
                         if (autoPlayNext && nextMediaId != null) showNextEpisode()
                     }
                 }
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    updatePlaybackScreenAwake()
+                }
                 override fun onPlayerError(error: PlaybackException) {
+                    updatePlaybackScreenAwake()
                     if (!hlsMode && !fallbackStarted) {
                         fallbackStarted = true
                         val position = (exo.currentPosition / 1000.0).coerceAtLeast(0.0)
@@ -922,6 +946,8 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onStop() {
+        visibleForPlayback = false
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         handler.removeCallbacks(checkpoint)
         handler.removeCallbacks(uiRefresh)
         handler.removeCallbacks(hideChrome)
@@ -934,6 +960,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onStart() {
         super.onStart()
+        visibleForPlayback = true
+        updatePlaybackScreenAwake()
         if (player != null) {
             handler.removeCallbacks(checkpoint)
             handler.postDelayed(checkpoint, 15_000)
@@ -944,6 +972,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         shuttingDown = true
+        visibleForPlayback = false
+        window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         pendingSeekAction?.let(handler::removeCallbacks)
         pendingSeekAction = null
         handler.removeCallbacks(scrubCommit)
