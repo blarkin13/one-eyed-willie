@@ -46,15 +46,18 @@ class HLSTests(unittest.TestCase):
         command = hls._command(self.video, folder, 20)
         self.assertIn("-hls_time", command)
         self.assertIn("4", command)
-        self.assertIn("delete_segments+temp_file+independent_segments", command)
+        self.assertIn("temp_file+independent_segments", command)
+        self.assertIn("-hls_playlist_type", command)
+        self.assertEqual(command[command.index("-hls_playlist_type") + 1], "event")
+        self.assertEqual(command[command.index("-hls_list_size") + 1], "0")
+        self.assertIn("-readrate", command)
+        self.assertNotIn("-re", command)
         self.assertIn("libx264", command)
         self.assertNotIn("h264_vaapi", command)
         gpu = hls._command(self.video, folder, 20, True)
         self.assertIn("h264_vaapi", gpu)
-        self.assertIn("-hwaccel", gpu)
-        self.assertEqual(gpu[gpu.index("-hwaccel")+1], "vaapi")
-        self.assertIn("-hwaccel_output_format", gpu)
-        self.assertIn("scale_vaapi=w=1280:h=720:force_original_aspect_ratio=decrease:force_divisible_by=2:format=nv12", gpu)
+        self.assertIn("-vaapi_device", gpu)
+        self.assertIn("pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload", gpu)
         self.assertNotIn("libx264", gpu)
 
     def test_vaapi_failure_restarts_with_software(self):
@@ -66,7 +69,7 @@ class HLSTests(unittest.TestCase):
              patch.object(hls, "probe_duration", return_value=150), \
              patch.object(hls.subprocess, "Popen", side_effect=[gpu, software]) as popen:
             info = hls.start_hls(1, 0)
-            self.assertEqual(info["engine"], "Intel VAAPI decode + encode")
+            self.assertEqual(info["engine"], "Intel VAAPI encode")
             data = hls.stream_status(info["session"])
         self.assertEqual(data["engine"], "CPU fallback")
         self.assertEqual(popen.call_count, 2)
