@@ -7,6 +7,7 @@ import android.graphics.drawable.GradientDrawable
 import android.app.AlertDialog
 import android.view.KeyEvent
 import android.widget.ImageButton
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.os.Bundle
@@ -171,7 +172,7 @@ class PlayerActivity : ComponentActivity() {
         setImageResource(icon)
         contentDescription = description
         tooltipText = description
-        scaleType = ImageButton.ScaleType.CENTER_INSIDE
+        scaleType = ImageView.ScaleType.CENTER_INSIDE
         setPadding(dp(if (large) 15 else 14), dp(if (large) 15 else 14),
                    dp(if (large) 15 else 14), dp(if (large) 15 else 14))
         isFocusable = true
