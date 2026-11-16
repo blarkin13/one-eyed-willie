@@ -689,6 +689,26 @@ async function renderSeason(){
   const currentTab=tabs.querySelector('[aria-current="page"]');
   if(currentTab)revealRailItem(tabs,currentTab);
   tabsRail.update();episodeRail.update();
+  // Refresh watched flags and resume positions when the player closes or
+  // Android TV returns from its native playback activity.
+  const refreshEpisodeProgress=async()=>{
+    try{
+      const updated=await loadJson('/api/tv/season?'+new URLSearchParams({
+        library_id:state.library_id,key:state.key,season_number:state.season_number
+      }));
+      const byId=new Map((updated.episodes||[]).map(episode=>[episode.id,episode]));
+      for(const episode of available){
+        const fresh=byId.get(episode.id);
+        if(!fresh)continue;
+        episode.watched=fresh.watched;
+        episode.position_seconds=fresh.position_seconds;
+        episode.duration_seconds=fresh.duration_seconds;
+        syncEpisodeWatchedBadge(allCards.get(episode.id),episode.watched);
+      }
+      selectEpisode(selected);
+    }catch(_){/* Keep the last usable state if the server is temporarily unavailable. */}
+  };
+  document.addEventListener('willie:watch-updated',refreshEpisodeProgress);
   // Reuse the show's existing cast/crew, metadata and review source.
   // Playback and episode selection stay usable if enrichment is unavailable.
   try{
