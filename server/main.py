@@ -10,6 +10,7 @@ from server.remote_config import router as remote_config_router
 from server.home import router as home_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
+from server.sidebar_settings import router as sidebar_settings_router
 from server.plex_import import router as plex_router
 from server.manager_control import router as manager_router
 from server.manager_advanced import router as manager_advanced_router
@@ -69,6 +70,7 @@ app.include_router(remote_config_router)
 app.include_router(home_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
+app.include_router(sidebar_settings_router)
 app.include_router(plex_router)
 app.include_router(manager_router)
 app.include_router(manager_advanced_router)
@@ -195,6 +197,18 @@ def player_script():
 @app.get("/watch/{media_id}")
 def watch_page(media_id: int):
     return FileResponse(Path(__file__).with_name("watch.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/settings")
+def settings_home_page():
+    return FileResponse(Path(__file__).with_name("settings_hub.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/settings/general")
+def general_settings_page():
+    return FileResponse(Path(__file__).with_name("general_settings.html"), media_type="text/html",
                         headers={"Cache-Control": "no-store"})
 
 
