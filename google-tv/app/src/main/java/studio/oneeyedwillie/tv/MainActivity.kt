@@ -539,6 +539,43 @@ class MainActivity : ComponentActivity() {
                   -webkit-line-clamp:2;overflow:hidden!important
                 }
                 body[data-page="movies"] .movie-cast{scroll-snap-type:none!important}
+                /* Denser TV typography: keep text readable from a couch while
+                   avoiding loosely spaced synopsis, facts and cast labels. */
+                body[data-page="movies"] .movie-detail-data h1{
+                  letter-spacing:-.055em!important;line-height:1.04!important;
+                  margin-bottom:7px!important
+                }
+                body[data-page="movies"] .movie-detail-data .movie-description{
+                  letter-spacing:-.013em!important;line-height:1.3!important;
+                  margin:6px 0 8px!important
+                }
+                body[data-page="movies"] .movie-detail-data .movie-meta,
+                body[data-page="movies"] .movie-detail-genres,
+                body[data-page="movies"] .movie-detail-credit,
+                body[data-page="movies"] #progress-label{
+                  letter-spacing:-.012em!important;line-height:1.24!important
+                }
+                body[data-page="movies"] .movie-detail-genres,
+                body[data-page="movies"] .movie-detail-credit,
+                body[data-page="movies"] #progress-label{
+                  margin-top:4px!important;margin-bottom:4px!important
+                }
+                body[data-page="movies"] .movie-facts{gap:11px!important;margin-bottom:23px!important}
+                body[data-page="movies"] .movie-ratings{gap:8px 18px!important}
+                body[data-page="movies"] .rating-item{
+                  letter-spacing:-.012em!important;line-height:1.2!important
+                }
+                body[data-page="movies"] .movie-fact-list{
+                  gap:5px 17px!important;line-height:1.28!important;
+                  letter-spacing:-.012em!important
+                }
+                body[data-page="movies"] .movie-block{padding:23px 0 28px!important}
+                body[data-page="movies"] .movie-block h2{margin-bottom:15px!important}
+                body[data-page="movies"] .cast-person{gap:3px!important}
+                body[data-page="movies"] .cast-person strong,
+                body[data-page="movies"] .cast-person span{
+                  line-height:1.25!important;letter-spacing:-.012em!important
+                }
                                 /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{
