@@ -70,14 +70,15 @@
 .home-feature-summary{max-width:670px;margin:0;color:#d6e2ee;
  font-size:clamp(.85rem,1.15vw,1rem);line-height:1.43;
  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden}
-.home-feature-genres{color:#b4cce3;font-size:.78rem;margin:8px 0 0;
+.home-feature-genres,.home-feature-cast{color:#b4cce3;font-size:.78rem;margin:8px 0 0;
  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.home-feature-cast{margin-top:4px;color:#c5d9ed}
 @media(max-width:700px){
  .home-feature{min-height:190px;border-radius:11px;margin-bottom:12px}
  .home-feature-copy{width:94%;padding:17px 20px}
  .home-feature-title{font-size:clamp(1.45rem,5.6vw,2rem)}
  .home-feature-summary{-webkit-line-clamp:2;font-size:.81rem}
- .home-feature-genres{display:none}
+ .home-feature-genres,.home-feature-cast{display:none}
  .home-feature::before{background:linear-gradient(90deg,#0a1425fa 0%,#0a1425e3 56%,#0a142578)}
 }
 @media(prefers-reduced-motion:reduce){
@@ -146,7 +147,8 @@ function makeHomeFeature(shelf){
  const meta=document.createElement('div');meta.className='home-feature-meta';
  const summary=document.createElement('p');summary.className='home-feature-summary';
  const genres=document.createElement('p');genres.className='home-feature-genres';
- copy.append(kicker,title,meta,summary,genres);feature.append(art,copy);
+ const cast=document.createElement('p');cast.className='home-feature-cast';
+ copy.append(kicker,title,meta,summary,genres,cast);feature.append(art,copy);
  shelf.insertBefore(feature,shelf.querySelector('.section-heading'));
  homeFeatureState.set(feature,{serial:0,active:-1,url:''});
  return feature;
@@ -185,6 +187,7 @@ function updateHomeFeature(link,item){
  const meta=feature.querySelector('.home-feature-meta');
  const summary=feature.querySelector('.home-feature-summary');
  const genres=feature.querySelector('.home-feature-genres');
+ const cast=feature.querySelector('.home-feature-cast');
  const watching=!!item.play_state;
  const label=item.kind==='tv'?'TV SERIES':'MOVIE';
  const context=watching?(item.play_state==='next'?'UP NEXT':'CONTINUE WATCHING'):label;
@@ -200,6 +203,8 @@ function updateHomeFeature(link,item){
   if(item.kind==='tv'){
    if(info.content_rating)bits.push(info.content_rating);
    if(info.network)bits.push(info.network);
+   if(Number(item.duration_seconds)>0&&watching)
+    bits.push(Math.round(Number(item.duration_seconds)/60)+' min');
    if(Number(info.rating)>0)bits.push('Rating '+Number(info.rating).toFixed(1)+'/10');
   }else{
    if(info.certification)bits.push(info.certification);
@@ -215,6 +220,9 @@ function updateHomeFeature(link,item){
       :'Continue from where you left off.')
       :'Select this title to see full details.')).trim();
   genres.textContent=Array.isArray(info.genres)?info.genres.filter(Boolean).join(' · '):'';
+  const actors=Array.isArray(info.cast)?info.cast.slice(0,4)
+   .map(actor=>actor?.name||actor?.person?.name||'').filter(Boolean):[];
+  cast.textContent=actors.length?'Starring: '+actors.join(', '):'';
   // Keep the old art visible until the next image has actually loaded.
   // Blanking it during every metadata request would defeat the crossfade.
   if(details!==null||validHomeArt(item.backdrop_url))
