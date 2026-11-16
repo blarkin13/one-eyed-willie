@@ -29,7 +29,8 @@ import kotlin.math.abs
 internal class PlayerScrubPreview(
     private val activity: Activity,
     private val origin: String,
-    private val mediaId: Int
+    private val mediaId: Int,
+    private val videoDuration: () -> Double
 ) {
     private data class Frame(val time: Double, val url: String)
     private val handler = Handler(Looper.getMainLooper())
@@ -107,7 +108,10 @@ internal class PlayerScrubPreview(
             currentUrl = null
             return
         }
-        val nearest = frames.minByOrNull { abs(it.time - seconds) } ?: return
+        val nearest = frames.minByOrNull { frame ->
+            val time = if (frame.time < 0) -frame.time * videoDuration() else frame.time
+            abs(time - seconds)
+        } ?: return
         desiredUrl = nearest.url
         if (currentUrl == nearest.url) return
         cache.get(nearest.url)?.let {
@@ -151,15 +155,31 @@ internal class PlayerScrubPreview(
                     val data = JSONObject(connection.inputStream.bufferedReader().use { it.readText() })
                     val arr = data.optJSONArray("frames")
                     val incoming = mutableListOf<Frame>()
-                    if (arr != null) for (i in 0 until arr.length()) {
-                        val frame = arr.optJSONObject(i) ?: continue
-                        val url = frame.optString("url")
-                        if (!framePattern.matches(url)) continue
-                        incoming.add(Frame(frame.optDouble("time_seconds", 0.0), url))
+                    if (arr != null) {
+                        for (i in 0 until arr.length()) {
+                            val frame = arr.optJSONObject(i) ?: continue
+                            val url = frame.optString("url")
+                            if (!framePattern.matches(url)) continue
+                            incoming.add(Frame(frame.optDouble("time_seconds", 0.0), url))
+                        }
+                    } else {
+                        // Older servers provide only six images without timestamps.
+                        val legacy = data.optJSONArray("images")
+                        if (legacy != null) for (i in 0 until legacy.length()) {
+                            val url = legacy.optString(i)
+                            if (framePattern.matches(url)) {
+                                incoming.add(Frame(-((i + 1).toDouble() / (legacy.length() + 1)), url))
+                            }
+                        }
                     }
                     val generating = data.optBoolean("generating", false)
                     handler.post {
                         if (disposed) return@post
+                        if (!data.optBoolean("enabled", true)) {
+                            placeholder.text = "Previews disabled in server settings"
+                        } else if (incoming.isEmpty()) {
+                            placeholder.text = "Preparing thumbnails…"
+                        }
                         frames = incoming
                         if (view.visibility == View.VISIBLE) {
                             show(lastPosition)
