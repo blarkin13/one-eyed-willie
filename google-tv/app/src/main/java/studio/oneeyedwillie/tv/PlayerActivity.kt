@@ -104,7 +104,7 @@ class PlayerActivity : ComponentActivity() {
     private fun updatePlaybackScreenAwake() {
         val active = player
         val shouldStayAwake = visibleForPlayback && !shuttingDown &&
-            active?.playWhenReady == true &&
+            active != null && active.playWhenReady &&
             (active.playbackState == Player.STATE_READY ||
              active.playbackState == Player.STATE_BUFFERING)
         if (shouldStayAwake)
