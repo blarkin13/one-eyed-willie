@@ -56,7 +56,17 @@ document.addEventListener('DOMContentLoaded', () => {
     if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
     if(item.id===active)a.setAttribute('aria-current','page');
     a.dataset.navId=item.id;
-    a.append(glyph(item.fa,item.fallback));
+    if(item.id==='radarr'||item.id==='sonarr'){
+      const icon=document.createElement('span');
+      icon.className='nav-icon nav-brand-icon';
+      icon.setAttribute('aria-hidden','true');
+      const image=document.createElement('img');
+      image.className='integration-logo';
+      image.src='/assets/brand/'+item.id+'.svg';
+      image.alt='';
+      image.width=26;image.height=26;
+      icon.append(image);a.append(icon);
+    }else a.append(glyph(item.fa,item.fallback));
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
