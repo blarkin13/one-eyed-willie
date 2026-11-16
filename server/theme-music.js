@@ -22,7 +22,12 @@
       const reasons={
         tv_only_source:'Movie theme playback requires a local theme file.',
         title_not_recognized:'This TV show could not be identified for theme lookup.',
-        not_available_from_source:'No matching downloadable theme was available from TelevisionTunes.'
+        not_available_from_source:'No matching TV theme page was found on TelevisionTunes.',
+        source_title_mismatch:'TelevisionTunes returned a different show title.',
+        source_download_link_unrecognized:'TelevisionTunes changed its download links; automatic theme retrieval is unavailable.',
+        source_access_denied:'TelevisionTunes blocked automatic access to its theme music.',
+        source_unreachable:'Could not reach TelevisionTunes for this theme.',
+        unexpected_source_response:'TelevisionTunes returned an unexpected response instead of a theme MP3.'
       };
       const hint=document.createElement('span');
       hint.className='theme-music-hint';
