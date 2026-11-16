@@ -101,7 +101,7 @@ body[data-page=explore] #add-dialog .form-actions{position:sticky;bottom:-1px;ba
 <div id="results" class="explore-results"></div>
 <p class="note">Adding a title registers it with Radarr or Sonarr and enables their normal monitoring; it does not immediately provide playable files. Only add content you are authorized to obtain.</p></div>
 <section id="explore-detail" class="explore-detail" hidden aria-label="Title details">
-<button type="button" id="detail-back" class="explore-detail-back">← Back to Explore More</button>
+
 <div id="detail-status" class="status-line" role="status"></div>
 <div id="detail-body"></div>
 </section>
@@ -205,13 +205,11 @@ function restoreExplore(){
  window.scrollTo({top:0,behavior:'instant'});
  if(previousDetailFocus?.isConnected)previousDetailFocus.focus({preventScroll:true});
 }
-$('detail-back').onclick=restoreExplore;
 async function showDetail(item,isDiscovery){
  previousDetailFocus=document.activeElement;
  detailSelection={item,isDiscovery,provider};
  $('browse-area').hidden=true;$('explore-detail').hidden=false;
  $('detail-status').textContent='Loading title information…';$('detail-body').replaceChildren();
- $('detail-back').focus({preventScroll:true});
  window.scrollTo({top:0,behavior:'instant'});
  let extra={};
  try{
