@@ -518,7 +518,7 @@ async function checkMetadata(){
   }else if(state.error){
    $('metadata-status').textContent=state.error;
   }else if(updated===0 && !knownGenres.length){
-   $('metadata-status').textContent='Genres, ratings and runtimes are unavailable for these titles. Check your TMDB, Radarr or Sonarr connection, then refresh metadata.';
+   $('metadata-status').textContent='Genres, ratings and runtimes are still being indexed and will be retried automatically. Check your TMDB, Radarr or Sonarr connection if they remain unavailable.';
   }else if(state.last_finished){
    $('metadata-status').textContent='Metadata sync complete · '+updated+' titles updated.';
   }else{

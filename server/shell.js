@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
     if(item.id===active)a.setAttribute('aria-current','page');
     a.dataset.navId=item.id;
-    if(item.id==='radarr'||item.id==='sonarr'){
+    if(['radarr','sonarr','sabnzbd'].includes(item.id)){
       const icon=document.createElement('span');
       icon.className='nav-icon nav-brand-icon';
       icon.setAttribute('aria-hidden','true');

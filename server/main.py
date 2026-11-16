@@ -154,8 +154,8 @@ def ui_stylesheet():
 
 @app.get("/assets/brand/{brand}.svg")
 def integration_brand_svg(brand: str):
-    # Only the two bundled official integration logos are exposed here.
-    if brand not in ("radarr", "sonarr"):
+    # Serve only the locally bundled official integration logos.
+    if brand not in ("radarr", "sonarr", "sabnzbd"):
         from fastapi import HTTPException
         raise HTTPException(404, "Unknown integration")
     return FileResponse(

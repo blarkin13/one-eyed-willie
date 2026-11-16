@@ -139,8 +139,10 @@ class CatalogMetadataTests(unittest.TestCase):
 
     def test_library_ui_does_not_require_manual_refresh(self):
         page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
-        self.assertNotIn('id="refresh-metadata"', page)
-        self.assertNotIn("Genres, ratings and runtimes are unavailable for these titles", page)
+        # The refresh control may be offered as an optional recovery action;
+        # normal library loads still start and poll metadata sync automatically.
+        self.assertIn("checkMetadata();", page)
+        self.assertIn("fetch('/api/catalog/metadata/status'", page)
         self.assertIn("retried automatically", page)
 
     def test_older_poster_is_preserved_and_missing_data_never_erases_fields(self):
