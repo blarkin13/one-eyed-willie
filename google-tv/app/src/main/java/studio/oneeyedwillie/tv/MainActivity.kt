@@ -1319,6 +1319,37 @@ class MainActivity : ComponentActivity() {
                   [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
                   color:#8B5CF6!important
                 }
+                /* Strong icon-only purple focus on all detail pages, including
+                   dynamic movie/TV/season actions and navigation popovers. */
+                body[data-page] :is(.movie-detail-actions,.tv-show-hero,
+                  .season-actions-row,.episode-actions,.episode-detail-actions,
+                  .season-hero-actions,.season-overflow-dialog,.tv-match-head,
+                  .movie-match-head) :is(.media-icon-action,.watch-icon-control,
+                  .icon-only-control,.season-more-button,.season-rail-arrow)
+                  :is(:focus,:focus-visible),
+                body[data-page] :is(.media-icon-action,.watch-icon-control,
+                  .icon-only-control,.season-more-button,.season-rail-arrow,
+                  .tv-trailer-launch,.catalog-tool-icon,.explore-icon-link)
+                  :is(:focus,:focus-visible) {
+                  color:#8B5CF6!important;
+                  background:transparent!important;
+                  border-color:transparent!important;
+                  outline:0!important;box-shadow:none!important
+                }
+                body[data-page] :is(.movie-detail-actions,.tv-show-hero,
+                  .season-actions-row,.episode-actions,.episode-detail-actions,
+                  .season-hero-actions,.tv-match-head,.movie-match-head)
+                  :is(.media-icon-action,.watch-icon-control,.icon-only-control,
+                  .season-more-button,.tv-trailer-launch):is(:focus,:focus-visible)
+                  :is(svg,i,.fa,.nav-icon),
+                body[data-page] :is(.media-icon-action,.watch-icon-control,
+                  .icon-only-control,.season-more-button,.tv-trailer-launch,
+                  .catalog-tool-icon,.explore-icon-link):is(:focus,:focus-visible)
+                  :is(svg,i,.fa) { color:#8B5CF6!important }
+                body[data-page] [data-service-nav="radarr"] :is(svg,img,i),
+                body[data-page] [data-service-nav="sonarr"] :is(svg,img,i) {
+                  filter:none!important
+                }
                 /* Avoid competing browser snap while the D-pad animation runs. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{scroll-snap-type:none!important}
