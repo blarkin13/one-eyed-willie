@@ -152,6 +152,19 @@ def browse():
 def ui_stylesheet():
     return FileResponse(Path(__file__).with_name("ui.css"), media_type="text/css")
 
+@app.get("/assets/brand/{brand}.svg")
+def integration_brand_svg(brand: str):
+    # Only the two bundled official integration logos are exposed here.
+    if brand not in ("radarr", "sonarr"):
+        from fastapi import HTTPException
+        raise HTTPException(404, "Unknown integration")
+    return FileResponse(
+        Path(__file__).with_name(f"{brand}-official.svg"),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
 @app.get("/assets/ship-logo.png")
 def ship_logo_png():
     return FileResponse(Path(__file__).with_name("ship-logo.png"), media_type="image/png",
