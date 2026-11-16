@@ -56,16 +56,23 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("info.tmdb_rating", page)
         self.assertIn("info.genres", page)
 
-    def test_home_details_backdrop_crossfades_without_stale_responses(self):
+    def test_home_details_use_global_backdrop_and_fixed_layout_to_prevent_jumps(self):
         page = (SERVER / "dashboard.html").read_text()
         self.assertIn("const serial=++state.serial", page)
-        self.assertIn("if(state.serial!==serial||!feature.isConnected)return", page)
-        self.assertIn("layers[next].classList.add('is-visible')", page)
-        self.assertIn("layers[1-next].classList.remove('is-visible')", page)
-        self.assertIn("if(details!==null||validHomeArt(item.backdrop_url))", page)
+        self.assertIn("if(state.serial!==serial)return", page)
         self.assertIn("homeDetailsCache=new Map()", page)
+        self.assertIn("height:clamp(270px,38vh,350px)", page)
+        self.assertIn("min-height:0;max-height:350px", page)
+        self.assertIn("border:0;border-radius:0;background:transparent", page)
+        self.assertIn("height:2.16em;min-height:2.16em", page)
+        self.assertIn("height:24px;min-height:24px", page)
+        self.assertIn("height:4.29em;min-height:4.29em", page)
+        self.assertIn("copy.append(kicker,title,meta,summary,genres,cast);feature.append(copy)", page)
+        self.assertNotIn("home-feature-art", page)
+        self.assertNotIn("setHomeFeatureArt", page)
+        self.assertNotIn("validHomeArt", page)
+        self.assertNotIn("translateY(7px)", page)
         self.assertIn("prefers-reduced-motion:reduce", page)
-        self.assertIn("min-height:clamp(220px,35vh,350px)", page)
         self.assertNotIn("position:fixed", page)
 
     def test_google_tv_home_dpad_moves_by_shelf_with_animated_scroll(self):
@@ -79,6 +86,9 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("first.focus({preventScroll:true})", android)
         self.assertIn("row.getBoundingClientRect().top-10", android)
         self.assertIn("window.scrollTo({top,behavior:reduced?'instant':'smooth'})", android)
+        self.assertIn("if(document.body.dataset.page==='home' &&", android)
+        self.assertIn("shelf.matches('.shelf-track'))return true", android)
+        self.assertIn("const delta=r.top<padding?r.top-padding", android)
         self.assertIn("prefers-reduced-motion: reduce", android)
 
     def test_totals_in_libraries_settings(self):
