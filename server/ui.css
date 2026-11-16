@@ -527,3 +527,54 @@ body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
 .settings-editor-dialog label{display:block;margin:15px 0 6px;font-weight:650;font-size:.88rem}
 .settings-editor-dialog .folder-list{max-height:240px}
 @media(max-width:800px){.settings-grid,.settings-two-col{grid-template-columns:minmax(0,1fr)}.settings-tile{min-height:130px}.settings-card{padding:17px}.settings-list-row{align-items:flex-start}}
+
+
+/* One consistent visual focus language throughout the server, libraries,
+   media pages, dialogs, settings, and Android WebView: no double outlines.
+   Keyboard/remote focus is still visible via enlargement and brightness. */
+:where(a,button,[role="button"],select,[tabindex="0"]):focus-visible{
+  outline:none!important;outline-offset:0!important;box-shadow:none!important;
+  filter:brightness(1.17);transform:scale(1.07);
+  transform-origin:center;position:relative;z-index:3;
+}
+:where(input,textarea):focus-visible{
+  outline:none!important;box-shadow:none!important;
+  border-bottom-color:#d8efff!important;
+}
+:where(.tile-button,.detail-trigger,.person-credit-link,.cast-person,
+  .tv-cast-person,.credit-cast a):is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;
+}
+:where(.tile-button,.detail-trigger,.person-credit-link):is(:focus,:focus-visible){
+  transform:none!important;
+}
+:where(.tile-button,.detail-trigger,.person-credit-link):is(:focus,:focus-visible)
+  :is(.cover,.explore-poster,.person-credit-poster){
+  outline:0!important;border-color:transparent!important;
+  box-shadow:none!important;transform:scale(1.065)!important;
+  filter:brightness(1.14);position:relative;z-index:2;
+}
+:where(.cast-person,.tv-cast-person,.credit-cast a):is(:focus,:focus-visible)
+  :is(img,.cast-blank,.tv-actor-image,.credit-empty-photo){
+  outline:0!important;border-color:transparent!important;
+  box-shadow:none!important;transform:scale(1.065)!important;
+  filter:brightness(1.14);
+}
+:where(.season-episode-tile):is(:focus,:focus-visible){
+  outline:none!important;box-shadow:none!important;
+  border-color:transparent!important;
+  transform:scale(1.065)!important;filter:brightness(1.12);
+}
+:where(.season-episode-tile).is-selected{
+  border-color:transparent!important;box-shadow:none!important;
+}
+:where(.media-icon-action,.icon-only-control):is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;background:transparent!important;
+  transform:scale(1.17)!important;color:#fff!important;
+  filter:brightness(1.25);
+}
+@media(prefers-reduced-motion:no-preference){
+  :where(.tile-button,.detail-trigger,.person-credit-link,.cast-person,.tv-cast-person,
+  .media-icon-action,.icon-only-control,.season-episode-tile,.cover,.explore-poster)
+  {transition:transform .13s ease,filter .13s ease}
+}
