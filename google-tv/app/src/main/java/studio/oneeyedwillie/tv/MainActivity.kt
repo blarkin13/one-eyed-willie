@@ -517,6 +517,28 @@ class MainActivity : ComponentActivity() {
                 body[data-page="movies"] .movie-detail-actions .media-icon-action{
                   width:52px!important;height:52px!important
                 }
+                                /* Movie cast focus is a portrait, not the actor's entire
+                   multi-line biography/role card. Long roles on a TV used
+                   to create huge D-pad scroll jumps and boxes around text. */
+                body[data-page="movies"] .cast-person:focus,
+                body[data-page="movies"] .cast-person:focus-visible,
+                body[data-page="movies"] .cast-person:focus-within{
+                  outline:0!important;outline-offset:0!important;
+                  box-shadow:none!important;background:transparent!important
+                }
+                body[data-page="movies"] .cast-person:focus img,
+                body[data-page="movies"] .cast-person:focus .cast-blank,
+                body[data-page="movies"] .cast-person:focus-visible img,
+                body[data-page="movies"] .cast-person:focus-visible .cast-blank{
+                  outline:2px solid #cbdff0!important;outline-offset:4px!important;
+                  box-shadow:0 7px 22px #0008!important
+                }
+                body[data-page="movies"] .cast-person strong,
+                body[data-page="movies"] .cast-person span{
+                  display:-webkit-box!important;-webkit-box-orient:vertical;
+                  -webkit-line-clamp:2;overflow:hidden!important
+                }
+                body[data-page="movies"] .movie-cast{scroll-snap-type:none!important}
                                 /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{
@@ -645,7 +667,15 @@ class MainActivity : ComponentActivity() {
                 const r=node.getBoundingClientRect();
                 return r.width>3&&r.height>3;
               };
-              const rect=node=>node.getBoundingClientRect();
+              // Cast links contain long role descriptions. For directional
+              // navigation use the portrait's geometry, not the whole card.
+              const rect=node=>{
+                if(node?.matches?.('.cast-person')){
+                  const portrait=node.querySelector('img,.cast-blank');
+                  if(portrait)return portrait.getBoundingClientRect();
+                }
+                return node.getBoundingClientRect();
+              };
               const centerX=r=>r.left+r.width/2;
               const centerY=r=>r.top+r.height/2;
               const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible);
@@ -672,7 +702,7 @@ class MainActivity : ComponentActivity() {
                   const delta=r.top<padding?r.top-padding:
                     r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
                   if(Math.abs(delta)>1)window.scrollBy({top:delta,left:0,behavior:'instant'});
-                  const shelf=node.closest('.shelf-track,.discovery-row');
+                  const shelf=node.closest('.shelf-track,.discovery-row,.movie-cast');
                   if(shelf){
                     const bounds=rect(shelf);
                     const deltaX=r.left<bounds.left+12?r.left-bounds.left-12:
