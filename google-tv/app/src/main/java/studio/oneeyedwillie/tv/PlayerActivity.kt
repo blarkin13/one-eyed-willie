@@ -1,5 +1,7 @@
 package studio.oneeyedwillie.tv
 
+import android.media.MediaCodecList
+import android.media.MediaFormat
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.app.AlertDialog
@@ -59,6 +61,7 @@ class PlayerActivity : ComponentActivity() {
     private var nextTitle = ""
     private var autoPlayNext = false
     private var pendingSeek = 0.0
+    private var pendingSeekAction: Runnable? = null
     private val uiRefresh = object : Runnable {
         override fun run() {
             refreshControls()
@@ -277,16 +280,34 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun seekTo(seconds: Double) {
-        val position = seconds.coerceIn(0.0,if(currentDuration()>0)currentDuration() else 1e7)
-        if(hlsMode){
-            val previous = session
-            session = null
-            previous?.let { token ->
-                network.execute { try{request("/api/stream/hls/$token","DELETE")}catch(_:Exception){} }
-            }
-            startHls(position)
-        } else player?.seekTo((position*1000).toLong())
-        showChrome()
+        pendingSeek = seconds.coerceIn(0.0, if (currentDuration() > 0) currentDuration() else 1e7)
+        pendingSeekAction?.let(handler::removeCallbacks)
+        val action = Runnable {
+            val target = pendingSeek
+            if (hlsMode) {
+                val relative = target - hlsOffset
+                val p = player
+                val buffered = (p?.bufferedPosition ?: 0L) / 1000.0
+                if (relative >= 0 && relative < buffered - 0.3 &&
+                    p?.isCurrentMediaItemSeekable == true) {
+                    p.seekTo((relative * 1000).toLong())
+                } else {
+                    val previous = session
+                    session = null
+                    p?.stop()
+                    network.execute {
+                        previous?.let {
+                            try { request("/api/stream/hls/$it", "DELETE") }
+                            catch (_: Exception) {}
+                        }
+                        startHlsOnNetwork(target)
+                    }
+                }
+            } else player?.seekTo((target * 1000).toLong())
+            showChrome()
+        }
+        pendingSeekAction = action
+        handler.postDelayed(action, 220)
     }
 
     private fun showChrome() {
@@ -568,6 +589,49 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    private fun canDirectPlay(media: JSONObject, extension: String): Boolean {
+        if (extension !in setOf(".mp4", ".m4v", ".mov", ".mkv", ".webm",
+                ".ts", ".m2ts", ".mpg", ".mpeg")) return false
+        val videoMime = when (media.optString("video_codec").lowercase()) {
+            "h264" -> "video/avc"
+            "hevc" -> "video/hevc"
+            "vp8" -> "video/x-vnd.on2.vp8"
+            "vp9" -> "video/x-vnd.on2.vp9"
+            "av1" -> "video/av01"
+            "mpeg2video" -> "video/mpeg2"
+            "mpeg4" -> "video/mp4v-es"
+            else -> return false
+        }
+        val audioMime = when (media.optString("audio_codec").lowercase()) {
+            "" -> null
+            "aac" -> "audio/mp4a-latm"
+            "ac3" -> "audio/ac3"
+            "eac3" -> "audio/eac3"
+            "dts" -> "audio/vnd.dts"
+            "truehd" -> "audio/true-hd"
+            "opus" -> "audio/opus"
+            "vorbis" -> "audio/vorbis"
+            "mp3" -> "audio/mpeg"
+            "flac" -> "audio/flac"
+            else -> return false
+        }
+        return try {
+            val width = media.optInt("width", 0)
+            val height = media.optInt("height", 0)
+            if (width <= 0 || height <= 0) return false
+            val codecs = MediaCodecList(MediaCodecList.REGULAR_CODECS)
+            val format = MediaFormat.createVideoFormat(videoMime, width, height)
+            if (codecs.findDecoderForFormat(format) == null) return false
+            if (audioMime != null) {
+                val audio = MediaFormat.createAudioFormat(
+                    audioMime, 48000, media.optInt("audio_channels", 2).coerceAtLeast(1)
+                )
+                if (codecs.findDecoderForFormat(audio) == null) return false
+            }
+            true
+        } catch (_: Exception) { false }
+    }
+
     private fun openMedia() {
         network.execute {
             try {
@@ -577,8 +641,12 @@ class PlayerActivity : ComponentActivity() {
                 durationSeconds = info.optDouble("duration_seconds", 0.0)
                 completed = info.optBoolean("watched",false)
                 val mode = info.optString("mode", "")
+                val actual = info.optJSONObject("media")
+                val direct = if (actual != null && actual.optString("video_codec").isNotBlank())
+                    canDirectPlay(actual, info.optString("extension", ""))
+                    else mode == "direct"
                 val streamUrl = info.optString("stream_url", "")
-                if (mode == "direct" && streamUrl.isNotBlank()) {
+                if (direct && streamUrl.isNotBlank()) {
                     handler.post {
                         if (!shuttingDown) {
                             hlsMode = false
@@ -694,6 +762,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         shuttingDown = true
+        pendingSeekAction?.let(handler::removeCallbacks)
+        pendingSeekAction = null
         handler.removeCallbacks(checkpoint)
         handler.removeCallbacks(uiRefresh)
         handler.removeCallbacks(hideChrome)
