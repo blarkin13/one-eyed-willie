@@ -16,7 +16,7 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("window.__oewTvInputGateInstalled=true", src)
         self.assertIn("node.readOnly=true;", src)
         self.assertIn("protectedFields.add(node)", src)
-        self.assertIn("document.addEventListener('focusin',event=>protect(event.target),true)", src)
+        self.assertIn("document.addEventListener('focusin',event=>{", src)
         self.assertIn("new MutationObserver(records=>", src)
         self.assertIn("const focusNode=node=>{", src)
         self.assertIn("node.focus({preventScroll:true});", src)
@@ -39,11 +39,20 @@ class TvTextInputFocusTests(unittest.TestCase):
         src = self.source
         self.assertIn("if (tvTextEditing) {\n                    finishTvTextEditing(web)", src)
         self.assertIn("if (tvTextEditing) return super.dispatchKeyEvent(event)", src)
-        self.assertIn("if(!refocusing&&event.target===editingField)endEditing();", src)
+        self.assertNotIn("if(!refocusing&&event.target===editingField)endEditing();", src)
+        self.assertIn("Do NOT end editing on focusout", src)
+        self.assertIn("if(editingField && event.target!==editingField", src)
         self.assertIn("field.readOnly=true", src)
         self.assertIn("notify('end');", src)
         self.assertIn("hideSoftInputFromWindow(web.windowToken, 0)", src)
         self.assertIn("tvTextEditing = false", src)
+
+    def test_new_pages_initially_focus_content_not_sidebar(self):
+        src = self.source
+        self.assertIn("const settleInitialFocus=()=>{", src)
+        self.assertIn("firstPoster()", src)
+        self.assertIn("destination.focus({preventScroll:true})", src)
+        self.assertIn("if(!settleInitialFocus())", src)
 
     def test_native_connection_setup_requires_click(self):
         src = self.source
