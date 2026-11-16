@@ -20,12 +20,41 @@ _lock = threading.Lock()
 _state = {
     "running": False, "processed": 0, "total": 0, "updated": 0,
     "revision": 0, "last_finished": 0, "error": "",
+    "available": 0, "missing": 0, "last_signature": None,
 }
-RESCAN_SECONDS = 15 * 60
+# Retry incomplete metadata automatically; completed catalogs can refresh less often.
+RESCAN_SECONDS = 6 * 60 * 60
+MISSING_RETRY_SECONDS = 5 * 60
 
 
 def _has_metadata(info):
     return bool(info.get("genres")) or info.get("runtime") is not None or info.get("rating") is not None
+
+
+def _complete(info):
+    """A rating alone must not prevent fetching missing genres or runtime."""
+    return bool(info.get("genres")) and info.get("runtime") is not None and info.get("rating") is not None
+
+
+def _combine(primary, additional):
+    """Prefer manager values but fill each missing field from resolved metadata."""
+    return {
+        "genres": primary["genres"] or additional["genres"],
+        "rating": primary["rating"] if primary["rating"] is not None else additional["rating"],
+        "runtime": primary["runtime"] if primary["runtime"] is not None else additional["runtime"],
+    }
+
+
+def _library_signature():
+    # Detect library scans and additions without enumerating folders or media
+    # on the request path. A successful scan may replace the newest item.
+    with db() as conn:
+        row = conn.execute(
+            "SELECT COUNT(*) AS count,COALESCE(MAX(id),0) AS newest,"
+            "COALESCE(MAX(mtime_ns),0) AS newest_mtime FROM media"
+        ).fetchone()
+        libs = conn.execute("SELECT COUNT(*) FROM libraries").fetchone()[0]
+    return (row["count"], row["newest"], row["newest_mtime"], libs)
 
 
 def _matching_movie(title, year, snapshot):
@@ -114,16 +143,17 @@ def sync_once():
             if kind == "movies":
                 matched = _matching_movie(title, year, films)
                 incoming = _safe_metadata(matched)
-                if not _has_metadata(incoming):
+                if not _complete(incoming):
                     # Existing movie detail resolver also reads local NFO sidecars,
                     # manual TMDB matches, and cached TMDB metadata.
-                    incoming = _safe_metadata(
-                        movies._details(library_id, key, snapshot=films, enrich=True))
+                    incoming = _combine(incoming, _safe_metadata(
+                        movies._details(library_id, key, snapshot=films, enrich=True)))
             else:
                 matched = _matching_series(title, year, series)
                 incoming = _safe_metadata(matched)
-                if not _has_metadata(incoming):
-                    incoming = _safe_metadata(tv.show_metadata(title, year, library_id, key))
+                if not _complete(incoming):
+                    incoming = _combine(incoming, _safe_metadata(
+                        tv.show_metadata(title, year, library_id, key)))
             changed = _persist(kind, library_id, key, incoming)
         except Exception:
             log.exception("Could not index metadata for %s %s", kind, key)
@@ -133,6 +163,27 @@ def sync_once():
             if changed:
                 _state["updated"] += 1
                 _state["revision"] += 1
+    # Count cached coverage, not just updates in this particular pass.
+    # This also distinguishes a completed no-change refresh from failure.
+    with db() as conn:
+        _table(conn)
+        cached = {
+            (row["kind"], row["library_id"], row["show_key"]): row["metadata_json"]
+            for row in conn.execute(
+                "SELECT kind,library_id,show_key,metadata_json FROM indexed_posters "
+                "WHERE metadata_json IS NOT NULL"
+            )
+        }
+    available = 0
+    for identity in titles:
+        try:
+            info = _safe_metadata(json.loads(cached.get(identity) or "{}"))
+            available += int(_has_metadata(info))
+        except (TypeError, ValueError):
+            pass
+    with _lock:
+        _state["available"] = available
+        _state["missing"] = len(titles) - available
     return dict(_state)
 
 
@@ -152,16 +203,36 @@ def _worker():
 
 
 def start_refresh(force=False):
+    try:
+        signature = _library_signature()
+    except Exception:
+        log.exception("Could not inspect catalog indexing state")
+        return False
     with _lock:
         if _state["running"]:
             return False
-        cooldown = 10 if _state["total"] == 0 else RESCAN_SECONDS
-        if not force and time.time() - _state["last_finished"] < cooldown:
+        changed = signature != _state["last_signature"]
+        cooldown = (10 if _state["total"] == 0 else
+                    MISSING_RETRY_SECONDS if _state["missing"] else RESCAN_SECONDS)
+        if not force and not changed and time.time() - _state["last_finished"] < cooldown:
             return False
         _state["running"] = True
+        _state["last_signature"] = signature
         _state["error"] = ""
     threading.Thread(target=_worker, daemon=True, name="catalog-metadata-sync").start()
     return True
+
+
+def automatic_refresh_loop(stop):
+    """Recover from provider outages and index new titles without user clicks."""
+    if stop.wait(25):
+        return
+    while not stop.is_set():
+        try:
+            start_refresh()
+        except Exception:
+            log.exception("Automatic catalog metadata refresh failed")
+        stop.wait(60)
 
 
 @router.get("/status")
