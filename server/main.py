@@ -254,6 +254,11 @@ def settings_home_page():
                         headers={"Cache-Control": "no-store"})
 
 
+@app.get("/settings/credits")
+def credits_settings_page():
+    return FileResponse(Path(__file__).with_name("credits.html"), media_type="text/html")
+
+
 @app.get("/settings/general")
 def general_settings_page():
     return FileResponse(Path(__file__).with_name("general_settings.html"), media_type="text/html",

@@ -85,10 +85,60 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 .catalog-genre-menu{max-height:min(390px,70vh)}
 .catalog-tool-menu::-webkit-scrollbar{width:7px}
 .catalog-tool-menu::-webkit-scrollbar-thumb{background:#3c5772;border-radius:8px}
-.library-trivia{max-width:650px;font-size:.91rem;line-height:1.5;min-height:1.5em;color:#aab9cc}
-.trivia-credit{display:block;color:#7f92a7;font-size:.69rem;margin-top:3px}
-.trivia-credit[hidden]{display:none}
-.trivia-credit a{color:#a3c5e8;text-decoration:underline;text-underline-offset:2px}
+/* Large, calm question → answer display. Keep answer space reserved to avoid jump. */
+.library-head{min-height:305px;align-items:flex-end;gap:24px}
+.library-heading{flex:1 1 740px;max-width:min(100%,1060px)}
+.library-head-actions{align-self:flex-end;margin-bottom:5px}
+.library-trivia{max-width:min(100%,1040px);min-height:155px;padding-top:16px;
+ display:flex;flex-direction:column;justify-content:flex-start;gap:14px}
+.library-trivia .trivia-question{margin:0;max-width:100%;font-size:clamp(1.25rem,1.52vw,2rem);
+ line-height:1.36;letter-spacing:-.018em;font-weight:600;color:#e1eaf5;
+ text-wrap:pretty;overflow-wrap:break-word;transition:opacity .35s ease,transform .35s ease}
+.library-trivia .trivia-question.is-changing{opacity:0;transform:translateY(5px)}
+.library-trivia .trivia-answer{display:flex;align-items:baseline;gap:13px;min-height:2.3em;
+ opacity:0;visibility:hidden;transform:translateY(6px);
+ transition:opacity .42s ease,transform .42s ease,visibility .42s}
+.library-trivia .trivia-answer.revealed{opacity:1;visibility:visible;transform:none}
+.trivia-answer-label{font-size:.7rem;line-height:1.5;font-weight:800;letter-spacing:.12em;
+ text-transform:uppercase;color:#8ebfe9;flex:none}
+.library-trivia .trivia-answer p{margin:0;line-height:1.4;
+ font-size:clamp(1.12rem,1.23vw,1.65rem);font-weight:650;color:#b4daf8;max-width:890px;
+ overflow-wrap:anywhere;text-wrap:pretty}
+@media(min-width:1600px){
+ .library-head{min-height:350px;padding-top:33px;padding-bottom:26px}
+ .library-heading{max-width:min(100%,1250px)}
+ .library-trivia{max-width:1120px;min-height:185px;padding-top:21px;gap:17px}
+ .library-trivia .trivia-question{font-size:clamp(1.65rem,1.6vw,2.4rem);line-height:1.36}
+ .library-trivia .trivia-answer p{font-size:clamp(1.4rem,1.35vw,2rem)}
+ .trivia-answer-label{font-size:.88rem}
+}
+/* Android TV WebView uses a roughly 960px CSS viewport even on a 1080p TV. */
+@media(min-width:761px) and (max-width:1200px){
+ .library-trivia .trivia-question{font-size:clamp(1.45rem,2.6vw,1.95rem)}
+ .library-trivia .trivia-answer p{font-size:clamp(1.23rem,2.15vw,1.7rem)}
+}
+@media(min-width:761px) and (hover:none){
+ .library-head{min-height:355px}
+ .library-trivia{min-height:200px}
+ .library-trivia .trivia-question{font-size:clamp(1.7rem,2.9vw,2.35rem)}
+ .library-trivia .trivia-answer p{font-size:clamp(1.4rem,2.4vw,1.85rem)}
+}
+@media(max-width:1200px){
+ .library-head{align-items:flex-start}
+ .library-heading{max-width:100%}
+ .library-head-actions{align-self:flex-end}
+}
+@media(max-width:760px){
+ .library-head{min-height:250px;gap:12px}
+ .library-trivia{min-height:155px;padding-top:12px;gap:10px}
+ .library-trivia .trivia-question{font-size:clamp(1.1rem,3.7vw,1.5rem);line-height:1.4}
+ .library-trivia .trivia-answer{gap:9px}
+ .library-trivia .trivia-answer p{font-size:clamp(1rem,3.3vw,1.32rem)}
+ .trivia-answer-label{font-size:.64rem}
+}
+@media(prefers-reduced-motion:reduce){
+ .library-trivia :is(.trivia-question,.trivia-answer){transition:none;transform:none}
+}
 @media(max-width:1000px){
  .library-head{align-items:flex-start}
  .library-head-actions{flex-wrap:wrap}
@@ -126,8 +176,13 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
         <div class="library-heading">
           <p class="eyebrow" id="eyebrow">Your library</p>
           <div class="library-header-title"><span class="library-header-icon" id="library-title-icon" aria-hidden="true"></span><h1 id="page-title">Movies</h1></div>
-          <p class="library-trivia" id="page-description" aria-live="polite"></p>
-          <small class="trivia-credit" id="trivia-credit" hidden>Trivia from <a href="https://opentdb.com/" target="_blank" rel="noopener noreferrer">Open Trivia DB</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>)</small>
+          <div class="library-trivia" id="page-description" aria-label="Rotating movie and television trivia">
+            <p class="trivia-question" id="trivia-question" aria-live="off"></p>
+            <div class="trivia-answer" id="trivia-answer" aria-hidden="true">
+              <span class="trivia-answer-label">Answer</span>
+              <p id="trivia-answer-text" aria-live="polite"></p>
+            </div>
+          </div>
         </div>
         <div class="library-head-actions" role="group" aria-label="Browse library controls">
           <label class="search-box"><span class="sr-only">Search titles</span><input type="search" id="search" placeholder="Search titles…" maxlength="150" aria-label="Search titles"></label>
@@ -176,7 +231,7 @@ if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
 $('explore-library').href='/explore?type='+type;
 $('explore-library').setAttribute('aria-label','Explore more '+(type==='movies'?'movies':'TV shows'));
 $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
-// The description is replaced by rotating film/TV trivia below.
+// Trivia starts with the question; the answer is revealed after a pause.
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
 document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
 const selectedLibraryId=Number(query.get('library_id'));
@@ -219,41 +274,47 @@ fetch('/api/libraries',{cache:'no-store'})
  }).catch(()=>{});
 
 
-/* Open Trivia DB film (11) and television (14): one batch per category,
-   with per-browser queue/history so navigation and refreshes do not repeat.
-   Offline fallback retains a small, rotating set of verified general facts. */
+/* Library trivia is a hands-free question → answer → next-question carousel.
+   Saved API questions are preferred; original local questions work without a
+   connection. Timers pause while the app is in the background. */
+const TRIVIA_QUESTION_MS=6200;
+const TRIVIA_ANSWER_MS=5200;
 const fallbackTrivia={
  movies:[
-  'A standard cinema film runs at 24 frames per second.',
-  'The Lumière brothers held a public film screening in Paris in 1895.',
-  'The first Academy Awards ceremony took place in 1929.',
-  'The first feature-length animated film released by Disney was Snow White and the Seven Dwarfs (1937).',
-  'The Wilhelm scream is a stock sound effect reused in many films.',
-  'A film storyboard uses a sequence of drawings to plan shots before production.',
-  'Foley artists recreate everyday sounds such as footsteps for film soundtracks.',
-  'A clapperboard helps synchronize recorded sound with the filmed image.',
-  'A cinematographer is also called a director of photography.',
-  'Stop-motion animation photographs objects one small movement at a time.',
-  'A film dissolve gradually blends one shot into another.',
-  'Early silent films were often accompanied by live music.'
+  {question:'At what frame rate are most cinema films projected?',answer:'24 frames per second.'},
+  {question:'Which brothers held a public film screening in Paris in 1895?',answer:'The Lumière brothers.'},
+  {question:'In what year did the first Academy Awards ceremony take place?',answer:'1929.'},
+  {question:'What was the first feature-length animated film released by Disney?',answer:'Snow White and the Seven Dwarfs (1937).'},
+  {question:'What is the Wilhelm scream?',answer:'A stock sound effect heard in many films.'},
+  {question:'What does a storyboard help filmmakers plan?',answer:'The shots and visual sequence of a film.'},
+  {question:'Who recreates footsteps and everyday sounds for a film soundtrack?',answer:'Foley artists.'},
+  {question:'What tool helps synchronize recorded sound with a filmed image?',answer:'A clapperboard.'},
+  {question:'What is another title for a cinematographer?',answer:'Director of photography.'},
+  {question:'What animation technique moves physical objects between photographed frames?',answer:'Stop-motion animation.'},
+  {question:'What is a dissolve in filmmaking?',answer:'A gradual blend from one shot to another.'},
+  {question:'What often accompanied silent movies at early film screenings?',answer:'Live music.'}
  ],
  tv:[
-  'The first television broadcast of a US presidential debate took place in 1960.',
-  'A television pilot is an initial episode used to introduce or test a proposed series.',
-  'A bottle episode is produced mostly on existing sets with a limited cast.',
-  'A cold open begins an episode before its opening credits or title sequence.',
-  'A showrunner typically oversees the creative direction and day-to-day production of a television series.',
-  'A television miniseries tells a story across a predetermined, limited number of episodes.',
-  'A sitcom is short for situation comedy.',
-  'A cliffhanger leaves a story unresolved at a dramatic moment.',
-  'Television closed captions can include dialogue and descriptions of important sounds.',
-  'A season finale is the last episode in a television season.',
-  'A television anthology series can feature different stories or characters each episode or season.',
-  'A laugh track may use prerecorded audience laughter.'
+  {question:'In what year was the first US presidential debate televised?',answer:'1960.'},
+  {question:'What is the first episode used to introduce or test a proposed TV series called?',answer:'A pilot.'},
+  {question:'What do you call an episode filmed mostly on existing sets with a limited cast?',answer:'A bottle episode.'},
+  {question:'What is a scene that plays before the opening credits called?',answer:'A cold open.'},
+  {question:'Who generally oversees the creative direction and production of a TV series?',answer:'The showrunner.'},
+  {question:'What do you call a TV story told across a limited, predetermined number of episodes?',answer:'A miniseries.'},
+  {question:'What does “sitcom” stand for?',answer:'Situation comedy.'},
+  {question:'What is a cliffhanger?',answer:'An ending that leaves a story unresolved at a dramatic moment.'},
+  {question:'What accessibility feature describes dialogue and important sounds on television?',answer:'Closed captions.'},
+  {question:'What is the last episode in a TV season called?',answer:'A season finale.'},
+  {question:'What kind of TV series features different stories or characters each episode or season?',answer:'An anthology series.'},
+  {question:'What is a laugh track?',answer:'Prerecorded audience laughter used in a TV program.'}
  ]
 };
-function triviaStorage(key,fallback){try{return JSON.parse(localStorage.getItem(key))??fallback}catch(_){return fallback}}
-function storeTrivia(key,value){try{localStorage.setItem(key,JSON.stringify(value))}catch(_){}}
+function triviaStorage(key,fallback){
+ try{return JSON.parse(localStorage.getItem(key))??fallback}catch(_){return fallback}
+}
+function storeTrivia(key,value){
+ try{localStorage.setItem(key,JSON.stringify(value))}catch(_){}
+}
 function nextOfflineTrivia(){
  const key='oew-trivia-fallback-'+type;
  const old=Number(triviaStorage(key,-1));
@@ -261,54 +322,101 @@ function nextOfflineTrivia(){
  storeTrivia(key,index);
  return fallbackTrivia[type][index];
 }
-function showTrivia(text,fromApi=false){
- $('page-description').textContent=(fromApi?'Trivia: ':'Did you know? ')+text;
- $('trivia-credit').hidden=!fromApi;
-}
 function nextTriviaFromQueue(){
  const key='oew-trivia-batch-'+type;
  const queue=triviaStorage(key,[]);
- if(!Array.isArray(queue)||!queue.length)return false;
- const item=queue.shift();
- if(!item||typeof item.question!=='string'||typeof item.answer!=='string')return false;
- storeTrivia(key,queue);
- showTrivia(item.question+' Answer: '+item.answer,true);
- return true;
+ if(!Array.isArray(queue)||!queue.length)return null;
+ while(queue.length){
+  const item=queue.shift();
+  if(item&&typeof item.question==='string'&&item.question.trim()&&
+    typeof item.answer==='string'&&item.answer.trim()){
+   storeTrivia(key,queue);
+   return item;
+  }
+ }
+ storeTrivia(key,[]);
+ return null;
 }
-async function rotateTrivia(){
- if(nextTriviaFromQueue())return;
- // Show a local fact immediately; a new API batch replaces it once ready.
- showTrivia(nextOfflineTrivia());
+let triviaTimer=null,triviaPhase='question',triviaCurrent=null;
+let triviaFetching=false,triviaLastFetch=0;
+const triviaQuestion=$('trivia-question'),triviaAnswer=$('trivia-answer');
+const triviaAnswerText=$('trivia-answer-text');
+function scheduleTrivia(callback,delay){
+ clearTimeout(triviaTimer);
+ if(!document.hidden)triviaTimer=setTimeout(callback,delay);
+}
+function revealTriviaAnswer(){
+ if(document.hidden)return;
+ triviaPhase='answer';
+ // Only expose the answer (including to screen readers) after the question.
+ triviaAnswer.setAttribute('aria-hidden','false');
+ triviaAnswerText.textContent=triviaCurrent?.answer||'';
+ triviaAnswer.classList.add('revealed');
+ scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS);
+}
+function showNextTrivia(){
+ triviaPhase='question';
+ triviaCurrent=nextTriviaFromQueue()||nextOfflineTrivia();
+ triviaAnswer.classList.remove('revealed');
+ triviaAnswer.setAttribute('aria-hidden','true');
+ triviaAnswerText.textContent='';
+ triviaQuestion.classList.add('is-changing');
+ // The question crossfades; no layout changes to the controls or poster grid.
+ setTimeout(()=>{
+  if(document.hidden)return;
+  triviaQuestion.textContent=triviaCurrent.question;
+  triviaQuestion.classList.remove('is-changing');
+ },180);
+ scheduleTrivia(revealTriviaAnswer,TRIVIA_QUESTION_MS);
+ if((triviaStorage('oew-trivia-batch-'+type,[])||[]).length<5)fetchTriviaBatch();
+}
+async function fetchTriviaBatch(){
+ if(triviaFetching||Date.now()-triviaLastFetch<12000)return;
+ triviaFetching=true;triviaLastFetch=Date.now();
  try{
   const controller=new AbortController();
   const timeout=setTimeout(()=>controller.abort(),3500);
   let response;
   try{
-   response=await fetch('https://opentdb.com/api.php?amount=40&category='+(type==='movies'?'11':'14')+'&type=multiple&encode=url3986',
+   response=await fetch('https://opentdb.com/api.php?amount=40&category='+
+     (type==='movies'?'11':'14')+'&type=multiple&encode=url3986',
      {signal:controller.signal,mode:'cors',cache:'no-store'});
   }finally{clearTimeout(timeout)}
   if(!response.ok)return;
-  const body=await response.json();
-  if(body.response_code!==0||!Array.isArray(body.results))return;
+  const data=await response.json();
+  if(data.response_code!==0||!Array.isArray(data.results))return;
   const historyKey='oew-trivia-history-'+type;
-  const history=triviaStorage(historyKey,[]);
-  const seen=new Set(Array.isArray(history)?history:[]);
+  const seen=new Set(triviaStorage(historyKey,[]));
+  const queueKey='oew-trivia-batch-'+type;
   const fresh=[];
-  for(const row of body.results){
+  for(const row of data.results){
    if(!row.question||!row.correct_answer)continue;
-   const question=decodeURIComponent(row.question);
-   const answer=decodeURIComponent(row.correct_answer);
-   if(seen.has(question))continue;
-   seen.add(question);fresh.push({question,answer});
+   try{
+    const question=decodeURIComponent(row.question),answer=decodeURIComponent(row.correct_answer);
+    if(seen.has(question)||!question.trim()||!answer.trim())continue;
+    seen.add(question);
+    fresh.push({question,answer});
+   }catch(_){/* Skip malformed API content. */}
   }
   if(!fresh.length)return;
-  // Retain a bounded history for future batches; save unshown questions too.
   storeTrivia(historyKey,[...seen].slice(-300));
-  storeTrivia('oew-trivia-batch-'+type,fresh);
-  nextTriviaFromQueue();
- }catch(_){/* Keep the offline fact when the remote API is unavailable. */}
+  const existing=triviaStorage(queueKey,[]);
+  storeTrivia(queueKey,[...(Array.isArray(existing)?existing:[]),...fresh].slice(0,70));
+ }catch(_){/* Continue rotating local trivia when the provider is unavailable. */}
+ finally{triviaFetching=false}
 }
-rotateTrivia();
+document.addEventListener('visibilitychange',()=>{
+ clearTimeout(triviaTimer);
+ if(document.hidden)return;
+ if(triviaPhase==='answer')scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS);
+ else{
+  triviaQuestion.classList.remove('is-changing');
+  if(triviaCurrent)triviaQuestion.textContent=triviaCurrent.question;
+  scheduleTrivia(revealTriviaAnswer,TRIVIA_QUESTION_MS);
+ }
+});
+window.addEventListener('pagehide',()=>clearTimeout(triviaTimer));
+showNextTrivia();
 
 // Movie posters are looked up in one request per page; actual image bytes are
 // downloaded once and cached privately on the NUC.
