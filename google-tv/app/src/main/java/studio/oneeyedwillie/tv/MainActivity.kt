@@ -644,21 +644,7 @@ class MainActivity : ComponentActivity() {
                 }
                 return best;
               };
-              let initialFocusFinished=false,remoteUsed=false;
-              const tryInitialFocus=()=>{
-                if(initialFocusFinished||remoteUsed)return;
-                const poster=firstPoster();
-                if(!poster)return;
-                initialFocusFinished=focusNode(poster);
-                initialObserver.disconnect();
-              };
-              const initialObserver=new MutationObserver(tryInitialFocus);
-              initialObserver.observe(document.body,{childList:true,subtree:true});
-              requestAnimationFrame(tryInitialFocus);
-              setTimeout(tryInitialFocus,350);
-              setTimeout(()=>initialObserver.disconnect(),10000);
               const move=direction=>{
-                remoteUsed=true;
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
