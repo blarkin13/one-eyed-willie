@@ -1070,12 +1070,22 @@ class MainActivity : ComponentActivity() {
               // Detail pages use vertical *sections*, not a search for the
               // nearest item under the currently focused column. Libraries
               // and poster grids retain spatial navigation.
+              // Comma-separated selectors express priority, not DOM order.
+              // Season 1 must win over Specials; the selected episode must win
+              // over Episode 1 when moving back into a horizontal episode rail.
+              const firstPreferred=(selectors)=>{
+                for(const raw of selectors.split(',')){
+                  const choice=[...document.querySelectorAll(raw.trim())].find(isVisible);
+                  if(choice)return choice;
+                }
+                return null;
+              };
               const primaryDetailAction=()=>{
                 const path=location.pathname;
                 if(path==='/tv/show')
-                  return document.querySelector('#series-play-button,.series-controls button:not(:disabled)');
+                  return firstPreferred('#series-play-button,.series-controls button:not(:disabled)');
                 if(path==='/tv/season')
-                  return document.querySelector('.season-episode-tile.is-selected,.season-episode-tile');
+                  return firstPreferred('.season-episode-tile.is-selected,.season-episode-tile');
                 if(path==='/movie')
                   return document.querySelector('#play-movie');
                 if(path==='/credit')
@@ -1142,7 +1152,7 @@ class MainActivity : ComponentActivity() {
                 if(index<0)return false;
                 const delta=direction==='down'?1:-1;
                 for(let i=index+delta;i>=0&&i<lanes.length;i+=delta){
-                  const item=[...document.querySelectorAll(lanes[i].first)].find(isVisible);
+                  const item=firstPreferred(lanes[i].first);
                   if(item){readingScroll=false;return focusNode(item)}
                 }
                 if(scrollRead(direction))readingScroll=true;
