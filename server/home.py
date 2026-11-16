@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api")
 class PlaybackUpdate(BaseModel):
     media_id: int = Field(gt=0)
     position_seconds: float = Field(ge=0, le=10000000)
-    duration_seconds: float = Field(gt=0, le=10000000)
+    duration_seconds: float = Field(ge=0, le=10000000)
     completed: bool = False
 
 
@@ -80,7 +80,7 @@ def home_shelves():
             "SELECT m.id,m.path,m.library_id,p.position_seconds,p.duration_seconds,"
             "p.updated_at FROM playback_progress p JOIN media m ON m.id=p.media_id "
             "WHERE p.completed=0 AND p.position_seconds>=30 "
-            "AND p.position_seconds < p.duration_seconds*0.95 "
+            "AND (p.duration_seconds<=0 OR p.position_seconds < p.duration_seconds*0.95) "
             "ORDER BY p.updated_at DESC, m.id DESC"
         ).fetchall()
         for row in progress_rows:
@@ -97,7 +97,8 @@ def home_shelves():
                 "subtitle": desc["subtitle"],
                 "position_seconds": row["position_seconds"],
                 "duration_seconds": row["duration_seconds"],
-                "progress_percent": round(row["position_seconds"] * 100 / row["duration_seconds"]),
+                "progress_percent": (round(row["position_seconds"] * 100 / row["duration_seconds"])
+                                     if row["duration_seconds"] > 0 else None),
                 "updated_at": row["updated_at"],
             }
             if len(watching) >= 12:
@@ -122,9 +123,13 @@ def home_shelves():
 
 @router.put("/playback/progress")
 def update_playback(item: PlaybackUpdate):
-    if item.position_seconds > item.duration_seconds:
+    # Some HLS/fragmented streams report Infinity or have no known duration.
+    # Preserve the actual watched seconds rather than discard the update.
+    if item.duration_seconds > 0 and item.position_seconds > item.duration_seconds:
         raise HTTPException(422, "Playback position cannot exceed duration")
-    completed = item.completed or item.position_seconds >= item.duration_seconds * 0.95
+    completed = item.completed or (
+        item.duration_seconds > 0 and item.position_seconds >= item.duration_seconds * 0.95
+    )
     with db() as connection:
         exists = connection.execute("SELECT id FROM media WHERE id=?", (item.media_id,)).fetchone()
         if not exists:

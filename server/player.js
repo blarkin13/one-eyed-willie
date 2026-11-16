@@ -117,7 +117,10 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
   };
   function message(text){const el=current?.querySelector('.willie-info');if(el)el.textContent=text;}
   function playerPosition(video){
-    return Math.max(0,(playbackMode==='hls'?offset:0)+(video.currentTime||0));
+    const time=Number(video?.currentTime);
+    const base=playbackMode==='hls'?offset:0;
+    const result=base+(Number.isFinite(time)&&time>=0?time:0);
+    return Number.isFinite(result)?Math.max(0,result):0;
   }
   function destroyStream(){
     if(hls){hls.destroy();hls=null}
@@ -127,22 +130,48 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
   async function saveProgress(force=false,done=false){
     if(!current||!started||!mediaId)return;
     const video=current.querySelector('video');
-    const duration=Number(status?.duration_seconds)||video.duration;
-    if(!Number.isFinite(duration)||duration<=0)return;
-    if(!force&&Date.now()-saveAt<12000)return;
-    saveAt=Date.now();
-    try{await requestJson('/api/playback/progress',{
-      method:'PUT',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({media_id:mediaId,duration_seconds:duration,
-        position_seconds:Math.min(duration,playerPosition(video)),
-        completed:done||Boolean(status?.watched)||playerPosition(video)>=duration*.95}),keepalive:force});
-    }catch(_){}
+    const position=playerPosition(video);
+    if(position<1&&!done)return;
+    // Fragmented MP4 and live-style HLS timelines can have Infinity duration.
+    // Use the probed duration if known, but save actual watched seconds even
+    // when there is no reliable total duration yet.
+    const reported=Number(status?.duration_seconds);
+    const timeline=Number(video.duration);
+    const duration=Number.isFinite(reported)&&reported>0?reported:
+      Number.isFinite(timeline)&&timeline>0?timeline:0;
+    const timestamp=Date.now();
+    if(!force&&timestamp-saveAt<12000)return;
+    saveAt=timestamp;
+    const payload={
+      media_id:mediaId,duration_seconds:duration,
+      position_seconds:duration>0?Math.min(duration,position):position,
+      completed:done||Boolean(status?.watched)||(duration>0&&position>=duration*.95)
+    };
+    try{
+      await requestJson('/api/playback/progress',{
+        method:'PUT',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify(payload),keepalive:force
+      });
+    }catch(error){
+      // Keep retries enabled; never silently discard the resume point.
+      saveAt=0;
+      console.warn('Could not save playback progress:',error);
+      if(current&&!video.ended)message('Playback progress could not be saved: '+error.message);
+    }
+  }
+  function onVisibilityChange(){
+    if(document.visibilityState==='hidden')saveProgress(true);
+  }
+  function onPageHide(){
+    saveProgress(true);
   }
   function close(){
     if(!current)return;
     const node=current,video=node.querySelector('video');
     node.dispatchEvent(new Event('willie:closing'));
-    saveProgress(true);
+    const finalSave=saveProgress(true);
+    document.removeEventListener('visibilitychange',onVisibilityChange);
+    window.removeEventListener('pagehide',onPageHide);
     clearInterval(monitor);monitor=null;
     clearTimeout(chromeTimer);chromeTimer=null;
     video.pause();destroyStream();
@@ -150,7 +179,10 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     current=null;mediaId=0;status=null;started=false;offset=0;switching=false;captions=null;captionsSelect=null;
     if(document.fullscreenElement===node)document.exitFullscreen().catch(()=>{});
     node.remove();
-    document.dispatchEvent(new CustomEvent('willie:watch-updated'));
+    // Reload Continue Watching only after the final PUT has been processed.
+    Promise.resolve(finalSave).finally(()=>{
+      document.dispatchEvent(new CustomEvent('willie:watch-updated'));
+    });
   }
   async function loadHlsLibrary(){
     if(window.Hls)return window.Hls;
@@ -167,10 +199,11 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
   }
   async function playHls(startSeconds){
     if(!current||switching)return;
-    switching=true;started=false;
+    switching=true;
     const surface=current,video=surface.querySelector('video');
     const seek=Math.max(0,Math.min(Number(status?.duration_seconds)||1e7,startSeconds));
     await saveProgress(true);
+    started=false;
     destroyStream();video.pause();video.removeAttribute('src');video.load();
     offset=seek;playbackMode='hls';
     syncCaptions();
@@ -238,6 +271,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       }).catch(()=>alert('Open the protected direct NUC address for video playback.'));
       return;
     }
+    document.addEventListener('visibilitychange',onVisibilityChange);
+    window.addEventListener('pagehide',onPageHide);
     const surface=document.createElement('div');surface.className='willie-player';
     surface.setAttribute('role','dialog');surface.setAttribute('aria-label','Media player');
     const video=document.createElement('video');video.className='willie-video';
@@ -395,7 +430,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     timeline.append(preview);
     timeline.append(elapsed,slider,total);
     bottom.prepend(timeline);surface.append(video,controls,info,bottom,nextPrompt);
-    document.body.append(surface);current=surface;mediaId=id;started=false;offset=0;captionsSelect=cc;
+    document.body.append(surface);current=surface;mediaId=id;started=false;saveAt=0;offset=0;captionsSelect=cc;
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
     surface.addEventListener('willie:closing',stopCountdown);
     surface.addEventListener('pointerdown',revealChrome);
@@ -434,20 +469,33 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     });
     monitor=setInterval(()=>{
       if(current!==surface)return;
-      const duration=Number(status?.duration_seconds)||video.duration;
-      if(Number.isFinite(duration)&&duration>0){
-        const now=Math.min(duration,playerPosition(video));
-        if(document.activeElement!==slider)slider.value=String(Math.round(1000*now/duration));
-        elapsed.textContent=formatTime(now);total.textContent=formatTime(duration);
+      const now=playerPosition(video);
+      const reported=Number(status?.duration_seconds);
+      const timeline=Number(video.duration);
+      const duration=Number.isFinite(reported)&&reported>0?reported:
+        Number.isFinite(timeline)&&timeline>0?timeline:0;
+      elapsed.textContent=formatTime(now);
+      total.textContent=duration>0?formatTime(duration):'--:--';
+      if(duration>0&&document.activeElement!==slider){
+        slider.value=String(Math.round(1000*Math.min(duration,now)/duration));
       }
+      // A regular heartbeat protects streams that do not emit timeupdate
+      // events, including some native HLS implementations.
+      if(!video.paused&&!video.ended&&started)saveProgress();
     },500);
     video.addEventListener('playing',()=>{started=true;setIcon(playPause,'pause','Pause');message('');concealChromeSoon()});
     video.addEventListener('pause',()=>{setIcon(playPause,'play','Play');revealChrome()});
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
-    video.addEventListener('ended',()=>{saveProgress(true,true);if(status)status.watched=true;
+    video.addEventListener('ended',()=>{
+      const finalSave=saveProgress(true,true);
+      if(status)status.watched=true;
       watch.setAttribute('aria-pressed','true');watch.title='Mark unwatched';watch.setAttribute('aria-label',watch.title);
-      document.dispatchEvent(new CustomEvent('willie:watch-updated'));showNextCountdown()});
+      Promise.resolve(finalSave).finally(()=>{
+        document.dispatchEvent(new CustomEvent('willie:watch-updated'));
+      });
+      showNextCountdown();
+    });
     video.addEventListener('error',()=>{
       if(playbackMode==='direct')playHls(playerPosition(video));
       else message('Unable to decode HLS stream. Check FFmpeg and media format.');

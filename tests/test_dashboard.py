@@ -61,6 +61,51 @@ class HomeDashboardTests(unittest.TestCase):
         ))
         self.assertEqual(home_shelves()["continue_watching"], [])
 
+    def test_unknown_duration_movie_and_episode_are_in_continue_watching(self):
+        # Fragmented/HLS playback can provide a valid position but unknown
+        # duration; both must still appear in Continue Watching.
+        movie = update_playback(PlaybackUpdate(
+            media_id=1, position_seconds=180, duration_seconds=0
+        ))
+        episode = update_playback(PlaybackUpdate(
+            media_id=3, position_seconds=300, duration_seconds=0
+        ))
+        self.assertTrue(movie["saved"])
+        self.assertFalse(movie["completed"])
+        self.assertTrue(episode["saved"])
+        self.assertFalse(episode["completed"])
+        shelf = home_shelves()["continue_watching"]
+        self.assertEqual(len(shelf), 2)
+        by_id = {entry["media_id"]: entry for entry in shelf}
+        self.assertEqual(by_id[1]["kind"], "movies")
+        self.assertEqual(by_id[1]["position_seconds"], 180)
+        self.assertEqual(by_id[1]["progress_percent"], None)
+        self.assertEqual(by_id[3]["kind"], "tv")
+        self.assertEqual(by_id[3]["position_seconds"], 300)
+        self.assertEqual(by_id[3]["progress_percent"], None)
+
+    def test_unknown_duration_resume_becomes_known_and_completes(self):
+        update_playback(PlaybackUpdate(
+            media_id=1, position_seconds=180, duration_seconds=0
+        ))
+        update_playback(PlaybackUpdate(
+            media_id=1, position_seconds=185, duration_seconds=1800
+        ))
+        shelf = home_shelves()["continue_watching"]
+        self.assertEqual(len(shelf), 1)
+        self.assertEqual(shelf[0]["progress_percent"], 10)
+        self.assertEqual(shelf[0]["duration_seconds"], 1800)
+        update_playback(PlaybackUpdate(
+            media_id=1, position_seconds=1800, duration_seconds=0, completed=True
+        ))
+        self.assertEqual(home_shelves()["continue_watching"], [])
+
+    def test_short_unknown_duration_progress_below_threshold_is_hidden(self):
+        update_playback(PlaybackUpdate(
+            media_id=1, position_seconds=12, duration_seconds=0
+        ))
+        self.assertEqual(home_shelves()["continue_watching"], [])
+
     def test_invalid_progress_rejected(self):
         with self.assertRaises(HTTPException):
             update_playback(PlaybackUpdate(
