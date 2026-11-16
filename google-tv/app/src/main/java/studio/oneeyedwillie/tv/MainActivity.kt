@@ -1,7 +1,12 @@
 package studio.oneeyedwillie.tv
 
+import android.animation.ObjectAnimator
+import android.animation.ValueAnimator
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.Color
+import android.graphics.drawable.GradientDrawable
+import android.media.MediaPlayer
 import android.view.inputmethod.InputMethodManager
 import android.os.Bundle
 import android.view.Gravity
@@ -12,13 +17,17 @@ import android.webkit.WebChromeClient
 import android.webkit.JsPromptResult
 import android.net.Uri
 import org.json.JSONObject
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
 import android.widget.EditText
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
+import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
@@ -36,6 +45,154 @@ class MainActivity : ComponentActivity() {
     private var origin = ""
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
+
+    private var loadingOverlay: FrameLayout? = null
+    private var loadingCaption: TextView? = null
+    private var loadingSpinner: ProgressBar? = null
+    private var loadingActions: LinearLayout? = null
+    private var loadingRetry: Button? = null
+    private var loadingShipAnimation: ObjectAnimator? = null
+    private var loadingFailed = false
+    private var pageLoadSerial = 0
+    private var playedStartupSound = false
+    private var startupSound: MediaPlayer? = null
+
+    private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
+
+    // Native overlay is available immediately, before any remote server HTML.
+    private fun createLoadingOverlay(): FrameLayout {
+        val overlay = FrameLayout(this).apply {
+            background = GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                intArrayOf(0xFF080D16.toInt(), 0xFF101929.toInt(), 0xFF080D16.toInt())
+            )
+            isClickable = true
+        }
+        val content = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(dp(24), dp(22), dp(24), dp(22))
+        }
+        val ship = ImageView(this).apply {
+            setImageResource(R.drawable.tv_ship_icon)
+            scaleType = ImageView.ScaleType.FIT_CENTER
+            contentDescription = "One-Eyed Willie pirate ship"
+        }
+        content.addView(ship, LinearLayout.LayoutParams(dp(150), dp(150)))
+        loadingShipAnimation = ObjectAnimator.ofFloat(ship, "rotation", -3f, 3f, -3f).apply {
+            duration = 2200L
+            repeatCount = ValueAnimator.INFINITE
+        }
+        loadingCaption = TextView(this).apply {
+            text = "Loading your library…"
+            textSize = 21f
+            gravity = Gravity.CENTER
+            setTextColor(0xFFF0EBE5.toInt())
+        }
+        content.addView(loadingCaption, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(15) })
+        loadingSpinner = ProgressBar(this, null, android.R.attr.progressBarStyleLarge).apply {
+            isIndeterminate = true
+            indeterminateTintList = ColorStateList.valueOf(0xFF8B5CF6.toInt())
+        }
+        content.addView(loadingSpinner, LinearLayout.LayoutParams(dp(34), dp(34)).apply {
+            gravity = Gravity.CENTER_HORIZONTAL
+            topMargin = dp(18)
+        })
+        loadingRetry = Button(this).apply {
+            text = "Retry"
+            setTextColor(Color.BLACK)
+            backgroundTintList = ColorStateList.valueOf(0xFFF0EBE5.toInt())
+            setOnClickListener { browser?.reload() }
+        }
+        val settings = Button(this).apply {
+            text = "Server settings"
+            setTextColor(Color.WHITE)
+            backgroundTintList = ColorStateList.valueOf(0xFF263348.toInt())
+            setOnClickListener { showSetup() }
+        }
+        loadingActions = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            addView(loadingRetry)
+            addView(settings, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(12) })
+        }
+        content.addView(loadingActions, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+        ).apply { topMargin = dp(16) })
+        overlay.addView(content, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.CENTER
+        ))
+        return overlay
+    }
+
+    // A short original WAV bundled with the APK, played once per app launch,
+    // rather than each time the viewer changes pages.
+    private fun playStartupSoundOnce() {
+        if (playedStartupSound) return
+        playedStartupSound = true
+        try {
+            startupSound = MediaPlayer.create(this, R.raw.loading_audio)?.apply {
+                setVolume(0.24f, 0.24f)
+                setOnCompletionListener { finished ->
+                    finished.release()
+                    if (startupSound === finished) startupSound = null
+                }
+                start()
+            }
+        } catch (_: Exception) {
+            startupSound?.release()
+            startupSound = null
+        }
+    }
+
+    private fun showLoading() {
+        loadingFailed = false
+        loadingCaption?.text = "Loading your library…"
+        loadingSpinner?.visibility = View.VISIBLE
+        loadingActions?.visibility = View.GONE
+        loadingOverlay?.apply {
+            animate().cancel()
+            alpha = 1f
+            visibility = View.VISIBLE
+        }
+        if (android.provider.Settings.Global.getFloat(
+                contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+            ) != 0f) {
+            loadingShipAnimation?.start()
+        }
+        playStartupSoundOnce()
+    }
+
+    private fun showLoadingFailure(message: String) {
+        loadingFailed = true
+        loadingCaption?.text = message
+        loadingSpinner?.visibility = View.GONE
+        loadingActions?.visibility = View.VISIBLE
+        loadingShipAnimation?.cancel()
+        loadingOverlay?.apply {
+            animate().cancel()
+            alpha = 1f
+            visibility = View.VISIBLE
+        }
+        loadingRetry?.requestFocus()
+    }
+
+    private fun finishLoading(web: WebView, serial: Int) {
+        if (browser !== web || loadingFailed || serial != pageLoadSerial) return
+        loadingShipAnimation?.cancel()
+        loadingOverlay?.animate()?.alpha(0f)?.setDuration(180L)?.withEndAction {
+            if (browser === web && serial == pageLoadSerial && !loadingFailed) {
+                loadingOverlay?.visibility = View.GONE
+                web.requestFocus()
+            }
+        }?.start()
+    }
 
     private fun finishTvTextEditing(web: WebView) {
         tvTextEditing = false
@@ -80,6 +237,13 @@ class MainActivity : ComponentActivity() {
 
     private fun showSetup(error: String = "") {
         tvTextEditing = false
+        loadingShipAnimation?.cancel()
+        loadingOverlay?.animate()?.cancel()
+        loadingOverlay = null
+        loadingCaption = null
+        loadingSpinner = null
+        loadingActions = null
+        loadingRetry = null
         browser?.keepScreenOn = false
         browser?.destroy()
         browser = null
@@ -244,7 +408,23 @@ class MainActivity : ComponentActivity() {
             override fun onPageStarted(web: WebView, url: String?, favicon: android.graphics.Bitmap?) {
                 tvTextEditing = false
                 web.keepScreenOn = false
+                pageLoadSerial++
+                if (browser === web && sameOrigin(url.orEmpty())) showLoading()
                 super.onPageStarted(web, url, favicon)
+            }
+            override fun onReceivedError(
+                web: WebView, request: WebResourceRequest, error: WebResourceError
+            ) {
+                if (browser === web && request.isForMainFrame)
+                    showLoadingFailure("Unable to reach your server")
+                super.onReceivedError(web, request, error)
+            }
+            override fun onReceivedHttpError(
+                web: WebView, request: WebResourceRequest, response: WebResourceResponse
+            ) {
+                if (browser === web && request.isForMainFrame && response.statusCode >= 400)
+                    showLoadingFailure("Server error ${response.statusCode}")
+                super.onReceivedHttpError(web, request, response)
             }
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
@@ -285,19 +465,29 @@ class MainActivity : ComponentActivity() {
             }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
-                if (sameOrigin(url.orEmpty())) {
+                if (browser === web && sameOrigin(url.orEmpty())) {
+                    val completedSerial = pageLoadSerial
                     installRemoteNavigation(web)
                     // A page with autofocus must not leave the keyboard open
                     // before its inputs receive the TV read-only focus guard.
                     if (!tvTextEditing)
                         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
                             .hideSoftInputFromWindow(web.windowToken, 0)
+                    web.postDelayed({ finishLoading(web, completedSerial) }, 110L)
                 }
             }
         }
-        setContentView(view)
+        val screen = FrameLayout(this)
+        screen.addView(view, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        loadingOverlay = createLoadingOverlay()
+        screen.addView(loadingOverlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(screen)
+        showLoading()
         view.loadUrl("$origin/")
-        view.requestFocus()
     }
 
     private fun sameOrigin(url: String): Boolean = try {
@@ -333,6 +523,10 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         val web = browser
+        if (loadingOverlay?.visibility == View.VISIBLE && direction != null) {
+            // An error screen uses native focusable Retry / Settings buttons.
+            return if (loadingFailed) super.dispatchKeyEvent(event) else true
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 if (tvTextEditing) {
@@ -405,6 +599,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        loadingShipAnimation?.cancel()
+        startupSound?.release()
+        startupSound = null
+        loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false
         browser?.destroy()
