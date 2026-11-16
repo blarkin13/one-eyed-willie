@@ -235,7 +235,9 @@ class PlayerActivity : ComponentActivity() {
     private fun createControls(): LinearLayout {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(32), dp(18), dp(32), 0)
+            // Background gradients must reach the TV edges. Keep horizontal
+            // breathing room on the content rows, not the full-width overlay.
+            setPadding(0, dp(18), 0, 0)
             background = GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
                 intArrayOf(0x7A000000, 0x00000000, 0x00000000)
@@ -244,6 +246,7 @@ class PlayerActivity : ComponentActivity() {
         val heading = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
+            setPadding(dp(32), 0, dp(32), 0)
         }
         heading.addView(iconControl(R.drawable.ic_player_back, "Back to library") { finish() })
         val titles = LinearLayout(this).apply {
@@ -272,7 +275,10 @@ class PlayerActivity : ComponentActivity() {
 
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(18), dp(64), dp(18), dp(23))
+            // Previous 32dp parent + 18dp child inset applied to the
+            // background as well, leaving visible video gutters on both sides.
+            // Apply the same 50dp spacing inside this full-bleed gradient.
+            setPadding(dp(50), dp(64), dp(50), dp(23))
             background = GradientDrawable(
                 GradientDrawable.Orientation.BOTTOM_TOP,
                 intArrayOf(0xF2000000.toInt(), 0xDB090B10.toInt(), 0x00000000)
