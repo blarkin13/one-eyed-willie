@@ -707,7 +707,9 @@ async function checkMetadata(){
   }else if(available===0){
    $('metadata-status').textContent='No genre, rating or runtime metadata found for '+totalTitles+
      ' titles. Check Settings → Connections (Radarr/Sonarr) and Settings → Metadata (TMDB).';
-  }else if(missing>0){
+  }else if(missing>0 && missing/totalTitles>=0.05){
+   // Suppress low-noise coverage warnings (for example, 4 of 427 titles).
+   // Retries still run in the background regardless of the warning display.
    $('metadata-status').textContent='Metadata available for '+available+' of '+totalTitles+
      ' titles; '+missing+' still missing. Unmatched titles are retried automatically.';
   }else{

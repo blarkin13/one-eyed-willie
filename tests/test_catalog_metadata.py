@@ -152,6 +152,11 @@ class CatalogMetadataTests(unittest.TestCase):
         self.assertIn("available=Number(state.available)", page)
         self.assertIn("missing=Number(state.missing)", page)
         self.assertIn("Metadata available for ", page)
+        # A handful of unmatched titles should not generate a persistent warning.
+        self.assertIn("missing>0 && missing/totalTitles>=0.05", page)
+        self.assertLess(4 / 427, 0.05)
+        self.assertGreaterEqual(22 / 427, 0.05)
+        self.assertIn("Unmatched titles are retried automatically.", page)
         self.assertNotIn("Genres, ratings and runtimes are still being indexed and will be retried automatically.", page)
 
     def test_metadata_retry_starts_at_app_lifespan_and_skips_ffprobe(self):
