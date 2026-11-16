@@ -201,6 +201,7 @@ class PlayerActivity : ComponentActivity() {
         val dimension = dp(if (large) 64 else 54)
         layoutParams = LinearLayout.LayoutParams(dimension, dimension)
         setImageResource(icon)
+        imageTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE4.toInt())
         contentDescription = description
         tooltipText = description
         scaleType = ImageView.ScaleType.CENTER_INSIDE
@@ -213,8 +214,12 @@ class PlayerActivity : ComponentActivity() {
             setColor(Color.TRANSPARENT)
         }
         setOnFocusChangeListener { button, hasFocus ->
-            // Match every server page: focused playback icons enlarge without
-            // white rectangles, circular outlines, or focus background boxes.
+            // Ice-blue focused icons with the existing borderless enlargement.
+            // Keep their normal off-white color when focus leaves.
+            (button as ImageButton).imageTintList =
+                android.content.res.ColorStateList.valueOf(
+                    if (hasFocus) 0xFFA9DDFF.toInt() else 0xFFF4EFE4.toInt()
+                )
             button.animate().scaleX(if (hasFocus) 1.16f else 1f)
                 .scaleY(if (hasFocus) 1.16f else 1f)
                 .alpha(if (hasFocus) 1f else .88f)

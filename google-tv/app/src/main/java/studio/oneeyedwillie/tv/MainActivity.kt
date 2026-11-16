@@ -886,6 +886,27 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .person-credit-link:is(:focus,:focus-visible){
                   outline:0!important;box-shadow:none!important;border-color:transparent!important
                 }
+                /* TV remote focus: ice-blue monochrome icons, no selection box.
+                   Do not recolor the original Radarr/Sonarr brand art. */
+                body[data-page] :is(.media-icon-action,.icon-only-control,
+                  .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
+                  color:#a9ddff!important
+                }
+                body[data-page] :is(.media-icon-action,.icon-only-control,
+                  .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible) svg{
+                  color:#a9ddff!important
+                }
+                body[data-page] :is(.willie-controls,.willie-toolbar) button:is(:focus,:focus-visible){
+                  color:#a9ddff!important
+                }
+                body[data-page] .sidebar .nav-link[aria-current="page"]:not(
+                  [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
+                  color:#a9ddff!important
+                }
+                body[data-page] .sidebar .nav-link:not([data-service-nav="radarr"]):not(
+                  [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon{
+                  color:#a9ddff!important
+                }
                 /* No smooth page scrolling or shelf snap while using D-pad. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
                 .shelf-track,.discovery-row{
