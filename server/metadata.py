@@ -205,7 +205,7 @@ def show_metadata_by_id(tmdb_id, fallback=None):
 def season_metadata(tmdb_id, season_number):
     if not token_status() or not isinstance(tmdb_id, int):
         return {}
-    key = "season:" + str(tmdb_id) + ":" + str(season_number)
+    key = "season:v2:" + str(tmdb_id) + ":" + str(season_number)
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -224,7 +224,7 @@ def season_metadata(tmdb_id, season_number):
                 str(ep.get("episode_number")): {
                     "title": ep.get("name") or "",
                     "overview": ep.get("overview") or "",
-                    "still_url": image_url(ep.get("still_path"), "w300"),
+                    "still_url": image_url(ep.get("still_path"), "w780"),
                     "air_date": ep.get("air_date") or "",
                     "runtime": ep.get("runtime"),
                 }
