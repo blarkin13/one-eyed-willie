@@ -187,6 +187,7 @@ async function findManagerRecord(){
  if(tmdbId&&provider==='radarr'){
   const verified=exact.find(x=>x.id===tmdbId);
   if(verified)return verified;
+  throw Error('Radarr did not return this exact TMDB movie. Use Explore More to choose a correct match.');
  }
  if(exact.length===1)return exact[0];
  if(exact.length>1)throw Error('Multiple matching titles found. Choose the correct one in Explore More.');
@@ -203,7 +204,10 @@ async function load(){
   if(local.owned&&typeof local.href==='string'&&local.href.startsWith('/')){
    location.replace(local.href);return;
   }
-  if(local.ambiguous)$('availability').textContent='Several similar local titles exist. Check your library before adding.';
+  if(local.ambiguous){
+   $('availability').textContent='Several similar local titles exist. Check your library before adding.';
+   target.disabled=true;
+  }
  }catch(e){$('availability').textContent='Library lookup unavailable: '+e.message;}
  try{
   const q=new URLSearchParams();
@@ -216,6 +220,7 @@ async function load(){
  if(!detail){$('overview').textContent='Film or television details could not be loaded.'}
  try{
   selected=await findManagerRecord();
+  if($('availability').textContent.startsWith('Several'))target.disabled=true;
   if(selected.already_added){
    target.disabled=true;target.title='Already in '+provider;
    target.setAttribute('aria-label',target.title);
