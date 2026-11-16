@@ -498,13 +498,15 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const preview=document.createElement('div');preview.className='willie-preview-tooltip';preview.hidden=true;
     const previewImage=document.createElement('img');previewImage.alt='Video preview thumbnail';
     const previewTime=document.createElement('span');preview.append(previewImage,previewTime);
-    let previewImages=[];
+    let previewFrames=[];
     const previewAt=fraction=>{
-      if(!previewImages.length)return;
-      const index=Math.max(0,Math.min(previewImages.length-1,Math.floor(fraction*previewImages.length)));
-      previewImage.src=previewImages[index];
+      if(!previewFrames.length)return;
       const duration=Number(status?.duration_seconds)||video.duration;
-      previewTime.textContent=Number.isFinite(duration)?formatTime(duration*fraction):'';
+      const target=Number.isFinite(duration)?duration*fraction:0;
+      const frame=previewFrames.reduce((best,frame)=>
+        Math.abs(frame.time-target)<Math.abs(best.time-target)?frame:best,previewFrames[0]);
+      if(previewImage.getAttribute('src')!==frame.url)previewImage.src=frame.url;
+      previewTime.textContent=Number.isFinite(duration)?formatTime(target):'';
       preview.hidden=false;
     };
     slider.addEventListener('input',()=>previewAt(Math.max(0,Math.min(1,Number(slider.value)/1000))));
@@ -513,9 +515,19 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       if(rect.width>0)previewAt(Math.max(0,Math.min(1,(event.clientX-rect.left)/rect.width)));
     });
     for(const eventName of ['pointerleave','blur','change'])slider.addEventListener(eventName,()=>{preview.hidden=true});
-    requestJson('/api/maintenance/preview/'+id).then(data=>{
-      if(current===surface&&data.enabled&&Array.isArray(data.images))previewImages=data.images.filter(url=>/^\/api\/maintenance\/preview\/\d+\/00[0-5]\.jpg$/.test(url));
-    }).catch(()=>{});
+    let previewPolls=0;
+    const loadPreviews=()=>{
+      requestJson('/api/maintenance/preview/'+id).then(data=>{
+        if(current!==surface)return;
+        if(data.enabled&&Array.isArray(data.frames)){
+          previewFrames=data.frames.filter(x=>
+            typeof x.url==='string'&&/^\/api\/maintenance\/preview\/\d+\/0(?:0\d|1\d|2[0-3])\.jpg$/.test(x.url))
+            .map(x=>({url:x.url,time:Number(x.time_seconds)||0}));
+        }
+        if(data.generating&&previewPolls++<18)setTimeout(loadPreviews,3000);
+      }).catch(()=>{});
+    };
+    loadPreviews();
     timeline.append(preview);
     timeline.append(elapsed,slider,total);
     bottom.prepend(timeline);surface.append(video,controls,info,bottom,nextPrompt);

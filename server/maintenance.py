@@ -23,6 +23,7 @@ from pydantic import BaseModel
 
 from .library import db, scan_library, VIDEO_EXTENSIONS
 from .playback import _item
+from .media_probe import inspect_media
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/maintenance")
@@ -38,6 +39,9 @@ MAX_ANALYSIS = 40
 MAX_EXTENSIVE = 3
 MAX_PREVIEWS = 4
 MAX_PREVIEW_BYTES = 800000
+PREVIEW_FRAMES = 24
+PREVIEW_WORKER = threading.Lock()
+PREVIEW_RETRY_AT = {}
 DEFAULTS = {
     "optimize_database": True,
     "remove_old_bundles": True,
@@ -213,7 +217,11 @@ def _probe(row, extensive=False):
 
 
 def _preview_key(row):
-    return hashlib.sha256(f'{row["id"]}:{row["size"]}:{row["mtime_ns"]}'.encode()).hexdigest()[:24]
+    return hashlib.sha256(f'v2:{row["id"]}:{row["size"]}:{row["mtime_ns"]}'.encode()).hexdigest()[:24]
+
+
+def _preview_complete(directory):
+    return all((directory / f"{i:03}.jpg").is_file() for i in range(PREVIEW_FRAMES))
 
 
 def _create_preview(row):
@@ -222,7 +230,7 @@ def _create_preview(row):
         return False
     token = _preview_key(row)
     target = PREVIEWS / token
-    if (target / "000.jpg").is_file():
+    if _preview_complete(target):
         return False
     try:
         PREVIEWS.mkdir(parents=True, exist_ok=True)
@@ -240,9 +248,13 @@ def _create_preview(row):
         if duration <= 15:
             return False
         success = 0
-        for index in range(6):
+        # Fill the middle and quarters first, so thumbnails cover the entire
+        # timeline while the rest are generated in the background.
+        priority = [11, 5, 17, 2, 8, 14, 20, 0, 23]
+        order = priority + [i for i in range(PREVIEW_FRAMES) if i not in priority]
+        for index in order:
             if not (target / f"{index:03}.jpg").exists():
-                offset = max(1, duration * (index + 1) / 7)
+                offset = max(1, duration * (index + 1) / (PREVIEW_FRAMES + 1))
                 command = ["nice", "-n", "15", "/usr/bin/ffmpeg", "-nostdin",
                            "-v", "error", "-ss", str(offset), "-i", str(path),
                            "-frames:v", "1", "-vf", "scale=320:-2",
@@ -359,7 +371,7 @@ def _run_task(name):
         for row in _next_media_batch(name, 20):
             if done >= MAX_PREVIEWS:
                 break
-            if (PREVIEWS / _preview_key(row) / "000.jpg").is_file():
+            if _preview_complete(PREVIEWS / _preview_key(row)):
                 continue
             if _create_preview(row):
                 done += 1
@@ -446,25 +458,56 @@ def start_preview_generation():
     return {"started": True, "limit": MAX_PREVIEWS}
 
 
+def _preview_on_demand(entry, token):
+    try:
+        _create_preview(entry)
+    finally:
+        PREVIEW_RETRY_AT[token] = time.monotonic() + 600
+        PREVIEW_WORKER.release()
+
+
 @router.get("/preview/{media_id}")
 def preview_info(media_id: int):
     if not settings()["video_preview_thumbnails"]:
-        return {"enabled": False, "images": []}
+        return {"enabled": False, "images": [], "frames": [], "generating": False}
     row, path = _item(media_id)
     stat = path.stat()
-    entry = {"id": media_id, "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+    entry = {"id": media_id, "path": str(path),
+             "size": stat.st_size, "mtime_ns": stat.st_mtime_ns}
     token = _preview_key(entry)
-    return {"enabled": True, "images": [
-        f"/api/maintenance/preview/{media_id}/{i:03}.jpg"
-        for i in range(6) if (PREVIEWS / token / f"{i:03}.jpg").is_file()
-    ]}
+    profile = inspect_media(path)
+    duration = float(profile.get("duration") or 0)
+    files = [
+        (i, f"/api/maintenance/preview/{media_id}/{i:03}.jpg")
+        for i in range(PREVIEW_FRAMES)
+        if (PREVIEWS / token / f"{i:03}.jpg").is_file()
+    ]
+    if (len(files) < PREVIEW_FRAMES and duration > 15 and
+            not WORKING.locked() and not PREVIEW_WORKER.locked() and
+            time.monotonic() > PREVIEW_RETRY_AT.get(token, 0)):
+        if PREVIEW_WORKER.acquire(blocking=False):
+            # One low-priority preview generator for the whole server, never
+            # an unbounded job per request or per seeking position.
+            threading.Thread(target=_preview_on_demand, args=(entry, token),
+                             daemon=True, name="playback-thumbnail-previews").start()
+    return {
+        "enabled": True,
+        "images": [url for _, url in files],  # Backward-compatible browser UI
+        "frames": [
+            {"time_seconds": duration * (i + 1) / (PREVIEW_FRAMES + 1) if duration else 0,
+             "url": url}
+            for i, url in files
+        ],
+        "generating": PREVIEW_WORKER.locked(),
+        "duration_seconds": duration,
+    }
 
 
 @router.get("/preview/{media_id}/{filename}")
 def preview_image(media_id: int, filename: str):
     if not settings()["video_preview_thumbnails"]:
         raise HTTPException(404, "Previews disabled")
-    if not re.fullmatch(r"00[0-5]\.jpg", filename):
+    if not re.fullmatch(r"0(?:0[0-9]|1[0-9]|2[0-3])\.jpg", filename):
         raise HTTPException(404, "Preview not found")
     _, path = _item(media_id)
     stat = path.stat()

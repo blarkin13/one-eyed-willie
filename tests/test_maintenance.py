@@ -108,6 +108,37 @@ class MaintenanceTests(unittest.TestCase):
             with self.assertRaises(HTTPException):
                 maintenance.preview_image(2, "../x")
 
+    def test_timed_scrub_frames_are_bound_to_local_media(self):
+        data = {key: False for key in maintenance.DEFAULTS}
+        data["video_preview_thumbnails"] = True
+        media = maintenance.DATA / "sample.mp4"
+        media.parent.mkdir(parents=True, exist_ok=True)
+        media.write_bytes(b"test")
+        record = {"id": 9, "size": media.stat().st_size, "mtime_ns": media.stat().st_mtime_ns}
+        folder = maintenance.PREVIEWS / maintenance._preview_key(record)
+        folder.mkdir(parents=True)
+        for index in (5, 11, 23):
+            (folder / f"{index:03}.jpg").write_bytes(b"sample")
+        with patch.object(maintenance, "settings", return_value=data), \
+             patch.object(maintenance, "inspect_media", return_value={"duration": 2400}), \
+             patch.object(maintenance, "_item", return_value=({"id": 9}, media)), \
+             patch.object(maintenance, "WORKING") as busy:
+            busy.locked.return_value = True
+            result = maintenance.preview_info(9)
+        self.assertEqual(len(result["frames"]), 3)
+        self.assertEqual(result["images"][0], result["frames"][0]["url"])
+        self.assertEqual(result["frames"][0]["time_seconds"], 2400 * 6 / 25)
+        self.assertEqual(result["frames"][2]["time_seconds"], 2400 * 24 / 25)
+        with patch.object(maintenance, "settings", return_value=data), \
+             patch.object(maintenance, "_item", return_value=({"id": 9}, media)):
+            self.assertEqual(maintenance.preview_image(9, "023.jpg").media_type, "image/jpeg")
+            with self.assertRaises(HTTPException):
+                maintenance.preview_image(9, "024.jpg")
+        self.assertTrue(maintenance._preview_complete(folder) is False)
+        for index in range(maintenance.PREVIEW_FRAMES):
+            (folder / f"{index:03}.jpg").write_bytes(b"sample")
+        self.assertTrue(maintenance._preview_complete(folder))
+
     def test_maintenance_errors_do_not_mark_task_complete(self):
         enabled = {key: False for key in maintenance.DEFAULTS}
         enabled["update_all_libraries"] = True

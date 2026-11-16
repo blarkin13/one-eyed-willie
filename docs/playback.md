@@ -73,3 +73,12 @@ Known limitations: Browser compatibility depends on supported codecs; audio/subt
 - Check concurrent playback limit, disk low guard, progress updates, captions, and remote HTTPS access.
 
 GPU support and reliable playback must be validated against the actual NUC and TV; CI alone cannot exercise those devices.
+
+
+## Google TV player controls and scrub previews
+
+The native Google TV player now uses icon-based transport controls with visible D-pad focus, a larger progress bar and a thumbnail preview while scrubbing. Pressing the remote's rewind/fast-forward media buttons or left/right while the controls are hidden seeks by 10 seconds. With the timeline focused, left/right changes the seek position; a brief pause commits the target. Rapid skips are combined into one seek.
+
+Preview images are **not** video decoder frames on the television. The server makes 24 read-only JPEG frames at timestamps spanning the video, on first playback if needed, with only one low-priority on-demand generator at a time. The player polls briefly while those frames are created; if video has no previews yet it displays the target timestamp and a loading message. Preview generation never changes the original media. The existing nightly maintenance preview setting can disable on-demand generation too.
+
+Validation: play a TV episode, use the remote left/right keys, focus the timeline and scrub to the middle, pause and resume, select subtitles, navigate to the next episode, and verify the overlay hides during regular playback. First-play previews may become available progressively while the server generates them.
