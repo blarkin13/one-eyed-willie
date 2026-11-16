@@ -512,7 +512,7 @@ function drawAlphabet(items){
    nav.append(a);
  }
 }
-async function load(){
+async function load({preserveFocus=false}={}){
  const thisRequest=++requestId;
  loading=true;$('status').textContent='Loading titles…';
  const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value});
@@ -524,6 +524,16 @@ async function load(){
   const data=await response.json();if(thisRequest!==requestId)return;
   total=data.total;const entries=Array.isArray(data.items)?data.items:[];
   updateGenreChoices(data.genres);
+  // Metadata refreshes must not throw D-pad focus back to the page body
+  // or change the scroll position while the viewer browses poster rows.
+  const previouslyFocused=preserveFocus?
+    document.activeElement?.closest?.('#items .tile-button'):null;
+  const focusId=previouslyFocused?[
+    previouslyFocused.dataset.hoverKind,
+    previouslyFocused.dataset.hoverLibraryId,
+    previouslyFocused.dataset.hoverKey
+  ].join('|'):null;
+  const previousScroll=(document.scrollingElement||document.documentElement).scrollTop;
   $('items').replaceChildren();
   moviePosterJobs.length=0;posterQueue.length=0;movieFallbackQueue.length=0;
   const fragment=document.createDocumentFragment();
@@ -534,6 +544,14 @@ async function load(){
     fragment.append(card);
   }
   $('items').append(fragment);
+  if(focusId){
+    const restored=[...$('items').querySelectorAll('.tile-button')].find(link=>
+      [link.dataset.hoverKind,link.dataset.hoverLibraryId,link.dataset.hoverKey].join('|')===focusId);
+    if(restored){
+      restored.focus({preventScroll:true});
+      (document.scrollingElement||document.documentElement).scrollTop=previousScroll;
+    }
+  }
   drawAlphabet(entries);
   if(type==='movies')fetchMoviePosters();
   $('results-count').textContent=total.toLocaleString()+' titles';
@@ -546,7 +564,20 @@ async function load(){
  }catch(error){if(thisRequest===requestId)$('status').textContent='Unable to load titles: '+error.message}
  finally{if(thisRequest===requestId)loading=false}
 }
-/* Spatial arrow navigation for keyboard, television D-pad and remote controls. */
+/* Spatial arrow navigation for keyboard, television D-pad and remote controls.
+   Moving vertically between library poster rows scrolls smoothly without
+   hijacking horizontal poster navigation or changing the chosen column. */
+function scrollCatalogRowTo(card){
+ const root=document.scrollingElement||document.documentElement;
+ const bounds=card.getBoundingClientRect();
+ const upper=Math.max(36,innerHeight*.13);
+ const lower=innerHeight-Math.max(44,innerHeight*.1);
+ if(bounds.top>=upper&&bounds.bottom<=lower)return;
+ const max=Math.max(0,root.scrollHeight-root.clientHeight);
+ const top=Math.max(0,Math.min(max,root.scrollTop+bounds.top-upper));
+ const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
+ window.scrollTo({top,behavior:reduced?'instant':'smooth'});
+}
 function remoteCatalogMove(key){
  const selectors='a[href],button:not([disabled]),input:not([disabled]),select:not([disabled])';
  const targets=[...document.querySelector('.workspace').querySelectorAll(selectors)].filter(el=>{
@@ -568,7 +599,14 @@ function remoteCatalogMove(key){
    if(value<score){score=value;closest=candidate;}
  }
  if(!closest)return false;
- closest.focus({preventScroll:true});closest.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
+ const betweenPosterRows=['ArrowUp','ArrowDown'].includes(key)&&
+   active.matches?.('#items .tile-button')&&closest.matches?.('#items .tile-button');
+ closest.focus({preventScroll:true});
+ if(betweenPosterRows)scrollCatalogRowTo(closest);
+ else if(!['ArrowLeft','ArrowRight'].includes(key)||
+          !active.matches?.('#items .tile-button')||
+          !closest.matches?.('#items .tile-button'))
+   closest.scrollIntoView({block:'nearest',inline:'nearest',behavior:'instant'});
  return true;
 }
 document.addEventListener('keydown',event=>{
@@ -721,7 +759,7 @@ async function checkMetadata(){
   if((newlyFinished||newMetadata) && !loading &&
      (newlyFinished || processed-metadataReloadAt>=25 || !state.running)){
     metadataReloadAt=processed;
-    load();
+    load({preserveFocus:true});
   }
  }catch(error){
   $('metadata-status').textContent='Metadata status unavailable: '+error.message;
