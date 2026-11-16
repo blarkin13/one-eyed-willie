@@ -56,6 +56,9 @@ def home_shelves():
     tv_episodes = {}
     descriptions = {}
     with db() as connection:
+        revision = connection.execute(
+            "SELECT revision FROM catalog_state WHERE id=1"
+        ).fetchone()[0]
         libs = {row["id"]: row for row in connection.execute("SELECT id,kind,path FROM libraries")}
         progress = {row["media_id"]: dict(row) for row in connection.execute(
             "SELECT media_id,position_seconds,duration_seconds,completed,updated_at "
@@ -169,6 +172,7 @@ def home_shelves():
             "tv": len(recent["tv"]),
         },
         "playback_available": True,
+        "revision": revision,
     }
 
 
