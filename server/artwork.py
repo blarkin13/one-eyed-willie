@@ -158,11 +158,12 @@ def local_show_poster(library_id, key):
         if lib is None or lib["kind"] != "tv":
             return None
         rows = conn.execute(
-            "SELECT path FROM media WHERE library_id=? ORDER BY path", (library_id,)
+            "SELECT path,source_root FROM media WHERE library_id=? ORDER BY path", (library_id,)
         ).fetchall()
     root = Path(lib["path"])
     for row in rows:
         path = Path(row["path"])
+        root = Path(row["source_root"] or lib["path"])
         try:
             parsed = episode_info(path, root)
             if parsed["key"] != key:

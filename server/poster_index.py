@@ -86,7 +86,7 @@ def _collect():
         # Prefetch TV first, newest additions first, so Home posters appear
         # without waiting for every movie in the collection.
         media = conn.execute("""
-            SELECT m.library_id,m.path FROM media m
+            SELECT m.library_id,m.path,m.source_root FROM media m
             JOIN libraries l ON l.id=m.library_id
             ORDER BY CASE WHEN l.kind='tv' THEN 0 ELSE 1 END,
                      m.added_at DESC,m.id DESC
@@ -97,8 +97,8 @@ def _collect():
             if not lib:
                 continue
             try:
-                info = (episode_info(row["path"], lib["path"]) if lib["kind"] == "tv"
-                        else movie_info(row["path"], lib["path"]))
+                info = (episode_info(row["path"], row["source_root"] or lib["path"]) if lib["kind"] == "tv"
+                        else movie_info(row["path"], row["source_root"] or lib["path"]))
             except (OSError, ValueError):
                 continue
             identity = (lib["kind"], row["library_id"], info["key"])

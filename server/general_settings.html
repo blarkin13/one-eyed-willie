@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>General Settings · One-Eyed Willie</title>
+<link rel="stylesheet" href="/assets/ui.css?v=settings-v2">
+<script defer src="/assets/shell.js?v=settings-v2"></script>
+</head><body data-page="general">
+<div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<div class="page-head"><div><p class="eyebrow"><a href="/settings">Settings</a> / General</p>
+<h1>General</h1><p>Playback, maintenance, remote access, and navigation in one place.</p></div></div>
+<p id="general-message" class="message" role="status" aria-live="polite"></p>
+
+<section class="settings-section" aria-labelledby="playback-heading">
+<h2 id="playback-heading">Playback</h2>
+<div class="settings-card">
+<form id="playback-form">
+<label class="setting-toggle"><input type="checkbox" id="auto-next"> Automatically play the next TV episode</label>
+<p class="settings-muted">Applies to the player when the next episode is available in your library.</p>
+<div class="form-actions"><button class="primary-button" type="submit">Save playback settings</button>
+<a class="text-link" href="/settings/playback">Advanced playback page</a></div>
+</form></div>
+</section>
+
+<section class="settings-section" aria-labelledby="maintenance-heading">
+<h2 id="maintenance-heading">Maintenance</h2>
+<p>Choose the scheduled jobs the NUC should run. Maintenance normally starts at 4:00 AM Central.</p>
+<div class="settings-card">
+<form id="maintenance-form">
+<div id="maintenance-tasks" class="settings-two-col">Loading tasks…</div>
+<div class="form-actions">
+<button type="submit" class="primary-button">Save maintenance schedule</button>
+<button id="run-maintenance" type="button" class="secondary-button">Run enabled tasks now</button>
+<button id="generate-previews" type="button" class="secondary-button">Generate thumbnails now</button>
+</div></form>
+<p id="maintenance-status" class="settings-muted" role="status"></p>
+<a class="text-link" href="/settings/maintenance">See maintenance history and details</a>
+</div>
+</section>
+
+<section class="settings-section" aria-labelledby="remote-heading">
+<h2 id="remote-heading">Remote access</h2>
+<p>Configure the connection details shown to your clients. Saving an address does not configure your router, tunnel, or firewall.</p>
+<div class="settings-card">
+<form id="remote-form">
+<div class="settings-two-col">
+<div><label for="public-ip">Public IP address (optional)</label>
+<input id="public-ip" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" maxlength="45" placeholder="Public IPv4 address"></div>
+<div><label for="public-url">Remote HTTPS address (optional)</label>
+<input id="public-url" type="url" autocomplete="url" maxlength="240" placeholder="https://tv.example.com"></div>
+</div>
+<div class="form-actions">
+<button type="submit" class="primary-button">Save remote access details</button>
+<a id="remote-open" class="text-link" target="_blank" rel="noopener noreferrer" hidden>Open remote site</a>
+<a class="text-link" href="/settings/remote">Connection help and status</a>
+</div></form>
+<p class="settings-muted" id="remote-status" role="status"></p>
+</div>
+</section>
+
+<section class="settings-section" aria-labelledby="sidebar-heading">
+<h2 id="sidebar-heading">Organize sidebar</h2>
+<p>Choose which destinations are visible and change their order. Home and Settings stay visible; Settings always stays last.</p>
+<div class="settings-card">
+<div id="sidebar-order" class="settings-list" aria-label="Sidebar destinations">Loading navigation…</div>
+<div class="form-actions">
+<button class="primary-button" type="button" id="save-sidebar">Save sidebar layout</button>
+<button class="secondary-button" type="button" id="reset-sidebar">Restore default order</button>
+</div>
+<p class="settings-muted">Custom library names, icons, and fonts are edited in <a class="text-link" href="/settings/libraries">Library settings</a>.</p>
+</div>
+</section>
+
+<section class="settings-section" aria-labelledby="server-heading">
+<h2 id="server-heading">Server</h2>
+<div class="settings-card"><p id="server-info">Checking server status…</p>
+<a class="text-link" href="/services">Open connected-service dashboards</a></div>
+</section>
+</main></div></div>
+<script>
+const el=id=>document.getElementById(id);
+const taskNames={
+ optimize_database:'Optimize database',remove_old_bundles:'Remove old bundles',
+ remove_old_cache_files:'Clean generated caches',refresh_local_metadata:'Refresh local metadata',
+ update_all_libraries:'Scan all libraries',upgrade_media_analysis:'Analyze media files',
+ refresh_library_metadata:'Refresh online metadata',extensive_media_analysis:'Extended media analysis',
+ video_preview_thumbnails:'Generate video thumbnails'
+};
+async function api(url,options={}){
+ const response=await fetch(url,{cache:'no-store',...options,
+  headers:{'Content-Type':'application/json',...(options.headers||{})}});
+ const payload=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(typeof payload.detail==='string'?payload.detail:'Request failed ('+response.status+')');
+ return payload;
+}
+function notice(message,error=false){
+ const node=el('general-message');node.textContent=message;node.className='message'+(error?' error':'');
+}
+async function loadPlayback(){
+ const data=await api('/api/settings/playback');
+ el('auto-next').checked=!!data.auto_play_next;
+}
+el('playback-form').onsubmit=async event=>{
+ event.preventDefault();
+ try{await api('/api/settings/playback',{method:'PUT',body:JSON.stringify({
+  auto_play_next:el('auto-next').checked
+ })});notice('Playback settings saved.')}
+ catch(error){notice(error.message,true)}
+};
+async function loadMaintenance(){
+ const data=await api('/api/maintenance/settings');
+ const container=el('maintenance-tasks');container.replaceChildren();
+ for(const [key,name] of Object.entries(taskNames)){
+  const label=document.createElement('label');label.className='setting-toggle';
+  const input=document.createElement('input');input.type='checkbox';input.dataset.task=key;
+  input.checked=!!data.settings[key];label.append(input,document.createTextNode(name));
+  container.append(label);
+ }
+ el('maintenance-status').textContent=(data.running?'Maintenance is running. ':'')+
+  'Next window: '+data.next_window;
+ el('run-maintenance').disabled=!!data.running;
+ el('generate-previews').disabled=!!data.running||!data.settings.video_preview_thumbnails;
+}
+el('maintenance-form').onsubmit=async event=>{
+ event.preventDefault();
+ const settings={};
+ for(const input of el('maintenance-tasks').querySelectorAll('input[data-task]')){
+  settings[input.dataset.task]=input.checked;
+ }
+ try{await api('/api/maintenance/settings',{method:'PUT',body:JSON.stringify(settings)});
+  notice('Maintenance schedule saved.');await loadMaintenance()}
+ catch(error){notice(error.message,true)}
+};
+el('run-maintenance').onclick=async()=>{
+ if(!confirm('Run all enabled maintenance tasks now? This may use CPU and disk while you watch.'))return;
+ try{await api('/api/maintenance/run',{method:'POST'});notice('Maintenance started.');await loadMaintenance()}
+ catch(error){notice(error.message,true)}
+};
+el('generate-previews').onclick=async()=>{
+ try{await api('/api/maintenance/previews/generate',{method:'POST'});
+  notice('Video preview generation started.');await loadMaintenance()}
+ catch(error){notice(error.message,true)}
+};
+async function loadRemote(){
+ const data=await api('/api/remote/settings');
+ el('public-ip').value=data.public_ip||'';
+ el('public-url').value=data.public_url||'';
+ el('remote-status').textContent=data.status||'Save a remote address to configure client preferences.';
+ const remote=el('remote-open');
+ if(typeof data.public_url==='string'&&/^https:\/\//.test(data.public_url)){
+  remote.href=data.public_url;remote.hidden=false;
+ }else{remote.hidden=true;remote.removeAttribute('href')}
+}
+el('remote-form').onsubmit=async event=>{
+ event.preventDefault();
+ try{const data=await api('/api/remote/settings',{method:'PUT',body:JSON.stringify({
+  public_ip:el('public-ip').value.trim(),public_url:el('public-url').value.trim()
+ })});notice('Remote access preferences saved.');await loadRemote()}
+ catch(error){notice(error.message,true)}
+};
+let sidebarItems=[];
+function renderSidebar(){
+ const box=el('sidebar-order');box.replaceChildren();
+ sidebarItems.forEach((item,index)=>{
+  const row=document.createElement('div');row.className='settings-list-row';
+  const label=document.createElement('label');label.className='setting-toggle';
+  const checked=document.createElement('input');checked.type='checkbox';
+  checked.checked=item.visible;checked.disabled=['home','settings'].includes(item.id);
+  checked.addEventListener('change',()=>{item.visible=checked.checked});
+  const text=document.createElement('span');text.className='settings-list-title';
+  text.textContent=item.name+(item.kind==='library'?' · library':'');
+  label.append(checked,text);row.append(label);
+  const actions=document.createElement('div');actions.className='settings-row-actions';
+  for(const [text,delta] of [['↑',-1],['↓',1]]){
+   const button=document.createElement('button');button.type='button';button.className='secondary-button';
+   button.textContent=text;button.setAttribute('aria-label','Move '+item.name+(delta<0?' up':' down'));
+   const next=index+delta;
+   button.disabled=item.id==='settings'||next<0||next>=sidebarItems.length||
+     sidebarItems[next]?.id==='settings';
+   button.onclick=()=>{const destination=index+delta;
+    [sidebarItems[index],sidebarItems[destination]]=[sidebarItems[destination],sidebarItems[index]];
+    renderSidebar()};
+   actions.append(button);
+  }
+  row.append(actions);box.append(row);
+ });
+}
+async function loadSidebar(){
+ const data=await api('/api/settings/sidebar');
+ sidebarItems=data.items.map(x=>({id:x.id,name:x.name,kind:x.kind,visible:x.visible}));
+ renderSidebar();
+}
+el('save-sidebar').onclick=async()=>{
+ try{await api('/api/settings/sidebar',{method:'PUT',body:JSON.stringify({
+  order:sidebarItems.map(x=>x.id),hidden:sidebarItems.filter(x=>!x.visible).map(x=>x.id)
+ })});notice('Sidebar saved. Reloading to apply layout…');setTimeout(()=>location.reload(),400)}
+ catch(error){notice(error.message,true)}
+};
+el('reset-sidebar').onclick=()=>{
+ if(!confirm('Restore sidebar order and visibility to defaults?'))return;
+ const priorities=['home','movies','tv','radarr','sonarr','sabnzbd','services'];
+ const originalPosition=new Map(sidebarItems.map((item,index)=>[item.id,index]));
+ sidebarItems.sort((a,b)=>{
+  const score=x=>x.id==='settings'?999:
+   priorities.includes(x.id)?priorities.indexOf(x.id):100+originalPosition.get(x.id);
+  return score(a)-score(b);
+ });
+ sidebarItems.forEach(x=>x.visible=true);
+ renderSidebar();notice('Default layout ready. Click Save sidebar layout to apply.');
+};
+Promise.allSettled([loadPlayback(),loadMaintenance(),loadRemote(),loadSidebar(),
+ api('/health').then(data=>{
+  el('server-info').textContent='Server: '+(data.application||'One-Eyed Willie')+
+   ' · version '+(data.version||'unknown')+' · '+(data.status||'unknown');
+ })]).then(results=>{
+ const failed=results.filter(x=>x.status==='rejected');
+ if(failed.length)notice('Some settings could not be loaded: '+failed.map(x=>x.reason.message).join('; '),true);
+});
+</script></body></html>

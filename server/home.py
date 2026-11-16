@@ -21,14 +21,14 @@ class PlaybackUpdate(BaseModel):
 def _describe(media, lib):
     try:
         if lib["kind"] == "movies":
-            info = movie_info(media["path"], lib["path"])
+            info = movie_info(media["path"], media["source_root"] or lib["path"])
             return {
                 "kind": "movies", "title": info["title"], "year": info["year"],
                 "subtitle": str(info["year"]) if info["year"] else "Movie",
                 "library_id": lib["id"], "key": info["key"],
                 "group": (lib["id"], info["key"]),
             }
-        info = episode_info(media["path"], lib["path"])
+        info = episode_info(media["path"], media["source_root"] or lib["path"])
         season = info["season"]
         episode = info["episode"]
         parts = []
@@ -63,7 +63,7 @@ def home_shelves():
         )}
         watched_ids = {media_id for media_id, entry in progress.items() if entry["completed"]}
         rows = connection.execute(
-            "SELECT id,library_id,path,added_at,mtime_ns FROM media "
+            "SELECT id,library_id,path,source_root,added_at,mtime_ns FROM media "
             "ORDER BY added_at DESC, mtime_ns DESC, id DESC"
         ).fetchall()
         for row in rows:
@@ -86,7 +86,7 @@ def home_shelves():
                 }
             if desc["kind"] == "tv":
                 # Parse once per indexed episode, not once per new Home card.
-                info = episode_info(row["path"], lib["path"])
+                info = episode_info(row["path"], row["source_root"] or lib["path"])
                 if info["season"] is not None and info["episode"] is not None:
                     tv_episodes.setdefault(group, []).append((
                         info["season"], info["episode"], media_id, desc

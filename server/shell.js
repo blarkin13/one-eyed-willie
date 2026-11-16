@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
-  const inSettings=['libraries','remote','metadata','connections','maintenance','playback'].includes(page);
+  const inSettings=['settings','general','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
   const active=inSettings?'settings':page;
   const navItems=[
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
@@ -13,7 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
     {id:'radarr',href:'/radarr',name:'Radarr',fa:'fa-bullseye',fallback:'radarr'},
     {id:'sonarr',href:'/sonarr',name:'Sonarr',fa:'fa-wave-square',fallback:'sonarr'},
     {id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd',fa:'fa-download',fallback:'sabnzbd'},
-    {id:'settings',href:'/settings/libraries',name:'Settings',fa:'fa-gear',fallback:'settings'}
+    {id:'settings',href:'/settings',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
   // Inline SVG fallbacks make every control usable without an external font.
   const paths={
@@ -55,112 +55,100 @@ document.addEventListener('DOMContentLoaded', () => {
     if(['radarr','sonarr','sabnzbd','services'].includes(item.id))a.dataset.serviceNav=item.id;
     if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
     if(item.id===active)a.setAttribute('aria-current','page');
+    a.dataset.navId=item.id;
     a.append(glyph(item.fa,item.fallback));
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
-  // Each configured library has its own entry in addition to the combined Movies/TV views.
-  // Read from the live server so newly created libraries appear without hardcoded names.
-  fetch('/api/libraries',{cache:'no-store'}).then(response=>{
-    if(!response.ok)throw Error('Libraries unavailable');
-    return response.json();
-  }).then(libraries=>{
-    if(!Array.isArray(libraries))return;
-    const selected=new URLSearchParams(location.search).get('library_id');
-    for(const library of libraries){
-      if(!Number.isInteger(library.id)||!['movies','tv'].includes(library.kind))continue;
-      const name=String(library.name||'').trim().slice(0,80);
-      if(!name)continue;
-      // The combined Movies and TV Shows links already represent standard libraries.
-      // Show only separately named collections, e.g. Horror, as additional entries.
-      const normalized=name.toLocaleLowerCase().replace(/[^a-z0-9]/g,'');
-      if((library.kind==='movies'&&normalized==='movies')||
-         (library.kind==='tv'&&(normalized==='tvshows'||normalized==='tv')))continue;
-      const url=new URLSearchParams({library_id:String(library.id)});
-      const link=document.createElement('a');
-      link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+url;
-      link.title=name;link.setAttribute('aria-label',name+' library');
-      link.className='nav-link library-nav-link';
-      if(selected===String(library.id)&&(page==='movies'||page==='tv'))link.setAttribute('aria-current','page');
-      // Distinctive initial makes custom collections identifiable with the sidebar collapsed.
-      const icon=document.createElement('span');
-      icon.className='nav-icon library-initial';
-      icon.setAttribute('aria-hidden','true');
-      icon.textContent=Array.from(name)[0].toUpperCase();
-      link.append(icon);
-      const caption=document.createElement('span');caption.className='nav-text';caption.textContent=name;link.append(caption);
-      // Keep custom collections alongside Movies/TV Shows, not after Settings.
-      const settingsLink=nav.querySelector('a[href="/settings/libraries"]');
-      nav.insertBefore(link,settingsLink);
-    }
-  }).catch(()=>{});
   const settingsSections=[
-    ['libraries','/settings/libraries','Libraries'],
-    ['playback','/settings/playback','Playback'],
-    ['remote','/settings/remote','Remote Access'],
+    ['general','/settings/general','General'],
+    ['libraries','/settings/libraries','Library'],
     ['metadata','/settings/metadata','Metadata'],
     ['connections','/settings/connections','Connections'],
-    ['maintenance','/settings/maintenance','Maintenance'],
   ];
   if(inSettings){
     const subnav=document.createElement('nav');subnav.className='settings-shortcuts';
     subnav.setAttribute('aria-label','Settings sections');
     settingsSections.forEach(([id,href,name])=>{
-      const a=document.createElement('a');a.href=href;a.title=name;a.textContent=name;
-      if(page===id)a.setAttribute('aria-current','page');
-      subnav.append(a);
+      const link=document.createElement('a');link.href=href;link.textContent=name;link.title=name;
+      if(page===id||(['remote','playback','maintenance'].includes(page)&&id==='general'))
+        link.setAttribute('aria-current','page');
+      subnav.append(link);
     });target.append(subnav);
   }
-  // On narrow screens the desktop settings shortcuts are hidden behind the bottom rail.
-  // The gear opens this native, keyboard-accessible settings sheet on every page.
-  const settingsTrigger=nav.querySelector('a[href="/settings/libraries"]');
-  const settingsSheet=document.createElement('dialog');
-  settingsSheet.className='mobile-settings-sheet';
-  settingsSheet.setAttribute('aria-labelledby','mobile-settings-title');
-  settingsSheet.id='mobile-settings-sheet';
-  const sheetHeader=document.createElement('div');
-  sheetHeader.className='mobile-settings-header';
-  const heading=document.createElement('h2');
-  heading.id='mobile-settings-title';
-  heading.textContent='Settings';
-  const closeSheet=document.createElement('button');
-  closeSheet.type='button';
-  closeSheet.className='mobile-settings-close';
-  closeSheet.setAttribute('aria-label','Close settings menu');
-  closeSheet.textContent='×';
-  closeSheet.addEventListener('click',()=>settingsSheet.close());
-  sheetHeader.append(heading,closeSheet);
-  const links=document.createElement('nav');
-  links.className='mobile-settings-links';
-  links.setAttribute('aria-label','Settings sections');
-  for(const [id,href,name] of settingsSections){
-    const link=document.createElement('a');
-    link.href=href;
-    link.className='mobile-settings-link';
-    link.textContent=name;
-    if(page===id)link.setAttribute('aria-current','page');
-    links.append(link);
-  }
-  settingsSheet.append(sheetHeader,links);
-  document.body.append(settingsSheet);
-  settingsTrigger.setAttribute('aria-controls',settingsSheet.id);
-  settingsTrigger.setAttribute('aria-haspopup','dialog');
-  settingsTrigger.setAttribute('aria-expanded','false');
-  settingsTrigger.addEventListener('click',event=>{
-    if(!window.matchMedia('(max-width:700px)').matches)return;
-    event.preventDefault();
-    if(settingsSheet.open){settingsSheet.close();return}
-    settingsSheet.showModal();
-    settingsTrigger.setAttribute('aria-expanded','true');
-    (links.querySelector('[aria-current="page"]')||links.querySelector('a'))?.focus({preventScroll:true});
-  });
-  settingsSheet.addEventListener('close',()=>{
-    settingsTrigger.setAttribute('aria-expanded','false');
-    settingsTrigger.focus({preventScroll:true});
-  });
-  settingsSheet.addEventListener('click',event=>{
-    if(event.target===settingsSheet)settingsSheet.close();
-  });
+  const icons={
+    film:['fa-film','film'],tv:['fa-tv','tv'],folder:['fa-folder','services'],
+    clapperboard:['fa-clapperboard','film'],star:['fa-star','film'],
+    heart:['fa-heart','film'],ghost:['fa-ghost','film'],rocket:['fa-rocket','film'],
+    book:['fa-book','services'],play:['fa-play','film'],music:['fa-music','tv'],
+    archive:['fa-box-archive','services']
+  };
+  Promise.all([
+    fetch('/api/libraries',{cache:'no-store'}).then(r=>r.ok?r.json():[]).catch(()=>[]),
+    fetch('/api/settings/sidebar',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null)
+  ]).then(([libraries,layout])=>{
+    const selected=new URLSearchParams(location.search).get('library_id');
+    for(const library of libraries){
+      if(!Number.isInteger(library.id)||!['movies','tv'].includes(library.kind))continue;
+      const name=String(library.name||'').trim().slice(0,80);
+      if(!name)continue;
+      // A standard Movies/TV entry already exists, but a custom appearance
+      // makes that library an intentional named entry.
+      const normalized=name.toLocaleLowerCase().replace(/[^a-z0-9]/g,'');
+      const isDefault=(library.kind==='movies'&&normalized==='movies')||
+        (library.kind==='tv'&&(normalized==='tvshows'||normalized==='tv'));
+      if(isDefault){
+        // A standard Movies/TV Shows library decorates the existing combined
+        // entry instead of creating a second identically named sidebar link.
+        const base=nav.querySelector('a[data-nav-id="'+library.kind+'"]');
+        if(base){
+          const font=['default','serif','condensed','mono','rounded'].includes(library.font)?
+            library.font:'default';
+          base.classList.add('library-font--'+font);
+          const appearance=icons[library.icon]||icons.folder;
+          const oldIcon=base.querySelector('.nav-icon');
+          if(oldIcon&&library.icon!=='folder')oldIcon.replaceWith(glyph(appearance[0],appearance[1]));
+          if(library.sidebar_hidden)base.classList.add('sidebar-hidden');
+        }
+        continue;
+      }
+      const link=document.createElement('a');
+      link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+new URLSearchParams({library_id:String(library.id)});
+      link.title=name;link.setAttribute('aria-label',name+' library');
+      link.className='nav-link library-nav-link library-font--'+
+        (['default','serif','condensed','mono','rounded'].includes(library.font)?library.font:'default');
+      link.dataset.navId='library:'+library.id;
+      if(selected===String(library.id)&&(page==='movies'||page==='tv'))link.setAttribute('aria-current','page');
+      const appearance=icons[library.icon]||icons.folder;
+      const icon=glyph(appearance[0],appearance[1]);
+      icon.classList.add('library-custom-icon');
+      link.append(icon);
+      const caption=document.createElement('span');caption.className='nav-text';caption.textContent=name;
+      link.append(caption);
+      nav.append(link);
+    }
+    // Only actual custom library entries are appended; standard collections
+    // share the existing Movies and TV Shows menu destinations.
+    const links=new Map([...nav.querySelectorAll('a[data-nav-id]')].map(a=>[a.dataset.navId,a]));
+    if(layout&&Array.isArray(layout.order)){
+      const hidden=new Set(Array.isArray(layout.hidden)?layout.hidden:[]);
+      for(const id of layout.order){
+        const link=links.get(id);
+        if(!link)continue;
+        if(hidden.has(id)&&id!=='home'&&id!=='settings')link.classList.add('sidebar-hidden');
+        nav.append(link);
+      }
+      for(const [id,link] of links){if(!layout.order.includes(id))nav.append(link)}
+    }else{
+      const settingsLink=links.get('settings');
+      for(const [id,link] of links){
+        if(id.startsWith('library:')){
+          if(libraries.find(x=>'library:'+x.id===id)?.sidebar_hidden)link.classList.add('sidebar-hidden');
+          nav.insertBefore(link,settingsLink);
+        }
+      }
+    }
+  }).catch(()=>{});
   if(!document.querySelector('link[rel~="icon"]')){
     const favicon=document.createElement('link');
     favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=5';
