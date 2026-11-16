@@ -1,0 +1,364 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Title details · One-Eyed Willie</title>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css?v=credit-detail-1">
+<script defer src="/assets/shell.js?v=services-1"></script>
+<style>
+.credit-page{max-width:none!important;padding:0 0 65px!important}
+.credit-back{display:inline-flex;position:relative;z-index:3;color:#b8d9fa;
+  margin:16px clamp(24px,5vw,82px);padding:5px 0}
+.credit-hero{position:relative;isolation:isolate;display:flex;align-items:flex-end;
+  min-height:clamp(350px,60vh,650px);padding:45px clamp(24px,5vw,82px) 45px;
+  background:#0c1727;overflow:hidden}
+.credit-backdrop{position:absolute;inset:0;width:100%;height:100%;
+  object-fit:cover;object-position:center 32%;z-index:-2;opacity:.94}
+.credit-hero::after{content:"";position:absolute;inset:0;z-index:-1;
+  background:linear-gradient(90deg,#080d17f5 0%,#080d17db 40%,#080d174e 79%,transparent),
+   linear-gradient(0deg,#080d17fd,transparent 65%)}
+.credit-info{display:flex;flex-direction:column;align-items:flex-start;max-width:min(700px,69%)}
+.credit-info .eyebrow{margin-bottom:8px}
+.credit-info h1{font-size:clamp(2.1rem,4.8vw,4.3rem);letter-spacing:-.052em;
+  line-height:1.02;margin:0 0 14px}
+.credit-meta{color:#bed0e3;font-size:.88rem;line-height:1.4;margin:0 0 13px}
+.credit-overview{line-height:1.4;font-size:clamp(.91rem,1.45vw,1.08rem);
+  color:#d2deeb;margin:0 0 15px;max-width:650px;display:-webkit-box;
+  -webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}
+.credit-actions{display:flex;align-items:center;flex-wrap:wrap;gap:12px;margin:8px 0}
+.credit-actions button{border:0;background:transparent;color:#e0edfa;
+  width:53px;height:53px;min-height:53px;border-radius:12px;
+  display:grid;place-items:center;cursor:pointer;padding:9px}
+.credit-actions button:hover,.credit-actions button:focus-visible{
+  outline:2px solid #d0e7ff;outline-offset:2px;background:#314f69b3}
+.credit-actions button:disabled{opacity:.46;cursor:not-allowed}
+.credit-actions button svg{width:28px;height:28px}
+.credit-arr-icon{display:block;width:34px;height:34px;
+  border:2px solid #b6d8ed;border-radius:9px;color:#e4f5fe;font-weight:850;font-size:1.1rem}
+.credit-arr-icon.radarr{border:0;color:#f9db82}
+.credit-arr-icon.sonarr{border:0;color:#b0edf5}
+.credit-note{color:#adc5db;font-size:.85rem;margin:8px 0 0}
+.credit-extra{padding:16px clamp(24px,5vw,82px) 65px}
+.credit-block{padding:20px 0 27px;border-top:1px solid #293b4e}
+.credit-block h2{font-size:1.22rem;margin:0 0 13px}
+.credit-facts{display:flex;gap:10px 23px;flex-wrap:wrap;margin:0 0 16px;
+  color:#b7cce0;font-size:.9rem}
+.credit-cast{display:grid;grid-auto-flow:column;grid-auto-columns:120px;gap:17px;
+  padding:6px 5px 15px;overflow-x:auto;overscroll-behavior-x:contain}
+.credit-cast a{min-width:0;display:flex;flex-direction:column;gap:4px}
+.credit-cast img,.credit-cast .credit-empty-photo{width:120px;height:120px;
+  border-radius:50%;object-fit:cover;background:#253950;display:grid;place-items:center}
+.credit-cast a:focus-visible{outline:0}
+.credit-cast a:focus-visible img,.credit-cast a:focus-visible .credit-empty-photo{
+  outline:3px solid #cbe5ff;outline-offset:3px}
+.credit-cast strong,.credit-cast small{display:block;font-size:.82rem;white-space:nowrap;
+  overflow:hidden;text-overflow:ellipsis}
+.credit-cast small{color:#a0b7cd}
+.credit-reviews{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,275px),1fr));
+  gap:13px;align-items:start}
+.credit-review{background:#101d2a;border:1px solid #2b3f53;border-radius:10px;padding:14px}
+.credit-review strong{font-size:.89rem}
+.credit-review p{font-size:.85rem;color:#b5c8d9;line-height:1.35;white-space:pre-line}
+.credit-review:not(.expanded) p{display:-webkit-box;-webkit-box-orient:vertical;
+  -webkit-line-clamp:4;overflow:hidden}
+.credit-review button{border:0;background:transparent;color:#b2dbfc;cursor:pointer;
+  padding:5px 0;font-size:.82rem;font-weight:650}
+#add-dialog{width:min(630px,calc(100vw - 30px));max-height:88vh;overflow-y:auto;
+  color:#eaf3fc;background:#101b29}
+#add-dialog .dialog-inner{padding:22px}
+#add-form{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+#add-form .wide{grid-column:1/-1}
+#add-form label{display:grid;gap:7px;color:#c9daea;font-size:.88rem}
+#add-form select{background:#0a1420;color:inherit;border:1px solid #43576d;border-radius:8px;
+  min-height:45px;width:100%;padding:8px}
+.credit-hero[hidden],#add-form [hidden]{display:none!important}
+#add-form .check-row{display:flex;align-items:center;gap:9px}
+#add-form input[type=checkbox]{width:21px;height:21px;flex:none}
+#add-form .check-row label{display:block}
+#add-form .form-actions{grid-column:1/-1;position:sticky;bottom:0;background:#101b29;padding:10px 0}
+#add-form .tag-options{display:flex;gap:11px;flex-wrap:wrap}
+#add-form .tag-options label{display:flex;align-items:center;gap:5px}
+#add-message{grid-column:1/-1;line-height:1.4;color:#b7cfeb}
+.credit-trailer{width:min(880px,calc(100vw - 28px));max-width:none;
+  background:#101925;color:#fff;padding:20px}
+.credit-trailer iframe{width:100%;aspect-ratio:16/9;border:0}
+@media(max-width:650px){
+ .credit-hero{min-height:400px;padding:25px 24px 33px}
+ .credit-info{max-width:92%}
+ .credit-info h1{font-size:2.1rem}
+ #add-form{grid-template-columns:1fr}
+}
+</style></head>
+<body data-page="credit"><div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content credit-page">
+<a class="credit-back" id="credit-back" href="/movies">← Back to filmography</a>
+<p id="status" class="status-line" role="status">Loading title details…</p>
+<section id="hero" class="credit-hero" hidden>
+ <img id="backdrop" class="credit-backdrop" alt="" hidden>
+ <div class="credit-info">
+  <p id="eyebrow" class="eyebrow">MOVIE</p>
+  <h1 id="title"></h1>
+  <div id="meta" class="credit-meta"></div>
+  <p id="overview" class="credit-overview"></p>
+  <div class="credit-actions">
+   <button id="add-title" type="button" title="Add to media manager" aria-label="Add to media manager">
+    <svg id="provider-icon" class="credit-arr-icon" viewBox="0 0 24 24" aria-hidden="true"></svg>
+   </button>
+   <button id="trailer" type="button" hidden title="Play trailer" aria-label="Play trailer">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>
+   </button>
+  </div>
+  <p id="availability" class="credit-note"></p>
+ </div>
+</section>
+<div id="extra" class="credit-extra" hidden>
+ <div id="facts" class="credit-facts"></div>
+ <section id="cast-section" class="credit-block" hidden><h2>Cast</h2><div id="cast" class="credit-cast"></div></section>
+ <section id="reviews-section" class="credit-block" hidden><h2>Reviews <small class="muted">TMDB community</small></h2><div id="reviews" class="credit-reviews"></div></section>
+ <p class="muted">Metadata is supplied by TMDB. This title cannot play until a media file is available in your local library.</p>
+</div>
+</main></div></div>
+<dialog id="add-dialog" aria-labelledby="add-heading"><div class="dialog-inner">
+ <div class="dialog-heading"><h2 id="add-heading">Add to Radarr</h2><button id="cancel-icon" class="icon-button" aria-label="Close">×</button></div>
+ <form id="add-form">
+  <label class="wide">Root folder<select id="folder" required></select></label>
+  <label class="wide">Quality profile<select id="quality" required></select></label>
+  <label id="language-wrap" hidden>Language profile<select id="language"></select></label>
+  <label id="series-wrap" hidden>Series type<select id="series-type"><option value="standard">Standard</option><option value="daily">Daily</option><option value="anime">Anime</option></select></label>
+  <label id="monitor-wrap" hidden>Monitor episodes<select id="monitor">
+   <option value="all">All</option><option value="future">Future</option><option value="missing">Missing</option>
+   <option value="existing">Existing</option><option value="pilot">Pilot</option><option value="firstSeason">First season</option>
+   <option value="lastSeason">Last season</option><option value="latestSeason">Latest season</option><option value="none">None</option>
+  </select></label>
+  <label id="availability-wrap" hidden>Minimum availability<select id="availability-select">
+   <option value="released">Released</option><option value="inCinemas">In cinemas</option>
+   <option value="announced">Announced</option>
+  </select></label>
+  <div id="season-wrap" class="wide check-row" hidden><input type="checkbox" id="season-folder" checked><label for="season-folder">Create season folders</label></div>
+  <div id="tag-wrap" class="wide" hidden><label>Tags</label><div id="tags" class="tag-options"></div></div>
+  <div class="wide check-row"><input id="search-now" type="checkbox"><label for="search-now">Search for media immediately</label></div>
+  <p id="add-message" role="status">Loading options…</p>
+  <div class="form-actions"><button id="confirm" class="primary-button" type="submit">Add to manager</button>
+   <button id="cancel" type="button" class="secondary-button">Cancel</button></div>
+ </form>
+</div></dialog>
+<script>
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);
+const kind=params.get('kind')==='tv'?'tv':'movie';
+const provider=kind==='movie'?'radarr':'sonarr';
+const tmdbId=Number(params.get('tmdb_id'))||0;
+const title=(params.get('title')||'').trim().slice(0,180);
+const year=Number(params.get('year'))||0;
+const target=$('add-title');
+let selected=null,detail=null,trailerKey=null;
+$('eyebrow').textContent=kind==='movie'?'MOVIE':'TV SERIES';
+document.body.dataset.page=kind==='movie'?'movies':'tv';
+$('provider-icon').innerHTML=kind==='movie'
+ ?'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="4.8" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'
+ :'<path d="M3 12c3-6 6 6 9 0s6-6 9 0M3 17c3-6 6 6 9 0s6-6 9 0M3 7c3-6 6 6 9 0s6-6 9 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>';
+$('provider-icon').classList.add(provider);
+target.title='Add to '+(kind==='movie'?'Radarr':'Sonarr');
+target.setAttribute('aria-label',target.title);
+$('credit-back').href=document.referrer&&document.referrer.startsWith(location.origin)
+ ?document.referrer:kind==='movie'?'/movies':'/tv';
+const allowedImage=url=>typeof url==='string'&&
+ (url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/'));
+function image(url,alt,cls){
+ if(!allowedImage(url))return null;
+ const img=document.createElement('img');img.src=url;img.alt=alt||'';
+ if(cls)img.className=cls;img.loading='lazy';img.decoding='async';return img;
+}
+function make(tag,cls,text){
+ const node=document.createElement(tag);if(cls)node.className=cls;
+ if(text!==undefined)node.textContent=String(text);return node;
+}
+async function getJson(url,options){
+ const res=await fetch(url,{cache:'no-store',...options});
+ const raw=await res.json().catch(()=>({}));
+ if(!res.ok)throw Error(typeof raw.detail==='string'?raw.detail:'HTTP '+res.status);
+ return raw;
+}
+async function findManagerRecord(){
+ const data=await getJson('/api/arr/'+provider+'/lookup?q='+encodeURIComponent(title));
+ const candidates=(data.items||[]).filter(x=>x.title?.toLowerCase()===title.toLowerCase());
+ const exact=candidates.filter(x=>!year||!x.year||Math.abs(Number(x.year)-year)<=1);
+ if(tmdbId&&provider==='radarr'){
+  const verified=exact.find(x=>x.id===tmdbId);
+  if(verified)return verified;
+  throw Error('Radarr did not return this exact TMDB movie. Use Explore More to choose a correct match.');
+ }
+ if(exact.length===1)return exact[0];
+ if(exact.length>1)throw Error('Multiple matching titles found. Choose the correct one in Explore More.');
+ throw Error('This title was not found in '+provider+'. Search for it in Explore More.');
+}
+async function load(){
+ if(title.length<2){$('status').textContent='Choose a title from a cast profile.';return}
+ $('title').textContent=title;document.title=title+' · One-Eyed Willie';
+ $('hero').hidden=false;
+ $('availability').textContent='Checking local library…';
+ const localQ=new URLSearchParams({kind,title,year:String(year),tmdb_id:String(tmdbId)});
+ try{
+  const local=await getJson('/api/people/local-title?'+localQ);
+  if(local.owned&&typeof local.href==='string'&&local.href.startsWith('/')){
+   location.replace(local.href);return;
+  }
+  if(local.ambiguous){
+   $('availability').textContent='Several similar local titles exist. Check your library before adding.';
+   target.disabled=true;
+  }
+ }catch(e){$('availability').textContent='Library lookup unavailable: '+e.message;}
+ try{
+  const q=new URLSearchParams();
+  if(tmdbId)q.set('tmdb_id',String(tmdbId));
+  else {q.set('title',title);if(year)q.set('year',String(year));}
+  const payload=await getJson('/api/arr/'+provider+'/detail?'+q);
+  if(payload.available){detail=payload;render(payload)}
+  else $('status').textContent=payload.message||'Detailed metadata is currently unavailable.';
+ }catch(e){$('status').textContent=e.message}
+ if(!detail){$('overview').textContent='Film or television details could not be loaded.'}
+ try{
+  selected=await findManagerRecord();
+  if($('availability').textContent.startsWith('Several'))target.disabled=true;
+  if(selected.already_added){
+   target.disabled=true;target.title='Already in '+provider;
+   target.setAttribute('aria-label',target.title);
+   $('availability').textContent='Already in '+(kind==='movie'?'Radarr':'Sonarr')+'; waiting for local media.';
+  }else if(!$('availability').textContent.startsWith('Several')){
+   $('availability').textContent='Not in your local library. Add to '+(kind==='movie'?'Radarr':'Sonarr')+' to monitor it.';
+  }
+ }catch(e){
+  target.disabled=true;
+  $('availability').textContent=e.message;
+  const link=make('a','text-link','Search in Explore More');
+  link.href='/explore?type='+(kind==='movie'?'movies':'tv');
+  $('availability').append(document.createTextNode(' '),link);
+ }
+ $('status').textContent=detail?'':$('status').textContent;
+}
+function render(data){
+ $('title').textContent=data.title||title;
+ document.title=$('title').textContent+' · One-Eyed Willie';
+ const backdrop=$('backdrop');
+ if(allowedImage(data.backdrop_url)){backdrop.src=data.backdrop_url;backdrop.hidden=false}
+ const metadata=[data.release_date?.slice(0,4),data.runtime?data.runtime+' min':null,
+  data.rating?('TMDB '+Number(data.rating).toFixed(1)+'/10'):null,
+  ...(Array.isArray(data.genres)?data.genres.slice(0,2):[])].filter(Boolean);
+ $('meta').textContent=metadata.join(' · ');
+ $('overview').textContent=data.overview||'No description is available for this title.';
+ const facts=$('facts');facts.replaceChildren();
+ for(const fact of [data.tagline,data.network?'Network: '+data.network:null,
+  data.studio?'Studio: '+data.studio:null,data.status?'Status: '+data.status:null]){
+  if(fact)facts.append(make('span','',fact));
+ }
+ const actors=Array.isArray(data.cast)?data.cast:[];
+ $('cast-section').hidden=!actors.length;
+ for(const actor of actors){
+  if(!actor.name)continue;
+  const a=make('a');a.href='/person?'+new URLSearchParams({
+   name:actor.name,...(actor.tmdb_id?{tmdb_id:String(actor.tmdb_id)}:{})});
+  const photo=image(actor.photo_url,'');
+  a.append(photo||make('div','credit-empty-photo',actor.name.slice(0,1)));
+  a.append(make('strong','',actor.name),make('small','',actor.character||''));
+  $('cast').append(a);
+ }
+ const reviews=Array.isArray(data.reviews)?data.reviews:[];
+ $('reviews-section').hidden=!reviews.length;
+ for(const review of reviews){
+  const article=make('article','credit-review');
+  article.append(make('strong','',review.author||'TMDB contributor'));
+  const p=make('p','',String(review.excerpt||'').replace(/\*\*(.*?)\*\*/g,'$1').trim());
+  article.append(p);
+  if(p.textContent.length>165){
+   const button=make('button','','Read more');button.type='button';
+   button.setAttribute('aria-expanded','false');
+   button.onclick=()=>{
+    const expanded=article.classList.toggle('expanded');
+    button.textContent=expanded?'Show less':'Read more';
+    button.setAttribute('aria-expanded',String(expanded));
+   };
+   article.append(button);
+  }
+  $('reviews').append(article);
+ }
+ if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
+  trailerKey=data.trailer_key;$('trailer').hidden=false;
+ }
+ $('extra').hidden=false;
+}
+$('trailer').onclick=()=>{
+ if(!trailerKey)return;
+ const dialog=make('dialog','credit-trailer');
+ const close=make('button','icon-button','×');close.setAttribute('aria-label','Close trailer');
+ const iframe=make('iframe');
+ iframe.title='Trailer';iframe.src='https://www.youtube-nocookie.com/embed/'+trailerKey+'?autoplay=1';
+ iframe.allow='autoplay; encrypted-media; picture-in-picture; fullscreen';iframe.allowFullscreen=true;
+ close.onclick=()=>dialog.close();
+ dialog.append(close,iframe);document.body.append(dialog);
+ dialog.onclose=()=>dialog.remove();dialog.showModal();
+};
+const dialog=$('add-dialog');
+$('cancel').onclick=$('cancel-icon').onclick=()=>dialog.close();
+target.onclick=async()=>{
+ if(!selected||selected.already_added)return;
+ $('add-heading').textContent='Add '+$('title').textContent+' to '+(kind==='movie'?'Radarr':'Sonarr');
+ $('folder').replaceChildren();$('quality').replaceChildren();$('language').replaceChildren();
+ $('tags').replaceChildren();$('tag-wrap').hidden=true;
+ $('language-wrap').hidden=true;$('series-wrap').hidden=provider!=='sonarr';
+ $('monitor-wrap').hidden=provider!=='sonarr';$('season-wrap').hidden=provider!=='sonarr';
+ $('availability-wrap').hidden=provider!=='radarr';
+ $('search-now').checked=false;$('confirm').disabled=true;
+ $('add-message').textContent='Loading quality profiles and folders…';
+ dialog.showModal();
+ try{
+  const options=await getJson('/api/arr/'+provider+'/options');
+  for(const folder of options.folders||[]){
+   const opt=make('option','',folder.label);opt.value=folder.path;$('folder').append(opt);
+  }
+  for(const profile of options.profiles||[]){
+   const opt=make('option','',profile.name);opt.value=String(profile.id);$('quality').append(opt);
+  }
+  if(options.languages?.length){
+   $('language-wrap').hidden=false;
+   for(const language of options.languages){
+    const opt=make('option','',language.name);opt.value=String(language.id);$('language').append(opt);
+   }
+  }
+  if(options.tags?.length){
+   $('tag-wrap').hidden=false;
+   for(const tag of options.tags){
+    const label=make('label');const input=make('input');
+    input.type='checkbox';input.value=String(tag.id);
+    label.append(input,document.createTextNode(tag.name));$('tags').append(label);
+   }
+  }
+  if(!$('folder').options.length||!$('quality').options.length)
+   throw Error('Configure a root folder and quality profile in your media manager first.');
+  $('add-message').textContent='Adding does not start an immediate search unless selected below.';
+  $('confirm').disabled=false;
+ }catch(e){$('add-message').textContent=e.message}
+};
+$('add-form').onsubmit=async event=>{
+ event.preventDefault();
+ if(!selected)return;
+ $('confirm').disabled=true;$('add-message').textContent='Adding to '+provider+'…';
+ const request={external_id:selected.id,root_folder:$('folder').value,
+  quality_profile_id:Number($('quality').value),search_now:$('search-now').checked,
+  tags:[...$('tags').querySelectorAll('input:checked')].map(x=>Number(x.value))};
+ if(provider==='radarr')request.minimum_availability=$('availability-select').value;
+ else{
+  request.series_type=$('series-type').value;request.monitor=$('monitor').value;
+  request.season_folder=$('season-folder').checked;
+  if(!$('language-wrap').hidden)request.language_profile_id=Number($('language').value);
+ }
+ try{
+  const response=await getJson('/api/arr/'+provider+'/add',{
+   method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});
+  selected.already_added=true;dialog.close();target.disabled=true;
+  $('availability').textContent=(response.title||title)+' added to '+provider+
+   '. It will become playable when a media file arrives in your local library.';
+ }catch(e){$('add-message').textContent=e.message;$('confirm').disabled=false;}
+};
+load();
+</script></body></html>

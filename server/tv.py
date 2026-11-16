@@ -390,4 +390,6 @@ def episode_details(media_id: int = Query(ge=1)):
         "duration_seconds": next((e["duration_seconds"] for e in show["episodes"] if e["id"] == media_id), 0),
         "metadata_available": bool(meta), "metadata_source": meta.get("source"), "source_url": meta.get("source_url"),
     }
+    from .video_info import video_format
+    result["video_format"] = video_format(row["path"])
     return localize(result)

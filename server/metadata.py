@@ -114,7 +114,7 @@ def show_metadata(title, year=None):
     """Only exact-normalized title matches, avoiding incorrect posters for similar shows."""
     if not token_status():
         return {}
-    key = "tv:v2:" + _simple(title) + ":" + str(year or "")
+    key = "tv:v3:" + _simple(title) + ":" + str(year or "")
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -178,8 +178,8 @@ def show_metadata_by_id(tmdb_id, fallback=None):
     ]
     reviews = [
         {"author": str(review.get("author") or "TMDB contributor")[:80],
-         "excerpt": str(review.get("content") or "")[:850], "source": "TMDB"}
-        for review in (details.get("reviews") or {}).get("results", [])[:4]
+         "excerpt": str(review.get("content") or "")[:3500], "source": "TMDB"}
+        for review in (details.get("reviews") or {}).get("results", [])[:12]
         if isinstance(review, dict) and review.get("content")
     ]
     metadata = {

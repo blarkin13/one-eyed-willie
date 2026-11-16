@@ -348,12 +348,12 @@ def _movie_extras(radarr):
                          "character": str(person.get("character") or "")[:90],
                          "photo": register_remote(image_url(person.get("profile_path"), "w185"))})
         user_reviews = []
-        for review in (reviews or {}).get("results", [])[:4]:
+        for review in (reviews or {}).get("results", [])[:12]:
             if not isinstance(review, dict):
                 continue
             user_reviews.append({
                 "author": str(review.get("author") or "TMDB contributor")[:80],
-                "excerpt": str(review.get("content") or "")[:850],
+                "excerpt": str(review.get("content") or "")[:3500],
                 "source": "TMDB",
             })
         videos = (details or {}).get("videos") or {}
@@ -521,6 +521,9 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "metadata_source": "TMDB (manual match)" if manual_id else ("Local movie files" if nfo else ("Radarr" if radarr else ("TMDB" if extras else None))),
         "manual_match": manual_id,
     }
+    if enrich:
+        from .video_info import video_format
+        result["video_format"] = video_format(video)
     if enrich and isinstance(result.get("poster_url"), str):
         from .poster_index import remember
         remember("movies", library_id, key, result["poster_url"])

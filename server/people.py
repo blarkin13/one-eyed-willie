@@ -102,8 +102,12 @@ def tmdb_profile(person_id):
         if not title or unique in seen:
             continue
         seen.add(unique)
+        from .artwork import register_remote
+        from .metadata import image_url
         titles.append({"title": title[:160], "year": year, "type": medium,
-                       "character": str(credit.get("character") or "")[:100]})
+                       "character": str(credit.get("character") or "")[:100],
+                       "tmdb_id": credit.get("id") if isinstance(credit.get("id"), int) and credit["id"] > 0 else None,
+                       "poster_url": register_remote(image_url(credit.get("poster_path"), "w185"))})
         if len(titles) >= 75:
             break
     path = data.get("profile_path")
@@ -131,7 +135,10 @@ def tvmaze_profile(person_id):
         if not title or title in seen:
             continue
         seen.add(title)
-        credits.append({"title": title[:160], "year": year, "type": "TV", "character": ""})
+        from .artwork import register_remote
+        credits.append({"title": title[:160], "year": year, "type": "TV", "character": "",
+                        "tvmaze_id": show.get("id") if isinstance(show.get("id"), int) and show["id"] > 0 else None,
+                        "poster_url": register_remote(tvmaze_image(show.get("image")))})
         if len(credits) >= 75:
             break
     return {"name": str(person.get("name") or "")[:120],
@@ -145,7 +152,7 @@ def profile(
     tmdb_id: int | None = Query(default=None, ge=1),
     tvmaze_id: int | None = Query(default=None, ge=1),
 ):
-    cache_key = "person-profile:v2:" + name.casefold() + ":" + str(tmdb_id or 0) + ":" + str(tvmaze_id or 0)
+    cache_key = "person-profile:v3:" + name.casefold() + ":" + str(tmdb_id or 0) + ":" + str(tvmaze_id or 0)
     cached = _cache_get(cache_key)
     if cached is not None:
         return cached
@@ -179,3 +186,46 @@ def profile(
     }
     _cache_put(cache_key, result)
     return result
+
+@router.get("/local-title")
+def local_title(
+    kind: str = Query(pattern="^(movie|tv)$"),
+    title: str = Query(min_length=2, max_length=180),
+    year: int = Query(default=0, ge=0, le=2100),
+    tmdb_id: int = Query(default=0, ge=0),
+):
+    """Offer playback only when this credit matches a unique local library title.
+
+    Never infer a local file from its TMDB ID alone. Movie manual-match IDs
+    are authoritative; otherwise require a unique exact title/year match.
+    """
+    from .catalog import catalog
+    from .metadata import _simple
+    from .library import db
+    target = "movies" if kind == "movie" else "tv"
+    items = catalog(kind=target, search="", limit=100000).get("items", [])
+    manual_keys = set()
+    if target == "movies" and tmdb_id:
+        try:
+            with db() as conn:
+                for row in conn.execute(
+                    "SELECT library_id,movie_key FROM movie_manual_matches WHERE tmdb_id=?",
+                    (tmdb_id,),
+                ):
+                    manual_keys.add((row["library_id"], row["movie_key"]))
+        except Exception:
+            pass  # Older databases may not have any manual matches.
+    exact = [
+        item for item in items
+        if (item["library_id"], item["key"]) in manual_keys or (
+            _simple(item["title"]) == _simple(title)
+            and (not year or item.get("year") and abs(int(item["year"]) - year) <= 1)
+        )
+    ]
+    if len(exact) != 1:
+        return {"owned": False, "ambiguous": len(exact) > 1}
+    item = exact[0]
+    from urllib.parse import urlencode
+    route = "/movie" if target == "movies" else "/tv/show"
+    url = route + "?" + urlencode({"library_id": item["library_id"], "key": item["key"]})
+    return {"owned": True, "href": url}
