@@ -619,3 +619,32 @@ html body[data-page] :is(.willie-controls,.willie-toolbar) button:is(:focus,:foc
 .manager-nav a,.connection-quicklinks a{display:inline-flex;align-items:center;gap:3px}
 .connection-head .integration-logo{width:34px;height:34px}
 .credit-actions button .integration-logo{width:34px;height:34px}
+
+
+/* Ice-blue selection for monochrome action icons across desktop, mobile,
+   and Android WebView. Keep the existing borderless scale focus language.
+   Official service logos retain their original brand colors. */
+:root{--willie-icon-focus:#a9ddff}
+html body[data-page] :is(
+  .media-icon-action,.icon-only-control,.watch-icon-control,
+  .tv-trailer-launch,.nav-link:not([data-service-nav="radarr"]):not([data-service-nav="sonarr"]),
+  .topbar-action
+):is(:focus,:focus-visible){
+  color:var(--willie-icon-focus)!important;
+}
+html body[data-page] :is(.willie-controls,.willie-toolbar) button:is(:focus,:focus-visible){
+  color:var(--willie-icon-focus)!important;
+}
+html body[data-page] .sidebar .nav-link[aria-current="page"]:not([data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
+  color:var(--willie-icon-focus)!important;
+}
+html body[data-page] :is(
+  .media-icon-action,.icon-only-control,.watch-icon-control,.tv-trailer-launch
+):is(:focus,:focus-visible) svg{
+  color:var(--willie-icon-focus)!important;
+}
+/* Do not use filters on full-color third-party logos, even on focused links. */
+html body[data-page] .sidebar .nav-link[data-service-nav="radarr"]:is(:focus,:focus-visible) .integration-logo,
+html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:focus-visible) .integration-logo{
+  filter:none!important;
+}
