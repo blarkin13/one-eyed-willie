@@ -3,7 +3,7 @@ import threading
 from pathlib import Path
 from fastapi import FastAPI, Query
 from fastapi.responses import FileResponse, RedirectResponse, Response
-from server.library import router
+from server.library import router, db
 from server.catalog import catalog, start_background_scans
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
@@ -101,6 +101,16 @@ app.include_router(catalog_metadata_router)
 @app.get("/health")
 def health():
     return {"status": "ok", "application": "one-eyed-willie", "version": "0.14.2"}
+
+@app.get("/api/catalog/revision")
+def catalog_revision():
+    """Lightweight change signal for open library and home screens."""
+    with db() as conn:
+        revision = conn.execute(
+            "SELECT revision FROM catalog_state WHERE id=1"
+        ).fetchone()[0]
+    return {"revision": revision}
+
 
 @app.get("/api/catalog/all")
 def get_entire_catalog(
