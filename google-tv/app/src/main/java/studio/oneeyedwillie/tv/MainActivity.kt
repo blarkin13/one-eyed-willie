@@ -898,7 +898,8 @@ class MainActivity : ComponentActivity() {
               };
               const centerX=r=>r.left+r.width/2;
               const centerY=r=>r.top+r.height/2;
-              const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible);
+              const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible)
+                .filter(node=>!node.matches('[data-season-scroll-arrow]'));
               const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')].filter(isVisible);
               const isMenu=node=>Boolean(node?.closest?.('#app-nav'));
               const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href],.person-credit-link,.season-episode-tile';
@@ -907,7 +908,7 @@ class MainActivity : ComponentActivity() {
               const focusNode=node=>{
                 if(!node)return false;
                 node.focus({preventScroll:true});
-                const r=rect(node);
+                let r=rect(node);
                 const padding=44;
                 // Only scroll enough to reveal a genuinely clipped selection.
                 // scrollIntoView() caused entire shelves to snap/jump by a row.
@@ -919,16 +920,22 @@ class MainActivity : ComponentActivity() {
                     else if(r.bottom>outer.bottom-8)scroller.scrollTop+=r.bottom-outer.bottom+8;
                   }
                 }else{
+                  const shelf=node.closest('.shelf-track,.discovery-row,.movie-cast,.season-episode-track,.season-tabs');
+                  if(shelf){
+                    // Reveal the target in its own horizontal row before moving
+                    // the page. Hidden rail items still have valid DOM geometry.
+                    const bounds=rect(shelf);
+                    const deltaX=r.left<bounds.left+16?r.left-bounds.left-16:
+                      r.right>bounds.right-16?r.right-bounds.right+16:0;
+                    if(Math.abs(deltaX)>1){
+                      shelf.scrollLeft=Math.max(0,Math.min(
+                        shelf.scrollWidth-shelf.clientWidth,shelf.scrollLeft+deltaX));
+                    }
+                    r=rect(node);
+                  }
                   const delta=r.top<padding?r.top-padding:
                     r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
                   if(Math.abs(delta)>1)window.scrollBy({top:delta,left:0,behavior:'instant'});
-                  const shelf=node.closest('.shelf-track,.discovery-row,.movie-cast,.season-episode-track,.season-tabs');
-                  if(shelf){
-                    const bounds=rect(shelf);
-                    const deltaX=r.left<bounds.left+12?r.left-bounds.left-12:
-                      r.right>bounds.right-12?r.right-bounds.right+12:0;
-                    if(Math.abs(deltaX)>1)shelf.scrollLeft+=deltaX;
-                  }
                 }
                 return true;
               };
@@ -987,6 +994,28 @@ class MainActivity : ComponentActivity() {
                   if(index<0)return focusNode(menu[0]);
                   const next=index+(direction==='down'?1:-1);
                   return focusNode(menu[Math.max(0,Math.min(menu.length-1,next))]);
+                }
+                // Horizontal season/episode rails must follow DOM order rather
+                // than global spatial search. D-pad focus must scroll each rail
+                // to reveal its next item, including items initially offscreen.
+                if((direction==='left'||direction==='right')&&active?.closest){
+                  const rail=active.closest('.season-tabs,.season-episode-track');
+                  if(rail){
+                    const entries=[...rail.querySelectorAll(
+                      rail.matches('.season-tabs')?'a[href]':'.season-episode-tile'
+                    )].filter(isVisible);
+                    const index=entries.indexOf(active);
+                    if(index>=0){
+                      readingScroll=false;
+                      const next=index+(direction==='right'?1:-1);
+                      if(next>=0&&next<entries.length)return focusNode(entries[next]);
+                      if(direction==='left'&&index===0){
+                        const menu=allMenu();
+                        return focusNode(menu.find(n=>n.getAttribute('aria-current')==='page')||menu[0]);
+                      }
+                      return true;
+                    }
+                  }
                 }
                 // While reading below the last selectable element, move the
                 // document by a modest distance per press instead of snapping
