@@ -1038,12 +1038,44 @@ class MainActivity : ComponentActivity() {
                   [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon{
                   color:#a9ddff!important
                 }
-                /* No smooth page scrolling or shelf snap while using D-pad. */
+                /* Avoid competing browser snap while the D-pad animation runs. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
-                .shelf-track,.discovery-row{
-                  scroll-snap-type:none!important;scroll-behavior:auto!important;
+                .shelf-track,.discovery-row{scroll-snap-type:none!important}
+                /* Focus movement is animated on artwork, icons and controls. */
+                body[data-page] :is(.cover,.person-credit-poster,.season-episode-tile,
+                  .cast-person img,.cast-blank,.nav-link,.media-icon-action,
+                  .icon-only-control,dialog button,dialog a,dialog input,.season-tabs a){
+                  transition:transform 190ms ease-out,filter 190ms ease-out,
+                    box-shadow 190ms ease-out,background-color 190ms ease-out,
+                    border-color 190ms ease-out,color 190ms ease-out!important
                 }
-                *{scroll-margin:0!important;scroll-behavior:auto!important}
+                /* Deep blue with a white edge remains legible against any poster. */
+                body[data-page] .tile-button:is(:focus,:focus-visible) .cover,
+                body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
+                body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster,
+                body[data-page] .season-episode-tile:is(:focus,:focus-visible){
+                  box-shadow:0 0 0 3px #145b9b,0 0 0 5px #edf5ff,
+                    0 9px 22px #0009!important
+                }
+                body[data-page] :is(dialog[open],.season-more-popover)
+                  :is(button,a,input,select):is(:focus,:focus-visible),
+                body[data-page] .sidebar .nav-link:is(:focus,:focus-visible){
+                  outline:2px solid #edf5ff!important;outline-offset:2px!important;
+                  background-color:#145b9b!important;color:#fff!important;
+                  border-radius:7px!important
+                }
+                body[data-page] :is(.media-icon-action,.icon-only-control,
+                  .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
+                  filter:brightness(1.35)!important;
+                  box-shadow:0 0 0 2px #216ba9!important
+                }
+                @media(prefers-reduced-motion:reduce){
+                  body[data-page] :is(.cover,.person-credit-poster,.season-episode-tile,
+                    .cast-person img,.cast-blank,.nav-link,.media-icon-action,
+                    .icon-only-control,dialog button,dialog a,dialog input,.season-tabs a){
+                    transition:none!important
+                  }
+                }
                 @media(max-width:750px){
                   #items{grid-template-columns:repeat(4,minmax(0,1fr))!important}
                 }
@@ -1197,6 +1229,30 @@ class MainActivity : ComponentActivity() {
               const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href],.person-credit-link,.season-episode-tile';
               const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
               const firstPoster=()=>allPosters()[0]||null;
+              // A new remote press interrupts the previous animation cleanly.
+              const scrollAnimations=new WeakMap();
+              const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
+              const glideTo=(element,axis,destination)=>{
+                const vertical=axis==='top',key=vertical?'scrollTop':'scrollLeft';
+                const limit=vertical
+                  ?Math.max(0,element.scrollHeight-element.clientHeight)
+                  :Math.max(0,element.scrollWidth-element.clientWidth);
+                const to=Math.max(0,Math.min(limit,destination));
+                const previous=scrollAnimations.get(element);
+                if(previous)cancelAnimationFrame(previous);
+                scrollAnimations.delete(element);
+                const start=element[key],delta=to-start;
+                if(Math.abs(delta)<1)return;
+                if(reducedMotion()){element[key]=to;return}
+                const begun=performance.now(),duration=210;
+                const tick=now=>{
+                  const t=Math.min(1,(now-begun)/duration);
+                  element[key]=start+delta*(1-Math.pow(1-t,3));
+                  if(t<1)scrollAnimations.set(element,requestAnimationFrame(tick));
+                  else scrollAnimations.delete(element);
+                };
+                scrollAnimations.set(element,requestAnimationFrame(tick));
+              };
               const focusNode=node=>{
                 if(!node)return false;
                 node.focus({preventScroll:true});
@@ -1218,9 +1274,9 @@ class MainActivity : ComponentActivity() {
                   const bounds=rect(scroller);
                   const edge=12;
                   if(r.top<bounds.top+edge)
-                    scroller.scrollTop-=bounds.top+edge-r.top;
+                    glideTo(scroller,'top',scroller.scrollTop-(bounds.top+edge-r.top));
                   else if(r.bottom>bounds.bottom-edge)
-                    scroller.scrollTop+=r.bottom-bounds.bottom+edge;
+                    glideTo(scroller,'top',scroller.scrollTop+(r.bottom-bounds.bottom+edge));
                   return true;
                 }
                 // Only scroll enough to reveal a genuinely clipped selection.
@@ -1229,8 +1285,8 @@ class MainActivity : ComponentActivity() {
                   const scroller=node.closest('.side-nav');
                   if(scroller){
                     const outer=rect(scroller);
-                    if(r.top<outer.top+8)scroller.scrollTop-=outer.top+8-r.top;
-                    else if(r.bottom>outer.bottom-8)scroller.scrollTop+=r.bottom-outer.bottom+8;
+                    if(r.top<outer.top+8)glideTo(scroller,'top',scroller.scrollTop-(outer.top+8-r.top));
+                    else if(r.bottom>outer.bottom-8)glideTo(scroller,'top',scroller.scrollTop+(r.bottom-outer.bottom+8));
                   }
                 }else{
                   const shelf=node.closest('.shelf-track,.discovery-row,.movie-cast,.season-episode-track,.season-tabs');
@@ -1241,8 +1297,7 @@ class MainActivity : ComponentActivity() {
                     const deltaX=r.left<bounds.left+16?r.left-bounds.left-16:
                       r.right>bounds.right-16?r.right-bounds.right+16:0;
                     if(Math.abs(deltaX)>1){
-                      shelf.scrollLeft=Math.max(0,Math.min(
-                        shelf.scrollWidth-shelf.clientWidth,shelf.scrollLeft+deltaX));
+                      glideTo(shelf,'left',shelf.scrollLeft+deltaX);
                     }
                     r=rect(node);
                     // Home poster Left/Right is horizontal navigation only.
@@ -1254,7 +1309,8 @@ class MainActivity : ComponentActivity() {
                   }
                   const delta=r.top<padding?r.top-padding:
                     r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
-                  if(Math.abs(delta)>1)window.scrollBy({top:delta,left:0,behavior:'instant'});
+                  if(Math.abs(delta)>1)glideTo(document.scrollingElement||document.documentElement,'top',
+                      (document.scrollingElement||document.documentElement).scrollTop+delta);
                 }
                 return true;
               };
@@ -1291,8 +1347,8 @@ class MainActivity : ComponentActivity() {
                 const max=Math.max(0,root.scrollHeight-root.clientHeight);
                 const target=Math.max(0,Math.min(max,before+
                   (direction==='down'?amount:-amount)));
-                root.scrollTop=target;
-                return Math.abs(root.scrollTop-before)>1;
+                if(Math.abs(target-before)>1)glideTo(root,'top',target);
+                return Math.abs(target-before)>1;
               };
               // Detail pages use vertical *sections*, not a search for the
               // nearest item under the currently focused column. Libraries
@@ -1403,7 +1459,7 @@ class MainActivity : ComponentActivity() {
                 const from=root.scrollTop;
                 const to=Math.max(0,Math.min(max,from+r.top-upper));
                 if(Math.abs(to-from)<2)return;
-                if(matchMedia('(prefers-reduced-motion: reduce)').matches){
+                if(reducedMotion()){
                   root.scrollTop=to;return;
                 }
                 const started=performance.now(),duration=285;
@@ -1507,8 +1563,7 @@ class MainActivity : ComponentActivity() {
                         const root=document.scrollingElement||document.documentElement;
                         const top=Math.max(0,root.scrollTop+
                           row.getBoundingClientRect().top-10);
-                        const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;
-                        window.scrollTo({top,behavior:reduced?'instant':'smooth'});
+                        glideTo(root,'top',top);
                         return true;
                       }
                     }
