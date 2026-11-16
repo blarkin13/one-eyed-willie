@@ -3,8 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Browse</title>
-<link rel="stylesheet" href="/assets/ui.css?v=services-1">
-<script defer src="/assets/shell.js?v=services-1"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .library-toolbar{margin:26px 0 20px}
 .count-label{color:#98a7ba;font-size:.88rem}
@@ -91,6 +91,7 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
             <option value="title">Title A–Z</option><option value="added">Date Added (newest)</option><option value="length">Length (longest)</option><option value="rating">Rating (highest)</option>
           </select></label>
           <label class="genre-wrapper"><span class="sr-only">Filter by genre</span><select id="genre" class="sort-select" aria-label="Filter by genre"><option value="">All Genres</option></select></label>
+           <button id="refresh-metadata" class="catalog-refresh-metadata" type="button" title="Refresh genre, rating and runtime metadata" aria-label="Refresh genre, rating and runtime metadata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 5.4"/><path d="M20 4v7h-7"/></svg></button>
            <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
         </div>
       </div>
@@ -510,22 +511,18 @@ async function checkMetadata(){
   if(!response.ok)throw Error('Metadata status unavailable');
   const state=await response.json();
   const revision=Number(state.revision)||0,processed=Number(state.processed)||0,
-        totalTitles=Number(state.total)||0,available=Number(state.available)||0,
-        missing=Number(state.missing)||0;
+        totalTitles=Number(state.total)||0,updated=Number(state.updated)||0;
+  $('refresh-metadata').disabled=!!state.running;
   if(state.running){
-   $('metadata-status').textContent='Finding genres, ratings and runtimes automatically · '+processed+'/'+totalTitles+' titles checked';
+   $('metadata-status').textContent='Loading genres, runtimes and ratings · '+processed+'/'+totalTitles+' titles checked';
   }else if(state.error){
-   $('metadata-status').textContent='Metadata lookup temporarily unavailable. The server will retry automatically.';
-  }else if(state.last_finished && totalTitles && missing){
-   $('metadata-status').textContent=available+' of '+totalTitles+
-     ' titles have metadata. Missing information is being retried automatically.'+
-     (state.sources?.tmdb||state.sources?.radarr||state.sources?.sonarr?'':' You can configure metadata providers in Settings → Metadata or Connections.');
-  }else if(state.last_finished && totalTitles && available){
-   $('metadata-status').textContent='';
-  }else if(totalTitles===0){
-   $('metadata-status').textContent='';
+   $('metadata-status').textContent=state.error;
+  }else if(updated===0 && !knownGenres.length){
+   $('metadata-status').textContent='Genres, ratings and runtimes are unavailable for these titles. Check your TMDB, Radarr or Sonarr connection, then refresh metadata.';
+  }else if(state.last_finished){
+   $('metadata-status').textContent='Metadata sync complete · '+updated+' titles updated.';
   }else{
-   $('metadata-status').textContent='Finding genres, ratings and runtimes automatically…';
+   $('metadata-status').textContent='Preparing genres, ratings and runtimes…';
   }
   const finished=Number(state.last_finished)||0;
   const newMetadata=metadataRevision>=0&&revision!==metadataRevision;
@@ -544,6 +541,19 @@ async function checkMetadata(){
   metadataTimer=setTimeout(checkMetadata,4000);
  }
 }
+$('refresh-metadata').addEventListener('click',async()=>{
+ $('refresh-metadata').disabled=true;
+ $('metadata-status').textContent='Starting metadata refresh…';
+ try{
+  const response=await fetch('/api/catalog/metadata/refresh',{method:'POST'});
+  if(!response.ok)throw Error('Unable to start metadata refresh.');
+  await checkMetadata();
+ }catch(error){
+  $('metadata-status').textContent=error.message;
+  $('refresh-metadata').disabled=false;
+ }
+});
+
 load();
 checkMetadata();
 </script>

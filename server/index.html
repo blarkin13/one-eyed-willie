@@ -3,8 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Library Settings · One-Eyed Willie</title>
-<link rel="stylesheet" href="/assets/ui.css?v=settings-v2">
-<script defer src="/assets/shell.js?v=settings-v2"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<script src="/assets/library-appearance.js?v=appearance-1"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
 </head><body data-page="libraries">
 <div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
@@ -26,28 +26,31 @@
 
 <dialog id="library-editor" class="settings-editor-dialog" aria-labelledby="editor-heading">
 <div class="dialog-inner"><form id="library-form">
-<div class="settings-subhead"><h2 id="editor-heading">Add library</h2>
-<button class="secondary-button" type="button" id="close-library">Close</button></div>
-<label for="library-name">Library name</label>
-<input id="library-name" type="text" maxlength="80" required placeholder="e.g. Movies, Kids, Documentaries">
-<label for="library-kind">Library type</label>
-<select id="library-kind"><option value="movies">Movies</option><option value="tv">TV Shows</option></select>
-<p class="settings-muted" id="kind-notice">Type determines how movies or TV episodes are grouped.</p>
-<div class="settings-two-col">
-<div><label for="library-icon">Sidebar icon</label><select id="library-icon"></select></div>
-<div><label for="library-font">Sidebar font</label><select id="library-font"></select></div>
+<header class="library-editor-header"><div><p class="eyebrow">LIBRARY SETTINGS</p><h2 id="editor-heading">Edit library</h2><p>Organize your media and personalize its place in the sidebar.</p></div>
+<button class="library-editor-close" type="button" id="close-library" aria-label="Close editor">×</button></header>
+<div class="library-editor-fields">
+<div><label for="library-name">Library name</label><input id="library-name" type="text" maxlength="80" required placeholder="e.g. Movies, Kids, Documentaries"></div>
+<div><label for="library-kind">Library type</label><select id="library-kind"><option value="movies">Movies</option><option value="tv">TV Shows</option></select></div>
 </div>
-<label class="setting-toggle"><input type="checkbox" id="library-visible" checked> Show collection in the sidebar</label>
-<p class="settings-muted">For standard Movies and TV Shows libraries, the icon and font customize the existing sidebar entry rather than creating a duplicate.</p>
-<div id="library-new-path">
-<label>Initial media folder</label>
-<div class="library-path" id="new-folder-path">/media</div>
-<button type="button" class="secondary-button" id="choose-initial-folder">Choose folder</button>
+<section class="library-appearance-section" aria-labelledby="library-appearance-heading">
+<div class="library-section-heading"><h3 id="library-appearance-heading">Sidebar appearance</h3><p>Choose an icon and a typeface. Changes are shown in the live preview.</p></div>
+<div class="library-live-preview">
+<div class="library-preview-caption"><span>LIVE PREVIEW</span><span id="library-preview-state">Visible in sidebar</span></div>
+<div class="library-preview-row" id="library-preview-row"><span id="library-preview-icon" class="library-preview-icon" aria-hidden="true"></span>
+<div class="library-preview-copy"><span id="library-preview-name" class="library-preview-name">Movies</span><small id="library-preview-kind">Movies library</small></div></div>
 </div>
-<div class="form-actions">
-<button type="submit" class="primary-button" id="library-save">Save library</button>
-<button type="button" class="secondary-button" id="cancel-library">Cancel</button></div>
-<p id="editor-message" class="message" role="status"></p>
+<input id="library-icon" type="hidden" value="film"><input id="library-font" type="hidden" value="default">
+<div class="library-choice-heading"><h4 id="icon-heading">Sidebar icon</h4><span id="icon-count" class="settings-muted"></span></div>
+<label for="library-icon-search" class="sr-only">Search icons</label><input id="library-icon-search" class="library-icon-search" type="search" placeholder="Find icons: horror, adventure, classic…" autocomplete="off">
+<div id="library-icon-categories" class="library-icon-categories" role="group" aria-label="Icon categories"></div>
+<div id="library-icon-grid" class="library-icon-picker" role="group" aria-labelledby="icon-heading"></div>
+<p id="library-icons-empty" class="settings-muted" hidden>No matching icons.</p>
+<div class="library-choice-heading"><h4 id="font-heading">Sidebar font</h4><span class="settings-muted">Select to preview</span></div>
+<div id="library-font-grid" class="library-font-picker" role="group" aria-labelledby="font-heading"></div>
+</section>
+<label class="library-visibility"><input type="checkbox" id="library-visible" checked><span><strong>Show in sidebar</strong><small>Display this library in navigation.</small></span></label>
+<div id="library-new-path" class="library-new-folder"><label>Initial media folder</label><div class="library-path" id="new-folder-path">/media</div><button type="button" class="secondary-button" id="choose-initial-folder">Choose folder</button></div>
+<footer class="library-editor-footer"><p id="editor-message" class="message" role="status"></p><div class="form-actions"><button type="button" class="secondary-button" id="cancel-library">Cancel</button><button type="submit" class="primary-button" id="library-save">Save changes</button></div></footer>
 </form></div></dialog>
 
 <dialog id="folder-editor" class="settings-editor-dialog" aria-labelledby="folder-heading">
@@ -69,15 +72,76 @@ const safeText=value=>String(value??'');
 const escapeHTML=s=>safeText(s).replace(/[&<>"']/g,c=>({
  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[c]));
-const icons={
- film:['Film','fa-film'],tv:['Television','fa-tv'],folder:['Folder','fa-folder'],
- clapperboard:['Clapperboard','fa-clapperboard'],star:['Star','fa-star'],
- heart:['Heart','fa-heart'],ghost:['Ghost','fa-ghost'],
- rocket:['Rocket','fa-rocket'],book:['Book','fa-book'],
- play:['Play','fa-play'],music:['Music','fa-music'],archive:['Archive','fa-box-archive']
-};
-const fonts={default:'Default',serif:'Classic serif',condensed:'Condensed',
- mono:'Monospace',rounded:'Rounded'};
+const appearance=window.WillieLibraryAppearance;
+if(!appearance)throw Error('Library appearance failed to load.');
+const {icons,fonts}=appearance;
+const fontClass=id=>'library-font--'+(fonts[id]?id:'default');
+const categories=['All','Media','Genres','Collections','Themes'];
+let iconCategory='All';
+function updatePreview(){
+ const name=byId('library-name').value.trim()||'Untitled library';
+ const key=byId('library-icon').value,font=byId('library-font').value;
+ byId('library-preview-icon').replaceChildren(appearance.createIcon(key,35));
+ const title=byId('library-preview-name');
+ title.className='library-preview-name '+fontClass(font);title.textContent=name;
+ byId('library-preview-kind').textContent=(byId('library-kind').value==='tv'?'TV Shows':'Movies')+' library';
+ const hidden=!byId('library-visible').checked;
+ byId('library-preview-row').classList.toggle('is-hidden',hidden);
+ byId('library-preview-state').textContent=hidden?'Hidden from sidebar':'Visible in sidebar';
+ document.querySelectorAll('.font-sample').forEach(e=>e.textContent=name);
+}
+function chooseIcon(id){
+ if(!icons[id])return;
+ byId('library-icon').value=id;
+ document.querySelectorAll('.library-icon-card').forEach(e=>e.setAttribute('aria-pressed',String(e.dataset.icon===id)));
+ updatePreview();
+}
+function chooseFont(id){
+ if(!fonts[id])return;
+ byId('library-font').value=id;
+ document.querySelectorAll('.library-font-card').forEach(e=>e.setAttribute('aria-pressed',String(e.dataset.font===id)));
+ updatePreview();
+}
+function renderCategories(){
+ const root=byId('library-icon-categories');root.replaceChildren();
+ for(const group of categories){
+  const b=document.createElement('button');b.type='button';b.className='library-category-chip';
+  b.textContent=group;b.setAttribute('aria-pressed',String(group===iconCategory));
+  b.onclick=()=>{iconCategory=group;renderCategories();renderIcons()};root.append(b);
+ }
+}
+function renderIcons(){
+ const root=byId('library-icon-grid');root.replaceChildren();let count=0;
+ const query=byId('library-icon-search').value.toLocaleLowerCase().trim();
+ for(const [id,[label,group]] of Object.entries(icons)){
+  if(iconCategory!=='All'&&group!==iconCategory)continue;
+  if(query&&!([label,group,id].join(' ').toLocaleLowerCase().includes(query)))continue;
+  const b=document.createElement('button');b.type='button';b.className='library-icon-card';
+  b.dataset.icon=id;b.setAttribute('aria-pressed',String(id===byId('library-icon').value));
+  b.setAttribute('aria-label',label+' icon');b.append(appearance.createIcon(id,28));
+  const text=document.createElement('span');text.textContent=label;b.append(text);
+  b.onclick=()=>chooseIcon(id);root.append(b);count++;
+ }
+ byId('icon-count').textContent=count+' icons';
+ byId('library-icons-empty').hidden=count>0;
+}
+function renderFonts(){
+ const root=byId('library-font-grid');root.replaceChildren();
+ for(const [id,[label,description]] of Object.entries(fonts)){
+  const b=document.createElement('button');b.type='button';
+  b.className='library-font-card '+fontClass(id);
+  b.dataset.font=id;b.setAttribute('aria-pressed',String(id===byId('library-font').value));
+  b.setAttribute('aria-label','Use '+label+' font');
+  const title=document.createElement('span');title.className='library-font-title';title.textContent=label;
+  const sample=document.createElement('span');sample.className='font-sample';sample.textContent=byId('library-name').value.trim()||'Movies';
+  const desc=document.createElement('span');desc.className='library-font-description';desc.textContent=description;
+  b.append(title,sample,desc);b.onclick=()=>chooseFont(id);root.append(b);
+ }
+}
+function refreshAppearance(){renderCategories();renderIcons();renderFonts();updatePreview()}
+byId('library-icon-search').addEventListener('input',renderIcons);
+byId('library-name').addEventListener('input',updatePreview);
+byId('library-visible').addEventListener('change',updatePreview);
 let libraries=[],editing=null,folderTarget=null,chosen='/media',current='/media',working=false;
 async function api(path,options={}){
  const r=await fetch(path,{cache:'no-store',...options,
@@ -89,14 +153,6 @@ async function api(path,options={}){
 function notify(s,error=false){
  byId('message').textContent=s;byId('message').className='message'+(error?' error':'');
 }
-function fillOptions(select,options){
- select.replaceChildren();
- Object.entries(options).forEach(([value,label])=>{
-  const option=document.createElement('option');option.value=value;
-  option.textContent=Array.isArray(label)?label[0]:label;select.append(option);
- });
-}
-fillOptions(byId('library-icon'),icons);fillOptions(byId('library-font'),fonts);
 async function load(){
  try{
   libraries=await api('/api/libraries');
@@ -110,8 +166,7 @@ async function load(){
    const article=document.createElement('article');article.className='settings-card';
    const head=document.createElement('div');head.className='library-settings-row';
    const logo=document.createElement('span');logo.className='library-settings-icon';logo.setAttribute('aria-hidden','true');
-   const glyph=document.createElement('i');
-   glyph.className='fa-solid '+(icons[lib.icon]||icons.folder)[1];logo.append(glyph);
+   logo.append(appearance.createIcon(lib.icon,27));
    const details=document.createElement('div');details.className='library-settings-details';
    const title=document.createElement('h3');title.textContent=lib.name;
    const caption=document.createElement('p');caption.className='settings-muted';
@@ -119,7 +174,7 @@ async function load(){
    caption.textContent=(lib.kind==='tv'?'TV Shows':'Movies')+' · '+
     lib.media_count+' files · '+folderCount+' folder'+(folderCount!==1?'s':'')+
     ' · Sidebar: '+(lib.sidebar_hidden?'Hidden':'Visible')+
-    ' · Font: '+(fonts[lib.font]||'Default');
+    ' · Font: '+(fonts[lib.font]?.[0]||'Default');
    details.append(title,caption);
    const actions=document.createElement('div');actions.className='settings-row-actions';
    for(const [label,cls,callback] of [
@@ -165,11 +220,13 @@ function openAdd(){
  byId('editor-heading').textContent='Add library';
  byId('library-name').value='Movies';
  byId('library-kind').value='movies';byId('library-kind').disabled=false;
- byId('library-icon').value='folder';byId('library-font').value='default';
+ byId('library-icon').value='film';byId('library-font').value='default';
  byId('library-visible').checked=true;
  chosen='/media';byId('new-folder-path').textContent=chosen;
  byId('library-new-path').hidden=false;
  byId('editor-message').textContent='';
+ byId('library-save').textContent='Create library';
+ byId('library-icon-search').value='';iconCategory='All';refreshAppearance();
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
@@ -181,15 +238,23 @@ function openEdit(lib){
  byId('library-font').value=fonts[lib.font]?lib.font:'default';
  byId('library-visible').checked=!lib.sidebar_hidden;
  byId('library-new-path').hidden=true;byId('editor-message').textContent='';
+ byId('library-save').textContent='Save changes';
+ byId('library-icon-search').value='';iconCategory='All';refreshAppearance();
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
 byId('create-library').onclick=openAdd;
 byId('close-library').onclick=()=>byId('library-editor').close();
+byId('library-editor').addEventListener('click',event=>{
+ if(event.target===byId('library-editor'))byId('library-editor').close();
+});
+byId('library-editor').addEventListener('click',event=>{if(event.target===byId('library-editor'))byId('library-editor').close()});
 byId('cancel-library').onclick=()=>byId('library-editor').close();
 byId('library-kind').onchange=()=>{
  if(editing!==null)return;
  byId('library-name').value=byId('library-kind').value==='movies'?'Movies':'TV Shows';
+ byId('library-icon').value=byId('library-kind').value==='movies'?'film':'tv';
+ refreshAppearance();
 };
 byId('library-form').onsubmit=async event=>{
  event.preventDefault();

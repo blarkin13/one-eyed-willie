@@ -56,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
     if(item.id===active)a.setAttribute('aria-current','page');
     a.dataset.navId=item.id;
-    if(['radarr','sonarr','sabnzbd'].includes(item.id)){
+    if(item.id==='radarr'||item.id==='sonarr'){
       const icon=document.createElement('span');
       icon.className='nav-icon nav-brand-icon';
       icon.setAttribute('aria-hidden','true');
@@ -72,17 +72,28 @@ document.addEventListener('DOMContentLoaded', () => {
   });target.append(nav);
   // The gear is the only Settings destination in the sidebar.
   // General, Library, Metadata and Connections live on /settings only.
-  const icons={
-    film:['fa-film','film'],tv:['fa-tv','tv'],folder:['fa-folder','services'],
-    clapperboard:['fa-clapperboard','film'],star:['fa-star','film'],
-    heart:['fa-heart','film'],ghost:['fa-ghost','film'],rocket:['fa-rocket','film'],
-    book:['fa-book','services'],play:['fa-play','film'],music:['fa-music','tv'],
-    archive:['fa-box-archive','services']
-  };
+  // The same first-party SVG set powers the editor preview and actual sidebar.
+  const appearanceReady=window.WillieLibraryAppearance
+    ?Promise.resolve(window.WillieLibraryAppearance)
+    :new Promise(resolve=>{
+      const script=document.createElement('script');
+      script.src='/assets/library-appearance.js?v=appearance-1';
+      script.onload=()=>resolve(window.WillieLibraryAppearance||null);
+      script.onerror=()=>resolve(null);
+      document.head.append(script);
+    });
+  function libraryGlyph(appearance,key){
+    if(!appearance?.icons[key])return glyph('fa-folder','services');
+    const wrap=document.createElement('span');wrap.className='nav-icon library-symbol';
+    wrap.setAttribute('aria-hidden','true');
+    wrap.append(appearance.createIcon(key,25));
+    return wrap;
+  }
   Promise.all([
     fetch('/api/libraries',{cache:'no-store'}).then(r=>r.ok?r.json():[]).catch(()=>[]),
-    fetch('/api/settings/sidebar',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null)
-  ]).then(([libraries,layout])=>{
+    fetch('/api/settings/sidebar',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null),
+    appearanceReady,
+  ]).then(([libraries,layout,appearance])=>{
     const selected=new URLSearchParams(location.search).get('library_id');
     for(const library of libraries){
       if(!Number.isInteger(library.id)||!['movies','tv'].includes(library.kind))continue;
@@ -98,12 +109,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // entry instead of creating a second identically named sidebar link.
         const base=nav.querySelector('a[data-nav-id="'+library.kind+'"]');
         if(base){
-          const font=['default','serif','condensed','mono','rounded'].includes(library.font)?
-            library.font:'default';
+          const font=appearance?.fonts[library.font]?library.font:'default';
           base.classList.add('library-font--'+font);
-          const appearance=icons[library.icon]||icons.folder;
           const oldIcon=base.querySelector('.nav-icon');
-          if(oldIcon&&library.icon!=='folder')oldIcon.replaceWith(glyph(appearance[0],appearance[1]));
+          if(oldIcon)oldIcon.replaceWith(libraryGlyph(appearance,library.icon));
           if(library.sidebar_hidden)base.classList.add('sidebar-hidden');
         }
         continue;
@@ -112,11 +121,11 @@ document.addEventListener('DOMContentLoaded', () => {
       link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+new URLSearchParams({library_id:String(library.id)});
       link.title=name;link.setAttribute('aria-label',name+' library');
       link.className='nav-link library-nav-link library-font--'+
-        (['default','serif','condensed','mono','rounded'].includes(library.font)?library.font:'default');
+        (appearance?.fonts[library.font]?library.font:'default');
       link.dataset.navId='library:'+library.id;
+      if(library.sidebar_hidden)link.classList.add('sidebar-hidden');
       if(selected===String(library.id)&&(page==='movies'||page==='tv'))link.setAttribute('aria-current','page');
-      const appearance=icons[library.icon]||icons.folder;
-      const icon=glyph(appearance[0],appearance[1]);
+      const icon=libraryGlyph(appearance,library.icon);
       icon.classList.add('library-custom-icon');
       link.append(icon);
       const caption=document.createElement('span');caption.className='nav-text';caption.textContent=name;

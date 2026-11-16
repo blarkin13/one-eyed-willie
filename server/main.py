@@ -28,9 +28,7 @@ from server.metadata import router as metadata_router
 from server.people import router as people_router
 from server.maintenance import router as maintenance_router, maintenance_loop
 from server.poster_index import poster_loop
-from server.catalog_metadata import (router as catalog_metadata_router,
-                                     start_refresh as start_catalog_metadata_refresh,
-                                     automatic_refresh_loop)
+from server.catalog_metadata import router as catalog_metadata_router, start_refresh as start_catalog_metadata_refresh
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -50,16 +48,9 @@ async def lifespan(app: FastAPI):
     posters_stop = threading.Event()
     poster_thread = threading.Thread(target=poster_loop, args=(posters_stop,), daemon=True, name='poster-prefetch')
     poster_thread.start()
-    metadata_stop = threading.Event()
-    metadata_thread = threading.Thread(target=automatic_refresh_loop,
-                                       args=(metadata_stop,), daemon=True,
-                                       name="automatic-catalog-metadata")
-    metadata_thread.start()
     try:
         yield
     finally:
-        metadata_stop.set()
-        metadata_thread.join(timeout=3)
         posters_stop.set()
         posters_thread = poster_thread
         posters_thread.join(timeout=3)
@@ -163,8 +154,8 @@ def ui_stylesheet():
 
 @app.get("/assets/brand/{brand}.svg")
 def integration_brand_svg(brand: str):
-    # Explicit allowlist of locally bundled upstream integration logos.
-    if brand not in ("radarr", "sonarr", "sabnzbd"):
+    # Only the two bundled official integration logos are exposed here.
+    if brand not in ("radarr", "sonarr"):
         from fastapi import HTTPException
         raise HTTPException(404, "Unknown integration")
     return FileResponse(
@@ -204,6 +195,12 @@ def favicon_png():
 def brand_logo():
     return FileResponse(Path(__file__).with_name("logo.svg"), media_type="image/svg+xml",
                         headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/assets/library-appearance.js")
+def library_appearance_js():
+    return FileResponse(Path(__file__).with_name("library_appearance.js"),
+                        media_type="application/javascript")
 
 
 @app.get("/assets/shell.js")

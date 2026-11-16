@@ -16,9 +16,17 @@ scan_lock = Lock()
 router = APIRouter(prefix="/api")
 
 
-LIBRARY_ICONS = ("film", "tv", "folder", "clapperboard", "star", "heart",
-                 "ghost", "rocket", "book", "play", "music", "archive")
-LIBRARY_FONTS = ("default", "serif", "condensed", "mono", "rounded")
+# First-party SVG icon and font options shared with library-appearance.js.
+LIBRARY_ICONS = (
+    "film", "tv", "folder", "clapperboard", "play", "reel", "popcorn", "ticket", "camera", "video", "headphones", "music", 
+    "star", "heart", "ghost", "skull", "pumpkin", "flame", "zap", "rocket", "planet", "robot", "alien", "wand", "sword", 
+    "crown", "shield", "smile", "drama", "eye", "fingerprint", "trophy", "gamepad", "book", "archive", "layers", "grid", 
+    "bookmark", "gem", "award", "clock", "calendar", "hourglass", "search", "map", "compass", "globe", "mountain", "tree", 
+    "leaf", "paw", "users", "sun", "moon", "snowflake", "gift", "plane", "ship", "car", "sparkles"
+)
+LIBRARY_FONTS = (
+    "default", "modern", "cinematic", "display", "condensed", "rounded", "serif", "editorial", "vintage", "mono", "typewriter", "script"
+)
 
 
 class LibraryRequest(BaseModel):
