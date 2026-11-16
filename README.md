@@ -53,6 +53,21 @@ The optional credentials are passed through both Docker Compose modes. Without a
 Open **Settings → Connections → OpenSubtitles** to paste and verify an API key, with an optional account bearer token for provider downloads. The server saves credentials only under `/data/opensubtitles-settings.json` with restricted file permissions, never returns credential values, and applies changes immediately without restarting Docker. Environment-provided keys remain a fallback and are indicated as such in Settings; a Settings-saved key takes precedence. Removing a Settings-saved key falls back to the environment key if one exists. Previously downloaded subtitles remain available.
 
 
+## TV series ratings and episode controls
+
+Series and season pages show the US TV parental rating (such as TV-14 or TV-MA) when the configured TMDB source supplies it. This is a TV classification, not a movie MPAA rating. The interface does **not** present TMDB or TVmaze votes as IMDb scores.
+
+If you want an actual IMDb score in the series details row, obtain an OMDb API key and set it as an **optional private server environment variable** (never commit it to Git):
+
+```sh
+export OMDB_API_KEY='your-omdb-api-key'
+docker compose up -d --build
+```
+
+The optional key is passed through both Compose configurations. When the show has a validated IMDb ID, the server requests the score from OMDb and caches the result. Without a configured key, series still display a link to IMDb where the provider has an IMDb ID; no rating is invented. Series missing an external ID or parental classification show an unavailable label.
+
+**Shuffle Season** randomly orders all locally indexed episodes in the selected season, then offers the remaining episodes in that randomized order. The playlist is session-scoped to the player, not a persistent saved playlist, and normal Play/Resume clears it. Native Android TV builds need updating to use the playlist across player transitions.
+
 ## Scheduled maintenance and video previews
 
 Open **Settings → Maintenance** to configure background tasks. The server checks for

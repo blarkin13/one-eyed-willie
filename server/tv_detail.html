@@ -172,6 +172,75 @@ body.tv-season-mode #loading:empty{display:none}
     padding:14px 22px}
   .season-actions-row,.season-support{padding-left:22px;padding-right:22px}
 }
+
+/* Fixed-height cinema: selected episode metadata never moves the thumbnail row. */
+.tv-season-cinema{height:clamp(315px,44vh,400px);min-height:0;box-sizing:border-box;
+  padding:clamp(14px,2vw,24px) clamp(25px,5.2vw,87px) 15px}
+.season-rail-shell--seasons{margin-bottom:9px}
+.season-hero-copy{margin-top:auto;height:210px;min-height:210px;flex:0 0 210px;max-width:min(720px,67%);
+  display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;padding:0}
+.season-show-name{font-size:clamp(1.55rem,3vw,2.8rem);height:1.12em;min-height:1.12em;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0 0 6px}
+.season-episode-title{font-size:clamp(1rem,1.8vw,1.42rem);
+  height:2.33em;min-height:2.33em;line-height:1.16;overflow:hidden;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;margin:0 0 4px}
+.season-episode-meta{height:20px;min-height:20px;flex-wrap:nowrap;white-space:nowrap;
+  overflow:hidden;gap:10px;margin:0 0 5px}
+.season-episode-summary{height:2.8em;min-height:2.8em;max-height:2.8em;
+  line-height:1.4;-webkit-line-clamp:2;margin:0}
+.season-episode-format{height:29px;min-height:29px;overflow:hidden;
+  align-items:center;margin:3px 0 0}
+.season-episode-track{grid-auto-columns:clamp(122px,15vw,200px);
+  gap:clamp(9px,1.2vw,16px);padding-top:10px;padding-bottom:10px}
+.season-actions-row{min-height:54px;box-sizing:border-box;gap:7px;flex-wrap:nowrap;
+  padding-top:4px;padding-bottom:4px;overflow-x:auto;scrollbar-width:thin}
+.season-actions-row .media-icon-action{width:42px;height:42px;min-width:42px!important}
+.season-actions-label{white-space:nowrap;margin-left:auto}
+.season-parental-rating,.series-fact-chip{display:inline-flex;align-items:center;min-height:28px;
+  padding:3px 9px;border:1px solid #86a3b8a1;border-radius:6px;
+  background:#10263acc;color:#d7e7f3;font-size:.79rem;font-weight:750;white-space:nowrap}
+.season-overflow-dialog,.series-description-dialog{
+  background:#0b1727;color:#e6f1fd;border:1px solid #48617a;
+  border-radius:12px;padding:16px;max-width:min(440px,calc(100vw - 32px))}
+.season-overflow-dialog::backdrop,.series-description-dialog::backdrop{background:#000c}
+.season-overflow-dialog h2{font-size:1rem;margin:0 38px 13px 0}
+.season-overflow-dialog button.season-overflow-item{display:block;width:100%;
+  background:transparent;border:0;color:inherit;text-align:left;
+  padding:13px 14px;border-radius:8px;cursor:pointer;font:inherit}
+.season-overflow-dialog button.season-overflow-item:focus-visible,
+.season-overflow-dialog button.season-overflow-item:hover{outline:2px solid #aacde8}
+.series-description-dialog{max-width:min(650px,calc(100vw - 32px));max-height:80vh;overflow:auto}
+.series-description-dialog p{line-height:1.5;white-space:pre-wrap}
+.series-description-more{border:0;background:transparent;color:#bbdcf6;
+  cursor:pointer;padding:4px 0;font:inherit;font-size:.85rem}
+.tv-show-hero{min-height:0!important;margin-bottom:18px!important;
+  gap:18px!important;padding:clamp(16px,2.2vw,26px)!important}
+.tv-show-hero .hero-poster{max-width:175px;max-height:260px}
+.tv-show-hero .hero-info{align-self:start;justify-content:flex-start;min-width:0}
+.tv-show-hero .hero-info h1{font-size:clamp(1.6rem,3vw,2.9rem)}
+.tv-show-hero .series-overview{display:-webkit-box;-webkit-line-clamp:3;
+  -webkit-box-orient:vertical;overflow:hidden;line-height:1.5;max-width:850px}
+.tv-show-hero .series-overview-wrap{max-width:850px}
+.tv-show-hero .series-controls{grid-column:1/-1;display:flex;align-items:center;
+  flex-wrap:wrap;gap:8px 13px;border-top:1px solid #c0d5e329;padding-top:10px}
+.tv-show-hero .series-controls-actions{display:flex;gap:7px;align-items:center}
+.tv-show-hero .series-controls-facts{display:flex;gap:8px;align-items:center;
+  flex-wrap:wrap;min-width:0}
+.tv-show-hero .series-controls-facts .series-fact-chip{max-width:min(400px,100%);
+  overflow:hidden;text-overflow:ellipsis}
+.tv-show-hero .series-controls-facts a{color:#d6ecff;text-decoration:none}
+.tv-show-hero .series-controls-facts a:focus-visible{outline:2px solid #d0eaff}
+.tv-show-hero .media-icon-action{width:44px;height:44px;min-width:44px!important}
+@media(max-width:720px){
+  .tv-season-cinema{height:clamp(315px,49vh,390px);min-height:0;padding:13px 22px 13px}
+  .season-hero-copy{height:210px;min-height:210px;flex-basis:210px;max-width:94%}
+  .season-show-name{font-size:clamp(1.45rem,4vw,2.3rem)}
+  .season-episode-track{grid-auto-columns:clamp(110px,27vw,166px);padding:8px 8px}
+  .season-actions-row{padding-left:16px;padding-right:16px}
+  .season-actions-label{display:none}
+  .tv-show-hero .hero-poster{max-width:125px;max-height:190px}
+  .tv-show-hero .series-controls{gap:6px}
+}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -388,13 +457,35 @@ function openMatchDialog(){
  dialog.showModal();input.focus();searchMatches();
 }
 
+function seriesDescriptionDialog(title,overview){
+ const dialog=el('dialog','series-description-dialog');
+ dialog.setAttribute('aria-label',title+' full description');
+ dialog.append(el('h2','',title),el('p','',overview));
+ const close=el('button','secondary-button','Close');close.type='button';
+ close.onclick=()=>dialog.close();dialog.append(close);document.body.append(dialog);
+ dialog.addEventListener('close',()=>dialog.remove());
+ dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+ dialog.showModal();close.focus();
+}
 function hero(title,overview,art,backdrop,year,subtitle){
- const head=el('section','media-hero');
+ const head=el('section','media-hero tv-show-hero');
  if(backdrop)head.appendChild(image(backdrop,'hero-backdrop',''));
  const artNode=poster(art,title+' poster');
  const info=el('div','hero-info');info.append(el('p','eyebrow',subtitle||'TV SERIES'),el('h1','',title));
  if(year)info.appendChild(el('p','muted',String(year)));
- info.appendChild(el('p','',overview||'No description available for this title yet.'));
+ const summary=el('div','series-overview-wrap');
+ const description=el('p','series-overview',overview||'No description available for this title yet.');
+ summary.append(description);
+ if(overview){
+   const more=el('button','series-description-more','Show more');more.type='button';
+   more.hidden=true;
+   more.onclick=()=>seriesDescriptionDialog(title,overview);
+   summary.append(more);
+   const checkOverflow=()=>{more.hidden=description.scrollHeight<=description.clientHeight+2;};
+   requestAnimationFrame(checkOverflow);
+   if(typeof ResizeObserver==='function')new ResizeObserver(checkOverflow).observe(description);
+ }
+ info.append(summary);
  head.append(artNode,info);return head;
 }
 function bulkWatchedControl(data,scope){
@@ -446,14 +537,14 @@ function openTvTrailer(key,title){
  close.onclick=()=>dialog.close();dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
  dialog.addEventListener('close',()=>dialog.remove());dialog.showModal();
 }
-function showExtras(data){
+function showExtras(data,{includeFacts=true}={}){
  const section=el('section','tv-extras');
  const facts=el('div','tv-facts');
  const score=Number(data.rating);
  if(Number.isFinite(score)&&score>0)facts.append(el('span','tv-rating','★ '+score.toFixed(1)+' / 10 · '+(data.metadata_source||'Provider')));
  if(data.network)facts.append(el('span','tv-network',data.network));
  if(Array.isArray(data.genres)&&data.genres.length)facts.append(el('span','tv-genres',data.genres.join(' · ')));
- if(facts.childNodes.length)section.append(facts);
+ if(includeFacts&&facts.childNodes.length)section.append(facts);
  const actors=Array.isArray(data.cast)?data.cast.filter(person=>person.name):[];
  if(actors.length){
    section.append(el('h2','','Cast'));
@@ -507,21 +598,60 @@ async function loadJson(url){
  const response=await fetch(url,{cache:'no-store'});if(!response.ok)throw Error('Unable to load details ('+response.status+')');
  return response.json();
 }
+function trailerButton(key,title){
+ const button=el('button','media-icon-action tv-trailer-launch');button.type='button';
+ const available=/^[A-Za-z0-9_-]{11}$/.test(key||'');
+ button.title=available?'Play trailer':'Trailer not available';
+ button.setAttribute('aria-label',button.title);button.disabled=!available;
+ button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>';
+ if(available)button.onclick=()=>openTvTrailer(key,title);
+ return button;
+}
+function seriesControls(data){
+ const controls=el('div','series-controls');
+ const actions=el('div','series-controls-actions');
+ const next=data.next_episode;
+ if(next?.media_id){
+   const resume=!!next.resume;
+   const button=el('button','media-icon-action');
+   button.type='button';
+   button.innerHTML=resume
+     ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>'
+     :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
+   const identifier='S'+String(next.season).padStart(2,'0')+'E'+String(next.episode).padStart(2,'0');
+   button.title=resume?'Resume '+identifier:next.replay?'Replay '+identifier:'Play next episode · '+identifier;
+   button.setAttribute('aria-label',button.title);
+   button.onclick=()=>WilliePlayer.open(next.media_id,data.title+' · '+identifier,{restart:!resume});
+   actions.append(button);
+ }
+ actions.append(bulkWatchedControl(data,'show'),matchButton(),trailerButton(data.trailer_key,data.title));
+ const facts=el('div','series-controls-facts');
+ const rating=el('span','series-fact-chip',data.content_rating||'TV rating unavailable');
+ rating.title='TV parental rating';facts.append(rating);
+ if(data.imdb_id&&/^tt[0-9]{7,9}$/.test(data.imdb_id)){
+   const link=el('a','series-fact-chip',
+     data.imdb_rating>0?'IMDb ★ '+Number(data.imdb_rating).toFixed(1)+'/10':'IMDb');
+   link.href='https://www.imdb.com/title/'+data.imdb_id+'/';
+   link.target='_blank';link.rel='noopener noreferrer';
+   link.title=data.imdb_rating>0?'IMDb rating':'View IMDb rating';
+   facts.append(link);
+ }else{
+   facts.append(el('span','series-fact-chip','IMDb unavailable'));
+ }
+ if(data.network)facts.append(el('span','series-fact-chip',data.network));
+ if(Array.isArray(data.genres)&&data.genres.length)
+   facts.append(el('span','series-fact-chip',data.genres.join(' · ')));
+ controls.append(actions,facts);
+ return controls;
+}
 async function renderShow(){
  if(!Number.isInteger(state.library_id)||!state.library_id||!state.key)throw Error('Select a TV show from the library.');
  const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
  document.title=data.title+' · One-Eyed Willie';
  state.show_title=data.title;
- view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
- const showActions=el('div','show-bulk-actions');showActions.append(bulkWatchedControl(data,'show'),matchButton());
- if(/^[A-Za-z0-9_-]{11}$/.test(data.trailer_key||'')){
-   const trailer=el('button','media-icon-action tv-trailer-launch');
-   trailer.type='button';trailer.title='Play trailer';trailer.setAttribute('aria-label','Play trailer');
-   trailer.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2.5" y="4.5" width="19" height="15" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>';
-   trailer.onclick=()=>openTvTrailer(data.trailer_key,data.title);
-   showActions.append(trailer);
- }
- view.append(showActions);
+ const showHero=hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES');
+ showHero.append(seriesControls(data));
+ view.append(showHero);
  const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
  view.appendChild(heading);
  const grid=el('div','season-grid');
@@ -531,7 +661,7 @@ async function renderShow(){
     seasonHref(data.library_id,data.key,season.number)));
  }
  view.appendChild(grid);
- view.append(showExtras(data));
+ view.append(showExtras(data,{includeFacts:false}));
  if(data.seasons.some(s=>s.number===null)){
    const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
    view.appendChild(note);
@@ -585,17 +715,15 @@ async function renderSeason(){
   const support=el('div','season-support');
   view.append(episodeRail.shell,actions,support);
   const selectEpisode=episode=>{
-    selected=episode;
-    for(const [id,button] of allCards){
-      const active=id===episode.id;
-      button.classList.toggle('is-selected',active);
-      button.setAttribute('aria-pressed',String(active));
-      const item=available.find(x=>x.id===id);
-      const action=canResume(item)?'Resume':'Play';
-      const label=action+' episode '+(item?.episode??'')+', '+(item?.title||'')+
-        (item?.watched?' (watched)':'');
-      button.setAttribute('aria-label',label);button.title=label;
+    const previousButton=allCards.get(selected?.id);
+    if(previousButton&&selected.id!==episode.id){
+      previousButton.classList.remove('is-selected');
+      previousButton.setAttribute('aria-pressed','false');
     }
+    selected=episode;
+    const activeButton=allCards.get(episode.id);
+    activeButton?.classList.add('is-selected');
+    activeButton?.setAttribute('aria-pressed','true');
     const picture=episode.still_url||data.show.backdrop_url;
     if(typeof picture==='string'&&picture.startsWith('/api/artwork/')){
       backdrop.src=picture;backdrop.hidden=false;
@@ -625,47 +753,77 @@ async function renderSeason(){
     actions.append(playbackButton(episode.id,data.show.title+' · '+epTitle.textContent));
     if(canResume(episode))
       actions.append(playbackButton(episode.id,data.show.title+' · '+epTitle.textContent,true));
-    const watched=el('button','media-icon-action watch-icon-control');watched.type='button';
-    updateWatchIcon(watched,episode.watched);
-    watched.onclick=async()=>{
-      watched.disabled=true;
-      try{
-        const r=await fetch('/api/watch/'+episode.id+'/watched',{
+    actions.append(trailerButton(data.show.trailer_key,data.show.title));
+    const age=el('span','season-parental-rating',data.show.content_rating||'TV —');
+    age.title=data.show.content_rating?'TV parental rating':'TV parental rating unavailable';actions.append(age);
+    const more=el('button','media-icon-action season-more-button');
+    more.type='button';more.title='Episode and season options';
+    more.setAttribute('aria-label','Episode and season options');
+    more.setAttribute('aria-haspopup','dialog');
+    more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+    more.onclick=()=>{
+      const dialog=el('dialog','season-overflow-dialog');
+      dialog.setAttribute('aria-label','Episode and season options');
+      dialog.append(el('h2','','Episode and season options'));
+      let chosenAction=false;
+      const option=(label,run)=>{
+        const button=el('button','season-overflow-item',label);
+        button.type='button';
+        button.onclick=async()=>{
+          chosenAction=true;dialog.close();
+          try{await run()}catch(error){loading.textContent=error.message;}
+        };
+        dialog.append(button);
+      };
+      option(episode.watched?'Mark episode unwatched':'Mark episode watched',async()=>{
+        const response=await fetch('/api/watch/'+episode.id+'/watched',{
           method:'PUT',headers:{'Content-Type':'application/json'},
           body:JSON.stringify({watched:!episode.watched})
         });
-        if(!r.ok)throw Error('Could not change watched status');
+        if(!response.ok)throw Error('Could not update episode watched status');
         episode.watched=!episode.watched;
         syncEpisodeWatchedBadge(allCards.get(episode.id),episode.watched);
         selectEpisode(episode);
-        actions.querySelector('.watch-icon-control')?.focus({preventScroll:true});
-      }catch(err){loading.textContent=err.message}
-      finally{watched.disabled=false}
-    };
-    actions.append(watched);
-    const allWatched=available.every(e=>e.watched);
-    const seasonWatch=el('button','media-icon-action watch-icon-control');seasonWatch.type='button';
-    updateWatchIcon(seasonWatch,allWatched,'season');
-    seasonWatch.onclick=async()=>{
-      seasonWatch.disabled=true;
-      const next=!available.every(e=>e.watched);
-      try{
+      });
+      option(available.every(e=>e.watched)?'Mark season unwatched':'Mark season watched',async()=>{
+        const watched=!available.every(e=>e.watched);
         const q=new URLSearchParams({library_id:data.show.library_id,key:data.show.key,
           season_number:state.season_number});
-        const r=await fetch('/api/tv/season/watched?'+q,{
+        const response=await fetch('/api/tv/season/watched?'+q,{
           method:'PUT',headers:{'Content-Type':'application/json'},
-          body:JSON.stringify({watched:next})
+          body:JSON.stringify({watched})
         });
-        if(!r.ok)throw Error('Could not update season watched status');
+        if(!response.ok)throw Error('Could not update season watched status');
         for(const ep of available){
-          ep.watched=next;
-          syncEpisodeWatchedBadge(allCards.get(ep.id),next);
+          ep.watched=watched;
+          syncEpisodeWatchedBadge(allCards.get(ep.id),watched);
         }
         selectEpisode(selected);
-      }catch(err){loading.textContent=err.message}
-      finally{seasonWatch.disabled=false}
+      });
+      option('Fix match',()=>openMatchDialog());
+      option('Shuffle season',()=>{
+        if(typeof window.WilliePlayer?.shuffleSeason!=='function')
+          throw Error('Shuffle playback is not ready. Reload the page and try again.');
+        WilliePlayer.shuffleSeason(available.map(ep=>({
+          id:ep.id,title:data.show.title+' · '+(ep.title||'Episode '+ep.episode),
+          resume:canResume(ep)
+        })));
+      });
+      dialog.addEventListener('close',()=>{
+        dialog.remove();
+        // Don't steal focus from the Fix Match / trailer dialog or player
+        // launched by an overflow action.
+        if(document.querySelector('dialog[open],.willie-player'))return;
+        const focus=chosenAction?allCards.get(selected.id)
+          :(more.isConnected?more:allCards.get(selected.id));
+        focus?.focus({preventScroll:true});
+      });
+      dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
+      document.body.append(dialog);
+      dialog.showModal();
+      dialog.querySelector('.season-overflow-item')?.focus();
     };
-    actions.append(seasonWatch,matchButton());
+    actions.append(more);
     actions.append(el('span','season-actions-label',available.length+' episodes · '+data.season.name));
   };
   for(const episode of available){
@@ -681,6 +839,10 @@ async function renderSeason(){
     button.onclick=()=>WilliePlayer.open(episode.id,
       data.show.title+' · '+(episode.title||'Episode '+(episode.episode??'')),
       {restart:!canResume(episode)});
+    const action=canResume(episode)?'Resume':'Play';
+    button.setAttribute('aria-label',action+' episode '+(episode.episode??'')+', '+(episode.title||'')+
+      (episode.watched?' (watched)':''));
+    button.setAttribute('aria-pressed','false');
     allCards.set(episode.id,button);track.append(button);
   }
   selectEpisode(selected);

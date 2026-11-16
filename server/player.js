@@ -3,6 +3,7 @@
  * Hls.js 1.7.4 is pinned for MSE browsers; Safari plays HLS natively. */
 (() => {
   let current=null, mediaId=0, status=null, hls=null, session=null;
+  let seasonShuffle=false, shuffleQueue=[];
   let started=false, saveAt=0, offset=0, switching=false, playbackMode='direct';
   let monitor=null;
   let chromeTimer=null, seekTimer=null, stallTimer=null;
@@ -452,7 +453,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       stopCountdown();
       if(!nextEpisode||current!==surface)return;
       const chosen=nextEpisode;
-      start(chosen.media_id,chosen.title,{restart:true});
+      if(seasonShuffle && shuffleQueue[0]?.media_id===chosen.media_id)shuffleQueue.shift();
+      start(chosen.media_id,chosen.title,{restart:chosen.restart!==false});
     }
     next.onclick=launchNext;
     const nextPrompt=document.createElement('div');nextPrompt.className='willie-next-prompt';nextPrompt.hidden=true;
@@ -601,13 +603,13 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       // Server-wide saved setting; no per-playback toggle required.
       requestJson('/api/settings/playback').then(prefs=>{
         if(current!==surface)return;
-        autoPlayNext=!!prefs.auto_play_next;
+        autoPlayNext=!!prefs.auto_play_next||seasonShuffle;
         if(video.ended)showNextCountdown();
       }).catch(()=>{autoPlayNext=false});
       reloadTracks().catch(()=>{});
-      requestJson('/api/tv/next?media_id='+id).then(result=>{
+      (seasonShuffle?Promise.resolve({next:null}):requestJson('/api/tv/next?media_id='+id)).then(result=>{
         if(current!==surface)return;
-        nextEpisode=result.next||null;
+        nextEpisode=seasonShuffle?(shuffleQueue[0]||null):(result.next||null);
         next.hidden=!nextEpisode;
         // If status/next results race with a very short clip, still offer next.
         if(video.ended)showNextCountdown();
@@ -622,5 +624,24 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       }else playHls(resume);
     }).catch(e=>message(e.message));
   }
-  window.WilliePlayer={open:start,close};
+  const open=(id,title,options={})=>{
+    seasonShuffle=false;shuffleQueue=[];
+    start(id,title,options);
+  };
+  function shuffleSeason(episodes){
+    if(!Array.isArray(episodes))return;
+    const list=episodes.slice(0,500).filter(item=>Number.isInteger(item?.id)&&item.id>0)
+      .map(item=>({media_id:item.id,title:String(item.title||'Episode').slice(0,160),
+        restart:!item.resume}));
+    if(!list.length)return;
+    // Fisher-Yates: one pass plays every episode exactly once.
+    for(let i=list.length-1;i>0;i--){
+      const j=Math.floor(Math.random()*(i+1));
+      [list[i],list[j]]=[list[j],list[i]];
+    }
+    seasonShuffle=true;shuffleQueue=list.slice(1);
+    const first=list[0];
+    start(first.media_id,first.title,{restart:first.restart});
+  }
+  window.WilliePlayer={open,close,shuffleSeason};
 })();
