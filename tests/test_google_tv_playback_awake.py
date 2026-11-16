@@ -23,6 +23,16 @@ class GoogleTvPlaybackAwakeTests(unittest.TestCase):
         self.assertIn("override fun onStart()", src)
         self.assertIn("override fun onDestroy()", src)
 
+    def test_unknown_duration_progress_is_saved_and_errors_are_visible(self):
+        src = (ANDROID / "PlayerActivity.kt").read_text()
+        self.assertIn("val knownDuration = currentDuration().takeIf", src)
+        self.assertIn('put("duration_seconds", knownDuration)', src)
+        self.assertIn("else position", src)
+        self.assertIn('resolveUrl("/api/playback/progress")', src)
+        self.assertIn("if (response !in 200..299)", src)
+        self.assertIn("Could not save playback progress", src)
+        self.assertIn("saveProgress(false)", src)
+
     def test_webview_fallback_releases_screen_after_video_or_navigation(self):
         src = (ANDROID / "MainActivity.kt").read_text()
         self.assertIn('message == "oewtv:awake:1" || message == "oewtv:awake:0"', src)
