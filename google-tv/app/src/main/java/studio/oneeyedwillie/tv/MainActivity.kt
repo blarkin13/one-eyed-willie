@@ -1084,6 +1084,26 @@ class MainActivity : ComponentActivity() {
                   return document.querySelector('.person-credits .person-credit-link');
                 return null;
               };
+              // On wrapped season/filmography grids, Down/Up takes the
+              // leftmost card of the next/previous row. No season becomes
+              // inaccessible simply because its row is below the first row.
+              const firstOfAdjacentGridRow=(active,direction,rootSelector,itemSelector)=>{
+                const root=active?.closest?.(rootSelector);
+                if(!root||!['up','down'].includes(direction))return null;
+                const entries=[...root.querySelectorAll(itemSelector)].filter(isVisible);
+                const top=rect(active).top;
+                const next=entries.filter(node=>{
+                  const difference=rect(node).top-top;
+                  return direction==='down'?difference>15:difference< -15;
+                });
+                if(!next.length)return null;
+                const rowTop=direction==='down'
+                  ?Math.min(...next.map(node=>rect(node).top))
+                  :Math.max(...next.map(node=>rect(node).top));
+                const row=next.filter(node=>Math.abs(rect(node).top-rowTop)<15)
+                  .sort((a,b)=>rect(a).left-rect(b).left);
+                return row[0]||null;
+              };
               const detailSections=()=>{
                 const path=location.pathname;
                 if(path==='/tv/show')return [
@@ -1175,6 +1195,13 @@ class MainActivity : ComponentActivity() {
                   if(index<0)return focusNode(menu[0]);
                   const next=index+(direction==='down'?1:-1);
                   return focusNode(menu[Math.max(0,Math.min(menu.length-1,next))]);
+                }
+                if(direction==='up'||direction==='down'){
+                  const rowTarget=firstOfAdjacentGridRow(
+                    active,direction,'.season-grid','.tile-button')||
+                    firstOfAdjacentGridRow(
+                      active,direction,'.person-credits','.person-credit-link');
+                  if(rowTarget){readingScroll=false;return focusNode(rowTarget)}
                 }
                 // Page-level vertical navigation moves to the first item of the
                 // next logical section, including Series actions -> Season 1.
