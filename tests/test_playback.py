@@ -95,6 +95,21 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(status["position_seconds"], 0)
         self.assertEqual(status["duration_seconds"], 2500)
 
+    def test_unknown_duration_resume_appears_in_continue_watching(self):
+        # Android TV/HLS can know the played position before the duration.
+        # Its progress must not be discarded merely because duration is zero.
+        result = update_playback(PlaybackUpdate(
+            media_id=2, position_seconds=900, duration_seconds=0
+        ))
+        self.assertTrue(result["saved"])
+        self.assertFalse(result["completed"])
+        shelf = home_shelves()["continue_watching"]
+        self.assertEqual(len(shelf), 1)
+        self.assertEqual(shelf[0]["media_id"], 2)
+        self.assertEqual(shelf[0]["position_seconds"], 900)
+        self.assertEqual(shelf[0]["play_state"], "resume")
+        self.assertEqual(playback.watch_status(2)["position_seconds"], 900)
+
     def test_near_end_progress_sets_watched(self):
         result = update_playback(PlaybackUpdate(
             media_id=2, position_seconds=195, duration_seconds=200
