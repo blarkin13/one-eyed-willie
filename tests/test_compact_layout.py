@@ -93,7 +93,7 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn(".person-hero > *{min-width:0}", page)
         self.assertIn(".person-photo-frame{position:relative;width:100%;min-width:0;min-height:0;", page)
         self.assertIn("@media(max-width:700px){", page)
-        mobile = page.split("@media(max-width:700px){", 1)[1].split("}", 1)[0]
+        mobile = page.split("@media(max-width:700px){", 1)[1].split("/* One selectable", 1)[0]
         self.assertIn("grid-template-columns:minmax(0,1fr)", mobile)
         self.assertNotIn("grid-template-columns:105px minmax(0,1fr)", page)
         self.assertIn(".person-credits{grid-template-columns:repeat(2,minmax(0,1fr))", page)
