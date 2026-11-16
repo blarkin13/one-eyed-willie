@@ -503,8 +503,9 @@ async function renderSeason(){
       const active=id===episode.id;
       button.classList.toggle('is-selected',active);
       button.setAttribute('aria-pressed',String(active));
-      button.setAttribute('aria-label',(active?'Selected ':'Select ')+'episode '+(episode.episode??'')+
-        (active?'':', '+(available.find(x=>x.id===id)?.title||'')));
+      const item=available.find(x=>x.id===id);
+      button.setAttribute('aria-label',(active?'Selected ':'Select ')+'episode '+
+        (item?.episode??'')+', '+(item?.title||''));
     }
     const picture=episode.still_url||data.show.backdrop_url;
     if(typeof picture==='string'&&picture.startsWith('/api/artwork/')){
