@@ -72,6 +72,64 @@ class LocalThemeTests(unittest.TestCase):
         with patch.object(theme_music, "MAX_BYTES", 1):
             self.assertIsNone(theme_music.theme_for_media(2))
 
+    def test_connected_plex_theme_is_discovered_without_local_mp3(self):
+        from server import plex_import
+        setting = {"url": "http://plex:32400", "token": "private-token"}
+        def details(url, token, path, params=None):
+            return {"Metadata": [{"theme": "/library/metadata/123/theme/987"}]}
+        with patch.object(plex_import, "_require_config", return_value=setting), \
+             patch.object(theme_music, "_plex_index", return_value={
+                 ("show", "severance"): [(2022, 123)],
+                 ("movie", "interstellar"): [(2014, 123)]
+             }), \
+             patch.object(plex_import, "_plex_get", side_effect=details):
+            info = theme_music.theme_info(2)
+            self.assertTrue(info["available"])
+            self.assertEqual(info["source"], "plex")
+            self.assertEqual(info["url"], "/api/themes/2/audio")
+            self.assertTrue(theme_music.theme_info(1)["available"])
+
+    def test_local_theme_has_priority_over_plex(self):
+        theme = self.movie_folder / "theme.mp3"
+        theme.write_bytes(b"audio")
+        with patch.object(theme_music, "_plex_theme", side_effect=AssertionError("plex not needed")):
+            self.assertEqual(theme_music.theme_info(1)["source"], "local")
+
+    def test_wrong_or_ambiguous_plex_match_and_untrusted_theme_rejected(self):
+        from server import plex_import
+        setting = {"url": "http://plex:32400", "token": "private-token"}
+        with patch.object(plex_import, "_require_config", return_value=setting), \
+             patch.object(theme_music, "_plex_index", return_value={
+                 ("show", "severance"): [(2022, 123), (2022, 124)]
+             }), \
+             patch.object(plex_import, "_plex_get") as getter:
+            self.assertIsNone(theme_music._plex_theme(2))
+            getter.assert_not_called()
+        with patch.object(plex_import, "_require_config", return_value=setting), \
+             patch.object(theme_music, "_plex_index", return_value={
+                 ("show", "severance"): [(2022, 123)]
+             }), \
+             patch.object(plex_import, "_plex_get", return_value={
+                 "Metadata": [{"theme": "https://untrusted.example/bad.mp3"}]
+             }):
+            self.assertIsNone(theme_music._plex_theme(2))
+
+    def test_plex_catalog_is_bounded_and_cached(self):
+        from server import plex_import
+        setting = {"url": "http://plex:32400", "token": "private-token"}
+        def plex_data(url, token, path, params=None):
+            if path == "/library/sections":
+                return {"Directory": [{"type": "show", "key": "1"}]}
+            return {"Metadata": [{"type": "show", "title": "Severance",
+                                  "year": 2022, "ratingKey": "123"}],
+                    "totalSize": 1}
+        with patch.object(plex_import, "_plex_get", side_effect=plex_data) as request:
+            theme_music._index.update(url=None, expires=0, items={})
+            self.assertEqual(theme_music._plex_index(setting)[("show", "severance")],
+                             [(2022, 123)])
+            theme_music._plex_index(setting)
+            self.assertEqual(request.call_count, 2)
+
     def test_settings_keep_legacy_autoplay_and_validate_volume(self):
         defaults = playback_settings.get_preferences()
         self.assertTrue(defaults["movie_theme_music"])
