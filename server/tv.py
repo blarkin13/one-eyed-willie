@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from .catalog import episode_info
 from .library import db
 from .artwork import localize, local_show_poster, register_remote
-from .metadata import show_metadata as tmdb_show_metadata, show_metadata_by_id as tmdb_by_id, season_metadata, token_status, _call as tmdb_call, image_url as tmdb_image
+from .metadata import imdb_details, show_metadata as tmdb_show_metadata, show_metadata_by_id as tmdb_by_id, season_metadata, token_status, _call as tmdb_call, image_url as tmdb_image
 from .tvmaze import show_metadata as tvmaze_show_metadata, show_metadata_by_id as tvmaze_by_id, season_metadata as tvmaze_season_metadata, show_cast as tvmaze_show_cast, _get as tvmaze_get, image_url as tvmaze_image
 from .arr import sonarr_metadata
 
@@ -230,6 +230,25 @@ def merged_show(library_id: int, show_key: str):
     return show, metadata, seasons
 
 
+def next_for_series(episodes):
+    """Choose a resumable or first unwatched local episode, with specials last."""
+    numbered = sorted(
+        (ep for ep in episodes if ep.get("season") is not None and ep.get("episode") is not None),
+        key=lambda ep: (ep["season"] == 0, ep["season"], ep["episode"], ep["id"]),
+    )
+    unwatched = [ep for ep in numbered if not ep["watched"]]
+    partial = [ep for ep in unwatched if ep.get("position_seconds", 0) >= 30 and
+               (ep.get("duration_seconds", 0) <= 0 or
+                ep["position_seconds"] < ep["duration_seconds"] * .95)]
+    chosen = partial[0] if partial else (unwatched[0] if unwatched else
+                                         (numbered[0] if numbered else None))
+    if not chosen:
+        return None
+    return {"media_id": chosen["id"], "season": chosen["season"],
+            "episode": chosen["episode"], "resume": chosen in partial,
+            "replay": not bool(unwatched)}
+
+
 @router.get("/poster")
 def poster(library_id: int = Query(ge=1), key: str = Query(min_length=1, max_length=300)):
     show = local_show(library_id, key)
@@ -256,7 +275,11 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
     for actor in actors:
         cast.append({"name": actor["name"], "tmdb_id": actor.get("tmdb_id"), "tvmaze_id": actor.get("tvmaze_id"), "character": actor.get("character") or "",
                      "photo": register_remote(actor.get("photo_url"))})
+    imdb = imdb_details(meta.get("imdb_id"))
     result = {
+        "next_episode": next_for_series(show["episodes"]),
+        "content_rating": meta.get("content_rating") or imdb.get("content_rating"),
+        "imdb_id": meta.get("imdb_id"), "imdb_rating": imdb.get("rating"),
         "cast": cast,
         "reviews": meta.get("reviews") or [],
         "rating": meta.get("rating"),
@@ -306,8 +329,13 @@ def season_details(
             "air_date": episode_meta.get("air_date", ""),
             "runtime": episode_meta.get("runtime"),
         })
+    imdb = imdb_details(meta.get("imdb_id"))
     result = {
-        "show": {"library_id": library_id, "key": key, "title": meta.get("title") or show["title"],
+        "show": {"content_rating": meta.get("content_rating") or imdb.get("content_rating"),
+                 "imdb_id": meta.get("imdb_id"), "imdb_rating": imdb.get("rating"),
+                 "rating": meta.get("rating"), "network": meta.get("network"),
+                 "genres": meta.get("genres") or [], "trailer_key": meta.get("trailer_key"),
+                 "library_id": library_id, "key": key, "title": meta.get("title") or show["title"],
                  "poster_url": meta.get("poster_url"), "backdrop_url": meta.get("backdrop_url"),
                  "overview": meta.get("overview", ""), "year": show["year"]},
         "season": {**season,
