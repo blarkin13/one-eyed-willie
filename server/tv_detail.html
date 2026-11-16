@@ -174,10 +174,10 @@ body.tv-season-mode #loading:empty{display:none}
 }
 
 /* Fixed-height cinema: selected episode metadata never moves the thumbnail row. */
-.tv-season-cinema{height:clamp(292px,44vh,400px);min-height:0;box-sizing:border-box;
+.tv-season-cinema{height:clamp(315px,44vh,400px);min-height:0;box-sizing:border-box;
   padding:clamp(14px,2vw,24px) clamp(25px,5.2vw,87px) 15px}
 .season-rail-shell--seasons{margin-bottom:9px}
-.season-hero-copy{margin-top:auto;height:clamp(210px,30vh,250px);max-width:min(720px,67%);
+.season-hero-copy{margin-top:auto;height:210px;min-height:210px;flex:0 0 210px;max-width:min(720px,67%);
   display:flex;flex-direction:column;justify-content:flex-start;overflow:hidden;padding:0}
 .season-show-name{font-size:clamp(1.55rem,3vw,2.8rem);height:1.12em;min-height:1.12em;
   white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin:0 0 6px}
@@ -233,7 +233,7 @@ body.tv-season-mode #loading:empty{display:none}
 .tv-show-hero .media-icon-action{width:44px;height:44px;min-width:44px!important}
 @media(max-width:720px){
   .tv-season-cinema{height:clamp(315px,49vh,390px);min-height:0;padding:13px 22px 13px}
-  .season-hero-copy{height:210px;max-width:94%}
+  .season-hero-copy{height:210px;min-height:210px;flex-basis:210px;max-width:94%}
   .season-show-name{font-size:clamp(1.45rem,4vw,2.3rem)}
   .season-episode-track{grid-auto-columns:clamp(110px,27vw,166px);padding:8px 8px}
   .season-actions-row{padding-left:16px;padding-right:16px}
@@ -764,11 +764,12 @@ async function renderSeason(){
       const dialog=el('dialog','season-overflow-dialog');
       dialog.setAttribute('aria-label','Episode and season options');
       dialog.append(el('h2','','Episode and season options'));
+      let chosenAction=false;
       const option=(label,run)=>{
         const button=el('button','season-overflow-item',label);
         button.type='button';
         button.onclick=async()=>{
-          dialog.close();
+          chosenAction=true;dialog.close();
           try{await run()}catch(error){loading.textContent=error.message;}
         };
         dialog.append(button);
@@ -809,7 +810,8 @@ async function renderSeason(){
       });
       dialog.addEventListener('close',()=>{
         dialog.remove();
-        const focus=more.isConnected?more:allCards.get(selected.id);
+        const focus=chosenAction?allCards.get(selected.id)
+          :(more.isConnected?more:allCards.get(selected.id));
         focus?.focus({preventScroll:true});
       });
       dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
