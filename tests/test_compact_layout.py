@@ -187,6 +187,8 @@ class CompactLayoutTests(unittest.TestCase):
         page = (SERVER / "tv_detail.html").read_text()
         self.assertIn("season-video-quality", page)
         self.assertIn("tile.append(badges)", page)
+        self.assertNotIn("format.replaceChildren()", page)
+        self.assertNotIn("const format=el('div','season-episode-format')", page)
         self.assertIn("previousButton.querySelector('.season-video-quality')?.remove()", page)
         self.assertIn("if(data.show.content_rating)fields.push(data.show.content_rating)", page)
         self.assertIn("season-parental-inline", page)
