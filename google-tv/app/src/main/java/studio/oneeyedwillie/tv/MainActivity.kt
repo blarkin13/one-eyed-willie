@@ -329,6 +329,21 @@ class MainActivity : ComponentActivity() {
                 input:focus-visible,select:focus-visible,[tabindex="0"]:focus-visible{
                   outline:2px solid #b7c7d6!important;outline-offset:2px!important
                 }
+                /* Cast filmography credit links wrap the title and role as well.
+                   Focus only the poster, not the full text/card rectangle. */
+                body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible,:hover){
+                  outline:0!important;outline-offset:0!important;
+                  box-shadow:none!important;background:transparent!important;
+                  border:0!important
+                }
+                body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
+                  outline:2px solid #ccdae6!important;outline-offset:3px!important;
+                  border-color:#a1b6c7!important;box-shadow:0 9px 28px #0008!important
+                }
+                body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) :is(strong,small){
+                  outline:0!important;box-shadow:none!important;
+                  text-decoration:none!important
+                }
                 /* Explore uses a full-card button. Focus ONLY its poster. */
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible,
                 body[data-page="explore"] .explore-card .detail-trigger:focus,
@@ -849,8 +864,12 @@ class MainActivity : ComponentActivity() {
               // Cast links contain long role descriptions. For directional
               // navigation use the portrait's geometry, not the whole card.
               const rect=node=>{
-                if(node?.matches?.('.cast-person')){
-                  const portrait=node.querySelector('img,.cast-blank');
+                if(node?.matches?.('.cast-person,.person-credit-link')){
+                  const portrait=node.querySelector(
+                    node.matches('.person-credit-link')
+                      ?'.person-credit-poster'
+                      :'img,.cast-blank'
+                  );
                   if(portrait)return portrait.getBoundingClientRect();
                 }
                 return node.getBoundingClientRect();
@@ -860,7 +879,7 @@ class MainActivity : ComponentActivity() {
               const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible);
               const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')].filter(isVisible);
               const isMenu=node=>Boolean(node?.closest?.('#app-nav'));
-              const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href]';
+              const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href],.person-credit-link';
               const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
               const firstPoster=()=>allPosters()[0]||null;
               const focusNode=node=>{
