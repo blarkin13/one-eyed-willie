@@ -382,6 +382,49 @@ class MainActivity : ComponentActivity() {
                   padding:0!important}
                 .sidebar .nav-text,.sidebar:focus-within .nav-text{display:none!important}
                 .sidebar .settings-shortcuts{display:none!important}
+                /* The server switches navigation into a fixed bottom tab bar
+                   at <=700 CSS px. TVs can report that width despite a large
+                   physical display. Force the vertical rail on Android TV. */
+                .sidebar,.sidebar:hover,.sidebar:focus-within{
+                  display:flex!important;flex-direction:column!important;
+                  position:fixed!important;inset:0 auto 0 0!important;
+                  width:85px!important;height:100vh!important;
+                  padding:18px 7px!important;border:0!important;
+                  overflow:visible!important;align-items:stretch!important;
+                  background:#0d1520f5!important;z-index:50!important
+                }
+                .sidebar .side-nav,.sidebar:hover .side-nav,
+                .sidebar:focus-within .side-nav{
+                  display:flex!important;flex-direction:column!important;
+                  align-items:center!important;justify-content:flex-start!important;
+                  position:relative!important;inset:auto!important;
+                  width:100%!important;height:auto!important;
+                  max-height:calc(100vh - 116px)!important;
+                  overflow-x:hidden!important;overflow-y:auto!important;
+                  flex:1 1 auto!important;min-height:0!important;
+                  padding:8px 0!important;margin:0!important;
+                  gap:7px!important;border:0!important;
+                  background:transparent!important;backdrop-filter:none!important
+                }
+                .sidebar .side-nav .nav-link,
+                .sidebar:hover .side-nav .nav-link,
+                .sidebar:focus-within .side-nav .nav-link{
+                  display:flex!important;position:relative!important;
+                  flex:0 0 49px!important;height:49px!important;
+                  width:61px!important;min-width:61px!important;
+                  max-width:61px!important;min-height:49px!important;
+                  padding:0!important;margin:0!important;
+                  align-items:center!important;justify-content:center!important
+                }
+                .sidebar .nav-link[data-service-nav="radarr"],
+                .sidebar .nav-link[data-service-nav="sonarr"],
+                .sidebar .nav-link[data-service-nav="sabnzbd"]{
+                  display:flex!important
+                }
+                .sidebar .nav-link[data-service-nav="services"]{
+                  display:none!important
+                }
+                .mobile-settings-sheet{display:none!important}
                 .workspace,.topbar,.content{background:transparent!important}
                 body{background:#080d16!important}
                 /* Match the server: the skull disappears with a real backdrop. */
@@ -546,7 +589,7 @@ class MainActivity : ComponentActivity() {
               const centerX=r=>r.left+r.width/2;
               const centerY=r=>r.top+r.height/2;
               const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible);
-              const allMenu=()=>[...document.querySelectorAll('#app-nav .nav-link')].filter(isVisible);
+              const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')].filter(isVisible);
               const isMenu=node=>Boolean(node?.closest?.('#app-nav'));
               const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href]';
               const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
