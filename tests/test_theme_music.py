@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.error import URLError
 
 from fastapi import HTTPException
 
@@ -20,6 +21,9 @@ class LocalThemeTests(unittest.TestCase):
         self.root_patch = patch.object(library, "MEDIA_ROOT", self.media)
         self.theme_root_patch = patch.object(theme_music, "MEDIA_ROOT", self.media)
         self.playback_root_patch = patch("server.playback.MEDIA_ROOT", self.media)
+        self.no_network = patch.object(theme_music, "_fetch", side_effect=URLError("blocked in tests"))
+        self.no_network.start()
+        self.addCleanup(self.no_network.stop)
         for item in (self.db_patch, self.root_patch, self.theme_root_patch, self.playback_root_patch):
             item.start()
             self.addCleanup(item.stop)
@@ -90,7 +94,7 @@ class LocalThemeTests(unittest.TestCase):
             self.assertIn("/download.php?f=Big_Bang_Theory_", url)
             return audio, "audio/mpeg"
         cache = self.media.parent / "theme-cache"
-        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \\
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
              patch.object(theme_music, "_fetch", side_effect=fake_fetch) as fetch:
             result = theme_music.theme_info(2)
             self.assertTrue(result["available"])
@@ -102,7 +106,7 @@ class LocalThemeTests(unittest.TestCase):
     def test_wrong_title_or_unavailable_site_never_returns_audio(self):
         cache = self.media.parent / "another-cache"
         page = b'<html><h1>Different Show</h1><a href="/download.php?f=Severance">MP3</a></html>'
-        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \\
+        with patch.dict("os.environ", {"THEME_CACHE_DIR": str(cache)}), \
              patch.object(theme_music, "_fetch", return_value=(page, "text/html")) as fetch:
             info = theme_music.theme_info(2)
             self.assertFalse(info["available"])
