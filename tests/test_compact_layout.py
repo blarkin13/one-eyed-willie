@@ -229,7 +229,9 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("button.id='series-play-button'", page)
         self.assertIn("card.querySelector('.tile-button').id='series-first-season'", page)
         self.assertIn("if(actions && event.key==='ArrowDown')", page)
-        self.assertIn("if(grid && event.key==='ArrowUp')", page)
+        self.assertIn("const leftmostAdjacentSeason=(active,direction)=>", page)
+        self.assertIn("else if(grid){", page)
+        self.assertIn("const nextRow=leftmostAdjacentSeason(active,event.key)", page)
         android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
                    "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
         self.assertIn("const detailSections=()=>", android)
@@ -237,6 +239,9 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("if(moveThroughSections(active,direction))return true", android)
         self.assertIn("scope:'.season-grid'", android)
         self.assertIn("scope:'.movie-detail-actions'", android)
+        self.assertIn("const firstOfAdjacentGridRow=(active,direction", android)
+        self.assertIn("firstOfAdjacentGridRow(", android)
+        self.assertIn("'.season-grid','.tile-button'", android)
 
     def test_system_wide_scale_selection_instead_of_outline(self):
         css = (SERVER / "ui.css").read_text()
