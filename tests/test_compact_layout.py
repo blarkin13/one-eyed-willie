@@ -37,6 +37,39 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertNotIn('class="page-head"', page)
         self.assertIn('class="sr-only">Home', page)
 
+    def test_cinematic_home_selection_follows_posters(self):
+        page = (SERVER / "dashboard.html").read_text()
+        self.assertIn('id="home-feature"', page)
+        self.assertIn('id="home-feature-art"', page)
+        self.assertIn('id="home-feature-title"', page)
+        self.assertIn('id="home-feature-meta"', page)
+        self.assertIn('id="home-feature-summary"', page)
+        self.assertIn("homeItems.set(link,item)", page)
+        self.assertIn("function displayHomeFeature(link)", page)
+        self.assertIn("document.addEventListener('focusin',event=>", page)
+        self.assertIn("document.addEventListener('pointerover',event=>", page)
+        self.assertIn("const serial=++homeFeatureSerial", page)
+        self.assertIn("if(serial!==homeFeatureSerial", page)
+        self.assertIn("details.backdrop_url", page)
+        self.assertIn("byId('home-feature-title').textContent", page)
+        self.assertIn(".home-feature-copy.is-changing", page)
+        self.assertIn("@media(prefers-reduced-motion:reduce)", page)
+
+    def test_tv_home_down_moves_by_shelf_and_scrolls_feature_offscreen(self):
+        root = SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" / "studio" / "oneeyedwillie" / "tv"
+        android = (root / "MainActivity.kt").read_text()
+        self.assertIn("const navigateHomeShelf=(active,direction)=>", android)
+        self.assertIn("if(navigateHomeShelf(active,direction))return true", android)
+        self.assertIn("const shelves=[...document.querySelectorAll('main .shelf')]", android)
+        self.assertIn("const first=next.querySelector('.shelf-track .tile-button')", android)
+        self.assertIn("first.focus({preventScroll:true})", android)
+        self.assertIn("const top=nextIndex===0?0:", android)
+        self.assertIn("scrollHomeTo(top)", android)
+        self.assertIn("const scrollHomeTo=(top)=>", android)
+        self.assertIn("cancelAnimationFrame(homeScrollFrame)", android)
+        self.assertIn("prefers-reduced-motion: reduce", android)
+        self.assertIn("body[data-page=\"home\"] .home-feature{", android)
+
     def test_totals_in_libraries_settings(self):
         page = (SERVER / "index.html").read_text()
         self.assertIn('id="overview-movies"', page)
