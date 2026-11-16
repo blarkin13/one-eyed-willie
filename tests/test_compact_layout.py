@@ -168,6 +168,40 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("trailerButton(data.show.trailer_key", page)
         self.assertIn("actions.replaceChildren()", page)
 
+    def test_every_episode_down_targets_play_not_cast_or_trailer(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("play.id='season-play-button'", page)
+        self.assertIn("track.addEventListener('keydown',event=>", page)
+        self.assertIn("if(event.key!=='ArrowDown')return", page)
+        self.assertIn("play.focus()", page)
+        self.assertIn("document.activeElement?.id!=='season-play-button'", page)
+        self.assertIn("episodeTile.focus({preventScroll:true})", page)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
+                   "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("if(direction==='down'&&active?.matches?.('.season-episode-tile'))", android)
+        self.assertIn("document.getElementById('season-play-button')", android)
+        self.assertIn("if(direction==='up'&&active?.id==='season-play-button')", android)
+        self.assertIn("Intent.ACTION_VIEW, uri", android)
+
+    def test_quality_on_selected_thumbnail_and_rating_after_duration(self):
+        page = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("season-video-quality", page)
+        self.assertIn("tile.append(badges)", page)
+        self.assertNotIn("format.replaceChildren()", page)
+        self.assertNotIn("const format=el('div','season-episode-format')", page)
+        self.assertIn("previousButton.querySelector('.season-video-quality')?.remove()", page)
+        self.assertIn("if(data.show.content_rating)fields.push(data.show.content_rating)", page)
+        self.assertIn("season-parental-inline", page)
+        self.assertIn("const rt=el('a','season-rt-link'", page)
+        self.assertIn("data.show.rotten_tomatoes", page)
+        self.assertIn("data.show.network", page)
+        self.assertIn("data.show.genres", page)
+        self.assertNotIn("actions.append(el('span','season-actions-label'", page)
+        self.assertNotIn("Reviews · TMDB community", page)
+        self.assertIn("rtReviewsLink", page)
+        self.assertIn("showExtras({...show,title:data.show.title+' Season '", page)
+        self.assertIn(".season-support .tv-cast{grid-auto-columns:clamp(76px,8vw,108px)", page)
+
     def test_series_actions_and_clamped_description(self):
         page = (SERVER / "tv_detail.html").read_text()
         self.assertIn("showHero.append(seriesControls(data))", page)

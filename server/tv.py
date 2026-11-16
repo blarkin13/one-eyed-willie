@@ -280,6 +280,7 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         "next_episode": next_for_series(show["episodes"]),
         "content_rating": meta.get("content_rating") or imdb.get("content_rating"),
         "imdb_id": meta.get("imdb_id"), "imdb_rating": imdb.get("rating"),
+        "rotten_tomatoes": imdb.get("rotten_tomatoes"),
         "cast": cast,
         "reviews": meta.get("reviews") or [],
         "rating": meta.get("rating"),
@@ -333,6 +334,7 @@ def season_details(
     result = {
         "show": {"content_rating": meta.get("content_rating") or imdb.get("content_rating"),
                  "imdb_id": meta.get("imdb_id"), "imdb_rating": imdb.get("rating"),
+                 "rotten_tomatoes": imdb.get("rotten_tomatoes"),
                  "rating": meta.get("rating"), "network": meta.get("network"),
                  "genres": meta.get("genres") or [], "trailer_key": meta.get("trailer_key"),
                  "library_id": library_id, "key": key, "title": meta.get("title") or show["title"],

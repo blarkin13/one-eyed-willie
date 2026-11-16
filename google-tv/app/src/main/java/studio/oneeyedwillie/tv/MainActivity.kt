@@ -196,8 +196,27 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
-                // External metadata links may not navigate the embedded trusted browser.
-                return !sameOrigin(uri.toString())
+                // Only open approved HTTPS metadata destinations outside our
+                // embedded server WebView. Rotten Tomatoes review links must be
+                // usable on Google TV instead of silently being blocked.
+                if (!sameOrigin(uri.toString())) {
+                    val host = uri.host?.lowercase().orEmpty()
+                    if (uri.scheme == "https" && host in setOf(
+                            "www.rottentomatoes.com", "rottentomatoes.com",
+                            "www.imdb.com", "www.youtube.com", "youtube.com"
+                        )) {
+                        try {
+                            startActivity(Intent(Intent.ACTION_VIEW, uri)
+                                .addCategory(Intent.CATEGORY_BROWSABLE))
+                        } catch (_: android.content.ActivityNotFoundException) {
+                            android.widget.Toast.makeText(this@MainActivity,
+                                "No browser is installed to open this link",
+                                android.widget.Toast.LENGTH_LONG).show()
+                        }
+                    }
+                    return true
+                }
+                return false
             }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
@@ -1024,6 +1043,17 @@ class MainActivity : ComponentActivity() {
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
+                // Intentional TV navigation: every episode tile leads DOWN to
+                // the current Play action, even when the tile is scrolled
+                // horizontally beyond the location of the action row.
+                if(direction==='down'&&active?.matches?.('.season-episode-tile')){
+                  const play=document.getElementById('season-play-button');
+                  if(play&&isVisible(play)){readingScroll=false;return focusNode(play)}
+                }
+                if(direction==='up'&&active?.id==='season-play-button'){
+                  const episode=document.querySelector('.season-episode-tile.is-selected');
+                  if(episode&&isVisible(episode)){readingScroll=false;return focusNode(episode)}
+                }
                 if(isMenu(active)){
                   if(direction==='right'){
                     // Leave the rail at the content item closest to the
