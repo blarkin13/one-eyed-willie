@@ -162,7 +162,7 @@ def local_show(library_id: int, show_key: str):
         if library is None or library["kind"] != "tv":
             raise HTTPException(404, "TV library not found")
         entries = conn.execute(
-            "SELECT id,path,added_at FROM media WHERE library_id=? ORDER BY path",
+            "SELECT id,path,source_root,added_at FROM media WHERE library_id=? ORDER BY path",
             (library_id,),
         ).fetchall()
 
@@ -175,7 +175,7 @@ def local_show(library_id: int, show_key: str):
     info = None
     for entry in entries:
         try:
-            parsed = episode_info(entry["path"], library["path"])
+            parsed = episode_info(entry["path"], entry["source_root"] or library["path"])
         except (ValueError, OSError):
             continue
         if parsed["key"] != show_key:
@@ -359,7 +359,7 @@ def next_episode(media_id: int = Query(ge=1)):
     """Next locally indexed, numbered and unwatched episode in series order."""
     with db() as conn:
         row = conn.execute(
-            "SELECT m.path,m.library_id,l.path AS root,l.kind "
+            "SELECT m.path,m.library_id,COALESCE(NULLIF(m.source_root,''),l.path) AS root,l.kind "
             "FROM media m JOIN libraries l ON l.id=m.library_id WHERE m.id=?",
             (media_id,),
         ).fetchone()
@@ -394,7 +394,7 @@ def next_episode(media_id: int = Query(ge=1)):
 def episode_details(media_id: int = Query(ge=1)):
     with db() as conn:
         row = conn.execute(
-            "SELECT m.id,m.path,m.library_id,l.path AS root,l.kind "
+            "SELECT m.id,m.path,m.library_id,COALESCE(NULLIF(m.source_root,''),l.path) AS root,l.kind "
             "FROM media m JOIN libraries l ON l.id=m.library_id WHERE m.id=?",
             (media_id,),
         ).fetchone()
