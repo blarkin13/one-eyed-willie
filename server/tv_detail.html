@@ -811,6 +811,9 @@ async function renderSeason(){
       });
       dialog.addEventListener('close',()=>{
         dialog.remove();
+        // Don't steal focus from the Fix Match / trailer dialog or player
+        // launched by an overflow action.
+        if(document.querySelector('dialog[open],.willie-player'))return;
         const focus=chosenAction?allCards.get(selected.id)
           :(more.isConnected?more:allCards.get(selected.id));
         focus?.focus({preventScroll:true});
