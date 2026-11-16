@@ -56,9 +56,20 @@ class PlaybackTests(unittest.TestCase):
         self.assertEqual(Path(result.path), self.movie.resolve())
         self.assertEqual(result.media_type, "video/mp4")
         self.assertEqual(result.headers["accept-ranges"], "bytes")
-        with self.assertRaises(HTTPException) as error:
-            playback.stream_media(2)
-        self.assertEqual(error.exception.status_code, 415)
+        # Native Android players can direct-stream MKV; browser negotiation
+        # still chooses HLS if its decoders/container cannot play it.
+        mkv_result = playback.stream_media(2)
+        self.assertEqual(mkv_result.media_type, "video/x-matroska")
+
+    def test_status_exposes_actual_probed_media_not_extension_guesses(self):
+        with patch.object(playback, "inspect_media", return_value={
+            "container": "mkv", "video_codec": "hevc",
+            "audio_codec": "eac3", "width": 3840, "height": 2160
+        }):
+            status = playback.watch_status(2)
+        self.assertEqual(status["mode"], "compatible")  # legacy client hint
+        self.assertEqual(status["media"]["video_codec"], "hevc")
+        self.assertEqual(status["media"]["audio_codec"], "eac3")
 
     def test_watched_unwatched_and_continue_watching(self):
         update_playback(PlaybackUpdate(
