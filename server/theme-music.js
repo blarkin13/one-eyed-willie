@@ -27,6 +27,13 @@
         source_download_link_unrecognized:'TelevisionTunes changed its download links; automatic theme retrieval is unavailable.',
         source_access_denied:'TelevisionTunes blocked automatic access to its theme music.',
         source_unreachable:'Could not reach TelevisionTunes for this theme.',
+        source_dns_failure:'The server cannot resolve the TelevisionTunes hostname (DNS).',
+        source_tls_failure:'The server could not establish a secure HTTPS connection to TelevisionTunes.',
+        source_timeout:'TelevisionTunes did not respond before the connection timed out.',
+        source_connection_refused:'The connection to TelevisionTunes was refused.',
+        source_network_error:'The server could not connect to TelevisionTunes.',
+        source_http_error:'TelevisionTunes returned an unexpected HTTP error.',
+        source_page_not_found:'The matching TelevisionTunes page could not be found.',
         unexpected_source_response:'TelevisionTunes returned an unexpected response instead of a theme MP3.'
       };
       const hint=document.createElement('span');
