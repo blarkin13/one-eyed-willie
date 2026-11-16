@@ -60,6 +60,14 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("setOnClickListener {\n                showSoftInputOnFocus = true", src)
         self.assertIn("if (!focused) showSoftInputOnFocus = false", src)
 
+    def test_fullscreen_ime_onpause_does_not_close_keyboard(self):
+        src = self.source
+        start = src.index("    override fun onPause()")
+        end = src.index("    override fun onDestroy()", start)
+        pause = src[start:end]
+        self.assertNotIn("finishTvTextEditing", pause)
+        self.assertIn("super.onPause()", pause)
+
     def test_non_text_inputs_are_unaffected(self):
         src = self.source
         self.assertIn("['text','search','email','password','tel','url','number']", src)
