@@ -106,42 +106,51 @@ def _plex_index(settings):
         return found
 
 
-def _plex_theme(media_id):
-    """Resolve an exact title/year match in the user's configured LAN Plex server."""
+def _plex_theme_status(media_id):
+    """Return a playable Plex theme or a safe explanation for the UI."""
     from . import plex_import
     from .catalog import episode_info, movie_info
     try:
         settings = plex_import._require_config()
-    except HTTPException:
-        return None
+    except HTTPException as error:
+        return None, ("plex_not_connected" if error.status_code == 409 else "plex_config_error")
     item, video = _item(media_id)
     kind = "show" if item["kind"] == "tv" else "movie" if item["kind"] == "movies" else None
     if not kind:
-        return None
+        return None, "unsupported_library"
     parsed = (episode_info(str(video), item["root"]) if kind == "show"
               else movie_info(str(video), item["root"]))
     title = plex_import._norm(parsed["title"])
     if not title:
-        return None
+        return None, "title_not_recognized"
     try:
         choices = _plex_index(settings).get((kind, title), [])
         year = parsed["year"]
         if year is not None:
-            choices = [c for c in choices if c[0] is not None and abs(c[0] - year) <= 1]
+            choices = [c for c in choices if c[0] is None or abs(c[0] - year) <= 1]
+        # A title with no year can still match exactly one Plex entry.
+        if not choices:
+            return None, "not_in_plex_library"
         if len(choices) != 1:
-            return None
+            return None, "ambiguous_plex_match"
         key = choices[0][1]
         details = plex_import._plex_get(settings["url"], settings["token"],
                                         "/library/metadata/" + str(key))
         matches = details.get("Metadata") or []
         if len(matches) != 1:
-            return None
+            return None, "plex_metadata_unavailable"
         theme = matches[0].get("theme")
+        if not theme:
+            return None, "no_theme_in_plex"
         if isinstance(theme, str) and PLEX_THEME_PATH.fullmatch(theme):
-            return (settings, theme)
+            return (settings, theme), None
+        return None, "unsupported_plex_theme"
     except (HTTPException, OSError, ValueError):
-        return None
-    return None
+        return None, "plex_unreachable"
+
+
+def _plex_theme(media_id):
+    return _plex_theme_status(media_id)[0]
 
 
 @router.get("/{media_id}/info")
@@ -150,8 +159,9 @@ def theme_info(media_id: int):
     if local:
         return {"available": True, "source": "local",
                 "url": f"/api/themes/{media_id}/audio"}
-    plex = _plex_theme(media_id)
+    plex, reason = _plex_theme_status(media_id)
     return {"available": bool(plex), "source": "plex" if plex else None,
+            "reason": reason,
             "url": f"/api/themes/{media_id}/audio" if plex else None}
 
 

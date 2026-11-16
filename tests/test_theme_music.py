@@ -114,6 +114,35 @@ class LocalThemeTests(unittest.TestCase):
              }):
             self.assertIsNone(theme_music._plex_theme(2))
 
+    def test_theme_lookup_reports_plex_missing_and_unavailable_cases(self):
+        from server import plex_import
+        settings = {"url": "http://plex:32400", "token": "private-token"}
+        with patch.object(plex_import, "_require_config", side_effect=HTTPException(409)), \
+             patch.object(theme_music, "_plex_index") as index:
+            result = theme_music.theme_info(2)
+            self.assertEqual(result["reason"], "plex_not_connected")
+            index.assert_not_called()
+        with patch.object(plex_import, "_require_config", return_value=settings), \
+             patch.object(theme_music, "_plex_index", return_value={
+                 ("show", "severance"): [(2022, 123)]
+             }), \
+             patch.object(plex_import, "_plex_get", return_value={
+                 "Metadata": [{"theme": None}]
+             }):
+            result = theme_music.theme_info(2)
+            self.assertEqual(result["reason"], "no_theme_in_plex")
+            self.assertFalse(result["available"])
+        with patch.object(plex_import, "_require_config", return_value=settings), \
+             patch.object(theme_music, "_plex_index", return_value={}):
+            self.assertEqual(theme_music.theme_info(1)["reason"], "not_in_plex_library")
+
+    def test_auto_play_blocked_ui_has_play_fallback_and_diagnostic_status(self):
+        js = (Path(__file__).resolve().parents[1] / "server/theme-music.js").read_text()
+        self.assertIn("if(armed){play();return}", js)
+        self.assertIn("armed?'Play theme music'", js)
+        self.assertIn("reasons[found.reason]", js)
+        self.assertIn("role','status'", js)
+
     def test_plex_catalog_is_bounded_and_cached(self):
         from server import plex_import
         setting = {"url": "http://plex:32400", "token": "private-token"}

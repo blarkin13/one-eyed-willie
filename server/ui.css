@@ -873,3 +873,8 @@ html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:fo
 .theme-music-toggle:hover,.theme-music-toggle:focus-visible{
   color:#a9ddff!important;background:transparent!important}
 .theme-music-toggle[aria-pressed="true"]{color:#8190a4}
+
+/* Explain silent theme-music pages instead of hiding the control without context. */
+.theme-music-hint{display:inline-block;max-width:250px;color:#a8b8c9;
+  font-size:.76rem;line-height:1.35;white-space:normal}
+.theme-control-slot:has(.theme-music-hint){max-width:250px}
