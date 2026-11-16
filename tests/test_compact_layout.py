@@ -130,6 +130,30 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("WilliePlayer.open", home)
         self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
 
+    def test_season_focus_selects_and_click_plays_first_unwatched(self):
+        tv = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("available.find(episode=>!episode.watched)||available[0]", tv)
+        self.assertNotIn("available[available.length-1]", tv)
+        self.assertIn("button.addEventListener('focus',()=>selectEpisode(episode))", tv)
+        self.assertIn("button.onclick=()=>WilliePlayer.open(episode.id", tv)
+        self.assertIn("{restart:!canResume(episode)}", tv)
+        self.assertIn("return !item.watched&&p>=30&&(d<=0||p<d*.95)", tv)
+        self.assertIn("document.addEventListener('willie:watch-updated',refreshEpisodeProgress)", tv)
+
+    def test_watched_indicators_are_anchor_icons_not_checkmarks(self):
+        for filename in ("catalog.html", "dashboard.html", "movie_detail.html", "tv_detail.html"):
+            page = (SERVER / filename).read_text()
+            self.assertIn('cx="12" cy="5" r="3"', page, filename)
+            self.assertNotIn("✓ Watched", page, filename)
+        tv = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("syncEpisodeWatchedBadge", tv)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
+                   "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertNotIn('.watched-badge::after', android)
+        self.assertIn("override fun onResume()", android)
+        css = (SERVER / "ui.css").read_text()
+        self.assertIn(".watched-badge svg", css)
+
     def test_trailer_controls_are_not_required_when_embedded_trailers_are_removed(self):
         movie = (SERVER / "movie_detail.html").read_text()
         tv = (SERVER / "tv_detail.html").read_text()
