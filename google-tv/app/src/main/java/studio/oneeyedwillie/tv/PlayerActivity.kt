@@ -531,7 +531,7 @@ class PlayerActivity : ComponentActivity() {
                     else request("/api/tv/next?media_id=$mediaId").optJSONObject("next")
                 val settings=request("/api/settings/playback")
                 handler.post {
-                    autoPlayNext=settings.optBoolean("auto_play_next",false)
+                    autoPlayNext=settings.optBoolean("auto_play_next",false) || seasonShuffle
                     nextMediaId=next?.optInt("media_id")?.takeIf{it>0}
                     nextTitle=next?.optString("title","Next Episode") ?: ""
                 }
