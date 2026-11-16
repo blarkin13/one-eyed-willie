@@ -308,11 +308,12 @@ def discovery_detail(name: str, tmdb_id: int = Query(0, ge=0), title: str = Quer
                     v.get("site") == "YouTube" and v.get("type") == "Trailer" and
                     re.fullmatch(r"[A-Za-z0-9_-]{11}", str(v.get("key") or ""))), None)
     cast = [{"name": str(p.get("name") or "")[:100], "character": str(p.get("character") or "")[:100],
+             "tmdb_id": p.get("id") if isinstance(p.get("id"), int) and p["id"] > 0 else None,
              "photo_url": metadata.image_url(p.get("profile_path"), "w185")}
             for p in (data.get("credits") or {}).get("cast", [])[:20] if isinstance(p, dict) and p.get("name")]
     reviews = [{"author": str(v.get("author") or "TMDB contributor")[:100],
-                "excerpt": str(v.get("content") or "")[:900]}
-               for v in (data.get("reviews") or {}).get("results", [])[:5] if isinstance(v, dict) and v.get("content")]
+                "excerpt": str(v.get("content") or "")[:3500]}
+               for v in (data.get("reviews") or {}).get("results", [])[:12] if isinstance(v, dict) and v.get("content")]
     seasons = [{"number": s.get("season_number"), "name": str(s.get("name") or "")[:100],
                 "episodes": s.get("episode_count"), "poster_url": metadata.image_url(s.get("poster_path"))}
                for s in data.get("seasons", []) if isinstance(s, dict)] if name == "sonarr" else []
