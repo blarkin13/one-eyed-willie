@@ -1364,6 +1364,49 @@ class MainActivity : ComponentActivity() {
                 if(scrollRead(direction))readingScroll=true;
                 return true;
               };
+              // Movie and TV libraries keep spatial poster navigation.
+              // Animate ONLY cross-row scrolling; the old focusNode() used
+              // instant scrollBy here, causing an abrupt jump on every row.
+              let libraryScrollFrame=0;
+              const scrollLibraryRowTo=(node)=>{
+                if(libraryScrollFrame){
+                  cancelAnimationFrame(libraryScrollFrame);
+                  libraryScrollFrame=0;
+                }
+                const root=document.scrollingElement||document.documentElement;
+                const r=rect(node);
+                const upper=Math.max(36,innerHeight*.13);
+                const lower=innerHeight-Math.max(44,innerHeight*.1);
+                if(r.top>=upper&&r.bottom<=lower)return;
+                const max=Math.max(0,root.scrollHeight-root.clientHeight);
+                const from=root.scrollTop;
+                const to=Math.max(0,Math.min(max,from+r.top-upper));
+                if(Math.abs(to-from)<2)return;
+                if(matchMedia('(prefers-reduced-motion: reduce)').matches){
+                  root.scrollTop=to;return;
+                }
+                const started=performance.now(),duration=285;
+                const tick=now=>{
+                  const amount=Math.min(1,(now-started)/duration);
+                  const ease=1-Math.pow(1-amount,3);
+                  root.scrollTop=from+(to-from)*ease;
+                  if(amount<1)libraryScrollFrame=requestAnimationFrame(tick);
+                  else libraryScrollFrame=0;
+                };
+                libraryScrollFrame=requestAnimationFrame(tick);
+              };
+              const moveLibraryGridRow=(active,direction)=>{
+                if(!['up','down'].includes(direction)||
+                   !['/movies','/tv'].includes(location.pathname)||
+                   !active?.matches?.('#items .tile-button'))return false;
+                const cards=[...document.querySelectorAll('#items .tile-button')].filter(isVisible);
+                const target=findAdjacent(active,direction,cards);
+                if(!target)return false;
+                readingScroll=false;
+                target.focus({preventScroll:true});
+                scrollLibraryRowTo(target);
+                return true;
+              };
               const move=direction=>{
                 // Native D-pad must stay inside modal dialogs, including
                 // episode actions and the subsequent Fix Match results dialog.
@@ -1383,6 +1426,7 @@ class MainActivity : ComponentActivity() {
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
+                if(moveLibraryGridRow(active,direction))return true;
                 // Intentional TV navigation: every episode tile leads DOWN to
                 // the current Play action, even when the tile is scrolled
                 // horizontally beyond the location of the action row.
