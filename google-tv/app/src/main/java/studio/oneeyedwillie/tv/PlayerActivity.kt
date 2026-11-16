@@ -952,10 +952,19 @@ class PlayerActivity : ComponentActivity() {
                     connection.doOutput = true
                     connection.setRequestProperty("Content-Type", "application/json")
                     connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                    connection.responseCode
+                    val response = connection.responseCode
+                    if (response !in 200..299) {
+                        handler.post {
+                            if (!shuttingDown && visibleForPlayback)
+                                showMessage("Could not save playback progress (HTTP $response).")
+                        }
+                    }
                 } finally { connection.disconnect() }
             } catch (_: Exception) {
-                // Progress failures must not interrupt playback.
+                handler.post {
+                    if (!shuttingDown && visibleForPlayback)
+                        showMessage("Could not save playback progress. Check the server connection.")
+                }
             }
         }
     }
