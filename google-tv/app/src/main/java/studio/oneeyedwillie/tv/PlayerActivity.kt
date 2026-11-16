@@ -110,7 +110,7 @@ class PlayerActivity : ComponentActivity() {
         surface.addView(chrome, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
-        thumbnailPreview = PlayerScrubPreview(this, server, mediaId)
+        thumbnailPreview = PlayerScrubPreview(this, server, mediaId) { currentDuration() }
         surface.addView(thumbnailPreview.view, FrameLayout.LayoutParams(
             dp(280), dp(190), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
         ).apply { bottomMargin = dp(163) })
