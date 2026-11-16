@@ -178,8 +178,8 @@ def show_metadata_by_id(tmdb_id, fallback=None):
     ]
     reviews = [
         {"author": str(review.get("author") or "TMDB contributor")[:80],
-         "excerpt": str(review.get("content") or "")[:850], "source": "TMDB"}
-        for review in (details.get("reviews") or {}).get("results", [])[:4]
+         "excerpt": str(review.get("content") or "")[:3500], "source": "TMDB"}
+        for review in (details.get("reviews") or {}).get("results", [])[:12]
         if isinstance(review, dict) and review.get("content")
     ]
     metadata = {
