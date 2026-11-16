@@ -327,6 +327,40 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("firstOfAdjacentGridRow(", android)
         self.assertIn("'.season-grid','.tile-button'", android)
 
+    def test_library_up_down_animates_rows_on_google_tv(self):
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
+                   "java" / "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("const moveLibraryGridRow=(active,direction)=>", android)
+        self.assertIn("if(moveLibraryGridRow(active,direction))return true", android)
+        self.assertIn("!['/movies','/tv'].includes(location.pathname)", android)
+        self.assertIn("active?.matches?.('#items .tile-button')", android)
+        self.assertIn("const target=findAdjacent(active,direction,cards)", android)
+        self.assertIn("target.focus({preventScroll:true})", android)
+        self.assertIn("scrollLibraryRowTo(target)", android)
+        self.assertIn("cancelAnimationFrame(libraryScrollFrame)", android)
+        self.assertIn("const started=performance.now(),duration=285", android)
+        self.assertIn("root.scrollTop=from+(to-from)*ease", android)
+        self.assertIn("prefers-reduced-motion: reduce", android)
+
+    def test_library_browser_keyboard_scrolls_rows_but_not_columns(self):
+        page = (SERVER / "catalog.html").read_text()
+        self.assertIn("function scrollCatalogRowTo(card){", page)
+        self.assertIn("function remoteCatalogMove(key){", page)
+        self.assertIn("const betweenPosterRows=['ArrowUp','ArrowDown'].includes(key)", page)
+        self.assertIn("if(betweenPosterRows)scrollCatalogRowTo(closest)", page)
+        self.assertIn("behavior:reduced?'instant':'smooth'", page)
+        self.assertIn("closest.focus({preventScroll:true})", page)
+        self.assertIn("!['ArrowLeft','ArrowRight'].includes(key)", page)
+
+    def test_metadata_refresh_keeps_current_library_poster_focus(self):
+        page = (SERVER / "catalog.html").read_text()
+        self.assertIn("async function load({preserveFocus=false}={})", page)
+        self.assertIn("load({preserveFocus:true})", page)
+        self.assertIn("previouslyFocused.dataset.hoverLibraryId", page)
+        self.assertIn("previouslyFocused.dataset.hoverKey", page)
+        self.assertIn("restored.focus({preventScroll:true})", page)
+        self.assertIn(".scrollTop=previousScroll", page)
+
     def test_system_wide_scale_selection_instead_of_outline(self):
         css = (SERVER / "ui.css").read_text()
         self.assertIn("html body[data-page] :is(a,button,select,[tabindex=\"0\"])", css)
