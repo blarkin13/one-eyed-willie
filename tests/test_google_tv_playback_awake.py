@@ -33,6 +33,18 @@ class GoogleTvPlaybackAwakeTests(unittest.TestCase):
         self.assertIn("Could not save playback progress", src)
         self.assertIn("saveProgress(false)", src)
 
+    def test_native_progress_saves_post_and_reports_real_failures(self):
+        player = (ANDROID / "PlayerActivity.kt").read_text()
+        server = (ROOT / "server" / "home.py").read_text()
+        self.assertIn('connection.requestMethod = "POST"', player)
+        self.assertIn('@router.post("/playback/progress")', server)
+        self.assertIn("connection.readTimeout = 12_000", player)
+        self.assertIn('lastFailure = "HTTP $status"', player)
+        self.assertIn("error.javaClass.simpleName", player)
+        self.assertIn("if (status < 500) break", player)
+        self.assertIn("if (network.isShutdown) return", player)
+        self.assertIn("network.execute {", player)
+
     def test_webview_fallback_releases_screen_after_video_or_navigation(self):
         src = (ANDROID / "MainActivity.kt").read_text()
         self.assertIn('message == "oewtv:awake:1" || message == "oewtv:awake:0"', src)
