@@ -30,8 +30,8 @@ class ContinueWatchingTests(unittest.TestCase):
             ]:
                 conn.execute(
                     "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
-                    "VALUES(?,?,?,?,100,'2026-11-15 10:00:00')",
-                    (media_id, kind, path, Path(path).stem, 100),
+                    "VALUES(?,?,?,?,?,?,'2026-11-15 10:00:00')",
+                    (media_id, kind, path, Path(path).stem, 100, 100),
                 )
 
     def cards(self):
