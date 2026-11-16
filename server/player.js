@@ -607,7 +607,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         if(video.ended)showNextCountdown();
       }).catch(()=>{autoPlayNext=false});
       reloadTracks().catch(()=>{});
-      requestJson('/api/tv/next?media_id='+id).then(result=>{
+      (seasonShuffle?Promise.resolve({next:null}):requestJson('/api/tv/next?media_id='+id)).then(result=>{
         if(current!==surface)return;
         nextEpisode=seasonShuffle?(shuffleQueue[0]||null):(result.next||null);
         next.hidden=!nextEpisode;
