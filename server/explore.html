@@ -348,7 +348,7 @@ async function openAdd(item){
   }
   if(data.tags?.length){$('tag-wrap').hidden=false;for(const tag of data.tags){const label=document.createElement('label');const input=document.createElement('input');input.type='checkbox';input.value=String(tag.id);label.append(input,document.createTextNode(tag.name));$('tag-options').append(label);}}
   if(!data.folders.length||!data.profiles.length)throw Error('Configure a root folder and quality profile in your media manager first.');
-  $('add-message').textContent='No immediate search will run unless you select the checkbox. Normal monitoring may discover future releases.';
+  $('add-message').textContent='Adding registers the title in '+(provider==='radarr'?'Radarr':'Sonarr')+'. Select immediate search if you want it to look for releases now.';
   $('confirm-add').disabled=false;
  }catch(e){$('add-message').textContent=e.message;}
 }
@@ -366,8 +366,11 @@ $('add-form').onsubmit=async event=>{
   if(!$('language-wrap').hidden)body.language_profile_id=Number($('language').value);
   const result=await fetchJson('/api/arr/'+target+'/add',{
    method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(!result.added||!result.verified)throw Error('The media manager has not confirmed this title was added.');
   dialog.close();
-  $('status').textContent=result.title+' added to '+(target==='radarr'?'Radarr':'Sonarr')+'. '+result.note;
+  $('status').textContent=result.title+' verified in '+(target==='radarr'?'Radarr':'Sonarr')+'. '+
+    (body.search_now?'An immediate search was requested.':'No immediate search requested; monitoring will find future releases.')+
+    ' Files appear in the library only after downloading and scanning.';
   if(detailSelection?.item){detailSelection.item.already_added=true;const add=$('detail-add');if(add){add.textContent='Already in '+(target==='radarr'?'Radarr':'Sonarr');add.disabled=true;}$('detail-status').textContent=$('status').textContent;}
   results=results.map(item=>item.id===selected.id?{...item,already_added:true}:item);
   render(results);

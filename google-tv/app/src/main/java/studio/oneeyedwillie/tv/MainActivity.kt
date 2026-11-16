@@ -599,7 +599,9 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         // Never hold the display awake when browsing or watching is backgrounded.
         browser?.keepScreenOn = false
-        browser?.let { if (tvTextEditing) finishTvTextEditing(it) }
+        // Google TV's keyboard may be a full-screen IME activity. Opening it
+        // pauses this Activity; ending editing here would instantly close it.
+        // Keep text editing alive until Back, another field, or page change.
         super.onPause()
     }
 
@@ -671,9 +673,20 @@ class MainActivity : ComponentActivity() {
                   notify('begin');
                   return true;
                 };
-                document.addEventListener('focusin',event=>protect(event.target),true);
-                document.addEventListener('focusout',event=>{
-                  if(!refocusing&&event.target===editingField)endEditing();
+                document.addEventListener('focusin',event=>{
+                  protect(event.target);
+                  // The system keyboard can temporarily blur WebView. Close
+                  // editing only when the user focuses a different control.
+                  if(editingField && event.target!==editingField &&
+                     !refocusing && event.target instanceof Element)
+                    endEditing();
+                },true);
+                // Do NOT end editing on focusout: opening Android's IME
+                // moves WebView focus and used to close it immediately.
+                document.addEventListener('pointerdown',event=>{
+                  if(editingField && event.target!==editingField &&
+                     !(event.target instanceof Element && event.target.closest('.keyboard-container')))
+                    endEditing();
                 },true);
                 document.addEventListener('keydown',event=>{
                   if(!['Enter',' '].includes(event.key)||!isTextField(event.target))return;
@@ -1890,6 +1903,30 @@ class MainActivity : ComponentActivity() {
                 }
                 return true;
               };
+              // New documents must not show the rail just because WebView
+              // transferred focus from the old page's selected nav link.
+              // Begin on content; the rail opens only after remote Left.
+              const settleInitialFocus=()=>{
+                if(document.querySelector('dialog[open]'))return true;
+                const active=document.activeElement;
+                if(active && !isMenu(active) && active!==document.body &&
+                   active!==document.documentElement)return true;
+                const preferred=primaryDetailAction();
+                const field=document.querySelector('.content input[type="search"],.content input[type="text"]');
+                const destination=(preferred&&isVisible(preferred)?preferred:null)||
+                  firstPoster()||
+                  [...document.querySelectorAll('.content button,.content a[href]')].find(isVisible)||
+                  (field&&isVisible(field)?field:null);
+                if(!destination)return false;
+                destination.focus({preventScroll:true});
+                return true;
+              };
+              if(!settleInitialFocus()){
+                let attempts=0;
+                const focusTimer=setInterval(()=>{
+                  if(settleInitialFocus()||++attempts>=12)clearInterval(focusTimer);
+                },100);
+              }
               window.__willieTvMove=move;
             })();
         """.trimIndent()

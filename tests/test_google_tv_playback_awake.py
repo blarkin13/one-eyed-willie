@@ -29,8 +29,8 @@ class GoogleTvPlaybackAwakeTests(unittest.TestCase):
         self.assertIn('put("duration_seconds", knownDuration)', src)
         self.assertIn("else position", src)
         self.assertIn('resolveUrl("/api/playback/progress")', src)
-        self.assertIn("if (response !in 200..299)", src)
-        self.assertIn("Could not save playback progress", src)
+        self.assertIn("if (status in 200..299) return null", src)
+        self.assertIn("Playback progress was not saved", src)
         self.assertIn("saveProgress(false)", src)
 
     def test_native_progress_saves_post_and_reports_real_failures(self):
