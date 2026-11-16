@@ -200,11 +200,11 @@ body[data-page="home"] .workspace>.content{padding-top:24px}
 
 /* Playback controls and compact watched indicators. */
 .tile{position:relative}
-.watched-badge{position:absolute;top:7px;right:7px;z-index:4;
-  display:grid;place-items:center;width:31px;height:31px;padding:0;border-radius:50%;
+.watched-badge{position:absolute;top:4px;right:4px;z-index:4;
+  display:grid;place-items:center;width:15px;height:15px;padding:0;border-radius:50%;
   background:#091929e8;color:#d7edf8;border:1px solid #7faec4;
   pointer-events:none}
-.watched-badge svg{display:block;width:21px;height:21px}
+.watched-badge svg{display:block;width:10px;height:10px}
 .movie-watched-flag{display:inline-flex;align-items:center;vertical-align:middle;
   color:#d7edf8;margin-left:7px}
 .movie-watched-flag svg{width:20px;height:20px;display:block}

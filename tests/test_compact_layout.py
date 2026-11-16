@@ -154,6 +154,18 @@ class CompactLayoutTests(unittest.TestCase):
         css = (SERVER / "ui.css").read_text()
         self.assertIn(".watched-badge svg", css)
 
+    def test_small_watched_anchor_badges_on_posters_and_episode_stills(self):
+        css = (SERVER / "ui.css").read_text()
+        self.assertIn("width:15px;height:15px;padding:0;border-radius:50%", css)
+        self.assertIn(".watched-badge svg{display:block;width:10px;height:10px}", css)
+        tv = (SERVER / "tv_detail.html").read_text()
+        self.assertIn(".season-episode-watched svg{width:10px;height:10px", tv)
+        self.assertIn("width:15px;height:15px;border-radius:50%", tv)
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
+                   "java" / "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("width:15px!important;height:15px!important", android)
+        self.assertIn("width:10px!important;height:10px!important", android)
+
     def test_stable_tv_season_hero_and_compact_actions(self):
         page = (SERVER / "tv_detail.html").read_text()
         self.assertIn("height:clamp(315px,44vh,400px)", page)
