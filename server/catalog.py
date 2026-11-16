@@ -10,7 +10,7 @@ from collections import defaultdict
 from .library import db, scan_library, scan_lock, safe_folder
 
 log = logging.getLogger(__name__)
-INTERVAL = max(60, int(os.environ.get("SCAN_INTERVAL_SECONDS", "300")))
+INTERVAL = max(30, int(os.environ.get("SCAN_INTERVAL_SECONDS", "60")))
 EPISODE = re.compile(r"(?i)(?:^|[ ._-])S(\d{1,2})[ ._-]*E(\d{1,3})(?:[ ._-]|$)")
 YEAR = re.compile(r"(?<!\d)(19\d{2}|20\d{2})(?!\d)")
 
@@ -170,7 +170,9 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title", library_id=N
         for item in page:
             item.pop("recent_mtime", None)
             item.pop("recent_id", None)
-        return {"total": len(results), "items": page, "genres": genres}
+        revision = conn.execute("SELECT revision FROM catalog_state WHERE id=1").fetchone()[0]
+        return {"total": len(results), "items": page, "genres": genres,
+                "revision": revision}
 
 
 def periodic_scan(stop):
@@ -189,8 +191,9 @@ def periodic_scan(stop):
                     continue
                 try:
                     result = scan_library(library_id)
-                    log.info("Automatic scan library=%s files=%s errors=%s",
-                             library_id, result["found"], result["errors"])
+                    log.info("Automatic scan library=%s files=%s errors=%s changed=%s",
+                             library_id, result["found"], result["errors"],
+                             result.get("changed", False))
                 except Exception:
                     log.exception("Automatic library scan failed: %s", library_id)
         except Exception:
