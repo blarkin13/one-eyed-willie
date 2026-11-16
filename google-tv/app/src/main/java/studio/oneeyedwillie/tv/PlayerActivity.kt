@@ -924,16 +924,56 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * The server supports POST and PUT for playback checkpoints. POST is used
+     * here so we do not depend on network intermediaries accepting PUT bodies.
+     * Keep requests serialized on the player executor: the last checkpoint
+     * should follow older 15-second heartbeats.
+     */
+    private fun persistProgress(body: String): String? {
+        var lastFailure = "Unknown error"
+        for (attempt in 0..1) {
+            try {
+                val connection = URL(resolveUrl("/api/playback/progress"))
+                    .openConnection() as HttpURLConnection
+                try {
+                    connection.requestMethod = "POST"
+                    connection.connectTimeout = 8_000
+                    connection.readTimeout = 12_000
+                    connection.doOutput = true
+                    connection.setRequestProperty("Content-Type", "application/json")
+                    connection.setRequestProperty("Accept", "application/json")
+                    val bytes = body.toByteArray(Charsets.UTF_8)
+                    connection.setFixedLengthStreamingMode(bytes.size)
+                    connection.outputStream.use { it.write(bytes) }
+                    val status = connection.responseCode
+                    if (status in 200..299) return null
+                    lastFailure = "HTTP $status"
+                    // Retry only temporary server errors. A 4xx needs diagnosis.
+                    if (status < 500) break
+                } finally {
+                    connection.disconnect()
+                }
+            } catch (error: Exception) {
+                // Do not hide the underlying cause behind "check connection".
+                // The message is visible while playing, but does not expose
+                // request body or the user's server URL.
+                val kind = error.javaClass.simpleName
+                lastFailure = if (kind.isNotEmpty()) kind else "Network error"
+                if (error !is java.io.IOException) break
+            }
+        }
+        return lastFailure
+    }
+
     private fun saveProgress(finished: Boolean) {
         val active = player ?: return
-        val position = (active.currentPosition / 1000.0).coerceAtLeast(0.0) +
-            (if (hlsMode) hlsOffset else 0.0)
-        // HLS / transcoded streams may report TIME_UNSET (negative) for
-        // their duration. A valid played position must still be persisted:
-        // /api/playback/progress explicitly accepts duration_seconds=0.
+        val position = currentPosition()
+        // HLS / transcoded streams may report TIME_UNSET for duration.
+        // The server accepts duration_seconds=0 for unknown duration.
         val knownDuration = currentDuration().takeIf { it.isFinite() && it > 0.0 } ?: 0.0
         if (mediaId < 1 || server.isBlank() || !position.isFinite() ||
-            position < 1.0 && !finished) return
+            (position < 1.0 && !finished)) return
         val safePosition = if (knownDuration > 0) position.coerceAtMost(knownDuration) else position
         val body = JSONObject().apply {
             put("media_id", mediaId)
@@ -941,29 +981,15 @@ class PlayerActivity : ComponentActivity() {
             put("duration_seconds", knownDuration)
             put("completed", finished || completed)
         }.toString()
+        // A final close checkpoint is enqueued before executor shutdown;
+        // ThreadPoolExecutor.shutdown() drains already-queued writes.
+        if (network.isShutdown) return
         network.execute {
-            try {
-                val connection = URL(resolveUrl("/api/playback/progress"))
-                    .openConnection() as HttpURLConnection
-                try {
-                    connection.requestMethod = "PUT"
-                    connection.connectTimeout = 4000
-                    connection.readTimeout = 4000
-                    connection.doOutput = true
-                    connection.setRequestProperty("Content-Type", "application/json")
-                    connection.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-                    val response = connection.responseCode
-                    if (response !in 200..299) {
-                        handler.post {
-                            if (!shuttingDown && visibleForPlayback)
-                                showMessage("Could not save playback progress (HTTP $response).")
-                        }
-                    }
-                } finally { connection.disconnect() }
-            } catch (_: Exception) {
+            val failure = persistProgress(body)
+            if (failure != null) {
                 handler.post {
                     if (!shuttingDown && visibleForPlayback)
-                        showMessage("Could not save playback progress. Check the server connection.")
+                        showMessage("Playback progress was not saved ($failure).")
                 }
             }
         }
