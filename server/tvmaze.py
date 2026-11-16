@@ -73,7 +73,7 @@ def _valid_year(first_aired, target):
         return False
 
 def show_metadata(title, year=None):
-    key = "tvmaze:show:v2:" + _simple(title) + ":" + str(year or "")
+    key = "tvmaze:show:v3:" + _simple(title) + ":" + str(year or "")
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -119,7 +119,11 @@ def show_metadata_by_id(show_id, show=None):
         for s in raw_seasons if isinstance(s, dict) and isinstance(s.get("number"), int)
     ]
     provider_url = show.get("url")
+    imdb_id = (show.get("externals") or {}).get("imdb")
+    if not isinstance(imdb_id, str) or not re.fullmatch(r"tt[0-9]{7,9}", imdb_id):
+        imdb_id = None
     result = {
+        "imdb_id": imdb_id,
         "tvmaze_id": show_id,
         "title": show.get("name") or str(show_id),
         "overview": plain(show.get("summary")),
