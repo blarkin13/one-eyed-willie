@@ -147,7 +147,7 @@ def sync_once():
                     # Existing movie detail resolver also reads local NFO sidecars,
                     # manual TMDB matches, and cached TMDB metadata.
                     incoming = _combine(incoming, _safe_metadata(
-                        movies._details(library_id, key, snapshot=films, enrich=True)))
+                        movies._details(library_id, key, snapshot=films, enrich=True, include_video_format=False)))
             else:
                 matched = _matching_series(title, year, series)
                 incoming = _safe_metadata(matched)

@@ -137,6 +137,30 @@ class CatalogMetadataTests(unittest.TestCase):
         start.assert_called_once()
         self.assertTrue(catalog_metadata._state["running"])
 
+    def test_genre_filter_is_populated_from_actual_catalog_response(self):
+        page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
+        # Defining updateGenreChoices alone did not make the dropdown functional.
+        # It must run after every successful catalog fetch, including re-indexing.
+        self.assertIn("updateGenreChoices(data.genres);", page)
+        self.assertGreaterEqual(page.count("updateGenreChoices("), 2)
+        self.assertIn("const items=Array.isArray(genres)?genres.filter(", page)
+        self.assertIn("genre: str = Query", (Path(__file__).resolve().parents[1] /
+                                            "server/main.py").read_text())
+
+    def test_metadata_state_reports_coverage_not_only_new_updates(self):
+        page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
+        self.assertIn("available=Number(state.available)", page)
+        self.assertIn("missing=Number(state.missing)", page)
+        self.assertIn("Metadata available for ", page)
+        self.assertNotIn("Genres, ratings and runtimes are still being indexed and will be retried automatically.", page)
+
+    def test_metadata_retry_starts_at_app_lifespan_and_skips_ffprobe(self):
+        main = (Path(__file__).resolve().parents[1] / "server/main.py").read_text()
+        worker = (Path(__file__).resolve().parents[1] / "server/catalog_metadata.py").read_text()
+        self.assertIn("target=catalog_metadata_refresh_loop", main)
+        self.assertIn("metadata_stop.set()", main)
+        self.assertIn("include_video_format=False", worker)
+
     def test_library_ui_does_not_require_manual_refresh(self):
         page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
         # The refresh control may be offered as an optional recovery action;

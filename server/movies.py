@@ -470,7 +470,7 @@ def clear_movie_match(
     return {"matched": False}
 
 
-def _details(library_id, key, snapshot=None, *, enrich=True):
+def _details(library_id, key, snapshot=None, *, enrich=True, include_video_format=True):
     parsed, video, root = _movie_path(library_id, key)
     radarr = _movie_match(parsed["title"], parsed["year"],
                            _snapshot() if snapshot is None else snapshot)
@@ -521,7 +521,7 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "metadata_source": "TMDB (manual match)" if manual_id else ("Local movie files" if nfo else ("Radarr" if radarr else ("TMDB" if extras else None))),
         "manual_match": manual_id,
     }
-    if enrich:
+    if enrich and include_video_format:
         from .video_info import video_format
         result["video_format"] = video_format(video)
     if enrich and isinstance(result.get("poster_url"), str):

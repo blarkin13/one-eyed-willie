@@ -28,7 +28,9 @@ from server.metadata import router as metadata_router
 from server.people import router as people_router
 from server.maintenance import router as maintenance_router, maintenance_loop
 from server.poster_index import poster_loop
-from server.catalog_metadata import router as catalog_metadata_router, start_refresh as start_catalog_metadata_refresh
+from server.catalog_metadata import (router as catalog_metadata_router,
+                                     start_refresh as start_catalog_metadata_refresh,
+                                     automatic_refresh_loop as catalog_metadata_refresh_loop)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -48,9 +50,16 @@ async def lifespan(app: FastAPI):
     posters_stop = threading.Event()
     poster_thread = threading.Thread(target=poster_loop, args=(posters_stop,), daemon=True, name='poster-prefetch')
     poster_thread.start()
+    metadata_stop = threading.Event()
+    metadata_thread = threading.Thread(
+        target=catalog_metadata_refresh_loop, args=(metadata_stop,),
+        daemon=True, name="catalog-metadata-background")
+    metadata_thread.start()
     try:
         yield
     finally:
+        metadata_stop.set()
+        metadata_thread.join(timeout=3)
         posters_stop.set()
         posters_thread = poster_thread
         posters_thread.join(timeout=3)

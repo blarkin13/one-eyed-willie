@@ -440,6 +440,7 @@ async function load(){
   if(!response.ok)throw Error('Server returned '+response.status);
   const data=await response.json();if(thisRequest!==requestId)return;
   total=data.total;const entries=Array.isArray(data.items)?data.items:[];
+  updateGenreChoices(data.genres);
   $('items').replaceChildren();
   moviePosterJobs.length=0;posterQueue.length=0;movieFallbackQueue.length=0;
   const fragment=document.createDocumentFragment();
@@ -511,18 +512,25 @@ async function checkMetadata(){
   if(!response.ok)throw Error('Metadata status unavailable');
   const state=await response.json();
   const revision=Number(state.revision)||0,processed=Number(state.processed)||0,
-        totalTitles=Number(state.total)||0,updated=Number(state.updated)||0;
+        totalTitles=Number(state.total)||0,
+        available=Number(state.available)||0,missing=Number(state.missing)||0;
   $('refresh-metadata').disabled=!!state.running;
   if(state.running){
-   $('metadata-status').textContent='Loading genres, runtimes and ratings · '+processed+'/'+totalTitles+' titles checked';
+   $('metadata-status').textContent='Checking genres, ratings and runtimes · '+processed+' of '+totalTitles+' titles';
   }else if(state.error){
    $('metadata-status').textContent=state.error;
-  }else if(updated===0 && !knownGenres.length){
-   $('metadata-status').textContent='Genres, ratings and runtimes are still being indexed and will be retried automatically. Check your TMDB, Radarr or Sonarr connection if they remain unavailable.';
-  }else if(state.last_finished){
-   $('metadata-status').textContent='Metadata sync complete · '+updated+' titles updated.';
+  }else if(!state.last_finished){
+   $('metadata-status').textContent='Preparing library metadata…';
+  }else if(totalTitles===0){
+   $('metadata-status').textContent='';
+  }else if(available===0){
+   $('metadata-status').textContent='No genre, rating or runtime metadata found for '+totalTitles+
+     ' titles. Check Settings → Connections (Radarr/Sonarr) and Settings → Metadata (TMDB).';
+  }else if(missing>0){
+   $('metadata-status').textContent='Metadata available for '+available+' of '+totalTitles+
+     ' titles; '+missing+' still missing. Unmatched titles are retried automatically.';
   }else{
-   $('metadata-status').textContent='Preparing genres, ratings and runtimes…';
+   $('metadata-status').textContent='';
   }
   const finished=Number(state.last_finished)||0;
   const newMetadata=metadataRevision>=0&&revision!==metadataRevision;
