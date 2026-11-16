@@ -328,7 +328,7 @@ def _movie_extras(radarr):
     from .metadata import token_status, _call, _cache_get, _cache_put, image_url, LOCK as META_LOCK
     if not token_status():
         return {}
-    key = "movie-extras:v3:" + str(tmdb_id)
+    key = "movie-extras:v4:" + str(tmdb_id)
     with META_LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -380,6 +380,9 @@ def _movie_extras(radarr):
             ],
             "tmdb_rating": (details or {}).get("vote_average"),
             "tmdb_votes": (details or {}).get("vote_count"),
+            "runtime": (details or {}).get("runtime"),
+            "genres": [g.get("name") for g in (details or {}).get("genres", [])
+                       if isinstance(g, dict) and g.get("name")],
         }
         _cache_put(key, extras)
         return extras
@@ -512,8 +515,8 @@ def _details(library_id, key, snapshot=None, *, enrich=True):
         "year": parsed["year"], "poster_url": (extras.get("poster_url") if manual_id else None) or poster_url or extras.get("poster_url"),
         "backdrop_url": (extras.get("backdrop_url") if manual_id else None) or backdrop_url or extras.get("backdrop_url"),
         "overview": (extras.get("overview") if manual_id else None) or nfo.get("overview") or radarr.get("overview") or "",
-        "runtime": nfo.get("runtime") or radarr.get("runtime"),
-        "genres": nfo.get("genres") or radarr.get("genres") or [],
+        "runtime": nfo.get("runtime") or radarr.get("runtime") or extras.get("runtime"),
+        "genres": nfo.get("genres") or radarr.get("genres") or extras.get("genres") or [],
         "imdb_url": "https://www.imdb.com/title/" + imdb_id + "/" if imdb_id else None,
         "metadata_source": "TMDB (manual match)" if manual_id else ("Local movie files" if nfo else ("Radarr" if radarr else ("TMDB" if extras else None))),
         "manual_match": manual_id,

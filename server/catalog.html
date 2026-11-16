@@ -37,7 +37,9 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 .library-heading{min-width:0;flex:1 1 360px}
 .library-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:0 1 auto;min-width:0}
 .library-head-actions .search-box input{width:clamp(195px,21vw,315px)}
-.library-head-actions .sort-select{width:165px;max-width:165px}
+.library-head-actions .sort-wrapper .sort-select{width:192px;max-width:192px}
+.library-head-actions .genre-wrapper .sort-select{width:155px;max-width:155px}
+.library-head-actions select{min-height:44px}
 .library-trivia{max-width:650px;font-size:.91rem;line-height:1.5;min-height:1.5em;color:#aab9cc}
 .trivia-credit{display:block;color:#7f92a7;font-size:.69rem;margin-top:3px}
 .trivia-credit[hidden]{display:none}
@@ -52,9 +54,17 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
  .library-head-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
  .library-head-actions .search-box{flex:1 1 160px}
  .library-head-actions .search-box input{width:100%}
- .library-head-actions .sort-select{width:140px;max-width:140px}
+ .library-head-actions .sort-wrapper .sort-select{width:174px;max-width:174px}
+ .library-head-actions .genre-wrapper .sort-select{width:150px;max-width:150px}
 }
-@media(max-width:430px){.library-head-actions{gap:8px}.library-head-actions .sort-select{width:115px;max-width:115px}}
+@media(max-width:520px){
+ .library-head-actions{gap:8px;justify-content:space-between}
+ .library-head-actions .search-box{flex:1 1 100%;width:100%}
+ .library-head-actions .sort-wrapper{flex:1 1 160px;min-width:0}
+ .library-head-actions .genre-wrapper{flex:1 1 120px;min-width:0}
+ .library-head-actions .sort-wrapper .sort-select,.library-head-actions .genre-wrapper .sort-select{width:100%;max-width:100%}
+}
+@media(min-width:761px) and (max-width:1260px){.library-head-actions{flex-wrap:wrap}}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -71,9 +81,10 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
         <div class="library-head-actions" role="group" aria-label="Browse library controls">
           <label class="search-box"><span class="sr-only">Search titles</span><input type="search" id="search" placeholder="Search titles…" maxlength="150" aria-label="Search titles"></label>
           <label class="sort-wrapper"><span class="sr-only">Sort titles</span><select id="sort" class="sort-select" aria-label="Sort titles">
-            <option value="title">Title A–Z</option><option value="recent">Recently added</option><option value="year">Release year</option>
+            <option value="title">Title A–Z</option><option value="added">Date Added (newest)</option><option value="length">Length (longest)</option><option value="rating">Rating (highest)</option>
           </select></label>
-          <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
+          <label class="genre-wrapper"><span class="sr-only">Filter by genre</span><select id="genre" class="sort-select" aria-label="Filter by genre"><option value="">All Genres</option></select></label>
+           <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
         </div>
       </div>
       <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
@@ -93,6 +104,9 @@ const query=new URLSearchParams(location.search);
 let total=0,requestId=0,loading=false;
 const initialSearch=query.get('search')||'';
 $('search').value=initialSearch.slice(0,150);
+const requestedSort=query.get('sort')||'title';
+if([...$('sort').options].some(o=>o.value===requestedSort))$('sort').value=requestedSort;
+let selectedGenre=(query.get('genre')||'').slice(0,60);
 if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
 $('explore-library').href='/explore?type='+type;
 $('explore-library').setAttribute('aria-label','Explore more '+(type==='movies'?'movies':'TV shows'));
@@ -344,7 +358,12 @@ function createCard(item){
  cover.append(top,initial,coverTitle);
  const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
  const meta=document.createElement('div');meta.className='tile-meta';
- meta.textContent=(item.year?item.year+' · ':'')+(item.kind==='tv'?item.seasons.length+' season'+(item.seasons.length===1?'':'s'):item.files+' file'+(item.files===1?'':'s'));
+ const details=[];
+  if(item.year)details.push(String(item.year));
+  if(item.kind==='tv')details.push(item.seasons.length+' season'+(item.seasons.length===1?'':'s'));
+  if(Number.isFinite(item.runtime)&&item.runtime>0)details.push(item.runtime+' min');
+  if(typeof item.rating==='number')details.push('★ '+item.rating.toFixed(1));
+  meta.textContent=details.join(' · ');
  button.append(cover,title,meta);
  if(item.watched){
    const flag=document.createElement('span');flag.className='watched-badge';flag.textContent='✓ Watched';
@@ -356,6 +375,24 @@ function createCard(item){
  }else if(type==='tv')observePoster(article,cover,item);
  else moviePosterJobs.push({cover,item});
  return article;
+}
+function titleInitial(title){
+ const significant=String(title||'').trim().replace(/^(the|an|a)\s+/i,'');
+ const initial=(significant[0]||'#').toUpperCase();
+ return /^[A-Z]$/.test(initial)?initial:'#';
+}
+function updateGenreChoices(genres){
+ const selector=$('genre'),current=selectedGenre;
+ const items=Array.isArray(genres)?genres.filter(x=>typeof x==='string'&&x.trim()):[];
+ selector.replaceChildren();
+ const all=document.createElement('option');all.value='';all.textContent='All Genres';selector.append(all);
+ for(const genre of items){
+  const option=document.createElement('option');option.value=genre;option.textContent=genre;selector.append(option);
+ }
+ if(current&&!items.some(x=>x.toLowerCase()===current.toLowerCase())){
+  const option=document.createElement('option');option.value=current;option.textContent=current+' (indexing…)';selector.append(option);
+ }
+ selector.value=current;
 }
 function drawAlphabet(items){
  const nav=$('alpha-nav');nav.replaceChildren();
@@ -384,6 +421,7 @@ async function load(){
  const thisRequest=++requestId;
  loading=true;$('status').textContent='Loading titles…';
  const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value});
+ if(selectedGenre)params.set('genre',selectedGenre);
  if(Number.isInteger(selectedLibraryId)&&selectedLibraryId>0)params.set('library_id',String(selectedLibraryId));
  try{
   const response=await fetch('/api/catalog/all?'+params,{cache:'no-store'});
@@ -395,8 +433,7 @@ async function load(){
   const fragment=document.createDocumentFragment();
   for(const item of entries){
     const card=createCard(item);
-    const initial=(item.title.trim()[0]||'#').toUpperCase();
-    const letter=/^[A-Z]$/.test(initial)?initial:'#';
+    const letter=titleInitial(item.title);
     card.dataset.letter=letter;
     fragment.append(card);
   }
@@ -452,6 +489,7 @@ document.addEventListener('keydown',event=>{
 let debounce;
 $('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(),220)});
 $('sort').addEventListener('change',()=>load(true));
+$('genre').addEventListener('change',()=>{selectedGenre=$('genre').value;load(true)});
 load();
 </script>
 </body></html>

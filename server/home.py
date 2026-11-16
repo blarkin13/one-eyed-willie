@@ -56,8 +56,8 @@ def home_shelves():
             "SELECT media_id FROM playback_progress WHERE completed=1"
         )}
         rows = connection.execute(
-            "SELECT id,library_id,path,added_at FROM media "
-            "ORDER BY added_at DESC, id DESC"
+            "SELECT id,library_id,path,added_at,mtime_ns FROM media "
+            "ORDER BY added_at DESC, mtime_ns DESC, id DESC"
         ).fetchall()
         for row in rows:
             lib = libs.get(row["library_id"])

@@ -85,6 +85,40 @@ class PosterIndexTests(unittest.TestCase):
         self.assertIsNone(entries[0]["poster_url"])
         self.assertIsNotNone(entries[1]["poster_url"])
 
+    def test_existing_poster_gets_sortable_metadata_in_background(self):
+        import json
+        identity = ("movies", 1, "the batman:2022")
+        with library.db() as conn:
+            poster_index._table(conn)
+            conn.execute(
+                "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at) "
+                "VALUES(?,?,?,?,?)",
+                (*identity, "/api/artwork/" + "a" * 64, int(time.time()))
+            )
+        metadata = {"genres": ["Action", "Drama"], "rating": 7.8, "runtime": 176}
+        with patch.object(poster_index, "_collect", return_value={identity: ("The Batman", 2022)}), \
+             patch.object(poster_index, "_resolve", return_value=(None, metadata)) as resolve:
+            self.assertEqual(poster_index.prepare_batch(4), 1)
+            self.assertEqual(poster_index.prepare_batch(4), 0)
+        resolve.assert_called_once()
+        with library.db() as conn:
+            row = conn.execute(
+                "SELECT poster_url,metadata_json FROM indexed_posters "
+                "WHERE kind='movies' AND library_id=1 AND show_key='the batman:2022'"
+            ).fetchone()
+        self.assertEqual(row["poster_url"], "/api/artwork/" + "a" * 64)
+        self.assertEqual(json.loads(row["metadata_json"]), metadata)
+
+    def test_only_valid_sort_metadata_is_saved(self):
+        self.assertEqual(poster_index._safe_metadata({
+            "genres": ["Horror", "Drama", 9],
+            "ratings": {"tmdb": {"value": 7.9}},
+            "runtime": 120,
+        }), {"genres": ["Horror", "Drama"], "rating": 7.9, "runtime": 120})
+        invalid = poster_index._safe_metadata({"rating": "nan", "runtime": 0})
+        self.assertIsNone(invalid["rating"])
+        self.assertIsNone(invalid["runtime"])
+
     def test_real_image_is_resized_and_kept_privately(self):
         digest = "c" * 64
         artwork.CACHE_DIR.mkdir(parents=True)

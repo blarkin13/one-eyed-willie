@@ -4,6 +4,8 @@ Metadata providers are consulted only by the background poster worker, never
 by the catalog or home endpoints. Existing detail pages remain authoritative.
 """
 import logging
+import json
+import math
 import os
 import threading
 import time
@@ -22,6 +24,9 @@ def _table(conn):
         poster_url TEXT, checked_at INTEGER NOT NULL,
         PRIMARY KEY(kind, library_id, show_key)
     )""")
+    columns = {row[1] for row in conn.execute("PRAGMA table_info(indexed_posters)")}
+    if "metadata_json" not in columns:
+        conn.execute("ALTER TABLE indexed_posters ADD COLUMN metadata_json TEXT")
 
 
 def indexed_urls(entries):
@@ -102,22 +107,57 @@ def _collect():
     return found
 
 
+def _safe_metadata(meta):
+    """Small sortable metadata fields; never persist provider credentials or paths."""
+    meta = meta if isinstance(meta, dict) else {}
+    genres = meta.get("genres")
+    genres = [str(x).strip()[:60] for x in genres[:20]
+              if isinstance(x, str) and x.strip()] if isinstance(genres, list) else []
+    rating = meta.get("rating")
+    if rating is None:
+        rating = meta.get("tmdb_rating")
+    if rating is None:
+        ratings = meta.get("ratings") or {}
+        for source in ("tmdb", "imdb"):
+            value = ratings.get(source) if isinstance(ratings, dict) else None
+            if isinstance(value, dict):
+                rating = value.get("value")
+                if rating is not None:
+                    break
+    try:
+        rating = float(rating)
+        if not math.isfinite(rating) or not 0 <= rating <= 10:
+            rating = None
+    except (ValueError, TypeError):
+        rating = None
+    runtime = meta.get("runtime")
+    if not runtime:
+        runtime = meta.get("episode_run_time")
+        if isinstance(runtime, list):
+            runtime = next((v for v in runtime if isinstance(v, int) and v > 0), None)
+    try:
+        runtime = int(runtime)
+        if runtime <= 0 or runtime > 1000:
+            runtime = None
+    except (TypeError, ValueError):
+        runtime = None
+    return {"genres": genres, "rating": rating, "runtime": runtime}
+
+
 def _resolve(kind, library_id, key, title, year):
     if kind == "tv":
         from .tv import show_metadata
         from .artwork import local_show_poster, register_remote
+        meta = show_metadata(title, year, library_id, key) or {}
         local = local_show_poster(library_id, key)
-        if local:
-            return local
-        meta = show_metadata(title, year, library_id, key)
-        return register_remote(meta.get("poster_url")) if meta else None
+        return local or register_remote(meta.get("poster_url")), _safe_metadata(meta)
     from .movies import _details, _snapshot
     try:
         detail = _details(library_id, key, snapshot=_snapshot(), enrich=True)
     except Exception:
-        log.exception("Poster lookup failed for movie %s", key)
-        return None
-    return detail.get("poster_url")
+        log.exception("Poster/metadata lookup failed for movie %s", key)
+        return None, {}
+    return detail.get("poster_url"), _safe_metadata(detail)
 
 
 def _prepare(url):
@@ -145,7 +185,7 @@ def prepare_batch(limit=BATCH):
         # Missing images retry hourly; confirmed posters are kept until an
         # explicit metadata match changes or their media is removed.
         todo = [(identity, info) for identity, info in all_titles.items()
-                if identity not in cached or (
+                if identity not in cached or cached[identity].get("metadata_json") is None or (
                     not cached[identity]["poster_url"]
                     and now - cached[identity]["checked_at"] >= RETRY_SECONDS)]
         # Keep TV first even for indexes populated before the priority change.
@@ -153,16 +193,19 @@ def prepare_batch(limit=BATCH):
         processed = 0
         for (kind, library_id, key), (title, year) in todo[:limit]:
             try:
-                url = _resolve(kind, library_id, key, title, year)
+                resolved = _resolve(kind, library_id, key, title, year)
+                url, metadata = resolved if isinstance(resolved, tuple) else (resolved, {})
                 if url:
                     _prepare(url)
                 with db() as conn:
                     _table(conn)
                     conn.execute(
-                        "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at) "
-                        "VALUES(?,?,?,?,?) ON CONFLICT(kind,library_id,show_key) DO UPDATE SET "
-                        "poster_url=excluded.poster_url,checked_at=excluded.checked_at",
-                        (kind, library_id, key, url, int(time.time()))
+                        "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at,metadata_json) "
+                        "VALUES(?,?,?,?,?,?) ON CONFLICT(kind,library_id,show_key) DO UPDATE SET "
+                        "poster_url=COALESCE(excluded.poster_url,indexed_posters.poster_url),"
+                        "checked_at=excluded.checked_at,metadata_json=excluded.metadata_json",
+                        (kind, library_id, key, url, int(time.time()),
+                         json.dumps(_safe_metadata(metadata)))
                     )
                 processed += 1
             except Exception:

@@ -187,6 +187,7 @@ def show_metadata_by_id(tmdb_id, fallback=None):
         "reviews": reviews,
         "trailer_key": trailer,
         "rating": details.get("vote_average"),
+        "episode_run_time": details.get("episode_run_time"),
         "genres": [g.get("name") for g in details.get("genres", []) if isinstance(g, dict) and g.get("name")],
         "network": ", ".join(n.get("name") for n in details.get("networks", []) if isinstance(n, dict) and n.get("name")),
         "tmdb_id": tmdb_id,

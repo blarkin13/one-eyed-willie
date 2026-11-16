@@ -7,7 +7,7 @@ from unittest.mock import patch
 from fastapi import HTTPException
 
 from server import library
-from server.catalog import catalog
+from server.catalog import catalog, title_sort_key
 from server.home import PlaybackUpdate, home_shelves, update_playback
 
 
@@ -79,6 +79,79 @@ class HomeDashboardTests(unittest.TestCase):
         self.assertEqual([m["title"] for m in second["items"]], ["Alien"])
         alpha = catalog(kind="movies", sort="title")
         self.assertEqual([m["title"] for m in alpha["items"]], ["Alien", "Arrival"])
+
+    def test_recent_movies_same_scan_order_by_file_modification_not_insert_id(self):
+        # Files seen on the same scan share a first-seen timestamp; use the
+        # file timestamp to order recently downloaded movies.
+        with library.db() as connection:
+            connection.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES(4,1,'/media/Movies/The Batman (2022)/The Batman.mkv',"
+                "'The Batman',100,900,'2026-11-14 10:00:00')"
+            )
+            connection.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES(5,1,'/media/Movies/The Thing (1982)/The Thing.mkv',"
+                "'The Thing',100,700,'2026-11-14 10:00:00')"
+            )
+            connection.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES(6,1,'/media/Movies/The Matrix (1999)/The Matrix.mkv',"
+                "'The Matrix',100,800,'2026-11-14 10:00:00')"
+            )
+        home = home_shelves()
+        self.assertEqual([x["title"] for x in home["recent_movies"][:3]],
+                         ["The Batman", "The Matrix", "The Thing"])
+        recent = catalog(kind="movies", sort="added")
+        self.assertEqual([x["title"] for x in recent["items"][:3]],
+                         ["The Batman", "The Matrix", "The Thing"])
+
+    def test_title_articles_ignored_in_sort_and_navigation(self):
+        self.assertEqual(title_sort_key("The Batman"), "batman")
+        self.assertEqual(title_sort_key("A Quiet Place"), "quiet place")
+        self.assertEqual(title_sort_key("An American Werewolf"), "american werewolf")
+        self.assertEqual(title_sort_key("Alien"), "alien")
+        with library.db() as connection:
+            connection.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES(4,1,'/media/Movies/The Batman (2022)/The Batman.mkv',"
+                "'The Batman',100,0,'2026-11-14 10:00:00')"
+            )
+        titles = [x["title"] for x in catalog(kind="movies", sort="title")["items"]]
+        self.assertEqual(titles, ["Alien", "Arrival", "The Batman"])
+
+    def test_length_rating_and_genre_use_indexed_metadata_with_missing_last(self):
+        from server.poster_index import _table
+        import json
+        with library.db() as connection:
+            _table(connection)
+            rows = [
+                ("movies", 1, "alien:1979", {"genres": ["Horror", "Science Fiction"], "runtime": 117, "rating": 8.5}),
+                ("movies", 1, "arrival:2016", {"genres": ["Drama", "Science Fiction"], "runtime": 116, "rating": 7.9}),
+            ]
+            for kind, lib, key, meta in rows:
+                connection.execute(
+                    "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at,metadata_json) "
+                    "VALUES(?,?,?,?,?,?)", (kind, lib, key, None, 0, json.dumps(meta))
+                )
+            connection.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES(4,1,'/media/Movies/The Batman (2022)/The Batman.mkv',"
+                "'The Batman',100,0,'2026-11-14 10:00:00')"
+            )
+        longest = catalog(kind="movies", sort="length")
+        self.assertEqual([x["title"] for x in longest["items"]],
+                         ["Alien", "Arrival", "The Batman"])
+        best = catalog(kind="movies", sort="rating")
+        self.assertEqual([x["title"] for x in best["items"]],
+                         ["Alien", "Arrival", "The Batman"])
+        self.assertEqual(best["items"][0]["rating"], 8.5)
+        self.assertEqual(best["items"][0]["runtime"], 117)
+        horror = catalog(kind="movies", genre="hOrRoR")
+        self.assertEqual([x["title"] for x in horror["items"]], ["Alien"])
+        self.assertEqual(horror["genres"], ["Drama", "Horror", "Science Fiction"])
+        self.assertEqual(catalog(kind="movies", genre="comedy")["total"], 0)
+        self.assertEqual(catalog(kind="tv", genre="Horror")["total"], 0)
 
     def test_progress_is_removed_with_library(self):
         update_playback(PlaybackUpdate(

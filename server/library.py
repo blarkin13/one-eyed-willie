@@ -123,6 +123,9 @@ def scan_library(library_id: int):
 
             seen = set()
             errors = 0
+            # Files discovered in the same scan share a first-seen timestamp.
+            # Their actual modification time breaks ties instead of walk order.
+            scan_added_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
             for directory, dirs, files in os.walk(root, followlinks=False):
                 dirs[:] = [d for d in dirs if not d.startswith(".") and not Path(directory, d).is_symlink()]
                 for filename in files:
@@ -134,10 +137,11 @@ def scan_library(library_id: int):
                         media_path = str(file_path)
                         seen.add(media_path)
                         connection.execute("""
-                          INSERT INTO media (library_id,path,title,size,mtime_ns) VALUES (?,?,?,?,?)
+                          INSERT INTO media (library_id,path,title,size,mtime_ns,added_at)
+                          VALUES (?,?,?,?,?,?)
                           ON CONFLICT(path) DO UPDATE SET library_id=excluded.library_id,
                           title=excluded.title,size=excluded.size,mtime_ns=excluded.mtime_ns
-                        """, (library_id, media_path, file_path.stem, stat.st_size, stat.st_mtime_ns))
+                        """, (library_id, media_path, file_path.stem, stat.st_size, stat.st_mtime_ns, scan_added_at))
                     except OSError:
                         errors += 1
             # Never remove catalog entries if the scan encountered unreadable files.
