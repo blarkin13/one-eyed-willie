@@ -276,7 +276,26 @@ def show_details(library_id: int = Query(ge=1), key: str = Query(min_length=1, m
         cast.append({"name": actor["name"], "tmdb_id": actor.get("tmdb_id"), "tvmaze_id": actor.get("tvmaze_id"), "character": actor.get("character") or "",
                      "photo": register_remote(actor.get("photo_url"))})
     imdb = imdb_details(meta.get("imdb_id"))
+    # Only media IDs and small playback labels are sent; no private paths.
+    # The existing web and native shuffle players support queues of up to 500.
+    shuffle_episodes = [
+        {
+            "id": ep["id"],
+            "title": (
+                "S" + str(ep["season"]).zfill(2) + "E" + str(ep["episode"]).zfill(2)
+                if ep["season"] is not None and ep["episode"] is not None
+                else ep["filename"][:120]
+            ),
+            "resume": (
+                not ep["watched"] and ep["position_seconds"] >= 30 and
+                (ep["duration_seconds"] <= 0 or
+                 ep["position_seconds"] < ep["duration_seconds"] * .95)
+            ),
+        }
+        for ep in show["episodes"][:500]
+    ]
     result = {
+        "shuffle_episodes": shuffle_episodes,
         "next_episode": next_for_series(show["episodes"]),
         "content_rating": meta.get("content_rating") or imdb.get("content_rating"),
         "imdb_id": meta.get("imdb_id"), "imdb_rating": imdb.get("rating"),
