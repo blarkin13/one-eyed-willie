@@ -199,8 +199,10 @@ el('save-sidebar').onclick=async()=>{
 el('reset-sidebar').onclick=()=>{
  if(!confirm('Restore sidebar order and visibility to defaults?'))return;
  const priorities=['home','movies','tv','radarr','sonarr','sabnzbd','services'];
+ const originalPosition=new Map(sidebarItems.map((item,index)=>[item.id,index]));
  sidebarItems.sort((a,b)=>{
-  const score=x=>x.id==='settings'?999:priorities.indexOf(x.id)<0?100+sidebarItems.findIndex(z=>z.id===x.id):priorities.indexOf(x.id);
+  const score=x=>x.id==='settings'?999:
+   priorities.includes(x.id)?priorities.indexOf(x.id):100+originalPosition.get(x.id);
   return score(a)-score(b);
  });
  sidebarItems.forEach(x=>x.visible=true);
