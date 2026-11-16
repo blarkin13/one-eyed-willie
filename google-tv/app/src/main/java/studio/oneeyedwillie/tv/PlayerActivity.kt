@@ -6,7 +6,7 @@ import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
 import android.app.AlertDialog
 import android.view.KeyEvent
-import android.widget.Button
+import android.widget.ImageButton
 import android.widget.LinearLayout
 import android.widget.SeekBar
 import android.os.Bundle
@@ -50,7 +50,13 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var message: TextView
     private lateinit var playerView: PlayerView
     private lateinit var chrome: LinearLayout
-    private lateinit var playButton: Button
+    private lateinit var playButton: ImageButton
+    private lateinit var thumbnailPreview: PlayerScrubPreview
+    private var scrubbing = false
+    private var scrubPosition = 0.0
+    private val scrubCommit = Runnable {
+        if (!scrubbing) seekTo(scrubPosition)
+    }
     private lateinit var timeline: SeekBar
     private lateinit var elapsed: TextView
     private lateinit var totalTime: TextView
@@ -68,7 +74,12 @@ class PlayerActivity : ComponentActivity() {
             handler.postDelayed(this, 500)
         }
     }
-    private val hideChrome = Runnable { if (player?.isPlaying == true) chrome.visibility = View.GONE }
+    private val hideChrome = Runnable {
+        if (player?.isPlaying == true && !scrubbing) {
+            chrome.visibility = View.GONE
+            if (::thumbnailPreview.isInitialized) thumbnailPreview.hide()
+        }
+    }
     private val handler = Handler(Looper.getMainLooper())
     private val network = Executors.newSingleThreadExecutor()
 
@@ -98,6 +109,10 @@ class PlayerActivity : ComponentActivity() {
         surface.addView(chrome, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
+        thumbnailPreview = PlayerScrubPreview(this, server, mediaId)
+        surface.addView(thumbnailPreview.view, FrameLayout.LayoutParams(
+            dp(280), dp(190), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
+        ).apply { bottomMargin = dp(163) })
         message = TextView(this).apply {
             text = "Preparing video…"
             textSize = 16f
@@ -111,6 +126,7 @@ class PlayerActivity : ComponentActivity() {
             Gravity.CENTER
         ))
         setContentView(surface)
+        thumbnailPreview.start()
         player = ExoPlayer.Builder(this).build().also { exo ->
             playerView.player = exo
             exo.addListener(object : Player.Listener {
@@ -147,105 +163,202 @@ class PlayerActivity : ComponentActivity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
-    private fun control(label: String, action: () -> Unit) = Button(this).apply {
-        text = label
-        textSize = 17f
-        isAllCaps = false
-        setTextColor(Color.WHITE)
-        background = GradientDrawable().apply {
-            cornerRadius = dp(8).toFloat()
-            setColor(Color.TRANSPARENT)
+    private fun iconControl(icon: Int, description: String, large: Boolean = false,
+                            action: () -> Unit): ImageButton = ImageButton(this).apply {
+        val dimension = dp(if (large) 64 else 54)
+        layoutParams = LinearLayout.LayoutParams(dimension, dimension)
+        setImageResource(icon)
+        contentDescription = description
+        tooltipText = description
+        scaleType = ImageButton.ScaleType.CENTER_INSIDE
+        setPadding(dp(if (large) 15 else 14), dp(if (large) 15 else 14),
+                   dp(if (large) 15 else 14), dp(if (large) 15 else 14))
+        isFocusable = true
+        isFocusableInTouchMode = true
+        val idle = GradientDrawable().apply {
+            cornerRadius = dp(40).toFloat()
+            setColor(if (large) 0x2AF4EFE4 else Color.TRANSPARENT)
         }
-        setOnFocusChangeListener { _, focused ->
-            background = GradientDrawable().apply {
-                cornerRadius = dp(8).toFloat()
-                setColor(if(focused) 0x664A6580 else Color.TRANSPARENT)
+        background = idle
+        setOnFocusChangeListener { button, hasFocus ->
+            button.background = GradientDrawable().apply {
+                cornerRadius = dp(40).toFloat()
+                setColor(if (hasFocus) 0x48F4EFE4 else if (large) 0x2AF4EFE4 else Color.TRANSPARENT)
+                if (hasFocus) setStroke(dp(2), 0xFFF4EFE4.toInt())
             }
+            button.animate().scaleX(if (hasFocus) 1.10f else 1f)
+                .scaleY(if (hasFocus) 1.10f else 1f).setDuration(110).start()
+            if (hasFocus) showChrome()
         }
-        setPadding(dp(11), dp(6), dp(11), dp(6))
-        minHeight = dp(46)
-        setOnClickListener { action(); scheduleHide() }
+        setOnClickListener {
+            action()
+            showChrome()
+        }
     }
 
     private fun createControls(): LinearLayout {
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(35), dp(25), dp(35), dp(24))
-            setBackgroundColor(Color.TRANSPARENT)
+            setPadding(dp(32), dp(18), dp(32), 0)
         }
-        val top = LinearLayout(this).apply {
+        val heading = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setBackgroundColor(0x99060D16.toInt())
         }
-        top.addView(control("‹") { finish() }.apply { contentDescription = "Back to library" })
+        heading.addView(iconControl(R.drawable.ic_player_back, "Back to library") { finish() })
+        val titles = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(15), 0, 0, 0)
+        }
+        titles.addView(TextView(this).apply {
+            text = "NOW PLAYING"
+            textSize = 11f
+            letterSpacing = 0.14f
+            setTextColor(0xFFDDD7CA.toInt())
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+        })
         titleText = TextView(this).apply {
             text = title
-            setTextColor(Color.WHITE)
-            textSize = 19f
-            setPadding(dp(15), 0, 0, 0)
+            textSize = 22f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(0xFFF7F3EB.toInt())
             maxLines = 1
             ellipsize = android.text.TextUtils.TruncateAt.END
         }
-        top.addView(titleText, LinearLayout.LayoutParams(0, dp(50), 1f).apply {
-            gravity = Gravity.CENTER_VERTICAL
-        })
-        root.addView(top)
+        titles.addView(titleText)
+        heading.addView(titles, LinearLayout.LayoutParams(0, dp(60), 1f))
+        root.addView(heading)
         root.addView(View(this), LinearLayout.LayoutParams(1, 0, 1f))
+
         val bottom = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(16), dp(13), dp(16), dp(12))
-            setBackgroundColor(0xDD060D16.toInt())
+            setPadding(dp(18), dp(64), dp(18), dp(23))
+            background = GradientDrawable(
+                GradientDrawable.Orientation.BOTTOM_TOP,
+                intArrayOf(0xF2000000.toInt(), 0xDB090B10.toInt(), 0x00000000)
+            )
         }
         val progressRow = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        elapsed = TextView(this).apply { text = "0:00";setTextColor(Color.WHITE);textSize=14f }
-        totalTime = TextView(this).apply { text = "0:00";setTextColor(Color.WHITE);textSize=14f }
+        elapsed = TextView(this).apply {
+            text = "0:00"
+            textSize = 15f
+            setTextColor(0xFFF4EFE4.toInt())
+            setPadding(0, 0, dp(11), 0)
+        }
+        totalTime = TextView(this).apply {
+            text = "0:00"
+            textSize = 15f
+            setTextColor(0xFFD2CFCA.toInt())
+            setPadding(dp(11), 0, 0, 0)
+        }
         timeline = SeekBar(this).apply {
             max = 1000
-            progressTintList = android.content.res.ColorStateList.valueOf(0xFFA3D4FF.toInt())
-            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFD7E8FC.toInt())
+            keyProgressIncrement = 5
+            progressTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE4.toInt())
+            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE4.toInt())
+            progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x66F4EFE4)
+            contentDescription = "Seek through video with left and right remote buttons"
+            setOnFocusChangeListener { _, hasFocus ->
+                if (hasFocus) showChrome()
+                else {
+                    handler.removeCallbacks(scrubCommit)
+                    if (::thumbnailPreview.isInitialized) thumbnailPreview.hideSoon()
+                }
+            }
             setOnSeekBarChangeListener(object : SeekBar.OnSeekBarChangeListener {
-                private var dragging = false
-                override fun onStartTrackingTouch(bar: SeekBar?) { dragging=true;showChrome() }
-                override fun onStopTrackingTouch(bar: SeekBar?) {
-                    dragging=false
-                    val duration = currentDuration()
-                    if(duration>0) seekTo(duration*(bar?.progress ?: 0)/1000.0)
+                override fun onStartTrackingTouch(bar: SeekBar?) {
+                    scrubbing = true
+                    handler.removeCallbacks(scrubCommit)
+                    showScrubAt(currentDuration() * (bar?.progress ?: 0) / 1000.0)
                 }
                 override fun onProgressChanged(bar: SeekBar?, progress: Int, fromUser: Boolean) {
-                    if(fromUser && !dragging) {
-                        val duration = currentDuration()
-                        if(duration>0) seekTo(duration*progress/1000.0)
+                    if (!fromUser) return
+                    val duration = currentDuration()
+                    if (duration <= 0) return
+                    showScrubAt(duration * progress / 1000.0)
+                    if (!scrubbing) {
+                        handler.removeCallbacks(scrubCommit)
+                        handler.postDelayed(scrubCommit, 550)
                     }
+                }
+                override fun onStopTrackingTouch(bar: SeekBar?) {
+                    scrubbing = false
+                    handler.removeCallbacks(scrubCommit)
+                    seekTo(currentDuration() * (bar?.progress ?: 0) / 1000.0)
                 }
             })
         }
         progressRow.addView(elapsed)
-        progressRow.addView(timeline, LinearLayout.LayoutParams(0, dp(40), 1f))
+        progressRow.addView(timeline, LinearLayout.LayoutParams(0, dp(55), 1f))
         progressRow.addView(totalTime)
         bottom.addView(progressRow)
-        val buttons = LinearLayout(this).apply {
+
+        val toolbar = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(0, dp(8), 0, 0)
+        }
+        val transport = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
         }
-        playButton = control("❚❚") {
-            val p = player
-            if(p?.isPlaying==true) p.pause() else p?.play()
+        transport.addView(iconControl(R.drawable.ic_player_rewind, "Rewind 10 seconds") {
+            seekBy(-10.0)
+        })
+        playButton = iconControl(R.drawable.ic_player_pause, "Play or pause", large = true) {
+            val active = player
+            if (active?.isPlaying == true) active.pause() else active?.play()
             refreshControls()
         }
-        playButton.contentDescription = "Play or pause"
-        buttons.addView(playButton)
-        buttons.addView(control("↶ 10") { seekBy(-10.0) }.apply { contentDescription = "Rewind ten seconds" })
-        buttons.addView(control("10 ↷") { seekBy(10.0) }.apply { contentDescription = "Forward ten seconds" })
-        buttons.addView(control("CC") { showCaptions() })
-        buttons.addView(control("✓") { toggleWatched() }.apply { contentDescription = "Mark watched or unwatched" })
-        buttons.addView(control("ⓘ") { showDiagnostics() }.apply { contentDescription = "Playback diagnostics" })
-        bottom.addView(buttons)
+        transport.addView(playButton)
+        transport.addView(iconControl(R.drawable.ic_player_forward, "Forward 10 seconds") {
+            seekBy(10.0)
+        })
+        toolbar.addView(transport)
+        toolbar.addView(View(this), LinearLayout.LayoutParams(0, dp(1), 1f))
+        val extras = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+        }
+        extras.addView(iconControl(R.drawable.ic_player_captions, "Subtitles") { showCaptions() })
+        extras.addView(iconControl(R.drawable.ic_player_next, "Next episode") {
+            if (nextMediaId != null) showNextEpisode() else showMessage("No next episode available")
+        })
+        extras.addView(iconControl(R.drawable.ic_player_more, "More playback options") {
+            showPlaybackMenu()
+        })
+        toolbar.addView(extras)
+        bottom.addView(toolbar)
         root.addView(bottom)
         return root
+    }
+
+    private fun showPlaybackMenu() {
+        val labels = arrayOf(
+            if (completed) "Mark as unwatched" else "Mark as watched",
+            "Playback details",
+            "Play from beginning"
+        )
+        AlertDialog.Builder(this).setTitle("Playback options")
+            .setItems(labels) { _, choice ->
+                when (choice) {
+                    0 -> toggleWatched()
+                    1 -> showDiagnostics()
+                    2 -> seekTo(0.0)
+                }
+                showChrome()
+            }
+            .setNegativeButton("Close", null).show()
+    }
+
+    private fun showScrubAt(position: Double) {
+        val duration = currentDuration()
+        scrubPosition = position.coerceIn(0.0, if (duration > 0) duration else 1e7)
+        if (::thumbnailPreview.isInitialized) thumbnailPreview.show(scrubPosition)
+        showChrome()
     }
 
     private fun currentDuration(): Double {
@@ -272,11 +385,13 @@ class PlayerActivity : ComponentActivity() {
         if(!::timeline.isInitialized) return
         val duration = currentDuration()
         val position = currentPosition().coerceAtMost(if(duration>0)duration else Double.MAX_VALUE)
-        if(!timeline.isPressed && !timeline.hasFocus() && duration>0)
+        if(!timeline.isPressed && !scrubbing && duration>0)
             timeline.progress = (position/duration*1000).toInt().coerceIn(0,1000)
         elapsed.text = fmt(position)
         totalTime.text = fmt(duration)
-        playButton.text = if(player?.isPlaying==true)"❚❚" else "▶"
+        playButton.setImageResource(
+            if (player?.isPlaying == true) R.drawable.ic_player_pause else R.drawable.ic_player_play
+        )
     }
 
     private fun seekBy(delta: Double) {
@@ -286,6 +401,8 @@ class PlayerActivity : ComponentActivity() {
 
     private fun seekTo(seconds: Double) {
         pendingSeek = seconds.coerceIn(0.0, if (currentDuration() > 0) currentDuration() else 1e7)
+        showScrubAt(pendingSeek)
+        thumbnailPreview.hideSoon()
         pendingSeekAction?.let(handler::removeCallbacks)
         val action = Runnable {
             pendingSeekAction = null
@@ -763,6 +880,8 @@ class PlayerActivity : ComponentActivity() {
         handler.removeCallbacks(checkpoint)
         handler.removeCallbacks(uiRefresh)
         handler.removeCallbacks(hideChrome)
+        handler.removeCallbacks(scrubCommit)
+        if (::thumbnailPreview.isInitialized) thumbnailPreview.hide()
         saveProgress(false)
         player?.pause()
         super.onStop()
@@ -782,6 +901,8 @@ class PlayerActivity : ComponentActivity() {
         shuttingDown = true
         pendingSeekAction?.let(handler::removeCallbacks)
         pendingSeekAction = null
+        handler.removeCallbacks(scrubCommit)
+        if (::thumbnailPreview.isInitialized) thumbnailPreview.dispose()
         handler.removeCallbacks(checkpoint)
         handler.removeCallbacks(uiRefresh)
         handler.removeCallbacks(hideChrome)
