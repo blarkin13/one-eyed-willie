@@ -812,7 +812,9 @@ async function renderSeason(){
   const actions=el('div','season-actions-row');
   const support=el('div','season-support');
   view.append(episodeRail.shell,actions,support);
+  let activeEpisodeMenu=null;
   const selectEpisode=episode=>{
+    activeEpisodeMenu?.close(false);
     const previousButton=allCards.get(selected?.id);
     if(previousButton&&selected.id!==episode.id){
       previousButton.classList.remove('is-selected');
@@ -869,19 +871,58 @@ async function renderSeason(){
     more.setAttribute('aria-label','Episode and season options');
     more.setAttribute('aria-haspopup','dialog');
     more.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
+    more.setAttribute('aria-haspopup','menu');
+    more.setAttribute('aria-expanded','false');
     more.onclick=()=>{
-      const dialog=el('dialog','season-overflow-dialog');
-      dialog.setAttribute('aria-label','Episode and season options');
-      dialog.append(el('h2','','Episode and season options'));
-      let chosenAction=false;
+      if(activeEpisodeMenu){activeEpisodeMenu.close();return}
+      const menu=el('div','season-more-popover');
+      menu.setAttribute('role','menu');
+      menu.setAttribute('aria-label','Episode and season options');
+      menu.id='season-actions-menu';
+      more.setAttribute('aria-controls',menu.id);
+      more.setAttribute('aria-expanded','true');
+      const closeMenu=(restore=true)=>{
+        if(!menu.isConnected)return;
+        menu.remove();
+        document.removeEventListener('pointerdown',outside,true);
+        document.removeEventListener('keydown',keys,true);
+        window.removeEventListener('scroll',onScroll,true);
+        activeEpisodeMenu=null;
+        more.setAttribute('aria-expanded','false');
+        if(restore&&more.isConnected)more.focus({preventScroll:true});
+      };
+      const outside=event=>{
+        if(!menu.contains(event.target)&&!more.contains(event.target))closeMenu(false);
+      };
+      const onScroll=event=>{
+        if(event.target instanceof Node&&menu.contains(event.target))return;
+        closeMenu(false);
+      };
+      const keys=event=>{
+        if(!menu.contains(document.activeElement))return;
+        if(['Escape','Backspace','BrowserBack','GoBack'].includes(event.key)){
+          event.preventDefault();event.stopImmediatePropagation();closeMenu();return;
+        }
+        if(!['ArrowDown','ArrowUp'].includes(event.key))return;
+        event.preventDefault();event.stopImmediatePropagation();
+        const buttons=[...menu.querySelectorAll('[role="menuitem"]')];
+        const i=buttons.indexOf(document.activeElement);
+        const next=Math.max(0,Math.min(buttons.length-1,
+          i+(event.key==='ArrowDown'?1:-1)));
+        buttons[next]?.focus({preventScroll:true});
+      };
       const option=(label,run)=>{
         const button=el('button','season-overflow-item',label);
-        button.type='button';
+        button.type='button';button.setAttribute('role','menuitem');
         button.onclick=async()=>{
-          chosenAction=true;dialog.close();
-          try{await run()}catch(error){loading.textContent=error.message;}
+          closeMenu(false);
+          try{await run()}catch(error){loading.textContent=error.message}
+          finally{
+            if(!document.querySelector('dialog[open],.willie-player'))
+              document.getElementById('season-play-button')?.focus({preventScroll:true});
+          }
         };
-        dialog.append(button);
+        menu.append(button);
       };
       option(episode.watched?'Mark episode unwatched':'Mark episode watched',async()=>{
         const response=await fetch('/api/watch/'+episode.id+'/watched',{
@@ -917,19 +958,16 @@ async function renderSeason(){
           resume:canResume(ep)
         })));
       });
-      dialog.addEventListener('close',()=>{
-        dialog.remove();
-        // Don't steal focus from the Fix Match / trailer dialog or player
-        // launched by an overflow action.
-        if(document.querySelector('dialog[open],.willie-player'))return;
-        const focus=chosenAction?allCards.get(selected.id)
-          :(more.isConnected?more:allCards.get(selected.id));
-        focus?.focus({preventScroll:true});
-      });
-      dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
-      document.body.append(dialog);
-      dialog.showModal();
-      dialog.querySelector('.season-overflow-item')?.focus();
+      document.body.append(menu);
+      const rect=more.getBoundingClientRect();
+      menu.style.left=Math.max(8,Math.min(innerWidth-menu.offsetWidth-8,rect.left))+'px';
+      menu.style.top=(rect.bottom+menu.offsetHeight+8<=innerHeight
+        ?rect.bottom+4:Math.max(8,rect.top-menu.offsetHeight-4))+'px';
+      activeEpisodeMenu={close:closeMenu};
+      document.addEventListener('pointerdown',outside,true);
+      document.addEventListener('keydown',keys,true);
+      window.addEventListener('scroll',onScroll,true);
+      menu.querySelector('[role="menuitem"]')?.focus({preventScroll:true});
     };
     actions.append(more);
     const facts=el('div','season-action-facts');
