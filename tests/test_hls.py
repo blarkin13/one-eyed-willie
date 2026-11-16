@@ -57,7 +57,8 @@ class HLSTests(unittest.TestCase):
         gpu = hls._command(self.video, folder, 20, True)
         self.assertIn("h264_vaapi", gpu)
         self.assertIn("-vaapi_device", gpu)
-        self.assertIn("pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload", gpu)
+        self.assertIn("pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload",
+                      gpu[gpu.index("-vf") + 1])
         self.assertNotIn("libx264", gpu)
 
     def test_vaapi_failure_restarts_with_software(self):
