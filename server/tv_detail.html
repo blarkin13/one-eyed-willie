@@ -858,6 +858,10 @@ async function renderSeason(){
   const support=el('div','season-support');
   view.append(episodeRail.shell,actions,support);
   let activeEpisodeMenu=null;
+  window.__willieCloseSeasonMenu=()=>{
+    if(!activeEpisodeMenu)return false;
+    activeEpisodeMenu.close();return true;
+  };
   const selectEpisode=episode=>{
     activeEpisodeMenu?.close(false);
     const previousButton=allCards.get(selected?.id);
