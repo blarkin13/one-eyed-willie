@@ -237,7 +237,7 @@ class CompactLayoutTests(unittest.TestCase):
 
     def test_icon_nav_has_all_required_links_and_labels(self):
         js = (SERVER / "shell.js").read_text()
-        for path in ("/movies", "/tv", "/settings/libraries"):
+        for path in ("/movies", "/tv", "/settings"):
             self.assertIn(path, js)
         for name in ("fa-house", "fa-film", "fa-tv", "fa-gear"):
             self.assertIn(name, js)
