@@ -239,9 +239,25 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         val web = browser
-        if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null && web.canGoBack()) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
-                web.goBack()
+        if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                // Explore More opens its details within the same WebView
+                // document. Close that view before leaving the whole page.
+                web.evaluateJavascript(
+                    """(() => {
+                        const panel = document.getElementById('explore-detail');
+                        if (panel && !panel.hidden && typeof window.restoreExplore === 'function') {
+                            window.restoreExplore();
+                            return true;
+                        }
+                        return false;
+                    })()""".trimIndent()
+                ) { result ->
+                    if (browser === web && result != "true") {
+                        if (web.canGoBack()) web.goBack() else finish()
+                    }
+                }
+            }
             return true
         }
         if (direction != null && web != null) {
@@ -343,6 +359,12 @@ class MainActivity : ComponentActivity() {
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) :is(strong,small){
                   outline:0!important;box-shadow:none!important;
                   text-decoration:none!important
+                }
+                /* Episode cards are also selectable art: no text block or
+                   other card chrome is included in D-pad focus. */
+                body[data-page="tv"] .season-episode-tile:is(:focus,:focus-visible){
+                  outline:3px solid #d5eaff!important;outline-offset:3px!important;
+                  box-shadow:none!important
                 }
                 /* Explore uses a full-card button. Focus ONLY its poster. */
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible,
@@ -879,7 +901,7 @@ class MainActivity : ComponentActivity() {
               const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible);
               const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')].filter(isVisible);
               const isMenu=node=>Boolean(node?.closest?.('#app-nav'));
-              const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href],.person-credit-link';
+              const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href],.person-credit-link,.season-episode-tile';
               const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
               const firstPoster=()=>allPosters()[0]||null;
               const focusNode=node=>{
@@ -900,7 +922,7 @@ class MainActivity : ComponentActivity() {
                   const delta=r.top<padding?r.top-padding:
                     r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
                   if(Math.abs(delta)>1)window.scrollBy({top:delta,left:0,behavior:'instant'});
-                  const shelf=node.closest('.shelf-track,.discovery-row,.movie-cast');
+                  const shelf=node.closest('.shelf-track,.discovery-row,.movie-cast,.season-episode-track,.season-tabs');
                   if(shelf){
                     const bounds=rect(shelf);
                     const deltaX=r.left<bounds.left+12?r.left-bounds.left-12:
