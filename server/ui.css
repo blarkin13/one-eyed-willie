@@ -578,3 +578,38 @@ body:has(.willie-hover-backdrop-layer.is-visible) .tv-grid::before{opacity:0}
   .media-icon-action,.icon-only-control,.season-episode-tile,.cover,.explore-poster)
   {transition:transform .13s ease,filter .13s ease}
 }
+
+
+/* Highest-specificity shared override for individual page styles. This is
+   intentionally after base rules and uses both page and control selectors. */
+html body[data-page] :is(a,button,select,[tabindex="0"]):is(:focus,:focus-visible){
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  filter:brightness(1.16)
+}
+html body[data-page] :is(.media-icon-action,.icon-only-control):is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;background:transparent!important;
+  transform:scale(1.16)!important;color:#fff!important
+}
+html body[data-page] :is(.tile-button,.detail-trigger):is(:focus,:focus-visible) .cover,
+html body[data-page] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster,
+html body[data-page] .explore-card .detail-trigger:is(:focus,:focus-visible) .cover{
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  border-color:transparent!important;transform:scale(1.07)!important;
+  filter:brightness(1.13)
+}
+html body[data-page] .season-episode-tile:is(:focus,:focus-visible),
+html body[data-page] .season-episode-tile.is-selected{
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  border-color:transparent!important
+}
+html body[data-page] .season-episode-tile:is(:focus,:focus-visible){
+  transform:scale(1.075)!important;filter:brightness(1.16)
+}
+html body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+  transform:scale(1.045)!important;filter:brightness(1.1)
+}
+html body[data-page] :is(.cast-person,.tv-cast-person,.credit-cast a):is(:focus,:focus-visible)
+ :is(img,.cast-blank,.tv-actor-image,.credit-empty-photo){
+  outline:0!important;outline-offset:0!important;box-shadow:none!important;
+  transform:scale(1.07)!important;filter:brightness(1.13)
+}
