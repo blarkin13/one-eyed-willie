@@ -33,10 +33,10 @@
   outline:2px solid #d0e7ff;outline-offset:2px;background:#314f69b3}
 .credit-actions button:disabled{opacity:.46;cursor:not-allowed}
 .credit-actions button svg{width:28px;height:28px}
-.credit-arr-icon{display:grid;place-items:center;width:34px;height:34px;
+.credit-arr-icon{display:block;width:34px;height:34px;
   border:2px solid #b6d8ed;border-radius:9px;color:#e4f5fe;font-weight:850;font-size:1.1rem}
-.credit-arr-icon.radarr{border-color:#f6d577;color:#f9db82}
-.credit-arr-icon.sonarr{border-color:#7ed8e8;color:#b0edf5}
+.credit-arr-icon.radarr{border:0;color:#f9db82}
+.credit-arr-icon.sonarr{border:0;color:#b0edf5}
 .credit-note{color:#adc5db;font-size:.85rem;margin:8px 0 0}
 .credit-extra{padding:16px clamp(24px,5vw,82px) 65px}
 .credit-block{padding:20px 0 27px;border-top:1px solid #293b4e}
@@ -103,7 +103,7 @@
   <p id="overview" class="credit-overview"></p>
   <div class="credit-actions">
    <button id="add-title" type="button" title="Add to media manager" aria-label="Add to media manager">
-    <span id="provider-icon" class="credit-arr-icon" aria-hidden="true">R</span>
+    <svg id="provider-icon" class="credit-arr-icon" viewBox="0 0 24 24" aria-hidden="true"></svg>
    </button>
    <button id="trailer" type="button" hidden title="Play trailer" aria-label="Play trailer">
     <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9 5 3-5 3z" fill="currentColor"/></svg>
@@ -154,7 +154,10 @@ const year=Number(params.get('year'))||0;
 const target=$('add-title');
 let selected=null,detail=null,trailerKey=null;
 $('eyebrow').textContent=kind==='movie'?'MOVIE':'TV SERIES';
-$('provider-icon').textContent=kind==='movie'?'R':'S';
+document.body.dataset.page=kind==='movie'?'movies':'tv';
+$('provider-icon').innerHTML=kind==='movie'
+ ?'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="4.8" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>'
+ :'<path d="M3 12c3-6 6 6 9 0s6-6 9 0M3 17c3-6 6 6 9 0s6-6 9 0M3 7c3-6 6 6 9 0s6-6 9 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>';
 $('provider-icon').classList.add(provider);
 target.title='Add to '+(kind==='movie'?'Radarr':'Sonarr');
 target.setAttribute('aria-label',target.title);
