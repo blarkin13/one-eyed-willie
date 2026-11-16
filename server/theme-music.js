@@ -20,6 +20,7 @@
     if(!found.available||!found.url||!preferences[kind==='tv'?'tv_theme_music':'movie_theme_music'])return;
     const audio=new Audio();
     audio.src=found.url;
+    audio.volume=0;
     audio.preload='none';
     audio.loop=!!preferences.theme_loop;
     const volume=Math.max(0,Math.min(1,(Number(preferences.theme_volume)||0)/100));
@@ -58,11 +59,11 @@
     };
     const play=async()=>{
       if(disposed||muted)return;
+      audio.volume=fade?0:volume;
       try{
         await audio.play();
         armed=false;
-        if(fade){audio.volume=0;ramp(volume,650)}
-        else audio.volume=volume;
+        if(fade)ramp(volume,650);
       }catch(_){
         // Browser autoplay is frequently restricted: try again on user gesture.
         armed=true;
