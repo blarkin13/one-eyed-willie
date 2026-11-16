@@ -47,7 +47,28 @@ document.addEventListener('DOMContentLoaded', () => {
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
   const words=document.createElement('span');words.className='brand-name';words.textContent='One-eyed Willie';
-  brand.append(logoFrame,words);target.append(brand);
+  const greeting=document.createElement('span');greeting.className='brand-yarr';
+  greeting.textContent='Yarr';greeting.setAttribute('aria-hidden','true');
+  brand.append(logoFrame,words,greeting);target.append(brand);
+
+  // Greet once when the desktop rail opens, not on each navigation focus step.
+  // Hover and keyboard focus both open the existing CSS-driven sidebar.
+  let railExpanded=false;
+  const canGreet=()=>window.matchMedia('(min-width:701px)').matches;
+  function updateRailGreeting(){
+    const open=canGreet()&&(target.matches(':hover')||target.contains(document.activeElement));
+    if(open===railExpanded)return;
+    railExpanded=open;
+    target.classList.toggle('brand-yarr-open',open);
+  }
+  target.addEventListener('pointerenter',updateRailGreeting);
+  target.addEventListener('pointerleave',updateRailGreeting);
+  target.addEventListener('focusin',updateRailGreeting);
+  target.addEventListener('focusout',()=>{
+    // The next focused item is known after the focus transition.
+    requestAnimationFrame(updateRailGreeting);
+  });
+  window.addEventListener('resize',updateRailGreeting);
   const nav=document.createElement('nav');nav.className='side-nav';nav.setAttribute('aria-label','Main navigation');
   navItems.forEach(item=>{
     const a=document.createElement('a');a.href=item.href;a.title=item.name;
