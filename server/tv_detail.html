@@ -322,6 +322,15 @@ body.tv-season-mode #loading:empty{display:none}
   .season-episode-track{grid-auto-columns:clamp(145px,34vw,218px);
     gap:14px;padding-top:14px;padding-bottom:14px}
 }
+
+/* Keep the selected episode modestly enlarged while focus is on Play. */
+.season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+  transform:scale(1.045)!important;filter:brightness(1.1);
+  border-color:transparent!important;outline:0!important;box-shadow:none!important
+}
+.season-episode-tile.is-selected:is(:focus,:focus-visible){
+  transform:scale(1.075)!important;outline:0!important;box-shadow:none!important
+}
 </style></head><body data-page="tv">
 <div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -713,6 +722,7 @@ function seriesControls(data){
      ?'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11a8 8 0 1 1 2.4 6M4 4v7h7" fill="none" stroke="currentColor" stroke-width="2"/><path d="m10 9 6 3-6 3z" fill="currentColor"/></svg>'
      :'<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 5v14l11-7z" fill="currentColor"/></svg>';
    const identifier='S'+String(next.season).padStart(2,'0')+'E'+String(next.episode).padStart(2,'0');
+   button.id='series-play-button';
    button.title=resume?'Resume '+identifier:next.replay?'Replay '+identifier:'Play next episode · '+identifier;
    button.setAttribute('aria-label',button.title);
    button.onclick=()=>WilliePlayer.open(next.media_id,data.title+' · '+identifier,{restart:!resume});
@@ -756,11 +766,46 @@ async function renderShow(){
  const grid=el('div','season-grid');
  for(const season of data.seasons){
   if(season.number===null)continue;
-  grid.appendChild(coverCard(season,season.name,season.watched_count+' / '+season.episode_count+' watched',
-    seasonHref(data.library_id,data.key,season.number)));
+  const card=coverCard(season,season.name,season.watched_count+' / '+season.episode_count+' watched',
+    seasonHref(data.library_id,data.key,season.number));
+  if(season.number===1)card.querySelector('.tile-button').id='series-first-season';
+  grid.appendChild(card);
  }
  view.appendChild(grid);
  view.append(showExtras(data,{includeFacts:false}));
+ const showFirst=(selector)=>view.querySelector(selector);
+ const jump=(node,event)=>{
+   if(!node)return false;
+   event.preventDefault();node.focus({preventScroll:true});
+   node.scrollIntoView({block:'nearest',inline:'nearest'});return true;
+ };
+ view.addEventListener('keydown',event=>{
+   if(!['ArrowUp','ArrowDown'].includes(event.key) ||
+      document.querySelector('dialog[open],.season-more-popover'))return;
+   const active=document.activeElement;
+   const actions=active?.closest('.series-controls');
+   const grid=active?.closest('.season-grid');
+   const cast=active?.closest('.tv-cast');
+   const reviews=active?.closest('.tv-reviews');
+   const firstAction=showFirst('#series-play-button')||
+     showFirst('.series-controls button:not(:disabled)');
+   const firstSeason=showFirst('#series-first-season')||
+     showFirst('.season-grid .tile-button');
+   const firstCast=showFirst('.tv-cast .tv-cast-person');
+   const firstReview=showFirst('.tv-reviews button');
+   if(actions && event.key==='ArrowDown')
+     jump(firstSeason,event);
+   else if(grid && event.key==='ArrowUp')
+     jump(firstAction,event);
+   else if(grid && event.key==='ArrowDown')
+     jump(firstCast,event);
+   else if(cast && event.key==='ArrowUp')
+     jump(firstSeason,event);
+   else if(cast && event.key==='ArrowDown')
+     jump(firstReview,event);
+   else if(reviews && event.key==='ArrowUp')
+     jump(firstCast,event);
+ },true);
  if(data.seasons.some(s=>s.number===null)){
    const note=el('p','muted','Some files do not have season and episode numbers in their filenames, so they could not be assigned to a season.');
    view.appendChild(note);
