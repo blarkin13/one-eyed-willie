@@ -406,7 +406,7 @@ function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  const first=track.querySelector('.tile-button');
  if(first?._homeItem)updateHomeFeature(first,first._homeItem);
 }
-let homeRevision=null,homeRequestId=0,homePollTimer=null,homePollRunning=false;
+let homeRevision=null,homeProgressRevision=null,homeRequestId=0,homePollTimer=null,homePollRunning=false;
 async function load({preserveFocus=false}={}){
  const request=++homeRequestId;
  try{
@@ -437,22 +437,28 @@ async function load({preserveFocus=false}={}){
    window.scrollTo({top:pageScroll,behavior:'instant'});
   }
   if(Number.isSafeInteger(data.revision))homeRevision=data.revision;
+  if(Array.isArray(data.progress_revision))homeProgressRevision=JSON.stringify(data.progress_revision);
   fetchMoviePosters();
   byId('status').textContent='';
  }catch(error){if(request===homeRequestId)byId('status').textContent='Unable to load the home library: '+error.message;}
 }
-/* Poll one small integer instead of rebuilding the shelves on every tick. */
+/* Poll lightweight library and playback fingerprints; playback does not change catalog revision. */
 const HOME_POLL_MS=15000;
 async function pollHomeChanges(){
  if(homePollRunning)return;
  homePollRunning=true;
  try{
   if(document.hidden)return;
-  const response=await fetch('/api/catalog/revision',{cache:'no-store'});
+  const response=await fetch('/api/home/revision',{cache:'no-store'});
   if(!response.ok)return;
   const result=await response.json();
-  if(Number.isSafeInteger(result.revision)&&homeRevision!==null&&
-     result.revision!==homeRevision&&!document.hidden){
+  const progress=Array.isArray(result.progress_revision)?
+    JSON.stringify(result.progress_revision):null;
+  if(!document.hidden&&(
+     (Number.isSafeInteger(result.catalog_revision)&&homeRevision!==null&&
+      result.catalog_revision!==homeRevision)||
+     (progress!==null&&homeProgressRevision!==null&&progress!==homeProgressRevision)
+  )){
    await load({preserveFocus:true});
   }
  }catch(_){/* The existing shelves remain available while offline. */}
