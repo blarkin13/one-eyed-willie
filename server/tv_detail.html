@@ -425,7 +425,6 @@ async function loadJson(url){
 async function renderShow(){
  if(!Number.isInteger(state.library_id)||!state.library_id||!state.key)throw Error('Select a TV show from the library.');
  const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
- setBack('All TV Shows','/tv');
  document.title=data.title+' · One-Eyed Willie';
  state.show_title=data.title;
  view.append(hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES'));
