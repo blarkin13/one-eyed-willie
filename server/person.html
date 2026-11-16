@@ -8,11 +8,13 @@
 <style>
 .person-content{max-width:1220px}
 .person-back{display:inline-flex;margin:12px 0 30px;color:#adcce9}
-.person-hero{display:grid;grid-template-columns:minmax(150px,260px) minmax(0,1fr);gap:clamp(22px,4vw,58px);align-items:start}
-.person-photo-frame{position:relative;min-height:200px;aspect-ratio:3/4;background:#162334;border-radius:9px;overflow:hidden}
+.person-hero{display:grid;grid-template-columns:minmax(0,260px) minmax(0,1fr);gap:clamp(22px,4vw,58px);align-items:start}
+.person-hero > *{min-width:0}
+.person-photo-frame{position:relative;width:100%;min-width:0;min-height:0;aspect-ratio:3/4;background:#162334;border-radius:9px;overflow:hidden}
 .person-photo-fallback{position:absolute;inset:0;display:grid;place-items:center;color:#8ba1b8;font-size:4rem;font-weight:700}
 .person-photo-fallback[hidden]{display:none}
-.person-portrait{position:relative;z-index:1;width:100%;aspect-ratio:3/4;object-fit:cover;background:#162334;border-radius:9px}
+.person-portrait{position:relative;z-index:1;display:block;width:100%;height:100%;object-fit:cover;background:#162334;border-radius:9px}
+.person-portrait[hidden]{display:none}
 .person-hero h1{font-size:clamp(2.1rem,4vw,3.8rem);line-height:1.1;margin:0 0 20px}
 .person-hero p{line-height:1.75;color:#cad5e1;max-width:800px}
 .person-sources{display:flex;gap:18px;flex-wrap:wrap;margin-top:20px}
@@ -22,7 +24,22 @@
 .person-credits{list-style:none;margin:0;padding:0}
 .person-credits li{padding:13px 0;border-bottom:1px solid #243346;display:flex;justify-content:space-between;align-items:baseline;gap:14px}
 .person-credits strong{color:#e3edf8}.person-credits span{color:#94aac1;font-size:.86rem;text-align:right}
-@media(max-width:600px){.person-hero{grid-template-columns:105px minmax(0,1fr);gap:16px}.person-hero h1{font-size:1.8rem}.person-hero p{font-size:.88rem;line-height:1.5}.person-credits li{flex-direction:column;gap:4px}}
+@media(min-width:701px) and (max-width:900px){
+ .person-hero{grid-template-columns:minmax(0,190px) minmax(0,1fr);gap:25px}
+}
+@media(max-width:700px){
+ /* A 200px minimum portrait height previously forced its width across the
+    biography column. On phones the portrait and biography must not share a row. */
+ .person-content{min-width:0;box-sizing:border-box}
+ .person-hero{grid-template-columns:minmax(0,1fr);gap:18px}
+ .person-photo-frame{width:clamp(120px,39vw,170px);max-width:100%;min-height:0}
+ .person-hero h1{font-size:clamp(1.85rem,7vw,2.5rem);margin:0 0 13px;overflow-wrap:anywhere}
+ .person-hero p{font-size:.94rem;line-height:1.65;overflow-wrap:anywhere}
+ .person-sources{gap:12px 20px;margin-top:15px}
+ .person-filmography{margin-top:30px}
+ .person-credits{grid-template-columns:repeat(2,minmax(0,1fr));gap:19px 12px!important}
+ .person-credit-link{min-width:0}
+}
 
 /* One selectable title-card per credit; focus the image, never an entire row. */
 .person-credits{display:grid!important;grid-template-columns:repeat(auto-fill,minmax(min(100%,145px),1fr));
