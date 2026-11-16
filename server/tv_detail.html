@@ -786,7 +786,9 @@ async function renderShow(){
      showFirst('.season-grid .tile-button');
    const firstCast=showFirst('.tv-cast .tv-cast-person');
    const firstReview=showFirst('.tv-reviews button');
-   if(actions && event.key==='ArrowDown')
+   if((active===document.body||active===document.documentElement)&&event.key==='ArrowDown')
+     jump(firstAction,event);
+   else if(actions && event.key==='ArrowDown')
      jump(firstSeason,event);
    else if(grid && event.key==='ArrowUp')
      jump(firstAction,event);
