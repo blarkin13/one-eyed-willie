@@ -1202,6 +1202,27 @@ class MainActivity : ComponentActivity() {
                 node.focus({preventScroll:true});
                 let r=rect(node);
                 const padding=44;
+                // Dialogs have their own scrolling content. Keep the focused
+                // Match result visible inside that content, without scrolling
+                // the page behind the modal.
+                const modal=node.closest('dialog[open],.season-more-popover');
+                if(modal){
+                  let scroller=node.parentElement;
+                  while(scroller && scroller!==modal){
+                    const style=getComputedStyle(scroller);
+                    if(/auto|scroll/.test(style.overflowY) &&
+                       scroller.scrollHeight>scroller.clientHeight+1)break;
+                    scroller=scroller.parentElement;
+                  }
+                  if(!scroller)scroller=modal;
+                  const bounds=rect(scroller);
+                  const edge=12;
+                  if(r.top<bounds.top+edge)
+                    scroller.scrollTop-=bounds.top+edge-r.top;
+                  else if(r.bottom>bounds.bottom-edge)
+                    scroller.scrollTop+=r.bottom-bounds.bottom+edge;
+                  return true;
+                }
                 // Only scroll enough to reveal a genuinely clipped selection.
                 // scrollIntoView() caused entire shelves to snap/jump by a row.
                 if(isMenu(node)){

@@ -47,9 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
   const words=document.createElement('span');words.className='brand-name';words.textContent='One-eyed Willie';
-  const greeting=document.createElement('span');greeting.className='brand-yarr';
-  greeting.textContent='Yarr';greeting.setAttribute('aria-hidden','true');
-  brand.append(logoFrame,words,greeting);target.append(brand);
+  brand.append(logoFrame,words);target.append(brand);
 
   // Greet once when the desktop rail opens, not on each navigation focus step.
   // Hover and keyboard focus both open the existing CSS-driven sidebar.
