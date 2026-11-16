@@ -23,16 +23,35 @@ class SettingsNavigationTests(unittest.TestCase):
             self.assertIn(endpoint, page)
         self.assertIn('id="sidebar-order"', page)
 
-    def test_gear_links_to_hub_and_sidebar_has_four_sections(self):
+    def test_gear_is_only_settings_sidebar_entry(self):
         shell = (ROOT / "shell.js").read_text()
         self.assertIn("href:'/settings',name:'Settings'", shell)
-        for route in ("/settings/general","/settings/libraries",
-                      "/settings/metadata","/settings/connections"):
-            self.assertIn(route,shell)
-        self.assertNotIn("const settingsSheet=document.createElement('dialog')",shell)
+        self.assertNotIn("settingsSections", shell)
+        self.assertNotIn("settings-shortcuts", shell)
+        self.assertNotIn("const settingsSheet=document.createElement('dialog')", shell)
+        css = (ROOT / "ui.css").read_text()
+        self.assertNotIn("settings-shortcuts", css)
+        # The four settings destinations belong to the landing page,
+        # not the sidebar on settings screens.
         page = (ROOT / "settings_hub.html").read_text()
-        for heading in ("General", "Library", "Metadata", "Connections"):
-            self.assertIn("<h2>"+heading+"</h2>",page)
+        for heading, route in [
+            ("General", "/settings/general"),
+            ("Library", "/settings/libraries"),
+            ("Metadata", "/settings/metadata"),
+            ("Connections", "/settings/connections"),
+        ]:
+            self.assertIn("<h2>"+heading+"</h2>", page)
+            self.assertIn('href="'+route+'"', page)
+
+    def test_playback_is_only_configured_in_general(self):
+        from server.main import playback_settings_page
+        general = (ROOT / "general_settings.html").read_text()
+        self.assertIn('id="auto-next"', general)
+        self.assertNotIn('Advanced playback page', general)
+        self.assertNotIn('href="/settings/playback"', general)
+        response = playback_settings_page()
+        self.assertEqual(response.status_code, 307)
+        self.assertEqual(response.headers["location"], "/settings/general#playback-heading")
 
     def test_library_editor_supports_icon_font_and_multi_folders(self):
         page = (ROOT / "index.html").read_text()
