@@ -33,27 +33,29 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 }
 .tile-button:focus-visible .cover{outline:3px solid #d7edff;outline-offset:3px}
 
-/* Library header: controls aligned together at the right on wide layouts. */
-.library-head{align-items:center;gap:18px;margin-bottom:34px;position:relative;isolation:isolate;min-height:220px;overflow:hidden;padding:20px 8px 18px}
+/* Keep the title and all catalog controls together in the FIRST row.
+   The trivia is a separate second row; no flex-wrap or bottom-aligned toolbar
+   should push Search/Sort/Filter below it on a TV or desktop. */
+.library-head{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
+ gap:10px;margin-bottom:14px;position:relative;isolation:isolate;min-height:0;
+ overflow:hidden;padding:14px 8px 10px}
+.library-head-top{display:flex;align-items:center;justify-content:space-between;
+ gap:20px;width:100%;min-width:0;position:relative;z-index:2}
 .library-header-art{position:absolute;z-index:-1;pointer-events:none;
  left:var(--masthead-x,75%);top:var(--masthead-y,50%);width:min(77%,790px);
  max-width:none;height:auto;transform:translate(-50%,-50%) scale(var(--masthead-scale,1));
  opacity:var(--masthead-opacity,.6);user-select:none;object-fit:contain}
-.library-heading,.library-head-actions{position:relative;z-index:2}
+.library-heading{min-width:0;flex:0 1 auto}
 .library-header-title{display:flex;align-items:center;gap:16px}
 .library-header-title .library-header-icon{color:#beddf7;flex:none;display:inline-grid;place-items:center}
 .library-header-title .library-header-icon svg{width:clamp(31px,3.2vw,43px);height:clamp(31px,3.2vw,43px)}
 #page-title[class*="library-font--"]{font-family:var(--lib-font,system-ui,sans-serif)!important;
  font-weight:var(--lib-weight,700)!important;letter-spacing:var(--lib-spacing,normal)!important;
  text-transform:var(--lib-transform,none);line-height:1.15;overflow-wrap:anywhere}
-@media(max-width:760px){.library-head{min-height:195px;padding:18px 7px}
- .library-header-art{width:min(95%,500px)}
- .library-header-title{gap:10px}
- .library-header-title .library-header-icon svg{width:27px;height:27px}}
+.library-head-actions{display:flex;align-items:center;justify-content:flex-end;
+ gap:10px;flex:0 0 auto;min-width:0;position:relative;z-index:2;white-space:nowrap}
+.library-head-actions .search-box input{width:clamp(185px,19vw,270px)}
 
-.library-heading{min-width:0;flex:1 1 360px}
-.library-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:0 1 auto;min-width:0}
-.library-head-actions .search-box input{width:clamp(195px,21vw,315px)}
 /* Compact icon tools: selected options live in small, remote-friendly popovers. */
 #sort[hidden],#genre[hidden]{display:none!important}
 .catalog-menu-anchor{position:relative;flex:none}
@@ -85,79 +87,65 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 .catalog-genre-menu{max-height:min(390px,70vh)}
 .catalog-tool-menu::-webkit-scrollbar{width:7px}
 .catalog-tool-menu::-webkit-scrollbar-thumb{background:#3c5772;border-radius:8px}
-/* Large, calm question → answer display. Keep answer space reserved to avoid jump. */
-.library-head{min-height:305px;align-items:flex-end;gap:24px}
-.library-heading{flex:1 1 740px;max-width:min(100%,1060px)}
-.library-head-actions{align-self:flex-end;margin-bottom:5px}
-.library-trivia{max-width:min(100%,1040px);min-height:155px;padding-top:16px;
- display:flex;flex-direction:column;justify-content:flex-start;gap:14px}
-.library-trivia .trivia-question{margin:0;max-width:100%;font-size:clamp(1.25rem,1.52vw,2rem);
- line-height:1.36;letter-spacing:-.018em;font-weight:600;color:#e1eaf5;
- text-wrap:pretty;overflow-wrap:break-word;transition:opacity .35s ease,transform .35s ease}
+/* Readable questions with only two lines of question/answer space reserved:
+   rotating trivia does not push the poster grid up or down. */
+.library-trivia{position:relative;z-index:2;width:100%;max-width:min(100%,1040px);
+ display:flex;flex-direction:column;justify-content:flex-start;gap:5px;padding-top:2px}
+.library-trivia .trivia-question{margin:0;max-width:100%;min-height:2.6em;
+ font-size:clamp(1.25rem,1.52vw,2rem);line-height:1.36;letter-spacing:-.018em;
+ font-weight:600;color:#e1eaf5;text-wrap:pretty;overflow-wrap:break-word;
+ transition:opacity .35s ease,transform .35s ease}
 .library-trivia .trivia-question.is-changing{opacity:0;transform:translateY(5px)}
-.library-trivia .trivia-answer{display:flex;align-items:baseline;gap:13px;min-height:2.3em;
+.library-trivia .trivia-answer{display:flex;align-items:baseline;gap:10px;min-height:2.5em;
  opacity:0;visibility:hidden;transform:translateY(6px);
  transition:opacity .42s ease,transform .42s ease,visibility .42s}
 .library-trivia .trivia-answer.revealed{opacity:1;visibility:visible;transform:none}
 .trivia-answer-label{font-size:.7rem;line-height:1.5;font-weight:800;letter-spacing:.12em;
  text-transform:uppercase;color:#8ebfe9;flex:none}
 .library-trivia .trivia-answer p{margin:0;line-height:1.4;
- font-size:clamp(1.12rem,1.23vw,1.65rem);font-weight:650;color:#b4daf8;max-width:890px;
- overflow-wrap:anywhere;text-wrap:pretty}
+ font-size:clamp(1.12rem,1.23vw,1.65rem);font-weight:650;color:#b4daf8;
+ max-width:890px;overflow-wrap:anywhere;text-wrap:pretty}
+.library-head + .section-heading{margin-bottom:12px}
+#status:empty{display:none}
 @media(min-width:1600px){
- .library-head{min-height:350px;padding-top:33px;padding-bottom:26px}
- .library-heading{max-width:min(100%,1250px)}
- .library-trivia{max-width:1120px;min-height:185px;padding-top:21px;gap:17px}
- .library-trivia .trivia-question{font-size:clamp(1.65rem,1.6vw,2.4rem);line-height:1.36}
+ .library-trivia{max-width:1120px}
+ .library-trivia .trivia-question{font-size:clamp(1.65rem,1.6vw,2.4rem)}
  .library-trivia .trivia-answer p{font-size:clamp(1.4rem,1.35vw,2rem)}
  .trivia-answer-label{font-size:.88rem}
 }
-/* Android TV WebView uses a roughly 960px CSS viewport even on a 1080p TV. */
+/* Android TV WebView often reports a CSS viewport around 960px. */
 @media(min-width:761px) and (max-width:1200px){
  .library-trivia .trivia-question{font-size:clamp(1.45rem,2.6vw,1.95rem)}
  .library-trivia .trivia-answer p{font-size:clamp(1.23rem,2.15vw,1.7rem)}
 }
 @media(min-width:761px) and (hover:none){
- .library-head{min-height:355px}
- .library-trivia{min-height:200px}
  .library-trivia .trivia-question{font-size:clamp(1.7rem,2.9vw,2.35rem)}
  .library-trivia .trivia-answer p{font-size:clamp(1.4rem,2.4vw,1.85rem)}
 }
-@media(max-width:1200px){
- .library-head{align-items:flex-start}
- .library-heading{max-width:100%}
- .library-head-actions{align-self:flex-end}
-}
 @media(max-width:760px){
- .library-head{min-height:250px;gap:12px}
- .library-trivia{min-height:155px;padding-top:12px;gap:10px}
+ .library-head{padding:12px 7px 8px;gap:10px}
+ .library-head-top{flex-wrap:wrap;align-items:flex-start;gap:10px}
+ .library-heading{flex:1 1 100%}
+ .library-header-art{width:min(95%,500px)}
+ .library-header-title{gap:10px}
+ .library-header-title .library-header-icon svg{width:27px;height:27px}
+ /* Mobile can wrap the tools, but they still precede the trivia. */
+ .library-head-actions{width:100%;justify-content:flex-start;gap:8px}
+ .library-head-actions .search-box{flex:1 1 140px}
+ .library-head-actions .search-box input{width:100%}
  .library-trivia .trivia-question{font-size:clamp(1.1rem,3.7vw,1.5rem);line-height:1.4}
- .library-trivia .trivia-answer{gap:9px}
  .library-trivia .trivia-answer p{font-size:clamp(1rem,3.3vw,1.32rem)}
  .trivia-answer-label{font-size:.64rem}
+}
+@media(max-width:520px){
+ .library-head-actions{flex-wrap:wrap}
+ .library-head-actions .search-box{flex:1 1 100%;width:100%}
+ .catalog-tool-menu{max-height:55vh}
 }
 @media(prefers-reduced-motion:reduce){
  .library-trivia :is(.trivia-question,.trivia-answer){transition:none;transform:none}
 }
-@media(max-width:1000px){
- .library-head{align-items:flex-start}
- .library-head-actions{flex-wrap:wrap}
-}
-@media(max-width:760px){
- .library-head{display:flex;flex-direction:column;align-items:stretch;gap:14px}
- .library-heading{flex:0 1 auto}
- .library-head-actions{width:100%;justify-content:flex-end;flex-wrap:wrap}
- .library-head-actions .search-box{flex:1 1 160px}
- .library-head-actions .search-box input{width:100%}
 
-}
-@media(max-width:520px){
- .library-head-actions{gap:8px;justify-content:space-between}
- .library-head-actions .search-box{flex:1 1 100%;width:100%}
-
-}
-@media(min-width:761px) and (max-width:1260px){.library-head-actions{flex-wrap:wrap}}
-@media(max-width:520px){.catalog-tool-menu{max-height:55vh}}
 .catalog-refresh-metadata{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:10px;color:#cde4fa;background:#172536;border:1px solid #40536b;border-radius:11px;cursor:pointer}
 .catalog-refresh-metadata:hover,.catalog-refresh-metadata:focus-visible{color:#fff;background:#29415b}
 .catalog-refresh-metadata:disabled{opacity:.45;cursor:default}
@@ -173,17 +161,11 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
     <main class="content">
       <div class="page-head library-head" id="library-masthead">
         <img id="library-header-art" class="library-header-art" alt="" aria-hidden="true" src="/assets/library-header-movies.png">
-        <div class="library-heading">
-          <p class="eyebrow" id="eyebrow">Your library</p>
-          <div class="library-header-title"><span class="library-header-icon" id="library-title-icon" aria-hidden="true"></span><h1 id="page-title">Movies</h1></div>
-          <div class="library-trivia" id="page-description" aria-label="Rotating movie and television trivia">
-            <p class="trivia-question" id="trivia-question" aria-live="off"></p>
-            <div class="trivia-answer" id="trivia-answer" aria-hidden="true">
-              <span class="trivia-answer-label">Answer</span>
-              <p id="trivia-answer-text" aria-live="polite"></p>
-            </div>
+        <div class="library-head-top">
+          <div class="library-heading">
+            <p class="eyebrow" id="eyebrow">Your library</p>
+            <div class="library-header-title"><span class="library-header-icon" id="library-title-icon" aria-hidden="true"></span><h1 id="page-title">Movies</h1></div>
           </div>
-        </div>
         <div class="library-head-actions" role="group" aria-label="Browse library controls">
           <label class="search-box"><span class="sr-only">Search titles</span><input type="search" id="search" placeholder="Search titles…" maxlength="150" aria-label="Search titles"></label>
           <select id="sort" hidden aria-label="Sort titles"><option value="title">Title A–Z</option><option value="added">Date Added (newest)</option><option value="length">Length (longest)</option><option value="rating">Rating (highest)</option></select>
@@ -203,6 +185,14 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
           </div>
            <button id="refresh-metadata" class="catalog-refresh-metadata" type="button" title="Refresh genre, rating and runtime metadata" aria-label="Refresh genre, rating and runtime metadata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 5.4"/><path d="M20 4v7h-7"/></svg></button>
            <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
+        </div>
+        </div>
+        <div class="library-trivia" id="page-description" aria-label="Rotating movie and television trivia">
+          <p class="trivia-question" id="trivia-question" aria-live="off"></p>
+          <div class="trivia-answer" id="trivia-answer" aria-hidden="true">
+            <span class="trivia-answer-label">Answer</span>
+            <p id="trivia-answer-text" aria-live="polite"></p>
+          </div>
         </div>
       </div>
       <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
