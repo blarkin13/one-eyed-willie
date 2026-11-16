@@ -89,7 +89,7 @@ class ArrConnectionTests(unittest.TestCase):
             return {"id": 900, "title": "Severance"}
         def fake_get(name, resource, query=None):
             if resource == "series":
-                return []
+                return [{"tvdbId": 379481, "id": 900}] if requests else []
             if resource == "series/lookup":
                 return [{"tvdbId": 379481, "title": "Severance", "seasons": [],
                          "seriesType": "standard"}]
@@ -113,7 +113,7 @@ class ArrConnectionTests(unittest.TestCase):
         opts = {"folders": [{"path": "/tv", "label": "/tv"}], "profiles": [{"id": 4, "name": "HD"}], "tags": [{"id": 9, "name": "Drama"}]}
         sent = []
         def get(name, resource, query=None):
-            return [] if resource == "series" else [{"tvdbId": 379481, "title": "Severance", "seasons": []}]
+            return ([{"tvdbId": 379481, "id": 900}] if sent else []) if resource == "series" else [{"tvdbId": 379481, "title": "Severance", "seasons": []}]
         def request(name, settings, resource, **kwargs):
             sent.append(kwargs["payload"])
             return {"title": "Severance", "id": 900}
@@ -182,7 +182,7 @@ class ArrConnectionTests(unittest.TestCase):
                    "profiles": [{"id": 2, "name": "HD"}]}
         sent = []
         def fake_get(name, resource, query=None):
-            return [] if resource == "movie" else [{"tmdbId": 603, "title": "The Matrix"}]
+            return ([{"tmdbId": 603, "id": 100}] if sent else []) if resource == "movie" else [{"tmdbId": 603, "title": "The Matrix"}]
         def fake_request(name, settings, resource, **kwargs):
             sent.append(kwargs["payload"])
             return {"title": "The Matrix", "id": 100}
@@ -194,6 +194,25 @@ class ArrConnectionTests(unittest.TestCase):
                 root_folder="/movies",quality_profile_id=2,search_now=True))
         self.assertTrue(sent[0]["addOptions"]["searchForMovie"])
         self.assertEqual(sent[0]["tmdbId"], 603)
+
+    def test_manager_add_is_not_reported_success_until_title_is_in_library(self):
+        setting = {"url": "http://192.168.86.29:8989", "api_key": "secret", "api_version": "v3"}
+        options = {"folders": [{"path": "/tv", "label": "/tv"}],
+                   "profiles": [{"id": 4, "name": "HD"}]}
+        def fake_get(name, resource, query=None):
+            if resource == "series/lookup":
+                return [{"tvdbId": 379481, "title": "Severance", "seasons": []}]
+            return []
+        with patch.object(arr, "_settings", return_value=setting), \
+             patch.object(arr, "options", return_value=options), \
+             patch.object(arr, "_get", side_effect=fake_get), \
+             patch.object(arr, "_request", return_value={"id": 900, "title": "Severance"}):
+            with self.assertRaises(HTTPException) as err:
+                arr.add("sonarr", arr.AddInput(
+                    external_id=379481, root_folder="/tv", quality_profile_id=4
+                ))
+        self.assertEqual(err.exception.status_code, 502)
+        self.assertIn("not confirmed", err.exception.detail)
 
     def test_unknown_profile_cannot_add(self):
         with patch.object(arr, "_settings", return_value={"url": "http://192.168.86.29:8989"}), \
