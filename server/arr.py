@@ -440,7 +440,24 @@ def add(name: str, selection: AddInput):
         })
         endpoint = "series"
     result = _request(name, setting, endpoint, method="POST", payload=payload)
-    # Invalidate only the connected manager's snapshot after a successful add.
+    # A successful HTTP response is not proof the intended title was created.
+    # Check the manager's library by the canonical TMDB/TVDB identity before
+    # telling the user it was added; do not silently claim success.
+    if not isinstance(result, dict) or not isinstance(result.get("id"), int) or result["id"] <= 0:
+        raise HTTPException(502, "Media manager did not confirm a new title. Check the manager before retrying.")
+    returned_id = _id(name, result)
+    if returned_id is not None and returned_id != selection.external_id:
+        raise HTTPException(502, "Media manager returned a different title. Check the manager before retrying.")
+    try:
+        persisted = _get(name, endpoint)
+    except HTTPException:
+        raise HTTPException(502, "Media manager accepted the add but verification failed. Check the manager before retrying.")
+    if not isinstance(persisted, list) or not any(
+        isinstance(item, dict) and _id(name, item) == selection.external_id
+        for item in persisted
+    ):
+        raise HTTPException(502, "Media manager has not confirmed the title in its library. Check the manager before retrying.")
+    # Invalidate only the connected manager's snapshot after a verified add.
     with db() as conn:
         if name == "radarr":
             movies._snapshot_table(conn)
@@ -451,7 +468,7 @@ def add(name: str, selection: AddInput):
                 fetched_at INTEGER NOT NULL, source_url TEXT NOT NULL)""")
             conn.execute("DELETE FROM sonarr_snapshot")
     return {
-        "added": True, "provider": name, "title": result.get("title") or payload["title"],
+        "added": True, "verified": True, "provider": name, "title": result.get("title") or payload["title"],
         "id": result.get("id"), "search_requested": selection.search_now,
         "note": "Added to the media manager. Files appear in One-Eyed Willie only after they're obtained and indexed.",
     }
