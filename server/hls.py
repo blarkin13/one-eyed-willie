@@ -19,6 +19,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
 from .playback import _item, probe_duration
+from .hardware import hardware_supported
 
 router = APIRouter(prefix="/api/stream/hls")
 FFMPEG = "/usr/bin/ffmpeg"
@@ -26,7 +27,7 @@ ROOT = Path(os.environ.get("HLS_CACHE_DIR", "/data/hls"))
 ACTIVE = {}
 LOCK = threading.RLock()
 MAX_SESSIONS = 2
-IDLE_SECONDS = 180
+IDLE_SECONDS = 30 * 60
 SESSION_SECONDS = 8 * 60 * 60
 MIN_FREE_BYTES = 512 * 1024 * 1024
 TOKEN = re.compile(r"^[a-f0-9]{32}$")
@@ -47,25 +48,23 @@ class Session:
 
 
 def hardware_available():
-    return (
-        os.environ.get("WILLIE_HW_ACCEL", "auto").lower() in ("auto", "vaapi")
-        and Path("/dev/dri/renderD128").exists()
-        and os.access("/dev/dri/renderD128", os.R_OK | os.W_OK)
-    )
+    return hardware_supported()
 
 
 def _command(file, directory, start, hardware=False):
-    args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
-            "-re", "-ss", str(start), "-i", str(file), "-map", "0:v:0", "-map", "0:a:0?"]
+    # Keep generated segments available for replay and seeking. The old
+    # sliding playlist deleted segments while viewers were still watching.
+    # Read slightly ahead of real-time without encoding the entire file at once.
+    args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error"]
     if hardware:
-        # Keep decoded surfaces on the GPU through scaling and H.264 encoding.
-        # Unsupported source codecs or VAAPI drivers fall back to software.
-        args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
-                "-hwaccel", "vaapi", "-hwaccel_device", "/dev/dri/renderD128",
-                "-hwaccel_output_format", "vaapi",
-                "-re", "-ss", str(start), "-i", str(file), "-map", "0:v:0", "-map", "0:a:0?"]
-        args += ["-vf", "scale_vaapi=w=1280:h=720:force_original_aspect_ratio=decrease:"
-                 "force_divisible_by=2:format=nv12",
+        # Decode in software, upload frames for GPU encoding. Forcing VAAPI
+        # decoding of every source causes needless fallback for unsupported inputs.
+        args += ["-vaapi_device", "/dev/dri/renderD128"]
+    args += ["-readrate", "1.5", "-ss", str(start), "-i", str(file),
+             "-map", "0:v:0", "-map", "0:a:0?"]
+    if hardware:
+        args += ["-vf", "scale=1280:720:force_original_aspect_ratio=decrease,"
+                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload",
                  "-c:v", "h264_vaapi",
                  "-b:v", "2500k", "-maxrate", "3200k", "-bufsize", "5000k"]
     else:
@@ -77,9 +76,8 @@ def _command(file, directory, start, hardware=False):
     args += ["-c:a", "aac", "-ac", "2", "-b:a", "128k", "-ar", "48000",
              "-force_key_frames", "expr:gte(t,n_forced*4)",
              "-sc_threshold", "0", "-f", "hls", "-hls_time", "4",
-             "-hls_list_size", "8",
-             "-hls_delete_threshold", "2",
-             "-hls_flags", "delete_segments+temp_file+independent_segments",
+             "-hls_playlist_type", "event", "-hls_list_size", "0",
+             "-hls_flags", "temp_file+independent_segments",
              "-hls_segment_filename", str(directory / "segment_%06d.ts"),
              str(directory / "index.m3u8")]
     return args
@@ -164,7 +162,7 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000)):
             raise HTTPException(503, "Unable to start transcoder") from exc
         now = time.monotonic()
         session = Session(token, directory, process, now, now, media_id,
-                          "Intel VAAPI decode + encode" if hardware else "CPU", probe_duration(file), start)
+                          "Intel VAAPI encode" if hardware else "CPU", probe_duration(file), start)
         ACTIVE[token] = session
         return {"session": token,
                 "playlist": f"/api/stream/hls/{token}/index.m3u8",
@@ -179,7 +177,7 @@ def stream_status(token: str):
     code = session.process.poll()
     if code is not None and code != 0 and not playlist.exists():
         # Some driver/codec combinations cannot use VAAPI; restart with CPU.
-        if session.acceleration == "Intel VAAPI decode + encode":
+        if session.acceleration == "Intel VAAPI encode":
             with LOCK:
                 if ACTIVE.get(token) is session:
                     try:
@@ -195,6 +193,8 @@ def stream_status(token: str):
                         pass
         if code is not None:
             raise HTTPException(422, "Transcoder could not decode this video")
+    if code is not None and code != 0:
+        raise HTTPException(422, "Transcoder stopped unexpectedly")
     return {"ready": playlist.is_file(), "engine": session.acceleration,
             "playlist": f"/api/stream/hls/{token}/index.m3u8",
             "duration": session.duration, "start": session.start}
