@@ -2,6 +2,7 @@ package studio.oneeyedwillie.tv
 
 import android.content.Intent
 import android.graphics.Color
+import android.view.inputmethod.InputMethodManager
 import android.os.Bundle
 import android.view.Gravity
 import android.view.KeyEvent
@@ -33,6 +34,15 @@ class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("server", MODE_PRIVATE) }
     private var browser: WebView? = null
     private var origin = ""
+    // D-pad focus must not turn a text field into an editing session.
+    private var tvTextEditing = false
+
+    private fun finishTvTextEditing(web: WebView) {
+        tvTextEditing = false
+        web.evaluateJavascript("window.__willieTvEndTextEdit?.()", null)
+        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+            .hideSoftInputFromWindow(web.windowToken, 0)
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -42,6 +52,10 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 val web = browser
                 if (web == null) { showSetup(); return }
+                if (tvTextEditing) {
+                    finishTvTextEditing(web)
+                    return
+                }
                 // Closing the tiny episode menu must never navigate away from
                 // the season page. Evaluation is asynchronous on the UI thread.
                 web.evaluateJavascript("Boolean(window.__willieCloseSeasonMenu?.())") { result ->
@@ -65,6 +79,7 @@ class MainActivity : ComponentActivity() {
     } catch (_: Exception) { false }
 
     private fun showSetup(error: String = "") {
+        tvTextEditing = false
         browser?.keepScreenOn = false
         browser?.destroy()
         browser = null
@@ -101,6 +116,16 @@ class MainActivity : ComponentActivity() {
         }
         val input = EditText(this).apply {
             setSingleLine(true)
+            // A highlighted server-address field should not summon the IME.
+            showSoftInputOnFocus = false
+            setOnFocusChangeListener { _, focused ->
+                if (!focused) showSoftInputOnFocus = false
+            }
+            setOnClickListener {
+                showSoftInputOnFocus = true
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+            }
             setText(prefs.getString("url", "http://192.168.86.29:8787"))
             hint = "http://your-server:8787"
             textSize = 20f
@@ -147,6 +172,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showSetup("Invalid server URL"); return }
+        tvTextEditing = false
         origin = server.trimEnd('/')
         val view = WebView(this)
         browser = view
@@ -177,6 +203,24 @@ class MainActivity : ComponentActivity() {
                     web.post { if (browser === web && !isFinishing) web.keepScreenOn = awake }
                     return true
                 }
+                if (sameOrigin(url) && browser === web &&
+                    (message == "oewtv:edit:begin" || message == "oewtv:edit:end")) {
+                    val begin = message == "oewtv:edit:begin"
+                    tvTextEditing = begin
+                    result.confirm("ACK")
+                    if (begin) {
+                        // Let WebView recreate its input connection after the
+                        // selected field has been made editable and refocused.
+                        web.postDelayed({
+                            if (browser === web && tvTextEditing && !isFinishing) {
+                                web.requestFocus()
+                                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                                    .showSoftInput(web, InputMethodManager.SHOW_IMPLICIT)
+                            }
+                        }, 80L)
+                    }
+                    return true
+                }
                 if (!sameOrigin(url) || !message.startsWith("oewtv:play:"))
                     return super.onJsPrompt(web, url, message, defaultValue, result)
                 try {
@@ -198,6 +242,7 @@ class MainActivity : ComponentActivity() {
         }
         view.webViewClient = object : WebViewClient() {
             override fun onPageStarted(web: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                tvTextEditing = false
                 web.keepScreenOn = false
                 super.onPageStarted(web, url, favicon)
             }
@@ -240,7 +285,14 @@ class MainActivity : ComponentActivity() {
             }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
-                if (sameOrigin(url.orEmpty())) installRemoteNavigation(web)
+                if (sameOrigin(url.orEmpty())) {
+                    installRemoteNavigation(web)
+                    // A page with autofocus must not leave the keyboard open
+                    // before its inputs receive the TV read-only focus guard.
+                    if (!tvTextEditing)
+                        (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                            .hideSoftInputFromWindow(web.windowToken, 0)
+                }
             }
         }
         setContentView(view)
@@ -283,6 +335,10 @@ class MainActivity : ComponentActivity() {
         val web = browser
         if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                if (tvTextEditing) {
+                    finishTvTextEditing(web)
+                    return true
+                }
                 // Explore More opens its details within the same WebView
                 // document. Close that view before leaving the whole page.
                 web.evaluateJavascript(
@@ -303,6 +359,9 @@ class MainActivity : ComponentActivity() {
             return true
         }
         if (direction != null && web != null) {
+            // Cursor/IME arrows belong to the editor after OK, but otherwise
+            // navigate normally between fields and the rest of the page.
+            if (tvTextEditing) return super.dispatchKeyEvent(event)
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
                 web.evaluateJavascript(
                     "window.__willieTvMove && window.__willieTvMove('$direction')",
@@ -341,10 +400,12 @@ class MainActivity : ComponentActivity() {
     override fun onPause() {
         // Never hold the display awake when browsing or watching is backgrounded.
         browser?.keepScreenOn = false
+        browser?.let { if (tvTextEditing) finishTvTextEditing(it) }
         super.onPause()
     }
 
     override fun onDestroy() {
+        tvTextEditing = false
         browser?.keepScreenOn = false
         browser?.destroy()
         browser = null
@@ -354,6 +415,76 @@ class MainActivity : ComponentActivity() {
     companion object {
         private val TV_REMOTE_SCRIPT = """
             (() => {
+              // Google TV remote navigation may focus a search box while the
+              // viewer is just moving through the interface. A focused text
+              // input remains read-only until OK/Select or a real click.
+              // The fields remain focusable and keep their existing values.
+              if(!window.__oewTvInputGateInstalled){
+                window.__oewTvInputGateInstalled=true;
+                const protectedFields=new WeakSet();
+                let editingField=null;
+                let refocusing=false;
+                const isTextField=node=>node instanceof HTMLTextAreaElement ||
+                  (node instanceof HTMLInputElement &&
+                    ['text','search','email','password','tel','url','number'].includes(node.type));
+                const protect=node=>{
+                  if(!isTextField(node)||node.disabled||node===editingField||node.readOnly)return;
+                  node.readOnly=true;
+                  protectedFields.add(node);
+                };
+                const scan=root=>{
+                  if(root.nodeType!==1&&root.nodeType!==9&&root.nodeType!==11)return;
+                  protect(root);
+                  root.querySelectorAll?.('input,textarea').forEach(protect);
+                };
+                scan(document);
+                new MutationObserver(records=>{
+                  for(const record of records)
+                    for(const node of record.addedNodes)scan(node);
+                }).observe(document.documentElement,{childList:true,subtree:true});
+                const notify=mode=>{
+                  try{prompt('oewtv:edit:'+mode,'')}catch(_){}
+                };
+                const endEditing=()=>{
+                  if(!editingField)return false;
+                  const field=editingField;
+                  editingField=null;
+                  if(field.isConnected)field.readOnly=true;
+                  notify('end');
+                  return true;
+                };
+                window.__willieTvEndTextEdit=endEditing;
+                const beginEditing=field=>{
+                  if(!protectedFields.has(field)||field.disabled)return false;
+                  if(editingField===field)return true;
+                  if(editingField)endEditing();
+                  editingField=field;
+                  field.readOnly=false;
+                  // WebView may have focused the field in read-only mode.
+                  // Recreate its input connection only after explicit Select.
+                  refocusing=true;
+                  field.blur();
+                  field.focus({preventScroll:true});
+                  refocusing=false;
+                  notify('begin');
+                  return true;
+                };
+                document.addEventListener('focusin',event=>protect(event.target),true);
+                document.addEventListener('focusout',event=>{
+                  if(!refocusing&&event.target===editingField)endEditing();
+                },true);
+                document.addEventListener('keydown',event=>{
+                  if(!['Enter',' '].includes(event.key)||!isTextField(event.target))return;
+                  if(!protectedFields.has(event.target)||editingField===event.target)return;
+                  event.preventDefault();
+                  event.stopImmediatePropagation();
+                  beginEditing(event.target);
+                },true);
+                document.addEventListener('click',event=>{
+                  if(isTextField(event.target)&&protectedFields.has(event.target))
+                    beginEditing(event.target);
+                },true);
+              }
               // Intercept every existing Play/Resume entry point even if the
               // deferred server player.js loads after this WebView callback.
               const nativeOpen=(id,title,options={})=>{
