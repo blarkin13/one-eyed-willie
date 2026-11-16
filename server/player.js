@@ -309,6 +309,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     button.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true">'+icons[icon]+'</svg>';
   }
   function start(media, title, options={}){
+    window.WillieThemeMusic?.stop(true);
     const id=Number(media);
     if(!Number.isInteger(id)||id<=0)return;
     if(current)close();
