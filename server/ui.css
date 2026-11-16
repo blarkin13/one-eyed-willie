@@ -613,3 +613,10 @@ html body[data-page] :is(.cast-person,.tv-cast-person,.credit-cast a):is(:focus,
   outline:0!important;outline-offset:0!important;box-shadow:none!important;
   transform:scale(1.07)!important;filter:brightness(1.13)
 }
+
+/* The browser player uses dynamic buttons rather than media-icon-action. */
+html body[data-page] :is(.willie-controls,.willie-toolbar) button:is(:focus,:focus-visible){
+  outline:0!important;box-shadow:none!important;
+  background:transparent!important;transform:scale(1.16)!important;
+  filter:brightness(1.23)!important
+}
