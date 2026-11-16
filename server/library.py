@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
+from typing import Literal
 
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media")).resolve()
 DB_PATH = Path(os.environ.get("DATABASE_PATH", "/data/library.sqlite3"))
@@ -15,9 +16,27 @@ scan_lock = Lock()
 router = APIRouter(prefix="/api")
 
 
+LIBRARY_ICONS = ("film", "tv", "folder", "clapperboard", "star", "heart",
+                 "ghost", "rocket", "book", "play", "music", "archive")
+LIBRARY_FONTS = ("default", "serif", "condensed", "mono", "rounded")
+
+
 class LibraryRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    kind: str
+    kind: Literal["movies", "tv"]
+    path: str
+    icon: str = "folder"
+    font: str = "default"
+
+
+class LibraryEdit(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    icon: str = "folder"
+    font: str = "default"
+    sidebar_hidden: bool = False
+
+
+class FolderRequest(BaseModel):
     path: str
 
 
@@ -28,6 +47,25 @@ def db():
     connection.execute("PRAGMA busy_timeout=30000")
     connection.execute("CREATE TABLE IF NOT EXISTS libraries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, path TEXT NOT NULL UNIQUE, last_scanned TEXT)")
     connection.execute("CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL, size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(library_id) REFERENCES libraries(id))")
+    library_columns = {row[1] for row in connection.execute("PRAGMA table_info(libraries)")}
+    for name, schema in (
+        ("icon", "TEXT NOT NULL DEFAULT 'folder'"),
+        ("font", "TEXT NOT NULL DEFAULT 'default'"),
+        ("sidebar_hidden", "INTEGER NOT NULL DEFAULT 0"),
+        ("sort_order", "INTEGER NOT NULL DEFAULT 0"),
+    ):
+        if name not in library_columns:
+            connection.execute(f"ALTER TABLE libraries ADD COLUMN {name} {schema}")
+    connection.execute("""CREATE TABLE IF NOT EXISTS library_folders (
+        id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, path TEXT NOT NULL UNIQUE,
+        FOREIGN KEY(library_id) REFERENCES libraries(id)
+    )""")
+    # Backfill all old single-folder libraries without changing their IDs or files.
+    connection.execute("INSERT OR IGNORE INTO library_folders(library_id,path) SELECT id,path FROM libraries")
+    connection.execute("CREATE INDEX IF NOT EXISTS library_folders_library_idx ON library_folders(library_id)")
+    media_columns = {row[1] for row in connection.execute("PRAGMA table_info(media)")}
+    if "source_root" not in media_columns:
+        connection.execute("ALTER TABLE media ADD COLUMN source_root TEXT NOT NULL DEFAULT ''")
     # Preserve first-seen dates on every rescan, including after upgrades from v0.4.
     columns = {row[1] for row in connection.execute("PRAGMA table_info(media)")}
     if "added_at" not in columns:
@@ -48,7 +86,10 @@ def db():
 
 
 def safe_folder(folder: str):
-    candidate = Path(folder).resolve(strict=True)
+    try:
+        candidate = Path(folder).resolve(strict=True)
+    except (OSError, RuntimeError) as error:
+        raise HTTPException(400, "The selected folder is unavailable") from error
     if not candidate.is_dir() or not candidate.is_relative_to(MEDIA_ROOT):
         raise HTTPException(400, "Select a directory inside the mounted media drive")
     return candidate
@@ -66,31 +107,110 @@ def folders(path: str = "/media"):
         raise HTTPException(400, f"Cannot browse folder: {exc}") from exc
 
 
+def _library_view(conn, library_id=None):
+    rows = conn.execute("""
+        SELECT l.*, (SELECT count(*) FROM media WHERE library_id=l.id) AS media_count
+        FROM libraries l WHERE (? IS NULL OR l.id=?)
+        ORDER BY l.sort_order, l.kind, l.name
+    """, (library_id, library_id)).fetchall()
+    folders = {}
+    for folder in conn.execute("SELECT id,library_id,path FROM library_folders ORDER BY id"):
+        folders.setdefault(folder["library_id"], []).append({"id": folder["id"], "path": folder["path"]})
+    return [{**dict(row), "sidebar_hidden": bool(row["sidebar_hidden"]),
+             "folders": folders.get(row["id"], [])} for row in rows]
+
+
 @router.get("/libraries")
 def libraries():
     with db() as connection:
-        rows = connection.execute("""
-          SELECT l.*, (SELECT count(*) FROM media WHERE library_id=l.id) AS media_count
-          FROM libraries l ORDER BY l.kind, l.name
-        """).fetchall()
-        return [dict(r) for r in rows]
+        return _library_view(connection)
+
+
+def _validate_style(icon, font):
+    if icon not in LIBRARY_ICONS or font not in LIBRARY_FONTS:
+        raise HTTPException(422, "Choose a supported library icon and font")
+
+
+def _reject_folder_overlap(conn, folder, exclude_library_id=None):
+    for row in conn.execute("SELECT library_id,path FROM library_folders"):
+        other = Path(row["path"])
+        if folder == other:
+            raise HTTPException(409, "This folder is already in a library")
+        if folder.is_relative_to(other) or other.is_relative_to(folder):
+            raise HTTPException(409, "Choose a separate folder, not one inside another library folder")
+
+
+@router.patch("/libraries/{library_id}")
+def update_library(library_id: int, item: LibraryEdit):
+    _validate_style(item.icon, item.font)
+    name = item.name.strip()
+    if not name:
+        raise HTTPException(422, "Library name is required")
+    with db() as connection:
+        if not connection.execute("SELECT 1 FROM libraries WHERE id=?", (library_id,)).fetchone():
+            raise HTTPException(404, "Library not found")
+        connection.execute(
+            "UPDATE libraries SET name=?,icon=?,font=?,sidebar_hidden=? WHERE id=?",
+            (name, item.icon, item.font, int(item.sidebar_hidden), library_id))
+        return _library_view(connection, library_id)[0]
+
+
+@router.post("/libraries/{library_id}/folders", status_code=201)
+def add_library_folder(library_id: int, item: FolderRequest):
+    folder = safe_folder(item.path)
+    with db() as connection:
+        if not connection.execute("SELECT 1 FROM libraries WHERE id=?", (library_id,)).fetchone():
+            raise HTTPException(404, "Library not found")
+        _reject_folder_overlap(connection, folder)
+        connection.execute("INSERT INTO library_folders(library_id,path) VALUES(?,?)",
+                           (library_id, str(folder)))
+        connection.execute("UPDATE libraries SET last_scanned=NULL WHERE id=?", (library_id,))
+        return _library_view(connection, library_id)[0]
+
+
+@router.delete("/libraries/{library_id}/folders/{folder_id}")
+def remove_library_folder(library_id: int, folder_id: int):
+    with db() as connection:
+        lib = connection.execute("SELECT path FROM libraries WHERE id=?", (library_id,)).fetchone()
+        if lib is None:
+            raise HTTPException(404, "Library not found")
+        folders = connection.execute(
+            "SELECT id,path FROM library_folders WHERE library_id=? ORDER BY id",
+            (library_id,)).fetchall()
+        if not any(f["id"] == folder_id for f in folders):
+            raise HTTPException(404, "Library folder not found")
+        if len(folders) <= 1:
+            raise HTTPException(409, "A library must have at least one folder")
+        removed = next(f for f in folders if f["id"] == folder_id)
+        replacement = next(f["path"] for f in folders if f["id"] != folder_id)
+        if removed["path"] == lib["path"]:
+            connection.execute("UPDATE libraries SET path=? WHERE id=?",
+                               (replacement, library_id))
+        connection.execute("DELETE FROM library_folders WHERE id=? AND library_id=?",
+                           (folder_id, library_id))
+        # Retain watched history until a rescan confirms the remaining roots.
+        connection.execute("UPDATE libraries SET last_scanned=NULL WHERE id=?", (library_id,))
+        return _library_view(connection, library_id)[0]
 
 
 @router.post("/libraries", status_code=201)
 def create_library(item: LibraryRequest):
-    if item.kind not in {"movies", "tv"}:
-        raise HTTPException(400, "Library type must be movies or tv")
+    _validate_style(item.icon, item.font)
     try:
         folder = safe_folder(item.path)
     except (OSError, ValueError) as exc:
         raise HTTPException(400, f"Invalid folder: {exc}") from exc
     try:
         with db() as connection:
+            _reject_folder_overlap(connection, folder)
             cursor = connection.execute(
-                "INSERT INTO libraries (name,kind,path) VALUES (?,?,?)",
-                (item.name.strip(), item.kind, str(folder)),
+                "INSERT INTO libraries (name,kind,path,icon,font,sort_order) VALUES (?,?,?,?,?,?)",
+                (item.name.strip(), item.kind, str(folder), item.icon, item.font,
+                 connection.execute("SELECT COALESCE(MAX(sort_order),0)+1 FROM libraries").fetchone()[0]),
             )
-            return {"id": cursor.lastrowid, "name": item.name.strip(), "kind": item.kind, "path": str(folder)}
+            connection.execute("INSERT INTO library_folders(library_id,path) VALUES(?,?)",
+                               (cursor.lastrowid, str(folder)))
+            return _library_view(connection, cursor.lastrowid)[0]
     except sqlite3.IntegrityError as exc:
         raise HTTPException(409, "This folder already belongs to a library") from exc
 
@@ -103,6 +223,7 @@ def delete_library(library_id: int):
             raise HTTPException(404, "Library not found")
         connection.execute("DELETE FROM playback_progress WHERE media_id IN (SELECT id FROM media WHERE library_id=?)", (library_id,))
         connection.execute("DELETE FROM media WHERE library_id=?", (library_id,))
+        connection.execute("DELETE FROM library_folders WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
     return {"removed": True, "media_files_deleted": False}
 
@@ -116,17 +237,21 @@ def scan_library(library_id: int):
             library = connection.execute("SELECT * FROM libraries WHERE id=?", (library_id,)).fetchone()
             if not library:
                 raise HTTPException(404, "Library not found")
-            try:
-                root = safe_folder(library["path"])
-            except (OSError, ValueError) as exc:
-                raise HTTPException(400, f"Library folder unavailable: {exc}") from exc
+            folder_rows = connection.execute(
+                "SELECT path FROM library_folders WHERE library_id=? ORDER BY id", (library_id,)
+            ).fetchall()
+            # Fail safely if any mounted root disappears; do not erase the catalog.
+            roots = [safe_folder(row["path"]) for row in folder_rows]
+            if not roots:
+                raise HTTPException(400, "Library has no media folders")
 
             seen = set()
             errors = 0
             # Files discovered in the same scan share a first-seen timestamp.
             # Their actual modification time breaks ties instead of walk order.
             scan_added_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
-            for directory, dirs, files in os.walk(root, followlinks=False):
+            for root in roots:
+              for directory, dirs, files in os.walk(root, followlinks=False):
                 dirs[:] = [d for d in dirs if not d.startswith(".") and not Path(directory, d).is_symlink()]
                 for filename in files:
                     file_path = Path(directory, filename)
@@ -137,11 +262,13 @@ def scan_library(library_id: int):
                         media_path = str(file_path)
                         seen.add(media_path)
                         connection.execute("""
-                          INSERT INTO media (library_id,path,title,size,mtime_ns,added_at)
-                          VALUES (?,?,?,?,?,?)
+                          INSERT INTO media (library_id,path,title,size,mtime_ns,added_at,source_root)
+                          VALUES (?,?,?,?,?,?,?)
                           ON CONFLICT(path) DO UPDATE SET library_id=excluded.library_id,
-                          title=excluded.title,size=excluded.size,mtime_ns=excluded.mtime_ns
-                        """, (library_id, media_path, file_path.stem, stat.st_size, stat.st_mtime_ns, scan_added_at))
+                          title=excluded.title,size=excluded.size,mtime_ns=excluded.mtime_ns,
+                          source_root=excluded.source_root
+                        """, (library_id, media_path, file_path.stem, stat.st_size,
+                              stat.st_mtime_ns, scan_added_at, str(root)))
                     except OSError:
                         errors += 1
             # Never remove catalog entries if the scan encountered unreadable files.
