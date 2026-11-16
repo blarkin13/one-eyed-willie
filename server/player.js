@@ -603,7 +603,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       // Server-wide saved setting; no per-playback toggle required.
       requestJson('/api/settings/playback').then(prefs=>{
         if(current!==surface)return;
-        autoPlayNext=!!prefs.auto_play_next;
+        autoPlayNext=!!prefs.auto_play_next||seasonShuffle;
         if(video.ended)showNextCountdown();
       }).catch(()=>{autoPlayNext=false});
       reloadTracks().catch(()=>{});
