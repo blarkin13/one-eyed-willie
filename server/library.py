@@ -102,6 +102,12 @@ def db():
         completed INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""")
+    # A persistent revision lets open web/Google TV pages detect real media
+    # changes without refreshing their entire poster grids every scan.
+    connection.execute("""CREATE TABLE IF NOT EXISTS catalog_state (
+        id INTEGER PRIMARY KEY CHECK (id=1), revision INTEGER NOT NULL DEFAULT 0
+    )""")
+    connection.execute("INSERT OR IGNORE INTO catalog_state(id,revision) VALUES (1,0)")
     connection.execute("CREATE INDEX IF NOT EXISTS media_added_idx ON media(added_at DESC)")
     connection.execute("CREATE INDEX IF NOT EXISTS playback_updated_idx ON playback_progress(updated_at DESC)")
     connection.commit()
@@ -362,6 +368,7 @@ def delete_library(library_id: int):
         connection.execute("DELETE FROM media WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM library_folders WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
+        connection.execute("UPDATE catalog_state SET revision=revision+1 WHERE id=1")
     _header_path(library_id).unlink(missing_ok=True)
     return {"removed": True, "media_files_deleted": False}
 
@@ -385,6 +392,8 @@ def scan_library(library_id: int):
 
             seen = set()
             errors = 0
+            # Count media changes, not the housekeeping last_scanned update.
+            media_changes_before = connection.total_changes
             # Files discovered in the same scan share a first-seen timestamp.
             # Their actual modification time breaks ties instead of walk order.
             scan_added_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S.%f")
@@ -405,6 +414,11 @@ def scan_library(library_id: int):
                           ON CONFLICT(path) DO UPDATE SET library_id=excluded.library_id,
                           title=excluded.title,size=excluded.size,mtime_ns=excluded.mtime_ns,
                           source_root=excluded.source_root
+                          WHERE media.library_id IS NOT excluded.library_id
+                             OR media.title IS NOT excluded.title
+                             OR media.size IS NOT excluded.size
+                             OR media.mtime_ns IS NOT excluded.mtime_ns
+                             OR media.source_root IS NOT excluded.source_root
                         """, (library_id, media_path, file_path.stem, stat.st_size,
                               stat.st_mtime_ns, scan_added_at, str(root)))
                     except OSError:
@@ -416,9 +430,13 @@ def scan_library(library_id: int):
                     if row["path"] not in seen:
                         connection.execute("DELETE FROM playback_progress WHERE media_id IN (SELECT id FROM media WHERE library_id=? AND path=?)", (library_id, row["path"]))
                         connection.execute("DELETE FROM media WHERE library_id=? AND path=?", (library_id, row["path"]))
+            changed = connection.total_changes > media_changes_before
+            if changed:
+                connection.execute("UPDATE catalog_state SET revision=revision+1 WHERE id=1")
             now = datetime.now(timezone.utc).isoformat()
             connection.execute("UPDATE libraries SET last_scanned=? WHERE id=?", (now, library_id))
-            return {"found": len(seen), "errors": errors, "last_scanned": now}
+            return {"found": len(seen), "errors": errors, "last_scanned": now,
+                    "changed": changed}
     finally:
         scan_lock.release()
 
