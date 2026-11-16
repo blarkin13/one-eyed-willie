@@ -490,15 +490,15 @@ class MainActivity : ComponentActivity() {
                 /* The server supplies the same anchor-based watched flag on
                    Google TV as in the browser, without a checkmark overlay. */
                 body[data-page="home"] .watched-badge{
-                  position:absolute!important;top:6px!important;right:6px!important;
+                  position:absolute!important;top:4px!important;right:4px!important;
                   z-index:5!important;display:grid!important;place-items:center!important;
-                  width:24px!important;height:24px!important;
+                  width:15px!important;height:15px!important;
                   padding:0!important;border-radius:50%!important;
                   background:#091929e8!important;border:1px solid #7faec4!important;
                   color:#d7edf8!important;pointer-events:none!important
                 }
                 body[data-page="home"] .watched-badge svg{
-                  display:block!important;width:17px!important;height:17px!important
+                  display:block!important;width:10px!important;height:10px!important
                 }
                 .shelf-track{grid-auto-columns:clamp(145px,18vw,218px)!important;
                   gap:19px!important}
