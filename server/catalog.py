@@ -92,10 +92,10 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title", library_id=N
             "SELECT media_id FROM playback_progress WHERE completed=0 AND position_seconds>=30"
         )}
         for lib in applicable:
-            rows = conn.execute("SELECT id,path,size,added_at,mtime_ns FROM media WHERE library_id=? ORDER BY path", (lib["id"],)).fetchall()
+            rows = conn.execute("SELECT id,path,source_root,size,added_at,mtime_ns FROM media WHERE library_id=? ORDER BY path", (lib["id"],)).fetchall()
             for row in rows:
                 try:
-                    parsed = movie_info(row["path"], lib["path"]) if lib["kind"] == "movies" else episode_info(row["path"], lib["path"])
+                    parsed = movie_info(row["path"], row["source_root"] or lib["path"]) if lib["kind"] == "movies" else episode_info(row["path"], row["source_root"] or lib["path"])
                 except (ValueError, OSError):
                     continue
                 if search and search.casefold() not in parsed["title"].casefold():
