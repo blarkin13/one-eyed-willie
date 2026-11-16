@@ -766,6 +766,21 @@ async function renderShow(){
  }
  view.appendChild(grid);
  view.append(showExtras(data,{includeFacts:false}));
+ const leftmostAdjacentSeason=(active,direction)=>{
+   if(!active?.closest('.season-grid'))return null;
+   const cards=[...grid.querySelectorAll('.tile-button')];
+   const top=active.getBoundingClientRect().top;
+   const eligible=cards.filter(card=>{
+     const diff=card.getBoundingClientRect().top-top;
+     return direction==='ArrowDown'?diff>15:diff< -15;
+   });
+   if(!eligible.length)return null;
+   const adjacentTop=direction==='ArrowDown'
+     ?Math.min(...eligible.map(card=>card.getBoundingClientRect().top))
+     :Math.max(...eligible.map(card=>card.getBoundingClientRect().top));
+   return eligible.filter(card=>Math.abs(card.getBoundingClientRect().top-adjacentTop)<15)
+     .sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left)[0]||null;
+ };
  const showFirst=(selector)=>view.querySelector(selector);
  const jump=(node,event)=>{
    if(!node)return false;
@@ -790,10 +805,12 @@ async function renderShow(){
      jump(firstAction,event);
    else if(actions && event.key==='ArrowDown')
      jump(firstSeason,event);
-   else if(grid && event.key==='ArrowUp')
-     jump(firstAction,event);
-   else if(grid && event.key==='ArrowDown')
-     jump(firstCast,event);
+   else if(grid){
+     const nextRow=leftmostAdjacentSeason(active,event.key);
+     if(nextRow)jump(nextRow,event);
+     else if(event.key==='ArrowUp')jump(firstAction,event);
+     else jump(firstCast,event);
+   }
    else if(cast && event.key==='ArrowUp')
      jump(firstSeason,event);
    else if(cast && event.key==='ArrowDown')
