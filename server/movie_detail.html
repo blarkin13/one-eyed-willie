@@ -168,7 +168,7 @@ body[data-page=movies] .workspace>.content:has(.movie-detail-hero){max-width:non
       </button>
       <button id="watched-movie" type="button" class="secondary-button media-icon-action"
         title="Mark watched" aria-label="Mark watched">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m4 13 5 5L20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>
       </button>
       <div id="video-format" class="movie-video-format" aria-label="Source video format"></div>
     </div>
@@ -284,9 +284,15 @@ async function loadMovie(){
      const badge=document.createElement('span');badge.className='video-format-badge '+kind;
      badge.textContent=label;badge.title='Source file: '+label;format.append(badge);
    }
-   $('movie-meta').textContent=[
-     movie.year||null,movie.runtime?movie.runtime+' min':null,
-     movie.watched?'✓ Watched':null].filter(Boolean).join('  ·  ');
+   const movieMeta=$('movie-meta');
+   movieMeta.textContent=[movie.year||null,movie.runtime?movie.runtime+' min':null]
+     .filter(Boolean).join('  ·  ');
+   if(movie.watched){
+     const flag=document.createElement('span');flag.className='movie-watched-flag';
+     flag.setAttribute('aria-label','Watched');flag.title='Watched';
+     flag.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>';
+     movieMeta.append(flag);
+   }
    $('movie-genres').textContent=(movie.genres||[]).join('  ·  ');
    $('movie-credit').textContent=movie.metadata_source?'Metadata: '+movie.metadata_source:'';
    for(const [id,url] of [['poster',movie.poster_url],['backdrop',movie.backdrop_url]]){
