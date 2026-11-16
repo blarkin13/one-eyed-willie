@@ -674,12 +674,18 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun startHlsOnNetwork(position: Double) {
+        if (shuttingDown) return
+        var createdToken: String? = null
         try {
             val start = position.coerceAtLeast(0.0)
             handler.post { if (!shuttingDown) showMessage("Preparing compatible HLS stream…") }
             val created = request("/api/stream/hls/start/$mediaId?start=$start", "POST")
             val token = created.getString("session")
-            if (shuttingDown) return
+            createdToken = token
+            if (shuttingDown) {
+                try { request("/api/stream/hls/$token", "DELETE") } catch (_: Exception) {}
+                return
+            }
             session = token
             var ready: JSONObject? = null
             for (attempt in 0 until 80) {
@@ -700,9 +706,15 @@ class PlayerActivity : ComponentActivity() {
                     .build()
                 player?.setMediaItem(item)
                 player?.prepare()
+                player?.seekTo(0L) // EVENT HLS begins at zero, not the live edge.
                 player?.playWhenReady = true
             }
         } catch (error: Exception) {
+            createdToken?.let { token ->
+                try { request("/api/stream/hls/$token", "DELETE") }
+                catch (_: Exception) {}
+                if (session == token) session = null
+            }
             handler.post {
                 if (!shuttingDown) showMessage("Compatible playback failed: ${error.message}")
             }
