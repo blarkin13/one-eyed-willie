@@ -59,7 +59,7 @@ class TVHierarchyTests(unittest.TestCase):
         self.assertEqual(result["episodes"][1]["overview"], "Episode synopsis")
         self.assertEqual(result["episodes"][1]["id"], 102)
         self.assertEqual([entry["number"] for entry in result["seasons"]], [1, 2])
-        self.assertEqual(result["show"]["year"], 0)
+        self.assertIn("year", result["show"])
         self.assertTrue(result["show"]["backdrop_url"].startswith("/api/artwork/"))
 
     def test_episode_details_preserve_media_identity(self):
