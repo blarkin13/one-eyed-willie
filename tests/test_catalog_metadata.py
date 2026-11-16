@@ -88,9 +88,9 @@ class CatalogMetadataTests(unittest.TestCase):
         with patch.object(movies, "_snapshot", return_value=radarr), \
              patch.object(movies, "_details", return_value={
                  "genres": ["Horror"], "runtime": 109
-             }) as details, \\
-             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989"}), \\
-             patch.object(arr, "_request", return_value=sonarr), \\
+             }) as details, \
+             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989"}), \
+             patch.object(arr, "_request", return_value=sonarr), \
              patch.object(tv, "show_metadata", return_value={
                  "genres": ["Mystery"], "rating": 9.0, "runtime": 52
              }) as show:
@@ -108,12 +108,12 @@ class CatalogMetadataTests(unittest.TestCase):
         self.assertEqual(series["rating"], 8.6)
         self.assertEqual(series["runtime"], 52)
         # An unchanged second pass is still 100% available.
-        with patch.object(movies, "_snapshot", return_value=radarr), \\
+        with patch.object(movies, "_snapshot", return_value=radarr), \
              patch.object(movies, "_details", return_value={
                  "genres": ["Horror"], "runtime": 109
-             }), \\
-             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989"}), \\
-             patch.object(arr, "_request", return_value=sonarr), \\
+             }), \
+             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989"}), \
+             patch.object(arr, "_request", return_value=sonarr), \
              patch.object(tv, "show_metadata", return_value={
                  "genres": ["Mystery"], "runtime": 52
              }):
@@ -130,7 +130,7 @@ class CatalogMetadataTests(unittest.TestCase):
             "last_finished": 10**12, "last_signature": (2, 2, 0, 2)
         })
         with patch.object(catalog_metadata, "_library_signature",
-                          side_effect=[(2, 2, 0, 2), (3, 3, 0, 2)]), \\
+                          side_effect=[(2, 2, 0, 2), (3, 3, 0, 2)]), \
              patch.object(catalog_metadata.threading.Thread, "start") as start:
             self.assertFalse(catalog_metadata.start_refresh())
             self.assertTrue(catalog_metadata.start_refresh())
