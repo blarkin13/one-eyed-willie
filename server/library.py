@@ -1,18 +1,24 @@
 """Local read-only media library catalog and folder configuration."""
 import os
+import io
+import tempfile
 import sqlite3
 from pathlib import Path
 from threading import Lock
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse
 from typing import Literal
+from PIL import Image, UnidentifiedImageError
 
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media")).resolve()
 DB_PATH = Path(os.environ.get("DATABASE_PATH", "/data/library.sqlite3"))
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".webm", ".mpg", ".mpeg"}
 scan_lock = Lock()
+HEADER_DIRECTORY = DB_PATH.parent / 'library-headers'
+HEADER_MAX_BYTES = 5 * 1024 * 1024
 router = APIRouter(prefix="/api")
 
 
@@ -42,6 +48,10 @@ class LibraryEdit(BaseModel):
     icon: str = "folder"
     font: str = "default"
     sidebar_hidden: bool = False
+    header_x: int | None = Field(None, ge=0, le=100)
+    header_y: int | None = Field(None, ge=0, le=100)
+    header_scale: int | None = Field(None, ge=40, le=200)
+    header_opacity: int | None = Field(None, ge=0, le=100)
 
 
 class FolderRequest(BaseModel):
@@ -61,6 +71,11 @@ def db():
         ("font", "TEXT NOT NULL DEFAULT 'default'"),
         ("sidebar_hidden", "INTEGER NOT NULL DEFAULT 0"),
         ("sort_order", "INTEGER NOT NULL DEFAULT 0"),
+        ("header_x", "INTEGER NOT NULL DEFAULT 75"),
+        ("header_y", "INTEGER NOT NULL DEFAULT 50"),
+        ("header_scale", "INTEGER NOT NULL DEFAULT 100"),
+        ("header_opacity", "INTEGER NOT NULL DEFAULT 60"),
+        ("header_version", "INTEGER NOT NULL DEFAULT 0"),
     ):
         if name not in library_columns:
             connection.execute(f"ALTER TABLE libraries ADD COLUMN {name} {schema}")
@@ -124,8 +139,19 @@ def _library_view(conn, library_id=None):
     folders = {}
     for folder in conn.execute("SELECT id,library_id,path FROM library_folders ORDER BY id"):
         folders.setdefault(folder["library_id"], []).append({"id": folder["id"], "path": folder["path"]})
-    return [{**dict(row), "sidebar_hidden": bool(row["sidebar_hidden"]),
-             "folders": folders.get(row["id"], [])} for row in rows]
+    result = []
+    for row in rows:
+        item = dict(row)
+        item["sidebar_hidden"] = bool(row["sidebar_hidden"])
+        item["folders"] = folders.get(row["id"], [])
+        item["header_custom"] = bool(item["header_version"] % 2)
+        item["header_image_url"] = (
+            f"/api/libraries/{item['id']}/header.png?v={item['header_version']}"
+            if item["header_custom"]
+            else f"/assets/library-header-{item['kind']}.png"
+        )
+        result.append(item)
+    return result
 
 
 @router.get("/libraries")
@@ -158,9 +184,112 @@ def update_library(library_id: int, item: LibraryEdit):
         if not connection.execute("SELECT 1 FROM libraries WHERE id=?", (library_id,)).fetchone():
             raise HTTPException(404, "Library not found")
         connection.execute(
-            "UPDATE libraries SET name=?,icon=?,font=?,sidebar_hidden=? WHERE id=?",
-            (name, item.icon, item.font, int(item.sidebar_hidden), library_id))
+            """UPDATE libraries SET name=?,icon=?,font=?,sidebar_hidden=?,
+               header_x=COALESCE(?,header_x), header_y=COALESCE(?,header_y),
+               header_scale=COALESCE(?,header_scale),header_opacity=COALESCE(?,header_opacity)
+               WHERE id=?""",
+            (name, item.icon, item.font, int(item.sidebar_hidden),
+             item.header_x, item.header_y, item.header_scale, item.header_opacity,
+             library_id))
         return _library_view(connection, library_id)[0]
+
+
+def _header_path(library_id: int):
+    return HEADER_DIRECTORY / f"{library_id}.png"
+
+
+@router.get("/libraries/{library_id}/header.png")
+def library_header_image(library_id: int):
+    with db() as connection:
+        row = connection.execute(
+            "SELECT header_version FROM libraries WHERE id=?", (library_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Library not found")
+    if row["header_version"] % 2 == 0:
+        raise HTTPException(404, "This library uses the default header")
+    image = _header_path(library_id)
+    if not image.is_file():
+        raise HTTPException(404, "Custom header not found")
+    return FileResponse(image, media_type="image/png",
+                        headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+
+
+@router.put("/libraries/{library_id}/header.png")
+async def upload_library_header(library_id: int, request: Request):
+    """Accept only small, genuine transparent PNGs. Never write to media folders."""
+    with db() as connection:
+        if not connection.execute(
+            "SELECT 1 FROM libraries WHERE id=?", (library_id,)
+        ).fetchone():
+            raise HTTPException(404, "Library not found")
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "image/png":
+        raise HTTPException(415, "Upload a transparent PNG image")
+    parts, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > HEADER_MAX_BYTES:
+            raise HTTPException(413, "Image exceeds 5 MB maximum")
+        parts.append(chunk)
+    data = b"".join(parts)
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
+        raise HTTPException(415, "The file is not a PNG")
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            if source.format != "PNG" or source.width < 32 or source.height < 32:
+                raise ValueError("Invalid PNG")
+            if source.width > 4096 or source.height > 4096:
+                raise HTTPException(413, "PNG dimensions must not exceed 4096 pixels")
+            if not ("A" in source.getbands() or "transparency" in source.info):
+                raise ValueError("PNG needs transparency")
+            image = source.convert("RGBA")
+            if image.getchannel("A").getextrema()[0] == 255:
+                raise ValueError("PNG needs transparent pixels")
+    except HTTPException:
+        raise
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError) as error:
+        raise HTTPException(422, f"Invalid transparent PNG: {error}") from error
+    HEADER_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    # Strip EXIF and ancillary metadata by re-encoding the decoded image.
+    handle, temporary = tempfile.mkstemp(prefix=".header-", suffix=".png", dir=HEADER_DIRECTORY)
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            image.save(stream, "PNG", optimize=True)
+        with db() as connection:
+            row = connection.execute(
+                "SELECT header_version FROM libraries WHERE id=?", (library_id,)
+            ).fetchone()
+            if not row:
+                raise HTTPException(404, "Library not found")
+            os.replace(temporary, _header_path(library_id))
+            # Odd revisions = custom image; even revisions = built-in image.
+            version = row["header_version"] + (1 if row["header_version"] % 2 == 0 else 2)
+            connection.execute(
+                "UPDATE libraries SET header_version=? WHERE id=?",
+                (version, library_id)
+            )
+            return _library_view(connection, library_id)[0]
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+@router.delete("/libraries/{library_id}/header.png")
+def revert_library_header(library_id: int):
+    with db() as connection:
+        row = connection.execute(
+            "SELECT header_version FROM libraries WHERE id=?", (library_id,)
+        ).fetchone()
+        if not row:
+            raise HTTPException(404, "Library not found")
+        if row["header_version"] % 2:
+            connection.execute(
+                "UPDATE libraries SET header_version=header_version+1 WHERE id=?",
+                (library_id,),
+            )
+        result = _library_view(connection, library_id)[0]
+    _header_path(library_id).unlink(missing_ok=True)
+    return result
 
 
 @router.post("/libraries/{library_id}/folders", status_code=201)
@@ -233,6 +362,7 @@ def delete_library(library_id: int):
         connection.execute("DELETE FROM media WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM library_folders WHERE library_id=?", (library_id,))
         connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
+    _header_path(library_id).unlink(missing_ok=True)
     return {"removed": True, "media_files_deleted": False}
 
 

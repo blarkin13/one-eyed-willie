@@ -3,7 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Browse</title>
-<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<link rel="stylesheet" href="/assets/ui.css?v=header-1">
+<script src="/assets/library-appearance.js?v=header-1"></script>
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .library-toolbar{margin:26px 0 20px}
@@ -33,7 +34,23 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 .tile-button:focus-visible .cover{outline:3px solid #d7edff;outline-offset:3px}
 
 /* Library header: controls aligned together at the right on wide layouts. */
-.library-head{align-items:center;gap:18px;margin-bottom:34px}
+.library-head{align-items:center;gap:18px;margin-bottom:34px;position:relative;isolation:isolate;min-height:220px;overflow:hidden;padding:20px 8px 18px}
+.library-header-art{position:absolute;z-index:-1;pointer-events:none;
+ left:var(--masthead-x,75%);top:var(--masthead-y,50%);width:min(77%,790px);
+ max-width:none;height:auto;transform:translate(-50%,-50%) scale(var(--masthead-scale,1));
+ opacity:var(--masthead-opacity,.6);user-select:none;object-fit:contain}
+.library-heading,.library-head-actions{position:relative;z-index:2}
+.library-header-title{display:flex;align-items:center;gap:16px}
+.library-header-title .library-header-icon{color:#beddf7;flex:none;display:inline-grid;place-items:center}
+.library-header-title .library-header-icon svg{width:clamp(31px,3.2vw,43px);height:clamp(31px,3.2vw,43px)}
+#page-title[class*="library-font--"]{font-family:var(--lib-font,system-ui,sans-serif)!important;
+ font-weight:var(--lib-weight,700)!important;letter-spacing:var(--lib-spacing,normal)!important;
+ text-transform:var(--lib-transform,none);line-height:1.15;overflow-wrap:anywhere}
+@media(max-width:760px){.library-head{min-height:195px;padding:18px 7px}
+ .library-header-art{width:min(95%,500px)}
+ .library-header-title{gap:10px}
+ .library-header-title .library-header-icon svg{width:27px;height:27px}}
+
 .library-heading{min-width:0;flex:1 1 360px}
 .library-head-actions{display:flex;align-items:center;justify-content:flex-end;gap:12px;flex:0 1 auto;min-width:0}
 .library-head-actions .search-box input{width:clamp(195px,21vw,315px)}
@@ -104,10 +121,11 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
   <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
   <div class="workspace">
     <main class="content">
-      <div class="page-head library-head">
+      <div class="page-head library-head" id="library-masthead">
+        <img id="library-header-art" class="library-header-art" alt="" aria-hidden="true" src="/assets/library-header-movies.png">
         <div class="library-heading">
           <p class="eyebrow" id="eyebrow">Your library</p>
-          <h1 id="page-title">Movies</h1>
+          <div class="library-header-title"><span class="library-header-icon" id="library-title-icon" aria-hidden="true"></span><h1 id="page-title">Movies</h1></div>
           <p class="library-trivia" id="page-description" aria-live="polite"></p>
           <small class="trivia-credit" id="trivia-credit" hidden>Trivia from <a href="https://opentdb.com/" target="_blank" rel="noopener noreferrer">Open Trivia DB</a> (<a href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener noreferrer">CC BY-SA 4.0</a>)</small>
         </div>
@@ -162,17 +180,43 @@ $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
 document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
 const selectedLibraryId=Number(query.get('library_id'));
-if(Number.isInteger(selectedLibraryId)&&selectedLibraryId>0){
- fetch('/api/libraries',{cache:'no-store'}).then(response=>response.ok?response.json():[])
- .then(libraries=>{
-   const found=Array.isArray(libraries)?libraries.find(lib=>lib.id===selectedLibraryId&&lib.kind===type):null;
-   if(!found){$('status').textContent='Library not found. Choose another library in the sidebar.';return}
-   const name=String(found.name||'Library');
-   $('page-title').textContent=name;
-   $('section-title').textContent='All '+name;
-   document.title='One-Eyed Willie · '+name;
- }).catch(()=>{});
+const libraryAppearance=window.WillieLibraryAppearance;
+function applyLibraryAppearance(lib){
+ const iconKey=lib?.icon|| (type==='tv'?'tv':'film');
+ const fontKey=lib?.font||'default';
+ const icon=$('library-title-icon');
+ if(libraryAppearance)icon.replaceChildren(libraryAppearance.createIcon(iconKey,40));
+ const title=$('page-title');
+ title.className='library-font--'+(libraryAppearance?.fonts[fontKey]?fontKey:'default');
+ const masthead=$('library-masthead'),art=$('library-header-art');
+ masthead.style.setProperty('--masthead-x',(lib?.header_x??75)+'%');
+ masthead.style.setProperty('--masthead-y',(lib?.header_y??50)+'%');
+ masthead.style.setProperty('--masthead-scale',(lib?.header_scale??100)/100);
+ masthead.style.setProperty('--masthead-opacity',(lib?.header_opacity??60)/100);
+ art.src=lib?.header_image_url||'/assets/library-header-'+type+'.png';
 }
+applyLibraryAppearance(null);
+fetch('/api/libraries',{cache:'no-store'})
+ .then(response=>response.ok?response.json():[])
+ .then(libraries=>{
+   const items=Array.isArray(libraries)?libraries.filter(lib=>lib.kind===type):[];
+   const standard=type==='movies'?'movies':'tvshows';
+   const library=Number.isInteger(selectedLibraryId)&&selectedLibraryId>0
+     ?items.find(lib=>lib.id===selectedLibraryId)
+     :items.find(lib=>String(lib.name||'').toLowerCase().replace(/[^a-z0-9]/g,'')===standard)
+       ||items[0];
+   if(selectedLibraryId>0&&!library){
+     $('status').textContent='Library not found. Choose another library in the sidebar.';
+     return;
+   }
+   applyLibraryAppearance(library);
+   if(selectedLibraryId>0&&library){
+     const name=String(library.name||'Library');
+     $('page-title').textContent=name;
+     $('section-title').textContent='All '+name;
+     document.title='One-Eyed Willie · '+name;
+   }
+ }).catch(()=>{});
 
 
 /* Open Trivia DB film (11) and television (14): one batch per category,

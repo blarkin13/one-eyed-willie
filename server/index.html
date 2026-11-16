@@ -3,7 +3,7 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Library Settings · One-Eyed Willie</title>
-<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<link rel="stylesheet" href="/assets/ui.css?v=header-1">
 <script src="/assets/library-appearance.js?v=appearance-1"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
 </head><body data-page="libraries">
 <div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
@@ -47,6 +47,29 @@
 <p id="library-icons-empty" class="settings-muted" hidden>No matching icons.</p>
 <div class="library-choice-heading"><h4 id="font-heading">Sidebar font</h4><span class="settings-muted">Select to preview</span></div>
 <div id="library-font-grid" class="library-font-picker" role="group" aria-labelledby="font-heading"></div>
+<section class="library-artwork-editor" aria-labelledby="art-heading">
+ <div class="library-section-heading"><h3 id="art-heading">Library header artwork</h3>
+ <p>Place a transparent PNG behind this library's title and trivia.</p></div>
+ <div class="library-header-preview" id="art-preview">
+   <img id="art-preview-image" class="library-header-preview-image" alt="" aria-hidden="true" src="/assets/library-header-movies.png">
+   <span class="library-header-preview-heading">YOUR LIBRARY</span>
+   <div class="library-header-preview-title"><span id="art-preview-icon" aria-hidden="true"></span><strong id="art-preview-name">Movies</strong></div>
+   <span class="library-header-preview-description">Your collection, your way.</span>
+ </div>
+ <p class="library-art-status" id="art-status" role="status">Default artwork</p>
+ <div class="library-art-actions">
+   <button class="secondary-button" id="art-choose" type="button">Upload / Replace PNG</button>
+   <button class="secondary-button" id="art-default" type="button">Revert to Default</button>
+   <input type="file" id="art-file" accept=".png,image/png" hidden>
+ </div>
+ <div class="library-art-adjustments">
+   <label>Horizontal position <output id="art-x-value" for="art-x">75%</output><input id="art-x" type="range" min="0" max="100" value="75"></label>
+   <label>Vertical position <output id="art-y-value" for="art-y">50%</output><input id="art-y" type="range" min="0" max="100" value="50"></label>
+   <label>Size <output id="art-scale-value" for="art-scale">100%</output><input id="art-scale" type="range" min="40" max="200" value="100"></label>
+   <label>Opacity <output id="art-opacity-value" for="art-opacity">60%</output><input id="art-opacity" type="range" min="0" max="100" value="60"></label>
+ </div>
+ <p class="settings-muted">PNG only · transparent background · maximum 5 MB. Adjustments are saved for this library.</p>
+</section>
 </section>
 <label class="library-visibility"><input type="checkbox" id="library-visible" checked><span><strong>Show in sidebar</strong><small>Display this library in navigation.</small></span></label>
 <div id="library-new-path" class="library-new-folder"><label>Initial media folder</label><div class="library-path" id="new-folder-path">/media</div><button type="button" class="secondary-button" id="choose-initial-folder">Choose folder</button></div>
@@ -89,6 +112,7 @@ function updatePreview(){
  byId('library-preview-row').classList.toggle('is-hidden',hidden);
  byId('library-preview-state').textContent=hidden?'Hidden from sidebar':'Visible in sidebar';
  document.querySelectorAll('.font-sample').forEach(e=>e.textContent=name);
+ updateHeaderPreview();
 }
 function chooseIcon(id){
  if(!icons[id])return;
@@ -142,6 +166,65 @@ function refreshAppearance(){renderCategories();renderIcons();renderFonts();upda
 byId('library-icon-search').addEventListener('input',renderIcons);
 byId('library-name').addEventListener('input',updatePreview);
 byId('library-visible').addEventListener('change',updatePreview);
+
+let stagedHeader=null, revertHeader=false, headerObjectUrl=null, currentHeaderUrl='';
+function defaultHeader(){
+ return '/assets/library-header-'+byId('library-kind').value+'.png';
+}
+function releaseHeaderPreview(){
+ if(headerObjectUrl){URL.revokeObjectURL(headerObjectUrl);headerObjectUrl=null;}
+}
+function updateHeaderPreview(){
+ const area=byId('art-preview'),image=byId('art-preview-image');
+ const name=byId('library-name').value.trim()||'Untitled library';
+ const font=byId('library-font').value;
+ const heading=byId('art-preview-name');
+ heading.textContent=name;heading.className=fontClass(font);
+ byId('art-preview-icon').replaceChildren(appearance.createIcon(byId('library-icon').value,31));
+ const src=headerObjectUrl||currentHeaderUrl||defaultHeader();
+ if(image.getAttribute('src')!==src)image.src=src;
+ for(const key of ['x','y','scale','opacity']){
+  byId('art-'+key+'-value').textContent=byId('art-'+key).value+'%';
+ }
+ area.style.setProperty('--art-x',byId('art-x').value+'%');
+ area.style.setProperty('--art-y',byId('art-y').value+'%');
+ area.style.setProperty('--art-scale',String(Number(byId('art-scale').value)/100));
+ area.style.setProperty('--art-opacity',String(Number(byId('art-opacity').value)/100));
+}
+function resetHeaderControls(lib=null){
+ releaseHeaderPreview();stagedHeader=null;revertHeader=false;
+ const vals={x:lib?.header_x??75,y:lib?.header_y??50,scale:lib?.header_scale??100,opacity:lib?.header_opacity??60};
+ for(const key of Object.keys(vals))byId('art-'+key).value=String(vals[key]);
+ byId('art-file').value='';
+ currentHeaderUrl=lib?.header_image_url||defaultHeader();
+ byId('art-status').textContent=lib?.header_custom?'Custom artwork':'Default artwork';
+ updateHeaderPreview();
+}
+for(const key of ['x','y','scale','opacity'])
+ byId('art-'+key).addEventListener('input',updateHeaderPreview);
+byId('art-choose').addEventListener('click',()=>byId('art-file').click());
+byId('art-file').addEventListener('change',event=>{
+ const file=event.target.files?.[0];
+ if(!file)return;
+ if(!file.name.toLowerCase().endsWith('.png')||(file.type&&file.type!=='image/png')){
+  byId('art-status').textContent='Choose a PNG image.';return;
+ }
+ if(file.size>5*1024*1024){
+  byId('art-status').textContent='PNG must be 5 MB or smaller.';return;
+ }
+ releaseHeaderPreview();stagedHeader=file;revertHeader=false;
+ headerObjectUrl=URL.createObjectURL(file);
+ byId('art-status').textContent='New image selected — save to apply.';
+ updateHeaderPreview();
+});
+byId('art-default').addEventListener('click',()=>{
+ releaseHeaderPreview();stagedHeader=null;revertHeader=true;
+ byId('art-file').value='';currentHeaderUrl=defaultHeader();
+ byId('art-status').textContent='Default artwork selected — save to apply.';
+ updateHeaderPreview();
+});
+byId('library-editor').addEventListener('close',releaseHeaderPreview);
+
 let libraries=[],editing=null,folderTarget=null,chosen='/media',current='/media',working=false;
 async function api(path,options={}){
  const r=await fetch(path,{cache:'no-store',...options,
@@ -227,6 +310,7 @@ function openAdd(){
  byId('editor-message').textContent='';
  byId('library-save').textContent='Create library';
  byId('library-icon-search').value='';iconCategory='All';refreshAppearance();
+ resetHeaderControls();
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
@@ -240,6 +324,7 @@ function openEdit(lib){
  byId('library-new-path').hidden=true;byId('editor-message').textContent='';
  byId('library-save').textContent='Save changes';
  byId('library-icon-search').value='';iconCategory='All';refreshAppearance();
+ resetHeaderControls(lib);
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
@@ -255,18 +340,37 @@ byId('library-kind').onchange=()=>{
  byId('library-name').value=byId('library-kind').value==='movies'?'Movies':'TV Shows';
  byId('library-icon').value=byId('library-kind').value==='movies'?'film':'tv';
  refreshAppearance();
+ if(!stagedHeader){currentHeaderUrl=defaultHeader();updateHeaderPreview();}
 };
 byId('library-form').onsubmit=async event=>{
  event.preventDefault();
  const payload={name:byId('library-name').value.trim(),
   icon:byId('library-icon').value,font:byId('library-font').value,
-  sidebar_hidden:!byId('library-visible').checked};
+  sidebar_hidden:!byId('library-visible').checked,
+  header_x:Number(byId('art-x').value),header_y:Number(byId('art-y').value),
+  header_scale:Number(byId('art-scale').value),
+  header_opacity:Number(byId('art-opacity').value)};
  if(working)return;working=true;byId('library-save').disabled=true;
  try{
-  if(editing===null)await api('/api/libraries',{method:'POST',body:JSON.stringify({
-   ...payload,kind:byId('library-kind').value,path:chosen
-  })});
-  else await api('/api/libraries/'+editing,{method:'PATCH',body:JSON.stringify(payload)});
+  let id=editing;
+  if(id===null){
+   const created=await api('/api/libraries',{method:'POST',body:JSON.stringify({
+     ...payload,kind:byId('library-kind').value,path:chosen
+   })});
+   id=created.id;editing=id;
+  }
+  await api('/api/libraries/'+id,{method:'PATCH',body:JSON.stringify(payload)});
+  if(stagedHeader){
+   const result=await fetch('/api/libraries/'+id+'/header.png',{
+     method:'PUT',headers:{'Content-Type':'image/png'},body:stagedHeader
+   });
+   if(!result.ok){
+    const error=await result.json().catch(()=>({}));
+    throw Error(typeof error.detail==='string'?error.detail:'Header image upload failed.');
+   }
+  }else if(revertHeader){
+   await api('/api/libraries/'+id+'/header.png',{method:'DELETE'});
+  }
   byId('library-editor').close();notify('Library saved.');
   await load();await loadOverview();
  }catch(error){byId('editor-message').textContent=error.message}

@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 import threading
 from pathlib import Path
 from fastapi import FastAPI, Query
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, RedirectResponse, Response
 from server.library import router
 from server.catalog import catalog, start_background_scans
 from server.connections import router as connections_router
@@ -204,6 +204,17 @@ def favicon_png():
 def brand_logo():
     return FileResponse(Path(__file__).with_name("logo.svg"), media_type="image/svg+xml",
                         headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/assets/library-header-{kind}.png")
+def default_library_header_image(kind: str):
+    from server.library_header_art import default_png
+    if kind not in ("movies", "tv"):
+        from fastapi import HTTPException
+        raise HTTPException(404, "No default header for this library type")
+    return Response(content=default_png(kind), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800",
+                             "X-Content-Type-Options": "nosniff"})
 
 
 @app.get("/assets/library-appearance.js")
