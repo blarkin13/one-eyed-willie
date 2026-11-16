@@ -278,6 +278,16 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(TV_REMOTE_SCRIPT, null)
     }
 
+    override fun onResume() {
+        super.onResume()
+        // Native Media3 playback runs in another Activity. Refresh the
+        // underlying season page's watched flags and resume positions when
+        // returning to its WebView, without navigating away from the show.
+        browser?.evaluateJavascript(
+            "document.dispatchEvent(new Event('willie:watch-updated'))", null
+        )
+    }
+
     override fun onDestroy() {
         browser?.destroy()
         browser = null
