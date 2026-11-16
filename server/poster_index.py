@@ -114,6 +114,8 @@ def _safe_metadata(meta):
     genres = [str(x).strip()[:60] for x in genres[:20]
               if isinstance(x, str) and x.strip()] if isinstance(genres, list) else []
     rating = meta.get("rating")
+    if isinstance(rating, dict):
+        rating = rating.get("value", rating.get("average"))
     if rating is None:
         rating = meta.get("tmdb_rating")
     if rating is None:
@@ -197,15 +199,47 @@ def prepare_batch(limit=BATCH):
                 url, metadata = resolved if isinstance(resolved, tuple) else (resolved, {})
                 if url:
                     _prepare(url)
+                # Do not replace useful catalog metadata with an empty poster
+                # lookup result (e.g. when an external provider is unavailable).
+                incoming = _safe_metadata(metadata)
+                previous = cached.get((kind, library_id, key)) or {}
+                try:
+                    old_metadata = _safe_metadata(json.loads(previous.get("metadata_json") or "{}"))
+                except (ValueError, TypeError):
+                    old_metadata = {}
+                incoming = {
+                    "genres": incoming.get("genres") or old_metadata.get("genres") or [],
+                    "runtime": incoming.get("runtime") or old_metadata.get("runtime"),
+                    "rating": incoming["rating"] if incoming.get("rating") is not None
+                              else old_metadata.get("rating"),
+                }
                 with db() as conn:
                     _table(conn)
+                    # The metadata synchronizer may have updated this title
+                    # after the batch snapshot. Merge the current DB row.
+                    live = conn.execute(
+                        "SELECT metadata_json FROM indexed_posters "
+                        "WHERE kind=? AND library_id=? AND show_key=?",
+                        (kind, library_id, key),
+                    ).fetchone()
+                    if live:
+                        try:
+                            existing = _safe_metadata(json.loads(live["metadata_json"] or "{}"))
+                        except (ValueError, TypeError):
+                            existing = {}
+                        incoming = {
+                            "genres": incoming["genres"] or existing.get("genres") or [],
+                            "runtime": incoming["runtime"] or existing.get("runtime"),
+                            "rating": incoming["rating"] if incoming["rating"] is not None
+                                      else existing.get("rating"),
+                        }
                     conn.execute(
                         "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at,metadata_json) "
                         "VALUES(?,?,?,?,?,?) ON CONFLICT(kind,library_id,show_key) DO UPDATE SET "
                         "poster_url=COALESCE(excluded.poster_url,indexed_posters.poster_url),"
                         "checked_at=excluded.checked_at,metadata_json=excluded.metadata_json",
                         (kind, library_id, key, url, int(time.time()),
-                         json.dumps(_safe_metadata(metadata)))
+                         json.dumps(incoming))
                     )
                 processed += 1
             except Exception:

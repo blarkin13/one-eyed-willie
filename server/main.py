@@ -25,6 +25,7 @@ from server.metadata import router as metadata_router
 from server.people import router as people_router
 from server.maintenance import router as maintenance_router, maintenance_loop
 from server.poster_index import poster_loop
+from server.catalog_metadata import router as catalog_metadata_router, start_refresh as start_catalog_metadata_refresh
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -73,6 +74,7 @@ app.include_router(tv_router)
 app.include_router(metadata_router)
 app.include_router(people_router)
 app.include_router(maintenance_router)
+app.include_router(catalog_metadata_router)
 
 @app.get("/health")
 def health():
@@ -90,7 +92,8 @@ def get_entire_catalog(
         return {"total": 0, "items": []}
     if sort not in ("title", "recent", "added", "year", "length", "rating"):
         sort = "title"
-    # The catalog is indexed locally and returned once; artwork loads lazily.
+    # Refresh metadata independently of poster generation; never block browsing.
+    start_catalog_metadata_refresh()
     return catalog(kind, search, limit=1_000_000, sort=sort, library_id=library_id, genre=genre)
 
 
@@ -108,6 +111,7 @@ def get_catalog(
         return {"total": 0, "items": []}
     if sort not in ("title", "recent", "added", "year", "length", "rating"):
         sort = "title"
+    start_catalog_metadata_refresh()
     return catalog(kind, search, limit=limit, offset=offset, sort=sort, library_id=library_id, genre=genre)
 
 @app.get("/")

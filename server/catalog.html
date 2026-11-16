@@ -65,6 +65,13 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
  .library-head-actions .sort-wrapper .sort-select,.library-head-actions .genre-wrapper .sort-select{width:100%;max-width:100%}
 }
 @media(min-width:761px) and (max-width:1260px){.library-head-actions{flex-wrap:wrap}}
+.catalog-refresh-metadata{display:grid;place-items:center;flex:none;width:44px;height:44px;padding:10px;color:#cde4fa;background:#172536;border:1px solid #40536b;border-radius:11px;cursor:pointer}
+.catalog-refresh-metadata:hover,.catalog-refresh-metadata:focus-visible{color:#fff;background:#29415b}
+.catalog-refresh-metadata:disabled{opacity:.45;cursor:default}
+.catalog-refresh-metadata svg{width:21px;height:21px}
+.catalog-metadata-status{color:#aebfd1;font-size:.8rem;line-height:1.5;margin:-4px 0 12px}
+.catalog-metadata-status:empty{display:none}
+@media(max-width:520px){.library-head-actions .catalog-refresh-metadata{width:44px;height:44px}}
 </style></head>
 <body data-page="movies">
 <div class="app-shell">
@@ -84,11 +91,13 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
             <option value="title">Title A–Z</option><option value="added">Date Added (newest)</option><option value="length">Length (longest)</option><option value="rating">Rating (highest)</option>
           </select></label>
           <label class="genre-wrapper"><span class="sr-only">Filter by genre</span><select id="genre" class="sort-select" aria-label="Filter by genre"><option value="">All Genres</option></select></label>
+           <button id="refresh-metadata" class="catalog-refresh-metadata" type="button" title="Refresh genre, rating and runtime metadata" aria-label="Refresh genre, rating and runtime metadata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 5.4"/><path d="M20 4v7h-7"/></svg></button>
            <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
         </div>
       </div>
       <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
       <p id="status" class="status-line" role="status">Loading titles…</p>
+       <p id="metadata-status" class="catalog-metadata-status" role="status"></p>
       <div id="items" aria-live="off"></div>
       <nav id="alpha-nav" class="alpha-nav" aria-label="Jump to letter" hidden></nav>
       
@@ -107,6 +116,7 @@ $('search').value=initialSearch.slice(0,150);
 const requestedSort=query.get('sort')||'title';
 if([...$('sort').options].some(o=>o.value===requestedSort))$('sort').value=requestedSort;
 let selectedGenre=(query.get('genre')||'').slice(0,60);
+let knownGenres=[];
 if(query.get('focus')==='search')requestAnimationFrame(()=>$('search').focus());
 $('explore-library').href='/explore?type='+type;
 $('explore-library').setAttribute('aria-label','Explore more '+(type==='movies'?'movies':'TV shows'));
@@ -384,6 +394,7 @@ function titleInitial(title){
 function updateGenreChoices(genres){
  const selector=$('genre'),current=selectedGenre;
  const items=Array.isArray(genres)?genres.filter(x=>typeof x==='string'&&x.trim()):[];
+ knownGenres=items;
  selector.replaceChildren();
  const all=document.createElement('option');all.value='';all.textContent='All Genres';selector.append(all);
  for(const genre of items){
@@ -401,8 +412,7 @@ function drawAlphabet(items){
  if(!show)return;
  const markers=new Map();
  for(const item of items){
-   const initial=(item.title.trim()[0]||'#').toUpperCase();
-   const letter=/^[A-Z]$/.test(initial)?initial:'#';
+   const letter=titleInitial(item.title);
    if(!markers.has(letter)){
      const card=document.querySelector('[data-letter="'+letter+'"]');
      if(card)markers.set(letter,card);
@@ -490,6 +500,59 @@ let debounce;
 $('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>load(),220)});
 $('sort').addEventListener('change',()=>load(true));
 $('genre').addEventListener('change',()=>{selectedGenre=$('genre').value;load(true)});
+
+/* Metadata indexing runs separately from poster artwork. */
+let metadataRevision=-1, metadataReloadAt=0, metadataTimer=null, lastMetadataFinished=0;
+async function checkMetadata(){
+ try{
+  const response=await fetch('/api/catalog/metadata/status',{cache:'no-store'});
+  if(!response.ok)throw Error('Metadata status unavailable');
+  const state=await response.json();
+  const revision=Number(state.revision)||0,processed=Number(state.processed)||0,
+        totalTitles=Number(state.total)||0,updated=Number(state.updated)||0;
+  $('refresh-metadata').disabled=!!state.running;
+  if(state.running){
+   $('metadata-status').textContent='Loading genres, runtimes and ratings · '+processed+'/'+totalTitles+' titles checked';
+  }else if(state.error){
+   $('metadata-status').textContent=state.error;
+  }else if(updated===0 && !knownGenres.length){
+   $('metadata-status').textContent='Genres, ratings and runtimes are unavailable for these titles. Check your TMDB, Radarr or Sonarr connection, then refresh metadata.';
+  }else if(state.last_finished){
+   $('metadata-status').textContent='Metadata sync complete · '+updated+' titles updated.';
+  }else{
+   $('metadata-status').textContent='Preparing genres, ratings and runtimes…';
+  }
+  const finished=Number(state.last_finished)||0;
+  const newMetadata=metadataRevision>=0&&revision!==metadataRevision;
+  const newlyFinished=finished>0&&finished!==lastMetadataFinished;
+  metadataRevision=revision;
+  lastMetadataFinished=finished;
+  if((newlyFinished||newMetadata) && !loading &&
+     (newlyFinished || processed-metadataReloadAt>=25 || !state.running)){
+    metadataReloadAt=processed;
+    load();
+  }
+ }catch(error){
+  $('metadata-status').textContent='Metadata status unavailable: '+error.message;
+ }finally{
+  clearTimeout(metadataTimer);
+  metadataTimer=setTimeout(checkMetadata,4000);
+ }
+}
+$('refresh-metadata').addEventListener('click',async()=>{
+ $('refresh-metadata').disabled=true;
+ $('metadata-status').textContent='Starting metadata refresh…';
+ try{
+  const response=await fetch('/api/catalog/metadata/refresh',{method:'POST'});
+  if(!response.ok)throw Error('Unable to start metadata refresh.');
+  await checkMetadata();
+ }catch(error){
+  $('metadata-status').textContent=error.message;
+  $('refresh-metadata').disabled=false;
+ }
+});
+
 load();
+checkMetadata();
 </script>
 </body></html>

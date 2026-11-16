@@ -1,0 +1,130 @@
+import json
+import tempfile
+import unittest
+from pathlib import Path
+from unittest.mock import patch
+
+from server import arr, catalog_metadata, library, movies, poster_index, tv
+from server.catalog import catalog
+
+
+class CatalogMetadataTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        patcher = patch.object(library, "DB_PATH", Path(directory.name) / "test.sqlite3")
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        with library.db() as conn:
+            conn.execute(
+                "INSERT INTO libraries(id,name,kind,path) VALUES (1,'Movies','movies','/media/Movies')"
+            )
+            conn.execute(
+                "INSERT INTO libraries(id,name,kind,path) VALUES (2,'TV Shows','tv','/media/TV')"
+            )
+            conn.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES (1,1,'/media/Movies/The Thing (1982)/The Thing.mkv','The Thing',100,0,'2026-11-14')"
+            )
+            conn.execute(
+                "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                "VALUES (2,2,'/media/TV/Severance/Season 01/Severance.S01E01.mkv','Severance',100,0,'2026-11-14')"
+            )
+
+    def test_bulk_radarr_sonarr_sync_populates_sorting_and_genre(self):
+        radarr = [{
+            "title": "The Thing", "year": 1982,
+            "genres": ["Horror", "Science Fiction"], "runtime": 109,
+            "ratings": {"imdb": {"value": 8.2}},
+        }]
+        sonarr = [{
+            "title": "Severance", "year": 2022,
+            "genres": ["Drama", "Science Fiction"], "runtime": 52,
+            "ratings": {"tmdb": {"value": 8.6}},
+        }]
+        with patch.object(movies, "_snapshot", return_value=radarr), \
+             patch.object(movies, "_details", side_effect=AssertionError("unneeded movie lookup")), \
+             patch.object(arr, "_settings", return_value={"url": "http://localhost:8989",
+                                                          "api_key": "private-token"}), \
+             patch.object(arr, "_request", return_value=sonarr) as req, \
+             patch.object(tv, "show_metadata", side_effect=AssertionError("unneeded TV lookup")):
+            report = catalog_metadata.sync_once()
+        self.assertEqual(report["updated"], 2)
+        self.assertEqual(report["processed"], 2)
+        req.assert_called_once()
+        movie = catalog(kind="movies", sort="rating")
+        self.assertEqual(movie["genres"], ["Horror", "Science Fiction"])
+        self.assertEqual(movie["items"][0]["rating"], 8.2)
+        self.assertEqual(movie["items"][0]["runtime"], 109)
+        self.assertEqual(catalog(kind="movies", genre="Horror")["total"], 1)
+        show = catalog(kind="tv", sort="length")
+        self.assertEqual(show["genres"], ["Drama", "Science Fiction"])
+        self.assertEqual(show["items"][0]["rating"], 8.6)
+        self.assertEqual(show["items"][0]["runtime"], 52)
+        self.assertNotIn("private-token", str(movie) + str(show))
+
+    def test_fallback_to_local_or_tmdb_metadata_when_manager_does_not_match(self):
+        with patch.object(movies, "_snapshot", return_value=[]), \
+             patch.object(arr, "_settings", return_value=None), \
+             patch.object(movies, "_details", return_value={
+                 "genres": ["Horror"], "runtime": 109, "tmdb_rating": 8.1
+             }) as details, \
+             patch.object(tv, "show_metadata", return_value={
+                 "genres": ["Thriller"], "rating": 7.5, "episode_run_time": [47]
+             }) as show:
+            catalog_metadata.sync_once()
+        details.assert_called_once()
+        show.assert_called_once()
+        self.assertEqual(catalog(kind="movies", sort="rating")["items"][0]["rating"], 8.1)
+        self.assertEqual(catalog(kind="tv", sort="length")["items"][0]["runtime"], 47)
+        self.assertEqual(catalog(kind="tv", genre="Thriller")["total"], 1)
+
+    def test_older_poster_is_preserved_and_missing_data_never_erases_fields(self):
+        identity = ("movies", 1, "the thing:1982")
+        image = "/api/artwork/" + "a" * 64
+        with library.db() as conn:
+            poster_index._table(conn)
+            conn.execute(
+                "INSERT INTO indexed_posters(kind,library_id,show_key,poster_url,checked_at) "
+                "VALUES(?,?,?,?,?)", (*identity, image, 111)
+            )
+        self.assertTrue(catalog_metadata._persist(*identity, {
+            "genres": ["Horror"], "rating": 8.2, "runtime": 109
+        }))
+        self.assertFalse(catalog_metadata._persist(*identity, {}))
+        with library.db() as conn:
+            row = conn.execute(
+                "SELECT poster_url,metadata_json,checked_at FROM indexed_posters "
+                "WHERE kind=? AND library_id=? AND show_key=?", identity
+            ).fetchone()
+        self.assertEqual(row["poster_url"], image)
+        self.assertEqual(row["checked_at"], 111)
+        self.assertEqual(json.loads(row["metadata_json"])["genres"], ["Horror"])
+
+    def test_poster_reindex_cannot_overwrite_existing_genre_with_empty_data(self):
+        identity = ("movies", 1, "the thing:1982")
+        catalog_metadata._persist(*identity, {
+            "genres": ["Horror"], "rating": 8.2, "runtime": 109
+        })
+        with patch.object(poster_index, "_collect", return_value={
+            identity: ("The Thing", 1982)}), \
+             patch.object(poster_index, "_resolve", return_value=(None, {})):
+            poster_index.prepare_batch(2)
+        values = catalog(kind="movies")["items"][0]
+        self.assertEqual(values["genres"], ["Horror"])
+        self.assertEqual(values["rating"], 8.2)
+        self.assertEqual(values["runtime"], 109)
+
+    def test_rating_object_and_missing_metadata_handled(self):
+        meta = poster_index._safe_metadata({
+            "rating": {"value": 8.9, "votes": 1200},
+            "genres": ["Drama"], "runtime": "53",
+        })
+        self.assertEqual(meta, {"rating": 8.9, "genres": ["Drama"], "runtime": 53})
+        self.assertFalse(catalog_metadata._has_metadata({
+            "rating": None, "genres": [], "runtime": None
+        }))
+
+
+if __name__ == "__main__":
+    unittest.main()
