@@ -54,17 +54,41 @@ class LibraryTriviaTests(unittest.TestCase):
         self.assertIn("The app adapts the presentation", self.credits)
         self.assertIn('@app.get("/settings/credits")', self.main)
 
-    def test_larger_trivia_and_tv_responsive_layout(self):
+    def test_compact_top_row_controls_and_trivia_below(self):
+        page = self.page
+        header = page.split('<div class="page-head library-head"', 1)[1].split(
+            '<div class="section-heading">', 1)[0]
+        self.assertLess(header.index('class="library-heading"'),
+                        header.index('class="library-head-actions"'))
+        self.assertLess(header.index('class="library-head-actions"'),
+                        header.index('class="library-trivia"'))
+        self.assertIn('class="library-head-top"', header)
+        self.assertIn('id="search"', header)
+        self.assertIn('id="sort-toggle"', header)
+        self.assertIn('id="genre-toggle"', header)
+        self.assertIn('id="refresh-metadata"', header)
+        self.assertIn('id="explore-library"', header)
+        self.assertIn(".library-head-top{display:flex;align-items:center;justify-content:space-between;", page)
+        self.assertIn("flex-wrap:nowrap;overflow:visible", page)
+        self.assertIn(".library-header-art-frame{position:absolute;inset:0;overflow:hidden;", page)
+        self.assertNotIn(".library-head-actions{align-self:flex-end", page)
+        self.assertNotIn(".library-head{min-height:355px", page)
+        self.assertNotIn(".library-head{min-height:305px", page)
+        self.assertIn("#status:empty{display:none}", page)
+
+    def test_trivia_remains_large_on_tv_and_responsive(self):
         page = self.page
         self.assertIn(".library-trivia .trivia-question{", page)
         self.assertIn("font-size:clamp(1.25rem,1.52vw,2rem)", page)
+        self.assertIn("min-height:2.6em", page)
+        self.assertIn("min-height:2.5em", page)
         self.assertIn("@media(min-width:1600px)", page)
         self.assertIn("font-size:clamp(1.65rem,1.6vw,2.4rem)", page)
+        self.assertIn("@media(min-width:761px) and (hover:none)", page)
         self.assertIn("@media(max-width:760px)", page)
         self.assertIn("@media(prefers-reduced-motion:reduce)", page)
         self.assertIn("document.addEventListener('visibilitychange'", page)
         self.assertIn("window.addEventListener('pagehide'", page)
-        self.assertIn("min-height:155px", page)
         self.assertIn('id="trivia-question"', page)
         self.assertIn('id="trivia-answer-text"', page)
 
