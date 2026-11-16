@@ -649,6 +649,23 @@ class MainActivity : ComponentActivity() {
                   min-height:0!important;
                   scroll-padding-inline:11px!important
                 }
+
+                /* Home hero is a document section, never sticky: leaving the
+                   first shelf moves hero/details off the screen with it. */
+                body[data-page="home"] .home-feature{
+                  height:clamp(235px,38vh,340px)!important;min-height:235px!important;
+                  margin:0 0 12px!important;padding:22px clamp(20px,4.5vw,54px)!important;
+                  border-radius:0!important
+                }
+                body[data-page="home"] .home-feature-copy{
+                  width:min(660px,83%)!important
+                }
+                body[data-page="home"] .home-feature-art{
+                  transition:opacity .3s ease,transform .6s ease!important
+                }
+                @media(prefers-reduced-motion:reduce){
+                  body[data-page="home"] .home-feature-art{transition:none!important}
+                }
                 /* Shorter Home shelves: no reserved height from the old
                    large-card layout and adequate room for D-pad focus rings. */
                 body[data-page="home"] .shelf{
@@ -1358,6 +1375,59 @@ class MainActivity : ComponentActivity() {
                 if(scrollRead(direction))readingScroll=true;
                 return true;
               };
+              // D-pad up/down on the Home carousel enters the leftmost
+              // poster of the adjacent shelf, NOT whichever card happens to
+              // be aligned vertically. Animate the page to let the hero and
+              // previous shelf leave the viewport; Up to Continue Watching
+              // restores the hero, including its current selected details.
+              let homeScrollFrame=0;
+              const scrollHomeTo=(top)=>{
+                cancelAnimationFrame(homeScrollFrame);
+                const root=document.scrollingElement||document.documentElement;
+                const max=Math.max(0,root.scrollHeight-root.clientHeight);
+                const target=Math.max(0,Math.min(max,top));
+                const start=root.scrollTop;
+                if(matchMedia('(prefers-reduced-motion: reduce)').matches ||
+                   Math.abs(target-start)<2){root.scrollTop=target;return}
+                const begin=performance.now(),duration=340;
+                const step=now=>{
+                  const t=Math.min(1,(now-begin)/duration);
+                  const ease=1-Math.pow(1-t,3);
+                  root.scrollTop=start+(target-start)*ease;
+                  if(t<1)homeScrollFrame=requestAnimationFrame(step);
+                  else homeScrollFrame=0;
+                };
+                homeScrollFrame=requestAnimationFrame(step);
+              };
+              const navigateHomeShelf=(active,direction)=>{
+                if(location.pathname!=='/'||
+                   !['up','down'].includes(direction))return false;
+                const shelf=active?.closest?.('.shelf');
+                if(!shelf||!active.closest('.shelf-track'))return false;
+                const shelves=[...document.querySelectorAll('main .shelf')]
+                  .filter(section=>section.querySelector('.shelf-track .tile-button'));
+                const index=shelves.indexOf(shelf);
+                if(index<0)return false;
+                const next=shelves[index+(direction==='down'?1:-1)];
+                if(!next){
+                  if(direction==='up'&&index===0)scrollHomeTo(0);
+                  return true;
+                }
+                const first=next.querySelector('.shelf-track .tile-button');
+                if(!first)return true;
+                readingScroll=false;
+                first.focus({preventScroll:true});
+                // Move within the carousel horizontally without shifting the
+                // entire page before the cinematic vertical transition.
+                const track=first.closest('.shelf-track');
+                if(track)track.scrollLeft=0;
+                const nextIndex=shelves.indexOf(next);
+                const top=nextIndex===0?0:
+                  next.getBoundingClientRect().top+
+                  (document.scrollingElement||document.documentElement).scrollTop-22;
+                scrollHomeTo(top);
+                return true;
+              };
               const move=direction=>{
                 // Native D-pad must stay inside modal dialogs, including
                 // episode actions and the subsequent Fix Match results dialog.
@@ -1377,6 +1447,7 @@ class MainActivity : ComponentActivity() {
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 const active=document.activeElement;
+                if(navigateHomeShelf(active,direction))return true;
                 // Intentional TV navigation: every episode tile leads DOWN to
                 // the current Play action, even when the tile is scrolled
                 // horizontally beyond the location of the action row.
