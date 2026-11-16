@@ -612,7 +612,7 @@ function drawAlphabet(items){
  }
 }
 let catalogRevision=null;
-async function load({preserveFocus=false,quiet=false}={}){
+async function load({preserveFocus=false}={},quiet=false){
  const thisRequest=++requestId;
  loading=true;
  if(!quiet)$('status').textContent='Loading titles…';
@@ -900,7 +900,7 @@ async function checkLiveCatalog(){
   const data=await response.json();
   if(Number.isSafeInteger(data.revision)&&catalogRevision!==null&&
      data.revision!==catalogRevision&&!loading&&!document.hidden){
-   await load({preserveFocus:true,quiet:true});
+   await load({preserveFocus:true},true);
   }
  }catch(_){/* Keep current posters if the server temporarily disconnects. */}
  finally{
