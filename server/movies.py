@@ -225,16 +225,16 @@ def _movie_path(library_id, key):
         if not lib or lib["kind"] != "movies":
             raise HTTPException(404, "Movie library not found")
         rows = conn.execute(
-            "SELECT path FROM media WHERE library_id=? ORDER BY path", (library_id,)
+            "SELECT path,source_root FROM media WHERE library_id=? ORDER BY path", (library_id,)
         ).fetchall()
     root = Path(lib["path"])
     for row in rows:
         try:
-            parsed = movie_info(row["path"], root)
+            parsed = movie_info(row["path"], Path(row["source_root"] or lib["path"]))
         except (ValueError, OSError):
             continue
         if parsed["key"] == key:
-            return parsed, Path(row["path"]), root
+            return parsed, Path(row["path"]), Path(row["source_root"] or lib["path"])
     raise HTTPException(404, "Movie not found")
 
 
