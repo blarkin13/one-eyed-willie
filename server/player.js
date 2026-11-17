@@ -314,6 +314,9 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const id=Number(media);
     if(!Number.isInteger(id)||id<=0)return;
     if(current)close();
+    // Explicit playback (unlike refreshes/checkpoints) restores dismissed
+    // Continue Watching titles for this movie or television series.
+    fetch('/api/home/continue/'+id+'/start',{method:'POST'}).catch(()=>{});
     if(location.hostname.endsWith('.workers.dev')){
       fetch('/api/remote/settings',{cache:'no-store'}).then(r=>r.json()).then(data=>{
         const ip=String(data.public_ip||'').split('.').map(Number);
