@@ -461,12 +461,12 @@ class MainActivity : ComponentActivity() {
         configureBrowser(candidate)
         candidate.isFocusable = false
         candidate.isFocusableInTouchMode = false
-        // Keep the prepared WebView barely visible in compositing so Android
-        // actually renders it before the swap. A fully covered/alpha-zero
-        // WebView may defer the first frame and flash black after the fade.
-        candidate.alpha = 0.01f
+        // Render the destination fully *behind* the outgoing page.
+        // A nearly transparent WebView may not paint until it becomes visible,
+        // leaving a frozen frame instead of a real crossfade.
+        candidate.alpha = 1f
         candidate.isClickable = false
-        frame.addView(candidate, frame.indexOfChild(web) + 1, FrameLayout.LayoutParams(
+        frame.addView(candidate, frame.indexOfChild(web), FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         preparedBrowser = candidate
         preparedDestination = destination
@@ -474,52 +474,39 @@ class MainActivity : ComponentActivity() {
         candidate.loadUrl(destination)
         candidate.postDelayed({
             if (epoch == prepareEpoch && preparedBrowser === candidate) {
-                // Network failures should never strand an invisible page.
+                // Never leave the viewer on a frozen outgoing page. If
+                // destination readiness stalls, use normal page navigation.
                 cancelPreparedNavigation()
-                android.widget.Toast.makeText(this,
-                    "Could not open library", android.widget.Toast.LENGTH_SHORT).show()
+                if (browser === web) web.loadUrl(destination)
             }
-        }, 10000L)
+        }, 2500L)
         return true
     }
 
     private fun prepareReveal(web: WebView, attempt: Int = 0) {
         if (preparedBrowser !== web) return
-        if (attempt >= 100) { cancelPreparedNavigation(); return }
+        // Do not block navigation on poster metadata or backdrop downloads.
+        // The destination is already rendered underneath the outgoing page.
+        if (attempt >= 14) {
+            revealPreparedBrowser(web)
+            return
+        }
         web.evaluateJavascript(
             """(() => {
               const path=location.pathname;
-              const loaded=path==='/'?window.__oewHomeReady===true:
-                (path==='/movies'||path==='/tv')
-                  ?Boolean(document.querySelector('#items .tile-button,#items .empty')) &&
-                   !(document.querySelector('#status')?.textContent||'').includes('Loading titles')
-                  :true;
-              if(!loaded)return false;
-              if(path!=='/'&&path!=='/movies'&&path!=='/tv')return true;
-              const first=path==='/'?
-                document.querySelector('.content .shelf-track .tile-button'):
-                document.querySelector('#items .tile-button');
-              if(!first)return true; // Empty libraries have no artwork to wait for.
-              // Warm the actual destination selection in the hidden WebView.
-              // Poster/metadata lookup and image decode complete behind the
-              // outgoing page; this avoids revealing the default navy canvas.
-              if(!document.body.dataset.oewPreparedFocus){
-                document.body.dataset.oewPreparedFocus='1';
-                first.focus({preventScroll:true});
-                first.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
-              }
-              return document.body.classList.contains('oew-tv-backdrop-active') ||
-                $attempt >= 22; // Bounded fallback for titles without artwork.
+              if(path==='/')return window.__oewHomeReady===true;
+              if(path==='/movies'||path==='/tv')
+                return Boolean(document.querySelector('#items .tile-button,#items .empty'));
+              return document.readyState!=='loading';
             })()""".trimIndent()
         ) { ready ->
             if (preparedBrowser !== web) return@evaluateJavascript
             if (ready == "true") {
-                // Allow the frame with populated titles to paint before swapping.
                 web.postDelayed({
                     if (preparedBrowser === web) revealPreparedBrowser(web)
-                }, 80L)
+                }, 45L)
             } else {
-                web.postDelayed({ prepareReveal(web, attempt + 1) }, 90L)
+                web.postDelayed({ prepareReveal(web, attempt + 1) }, 75L)
             }
         }
     }
@@ -538,22 +525,23 @@ class MainActivity : ComponentActivity() {
         web.isFocusable = true
         web.isFocusableInTouchMode = true
         web.isClickable = true
-        web.bringToFront()
+        // Keep the outgoing view in front until its fade is complete.
+        // This exposes the already-painted destination progressively,
+        // instead of showing a blank new WebView or a static hold.
+        old.bringToFront()
         loadingOverlay?.bringToFront()
-        web.requestFocus()
-        // Cross-dissolve the fully rendered destination over the previous
-        // live page. Keeping both frames composited creates a smooth blended
-        // gradient between the outgoing and incoming cinematic backdrops.
-        web.animate().cancel()
         old.animate().cancel()
-        web.animate().alpha(1f).setDuration(650L)
-            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).start()
-        old.animate().alpha(0f).setDuration(650L)
-            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction {
-            (old.parent as? ViewGroup)?.removeView(old)
-            old.stopLoading()
-            old.destroy()
-        }.start()
+        web.animate().cancel()
+        old.animate().alpha(0f).setDuration(220L)
+            .setInterpolator(android.view.animation.DecelerateInterpolator())
+            .withEndAction {
+                (old.parent as? ViewGroup)?.removeView(old)
+                old.stopLoading()
+                old.destroy()
+                web.isFocusable = true
+                web.isFocusableInTouchMode = true
+                web.requestFocus()
+            }.start()
     }
 
     private fun showServer(server: String) {
