@@ -1,7 +1,7 @@
 from contextlib import asynccontextmanager
 import threading
 from pathlib import Path
-from fastapi import FastAPI, Query
+from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from server.library import router, db
 from server.catalog import catalog, start_background_scans
@@ -169,9 +169,32 @@ def movie_page():
 def browse():
     return FileResponse(Path(__file__).with_name("catalog.html"), media_type="text/html")
 
+# The Google TV WebView needs sidebar visibility established BEFORE the first
+# paint, rather than in a script injected after page load. Only requests from
+# our native app get this final CSS override; browsers keep normal navigation.
+TV_RAIL_CSS = """
+/* TV rail: hidden until the remote deliberately moves focus into navigation. */
+body .sidebar,body .sidebar:hover,body .sidebar:focus-within {
+  transform:translateX(-120%)!important;
+  pointer-events:none!important;
+}
+body.oew-tv-rail-open .sidebar,
+body.oew-tv-rail-open .sidebar:hover,
+body.oew-tv-rail-open .sidebar:focus-within {
+  transform:translateX(0)!important;
+  pointer-events:auto!important;
+}
+body .workspace {margin-left:0!important}
+"""
+
 @app.get("/assets/ui.css")
-def ui_stylesheet():
-    return FileResponse(Path(__file__).with_name("ui.css"), media_type="text/css")
+def ui_stylesheet(request: Request):
+    if "OneEyedWillieTV/1" not in request.headers.get("user-agent", ""):
+        return FileResponse(Path(__file__).with_name("ui.css"), media_type="text/css",
+                            headers={"Vary": "User-Agent"})
+    stylesheet = Path(__file__).with_name("ui.css").read_text(encoding="utf-8")
+    return Response(stylesheet + "\\n" + TV_RAIL_CSS, media_type="text/css",
+                    headers={"Cache-Control": "no-store", "Vary": "User-Agent"})
 
 @app.get("/assets/brand/{brand}.svg")
 def integration_brand_svg(brand: str):
