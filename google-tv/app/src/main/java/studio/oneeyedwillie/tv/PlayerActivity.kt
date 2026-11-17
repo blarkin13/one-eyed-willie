@@ -78,6 +78,8 @@ class PlayerActivity : ComponentActivity() {
     private var advancingToNext = false
     private var selectedColor = 0xFF8B5CF6.toInt()
     private val iconControls = mutableListOf<ImageButton>()
+    private var lastRemoteDirection = -1
+    private var lastRemoteMoveAt = 0L
     private var pendingSeek = 0.0
     private var pendingSeekAction: Runnable? = null
     private val uiRefresh = object : Runnable {
@@ -834,33 +836,71 @@ class PlayerActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
+        val direction = event.keyCode
+        val isDpad = direction in intArrayOf(
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT
+        )
+        if (isDpad && event.action == KeyEvent.ACTION_UP) {
+            if (lastRemoteDirection == direction) lastRemoteDirection = -1
+            return true
+        }
         if (event.action == KeyEvent.ACTION_DOWN && ::chrome.isInitialized) {
-            when (event.keyCode) {
+            when (direction) {
                 KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    seekBy(10.0)
+                    if (event.repeatCount == 0) seekBy(10.0)
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    seekBy(-10.0)
+                    if (event.repeatCount == 0) seekBy(-10.0)
                     return true
                 }
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
-                    val active = player
-                    if (active?.isPlaying == true) active.pause() else active?.play()
-                    showChrome()
+                    if (event.repeatCount == 0) {
+                        val active = player
+                        if (active?.isPlaying == true) active.pause() else active?.play()
+                        showChrome()
+                    }
                     return true
                 }
             }
-            if (chrome.visibility != View.VISIBLE) {
-                showChrome()
-                // A D-pad left/right press while the overlay is hidden should
-                // seek immediately, not merely expose the buttons.
-                when (event.keyCode) {
-                    KeyEvent.KEYCODE_DPAD_LEFT -> seekBy(-10.0)
-                    KeyEvent.KEYCODE_DPAD_RIGHT -> seekBy(10.0)
-                    else -> playButton.requestFocus()
+            if (isDpad) {
+                val now = android.os.SystemClock.uptimeMillis()
+                val fresh = lastRemoteDirection != direction || event.repeatCount == 0
+                if (!fresh && now - lastRemoteMoveAt < 190L) return true
+                lastRemoteDirection = direction
+                lastRemoteMoveAt = now
+                if (chrome.visibility != View.VISIBLE) {
+                    showChrome()
+                    // First press reveals playback controls; left/right can
+                    // seek immediately without accidentally shifting focus.
+                    when (direction) {
+                        KeyEvent.KEYCODE_DPAD_LEFT -> seekBy(-10.0)
+                        KeyEvent.KEYCODE_DPAD_RIGHT -> seekBy(10.0)
+                        else -> playButton.requestFocus()
+                    }
+                    return true
                 }
-                return true
+                // The native player has three logical focus rows. Do not
+                // delegate Up/Down to Android's geometric focusSearch(), which
+                // may alternate between controls as animations scale icons.
+                // Leave dialogs to their own window's focus handling.
+                if (direction == KeyEvent.KEYCODE_DPAD_UP ||
+                    direction == KeyEvent.KEYCODE_DPAD_DOWN) {
+                    val focused = currentFocus
+                    if (focused === timeline) {
+                        if (direction == KeyEvent.KEYCODE_DPAD_UP)
+                            iconControls.firstOrNull()?.requestFocus()
+                        else playButton.requestFocus()
+                    } else if (focused === iconControls.firstOrNull()) {
+                        if (direction == KeyEvent.KEYCODE_DPAD_DOWN)
+                            timeline.requestFocus()
+                    } else if (iconControls.any { it === focused }) {
+                        if (direction == KeyEvent.KEYCODE_DPAD_UP)
+                            timeline.requestFocus()
+                    } else playButton.requestFocus()
+                    return true
+                }
             }
         }
         return super.dispatchKeyEvent(event)
