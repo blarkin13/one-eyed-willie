@@ -332,6 +332,10 @@ document.addEventListener('DOMContentLoaded',()=>{
       apply(url,serial);
     },180);
   }
+  const onLibraryToolbar=target=>
+    ['movies','tv'].includes(document.body.dataset.page) &&
+    target instanceof Element &&
+    Boolean(target.closest('#library-masthead .library-head-actions'));
   const locate=target=>target instanceof Element?
     target.closest('[data-hover-kind],[data-hover-backdrop]'):null;
   document.addEventListener('pointerover',event=>{
@@ -346,7 +350,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else select(null);
+      else if(!onLibraryToolbar(document.activeElement))select(null);
     },130);
   });
   document.addEventListener('focusin',event=>{
@@ -359,7 +363,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else select(null);
+      else if(!onLibraryToolbar(document.activeElement))select(null);
     },140);
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)select(null)});
