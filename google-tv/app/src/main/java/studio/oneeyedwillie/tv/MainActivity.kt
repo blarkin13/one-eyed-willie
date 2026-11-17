@@ -1643,8 +1643,16 @@ class MainActivity : ComponentActivity() {
                   const pending=fetch(url).then(response=>{
                     if(!response.ok)throw Error('Backdrop unavailable');
                     return response.json();
-                  }).then(data=>validBackdrop(data.backdrop_url)?data.backdrop_url:null)
-                    .catch(()=>null);
+                  }).then(data=>{
+                    if(validBackdrop(data.backdrop_url))return data.backdrop_url;
+                    // A title may have poster artwork without a landscape
+                    // backdrop. Show the actual poster rather than an empty
+                    // Home background until the viewer moves focus.
+                    if(validBackdrop(data.poster_url))return data.poster_url;
+                    const poster=element.querySelector?.('.poster-image');
+                    const source=poster?.getAttribute('src')||'';
+                    return validBackdrop(source)?source:null;
+                  }).catch(()=>null);
                   backdropCache.set(identity,pending);
                   if(backdropCache.size>90)backdropCache.delete(backdropCache.keys().next().value);
                 }
@@ -1701,6 +1709,28 @@ class MainActivity : ComponentActivity() {
               });
               if(locateBackdrop(document.activeElement))
                 setBackdropTarget(locateBackdrop(document.activeElement));
+              // Home cards are generated asynchronously after document
+              // load. Refresh artwork from the first actual selected poster
+              // when Home completes rendering, rather than requiring a
+              // direction press to trigger the first background.
+              const refreshInitialHomeBackdrop=()=>{
+                if(location.pathname!=='/')return;
+                const focused=document.activeElement;
+                const selected=focused?.matches?.('.shelf-track .tile-button')
+                  ?focused:document.querySelector(
+                    '#continue-watching .shelf-track .tile-button')||
+                    document.querySelector('.content .shelf-track .tile-button');
+                if(!selected)return;
+                if(!focused?.matches?.('.shelf-track .tile-button'))
+                  selected.focus({preventScroll:true});
+                setBackdropTarget(locateBackdrop(selected),true);
+                selected.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
+              };
+              document.addEventListener('willie:home-shelves-ready',()=>{
+                requestAnimationFrame(refreshInitialHomeBackdrop);
+              });
+              if(location.pathname==='/')
+                setTimeout(refreshInitialHomeBackdrop,250);
               // Dedicated remote navigation: menu items are a vertical list,
               // while content posters are traversed by adjacent row/column.
               const selector='a[href],button:not(:disabled),input:not(:disabled),select:not(:disabled),textarea:not(:disabled),[tabindex="0"]';
