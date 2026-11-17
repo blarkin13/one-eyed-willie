@@ -35,4 +35,23 @@
     <h2>Credits &amp; Licenses</h2><p>Attributions for trivia content and other third-party resources.</p>
   </a>
 </section>
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+ if(!navigator.userAgent.includes('OneEyedWillieTV/1'))return;
+ const grid=document.querySelector('.settings-grid');
+ if(!grid)return;
+ const button=document.createElement('button');
+ button.type='button';
+ button.className='settings-tile';
+ button.style.cssText='font:inherit;color:inherit;text-align:left;cursor:pointer';
+ const icon=document.createElement('span');icon.className='settings-tile-icon';
+ icon.textContent='⌁';icon.setAttribute('aria-hidden','true');
+ const heading=document.createElement('h2');heading.textContent='This TV Connection';
+ const description=document.createElement('p');
+ description.textContent='Change this TV device’s saved server IP address or port.';
+ button.append(icon,heading,description);
+ button.addEventListener('click',()=>prompt('oewtv:settings:server',''));
+ grid.append(button);
+});
+</script>
 </main></div></div></body></html>
