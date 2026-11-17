@@ -135,18 +135,21 @@ class TvTextInputFocusTests(unittest.TestCase):
         catalog = (ROOT / "server" / "catalog.html").read_text()
         self.assertIn('shell.js?v=library-backdrop-2', catalog)
 
-    def test_tv_switches_pages_without_exposing_unpopulated_content(self):
+    def test_tv_prepares_next_page_without_exposing_unpopulated_content(self):
         source = self.source
-        self.assertIn("private fun captureNavigationStill(web: WebView, target: Uri)", source)
-        self.assertIn("web.draw(android.graphics.Canvas(bitmap))", source)
-        self.assertIn("target.path !in setOf(\"/\", \"/movies\", \"/tv\")", source)
-        self.assertIn("override fun onPageCommitVisible(web: WebView, url: String?)", source)
-        self.assertIn("releaseNavigationStill()", source)
-        self.assertIn("setDuration(180L)", source)
-        self.assertIn("translationX(-dp(12).toFloat())", source)
-        self.assertIn("480L", source)
+        self.assertIn("private var preparedBrowser: WebView? = null", source)
+        self.assertIn("private fun prepareNavigation(web: WebView, destination: String)", source)
+        self.assertIn("frame.addView(candidate, 0", source)
+        self.assertIn("const grid=document.getElementById('items')", source)
+        self.assertIn("window.__oewHomeReady===true", source)
+        self.assertIn("private fun revealPreparedBrowser(web: WebView)", source)
+        self.assertIn("web.animate().alpha(1f).setDuration(170L)", source)
+        self.assertIn("old.animate().alpha(0f).setDuration(170L)", source)
+        self.assertIn("if (preparedBrowser === web && sameOrigin(url.orEmpty()))", source)
+        self.assertIn("prepareNavigation(web, uri.toString())) return true", source)
+        self.assertNotIn("navigationStill", source)
+        self.assertNotIn("captureNavigationStill", source)
         self.assertNotIn("revealPopulatedPage", source)
-        self.assertNotIn("5500L", source)
 
     def test_library_title_icons_are_large_but_sidebar_icons_unchanged(self):
         catalog = (ROOT / "server" / "catalog.html").read_text()
