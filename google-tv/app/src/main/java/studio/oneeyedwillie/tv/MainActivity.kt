@@ -1021,6 +1021,18 @@ class MainActivity : ComponentActivity() {
                     try{prompt('oewtv:settings:server','')}catch(_){}
                   });
                   grid.append(tile);
+                  const colors=document.createElement('button');
+                  colors.type='button';
+                  colors.id='oew-tv-selection-color';
+                  colors.className='settings-tile';
+                  colors.style.cssText='color:inherit;text-align:left;cursor:pointer;font:inherit';
+                  colors.innerHTML='<span class="settings-tile-icon" aria-hidden="true">◉</span>'+
+                    '<h2>TV Selection Color</h2>'+
+                    '<p>Choose the highlighted icon color. Purple is the default.</p>';
+                  colors.addEventListener('click',()=>{
+                    try{prompt('oewtv:settings:color','')}catch(_){}
+                  });
+                  grid.append(colors);
                 }
               }
               if (document.getElementById('oew-tv-remote-style')) return;
@@ -1509,14 +1521,14 @@ class MainActivity : ComponentActivity() {
                    Service-brand icons retain their original Radarr/Sonarr art. */
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
-                  color:#8B5CF6!important;background:transparent!important;
+                  color:var(--oew-tv-select-color,#8B5CF6)!important;background:transparent!important;
                   outline:0!important;box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible) svg,
                 body[data-page] :is(.willie-controls,.willie-toolbar)
                   button:is(:focus,:focus-visible){
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 /* The sidebar has no selected background, outline, side marker,
                    border or shadow. Only the focused/current icon changes color. */
@@ -1533,7 +1545,7 @@ class MainActivity : ComponentActivity() {
                   [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon,
                 body[data-page] .sidebar .nav-link[aria-current="page"]:not(
                   [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 /* Strong icon-only purple focus on all detail pages, including
                    dynamic movie/TV/season actions and navigation popovers. */
@@ -1547,7 +1559,7 @@ class MainActivity : ComponentActivity() {
                   .icon-only-control,.season-more-button,.season-rail-arrow,
                   .tv-trailer-launch,.catalog-tool-icon,.explore-icon-link)
                   :is(:focus,:focus-visible) {
-                  color:#8B5CF6!important;
+                  color:var(--oew-tv-select-color,#8B5CF6)!important;
                   background:transparent!important;
                   border-color:transparent!important;
                   outline:0!important;box-shadow:none!important
@@ -1561,7 +1573,7 @@ class MainActivity : ComponentActivity() {
                 body[data-page] :is(.media-icon-action,.watch-icon-control,
                   .icon-only-control,.season-more-button,.tv-trailer-launch,
                   .catalog-tool-icon,.explore-icon-link):is(:focus,:focus-visible)
-                  :is(svg,i,.fa) { color:#8B5CF6!important }
+                  :is(svg,i,.fa) { color:var(--oew-tv-select-color,#8B5CF6)!important }
                 body[data-page] [data-service-nav="radarr"] :is(svg,img,i),
                 body[data-page] [data-service-nav="sonarr"] :is(svg,img,i) {
                   filter:none!important
@@ -1576,12 +1588,12 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .sidebar .nav-link[aria-current="page"]
                   :is(.nav-icon svg path,.nav-icon svg circle,.nav-icon svg rect,
                       .nav-icon svg polygon,.nav-icon svg polyline,.nav-icon svg line){
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 body[data-page] .sidebar .nav-link[aria-current="page"]
                   :is(.nav-icon,.nav-icon svg,.nav-icon i,.nav-icon .fa-fallback,
                       .nav-icon .library-symbol,.library-custom-icon):not(img){
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 body[data-page] .sidebar
                   .nav-link:is([data-service-nav="radarr"],[data-service-nav="sonarr"],
