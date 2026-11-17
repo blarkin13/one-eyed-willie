@@ -9,8 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
-    {id:'radarr',href:'/radarr',name:'Radarr',fa:'fa-bullseye',fallback:'radarr'},
-    {id:'sonarr',href:'/sonarr',name:'Sonarr',fa:'fa-wave-square',fallback:'sonarr'},
     {id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd',fa:'fa-download',fallback:'sabnzbd'},
     {id:'settings',href:'/settings',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
@@ -50,7 +48,7 @@ document.addEventListener('DOMContentLoaded', () => {
     wrap.append(image);return wrap;
   }
   function defaultIcon(kind){
-    const safe=['home','movies','tv','radarr','sonarr','sabnzbd','settings'].includes(kind)?kind:'movies';
+    const safe=['home','movies','tv','sabnzbd','settings'].includes(kind)?kind:'movies';
     return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v3');
   }
   // Logo anchors the upper-left corner on desktop and mobile.
@@ -87,9 +85,8 @@ document.addEventListener('DOMContentLoaded', () => {
   navItems.forEach(item=>{
     const a=document.createElement('a');a.href=item.href;a.title=item.name;
     a.className='nav-link';a.setAttribute('aria-label',item.name);
-    if(['radarr','sonarr','sabnzbd','services'].includes(item.id))a.dataset.serviceNav=item.id;
-    if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
-    if(item.id===active)a.setAttribute('aria-current','page');
+    if(item.id==='sabnzbd')a.dataset.serviceNav=item.id;
+        if(item.id===active)a.setAttribute('aria-current','page');
     a.dataset.navId=item.id;
     a.append(defaultIcon(item.id));
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
