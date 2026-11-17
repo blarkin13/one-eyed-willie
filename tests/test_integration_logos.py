@@ -18,6 +18,43 @@ class IntegrationLogoTests(unittest.TestCase):
             self.assertEqual(response.media_type, "image/svg+xml")
             self.assertTrue(str(response.path).endswith(f"{brand}-official.svg"))
 
+    def test_download_service_tabs_are_identical_and_sabnzbd_first(self):
+        from html.parser import HTMLParser
+
+        class ServiceTabs(HTMLParser):
+            def __init__(self):
+                super().__init__()
+                self.in_nav = False
+                self.links = []
+                self.logos = []
+
+            def handle_starttag(self, tag, attrs):
+                attrs = dict(attrs)
+                if tag == "nav" and attrs.get("class") == "service-switcher":
+                    self.in_nav = True
+                elif self.in_nav and tag == "a":
+                    self.links.append(attrs.get("href"))
+                elif self.in_nav and tag == "img":
+                    self.logos.append(attrs.get("src"))
+
+            def handle_endtag(self, tag):
+                if tag == "nav":
+                    self.in_nav = False
+
+        for filename in ("manager_dashboard.html", "sab_dashboard.html"):
+            content = (ROOT / filename).read_text()
+            parsed = ServiceTabs()
+            parsed.feed(content)
+            self.assertEqual(parsed.links, ["/sabnzbd", "/radarr", "/sonarr"], filename)
+            self.assertEqual(parsed.logos, [
+                "/assets/brand/sabnzbd.svg",
+                "/assets/brand/radarr.svg",
+                "/assets/brand/sonarr.svg",
+            ], filename)
+            self.assertNotIn("Manage connections", content)
+        css = (ROOT / "ui.css").read_text()
+        self.assertIn(".service-switcher", css)
+
     def test_logo_route_cannot_access_other_files(self):
         for bad in ("../../config", "radarr.svg", "other", "Radarr"):
             with self.assertRaises(HTTPException):

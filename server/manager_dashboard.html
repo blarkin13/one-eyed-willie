@@ -7,9 +7,6 @@
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .manager-content{max-width:1540px}
-.manager-nav{display:flex;gap:15px;align-items:center;flex-wrap:wrap;margin:14px 0 27px}
-.manager-nav a{color:#a8c6e4;font-weight:650;font-size:.89rem;text-decoration:none}
-.manager-nav a[aria-current="page"]{color:#fff;border-bottom:2px solid #afcfea;padding-bottom:5px}
 .manager-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .manager-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 28px}
 .manager-stat{padding:17px 20px;border:1px solid #354359;border-radius:13px;background:#111d2a}
@@ -94,9 +91,10 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
   <button id="manager-rss" class="secondary-button" type="button">Sync RSS</button>
  </div>
 </div>
-<nav class="manager-nav" aria-label="Download services">
-<a href="/radarr" id="tab-radarr"><img class="integration-logo" src="/assets/brand/radarr.svg" alt="">Radarr</a><a href="/sonarr" id="tab-sonarr"><img class="integration-logo" src="/assets/brand/sonarr.svg" alt="">Sonarr</a><a href="/sabnzbd" id="tab-sabnzbd"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd</a>
-<a href="/settings/connections">Manage connections</a>
+<nav class="service-switcher" aria-label="Download services">
+<a href="/sabnzbd" id="tab-sabnzbd"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd</a>
+<a href="/radarr" id="tab-radarr"><img class="integration-logo" src="/assets/brand/radarr.svg" alt="">Radarr</a>
+<a href="/sonarr" id="tab-sonarr"><img class="integration-logo" src="/assets/brand/sonarr.svg" alt="">Sonarr</a>
 </nav>
 <p id="manager-message" role="status" class="manager-note">Loading your media manager…</p>
 <section id="manager-body" hidden>

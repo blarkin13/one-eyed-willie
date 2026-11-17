@@ -6,13 +6,10 @@
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
-.sab-content{max-width:1450px}
-.service-tabs{display:flex;flex-wrap:wrap;gap:16px;margin:13px 0 26px}
-.service-tabs a{font-size:.9rem;font-weight:650;color:#a6c6e3}
-.service-tabs a[aria-current="page"]{color:white;border-bottom:2px solid #c7e3fc;padding-bottom:5px}
+.sab-content{max-width:1540px}
 .sab-toolbar{display:flex;flex-wrap:wrap;gap:10px}
-.sab-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:22px 0 32px}
-.sab-stat{border:1px solid #33475d;background:#101d2b;padding:20px;border-radius:13px}
+.sab-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 28px}
+.sab-stat{border:1px solid #354359;background:#111d2a;padding:17px 20px;border-radius:13px}
 .sab-stat strong{display:block;font-size:1.7rem;line-height:1.3}
 .sab-stat span{display:block;font-size:.82rem;color:#acc0d4;margin-top:3px}
 .sab-section{margin:32px 0}
@@ -40,9 +37,11 @@
 <button type="button" id="sab-pause" class="secondary-button" disabled>Pause all</button>
 <button type="button" id="sab-resume" class="secondary-button" disabled>Resume all</button>
 </div></div>
-<nav class="service-tabs" aria-label="Download services">
-<a href="/radarr">Radarr</a><a href="/sonarr">Sonarr</a><a href="/sabnzbd" aria-current="page"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd</a>
-<a href="/settings/connections">Manage connections</a></nav>
+<nav class="service-switcher" aria-label="Download services">
+<a href="/sabnzbd" id="tab-sabnzbd" aria-current="page"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd</a>
+<a href="/radarr" id="tab-radarr"><img class="integration-logo" src="/assets/brand/radarr.svg" alt="">Radarr</a>
+<a href="/sonarr" id="tab-sonarr"><img class="integration-logo" src="/assets/brand/sonarr.svg" alt="">Sonarr</a>
+</nav>
 <p id="sab-feedback" role="status" class="sab-note">Connecting to SABnzbd…</p>
 <div id="sab-body" hidden>
 <div class="sab-stats" aria-label="Download status">
