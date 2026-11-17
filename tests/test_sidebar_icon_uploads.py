@@ -53,7 +53,7 @@ class SidebarIconTests(unittest.TestCase):
         images = [default_icon_png(name) for name in ICONS]
         self.assertEqual(len(set(images)), 4)
         for data in images:
-            self.assertTrue(data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"))
+            self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
             with Image.open(BytesIO(data)) as image:
                 self.assertEqual(image.size, (96, 96))
                 self.assertIn(image.mode, ("P", "RGBA"))
@@ -99,7 +99,8 @@ class SidebarIconTests(unittest.TestCase):
         self.assertIn('resetIconControls(lib)', page)
         self.assertIn("stagedIcon", page)
         self.assertIn('library.icon_image_url', shell)
-        self.assertIn("sidebar-icon-home.png", shell + (ROOT / "server/main.py").read_text() if False else "sidebar-icon-home.png")
+        self.assertIn("sidebar-icon-"+ "home", shell)
+        self.assertIn("sidebar_default_icon", (ROOT / "server/main.py").read_text())
         self.assertIn('lib?.icon_image_url', catalog)
 
 
