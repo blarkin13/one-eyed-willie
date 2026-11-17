@@ -13,13 +13,11 @@ NAV = (
     ("home", "Home"),
     ("movies", "Movies"),
     ("tv", "TV Shows"),
-    ("radarr", "Radarr"),
-    ("sonarr", "Sonarr"),
     ("sabnzbd", "SABnzbd"),
     ("services", "Download services"),
 )
 ALWAYS_VISIBLE = {"home", "settings"}
-ICON_NAMES = ("home", "movies", "tv", "radarr", "sonarr", "sabnzbd", "settings")
+ICON_NAMES = ("home", "movies", "tv", "sabnzbd", "settings")
 
 # Shared TV focus appearance: one setting for all TV clients, editable on web.
 DEFAULT_SELECTION_COLOR = "#8B5CF6"
