@@ -330,17 +330,31 @@ class CompactLayoutTests(unittest.TestCase):
     def test_library_up_down_animates_rows_on_google_tv(self):
         android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
                    "java" / "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        # Behaviour is covered in a real browser by
+        # test_google_tv_library_scroll_browser; this pins the structure.
         self.assertIn("const moveLibraryGridRow=(active,direction)=>", android)
         self.assertIn("if(moveLibraryGridRow(active,direction))return true", android)
-        self.assertIn("!['/movies','/tv'].includes(location.pathname)", android)
+        self.assertIn("!isLibraryGrid()", android)
         self.assertIn("active?.matches?.('#items .tile-button')", android)
-        self.assertIn("const target=findAdjacent(active,direction,cards)", android)
         self.assertIn("target.focus({preventScroll:true})", android)
-        self.assertIn("scrollLibraryRowTo(target)", android)
-        self.assertIn("cancelAnimationFrame(libraryScrollFrame)", android)
-        self.assertIn("const started=performance.now(),duration=285", android)
-        self.assertIn("root.scrollTop=from+(to-from)*ease", android)
+        self.assertIn("revealLibraryRow(target,next===0)", android)
+        # One scroll animator whose clock starts at the first animation frame
+        # and whose progress is clamped (negative progress threw the page back).
+        self.assertIn("if(begun===null)begun=now;", android)
+        self.assertIn("const t=Math.max(0,Math.min(1,(now-begun)/duration));", android)
+        self.assertNotIn("const begun=performance.now()", android)
+        self.assertNotIn("libraryScrollFrame", android)
         self.assertIn("prefers-reduced-motion: reduce", android)
+
+    def test_library_navigation_does_not_scan_every_poster_per_key_press(self):
+        android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
+                   "java" / "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
+        self.assertIn("const libraryLayout=known=>{", android)
+        self.assertNotIn("libraryRowTop", android)
+        move = android[android.index("const move=direction=>{"):]
+        # Library handlers run before the O(posters) candidates() scan.
+        self.assertLess(move.index("moveLibraryGridRow(active,direction)"),
+                        move.index("const nodes=candidates();"))
 
     def test_library_browser_keyboard_scrolls_rows_but_not_columns(self):
         page = (SERVER / "catalog.html").read_text()
@@ -355,9 +369,12 @@ class CompactLayoutTests(unittest.TestCase):
     def test_metadata_refresh_keeps_current_library_poster_focus(self):
         page = (SERVER / "catalog.html").read_text()
         self.assertIn("async function load({preserveFocus=false}={},quiet=false)", page)
-        self.assertIn("load({preserveFocus:true})", page)
+        self.assertIn("load({preserveFocus:true},true)", page)
         self.assertIn("previouslyFocused.dataset.hoverLibraryId", page)
         self.assertIn("previouslyFocused.dataset.hoverKey", page)
+        # The focused poster is rebuilt synchronously however deep it is, then
+        # focus and scroll are restored together.
+        self.assertIn("Math.max(24,focusIndex>=0?focusIndex+30:0)", page)
         self.assertIn("restored.focus({preventScroll:true})", page)
         self.assertIn(".scrollTop=previousScroll", page)
 

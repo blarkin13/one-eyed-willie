@@ -41,10 +41,17 @@ import android.util.Log
  * or source errors. The raw playback stream alone cannot decode every file.
  */
 class PlayerActivity : ComponentActivity() {
+    private companion object {
+        const val SEEK_STEP_SECONDS = 10.0
+        /** Minimum spacing of repeats while Left/Right is held. */
+        const val SEEK_REPEAT_MS = 190L
+        /** Pause after the last press before the seek is applied. */
+        const val SEEK_DEBOUNCE_MS = 220L
+    }
     private var player: ExoPlayer? = null
     private var mediaId = -1
     private var server = ""
-    private var session: String? = null
+    @Volatile private var session: String? = null
     private var hlsMode = false
     private var hlsOffset = 0.0
     private var durationSeconds = 0.0
@@ -80,8 +87,15 @@ class PlayerActivity : ComponentActivity() {
     private val iconControls = mutableListOf<ImageButton>()
     private var lastRemoteDirection = -1
     private var lastRemoteMoveAt = 0L
-    private var pendingSeek = 0.0
-    private var pendingSeekAction: Runnable? = null
+    // All remote seeking goes through ONE tracker (see SeekTracker). The
+    // SeekBar's own key handling is bypassed for Left/Right, so there is no
+    // second, competing position model.
+    private val seek = SeekTracker()
+    private var seekCommit: Runnable? = null
+    private var lastSeekKeyAt = 0L
+    // Each HLS start takes a serial number; only the newest start may touch
+    // the player. Older ones notice, delete their session and stop.
+    private val hlsStarts = LatestWins()
     private val uiRefresh = object : Runnable {
         override fun run() {
             refreshControls()
@@ -141,7 +155,8 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Log.i("OEWNav", "PLAYER_CREATE")
+        NavTrace.init(applicationContext)
+        NavTrace.log { "PLAYER_CREATE" }
         mediaId = intent.getIntExtra("media_id", -1)
         server = intent.getStringExtra("server")?.trimEnd('/') ?: ""
         seasonShuffle = intent.hasExtra("shuffle_queue")
@@ -180,7 +195,8 @@ class PlayerActivity : ComponentActivity() {
             Gravity.CENTER
         ))
         setContentView(surface)
-        playButton.requestFocus()
+        // Start on the timeline so Left/Right seek immediately.
+        timeline.requestFocus()
         loadPlayerAppearance()
         thumbnailPreview.start()
         player = ExoPlayer.Builder(this).build().also { exo ->
@@ -492,56 +508,98 @@ class PlayerActivity : ComponentActivity() {
         if(!::timeline.isInitialized) return
         val duration = currentDuration()
         val position = currentPosition().coerceAtMost(if(duration>0)duration else Double.MAX_VALUE)
-        // A remote seek is committed after a short debounce. Until then,
-        // display the requested position rather than snapping the slider
-        // back to the decoder's previous frame on every UI refresh.
-        val displayedPosition = if (pendingSeekAction != null) pendingSeek else position
+        // While a seek is pending (being requested, debounced, or waiting for
+        // an HLS restart) show the REQUESTED position, never the stale one the
+        // decoder is still reporting.
+        val displayedPosition = seek.displayed(position)
         if(!timeline.isPressed && !scrubbing && duration>0)
             timeline.progress = (displayedPosition/duration*1000).toInt().coerceIn(0,1000)
-        elapsed.text = fmt(position)
+        elapsed.text = fmt(displayedPosition)
         totalTime.text = fmt(duration)
         playButton.setImageResource(
             if (player?.isPlaying == true) R.drawable.ic_player_pause else R.drawable.ic_player_play
         )
     }
 
+    /** Relative remote seek; accumulates from the pending target while one exists. */
     private fun seekBy(delta: Double) {
-        val base = if (pendingSeekAction != null) pendingSeek else currentPosition()
-        seekTo(base + delta)
+        val generation = seek.requestBy(delta, currentPosition(), currentDuration())
+        scheduleSeekCommit(generation)
     }
 
     private fun seekTo(seconds: Double) {
-        pendingSeek = seconds.coerceIn(0.0, if (currentDuration() > 0) currentDuration() else 1e7)
-        showScrubAt(pendingSeek)
+        scheduleSeekCommit(seek.requestTo(seconds, currentDuration()))
+    }
+
+    /**
+     * Updates the bar immediately and (re)starts the debounce. Only the most
+     * recent generation is ever committed, so a held button produces ONE seek.
+     */
+    private fun scheduleSeekCommit(generation: Long) {
+        val target = seek.pendingTarget() ?: return
+        showScrubAt(target)
         thumbnailPreview.hideSoon()
-        pendingSeekAction?.let(handler::removeCallbacks)
+        refreshControls()
+        seekCommit?.let(handler::removeCallbacks)
         val action = Runnable {
-            pendingSeekAction = null
-            val target = pendingSeek
-            if (hlsMode) {
-                val relative = target - hlsOffset
-                val p = player
-                val buffered = (p?.bufferedPosition ?: 0L) / 1000.0
-                if (relative >= 0 && relative < buffered - 0.3 &&
-                    p?.isCurrentMediaItemSeekable == true) {
-                    p.seekTo((relative * 1000).toLong())
-                } else {
-                    val previous = session
-                    session = null
-                    p?.stop()
-                    network.execute {
-                        previous?.let {
-                            try { request("/api/stream/hls/$it", "DELETE") }
-                            catch (_: Exception) {}
-                        }
-                        startHlsOnNetwork(target)
-                    }
-                }
-            } else player?.seekTo((target * 1000).toLong())
-            showChrome()
+            seekCommit = null
+            commitSeek(generation)
         }
-        pendingSeekAction = action
-        handler.postDelayed(action, 220)
+        seekCommit = action
+        handler.postDelayed(action, SEEK_DEBOUNCE_MS)
+    }
+
+    private fun commitSeek(generation: Long) {
+        val target = seek.beginCommit(generation) ?: return   // superseded
+        val p = player
+        NavTrace.log { "SEEK_COMMIT gen=$generation target=$target hls=$hlsMode" }
+        if (p == null) { seek.settle(generation); return }
+        if (hlsMode) {
+            val relative = target - hlsOffset
+            val buffered = p.bufferedPosition / 1000.0
+            if (relative >= 0 && relative < buffered - 0.3 && p.isCurrentMediaItemSeekable) {
+                p.seekTo((relative * 1000).toLong())
+                seek.settle(generation)
+            } else {
+                restartHls(target, generation)
+            }
+        } else {
+            // The player reports the new position as soon as seekTo returns.
+            p.seekTo((target * 1000).toLong())
+            seek.settle(generation)
+        }
+        showChrome()
+    }
+
+    /** Seeks outside the transcoded range by starting a new session at [target]. */
+    private fun restartHls(target: Double, generation: Long) {
+        val previous = session
+        session = null
+        val serial = hlsStarts.next()
+        player?.stop()
+        network.execute {
+            previous?.let {
+                try { request("/api/stream/hls/$it", "DELETE") } catch (_: Exception) {}
+            }
+            startHlsOnNetwork(target, serial, generation)
+        }
+    }
+
+    /**
+     * Left/Right while the timeline is the active control (or the controls are
+     * hidden): step the seek target. Held buttons repeat at a fixed cadence.
+     */
+    private fun handleSeekKey(direction: Int, repeatCount: Int) {
+        val now = android.os.SystemClock.uptimeMillis()
+        if (repeatCount > 0 && now - lastSeekKeyAt < SEEK_REPEAT_MS) return
+        lastSeekKeyAt = now
+        val hidden = chrome.visibility != View.VISIBLE
+        showChrome()
+        // After the controls auto-hide Android has dropped focus; put it back on
+        // the timeline so the following presses keep seeking.
+        if (hidden || currentFocus == null) timeline.requestFocus()
+        NavTrace.log { "SEEK_KEY dir=$direction repeat=$repeatCount pending=${seek.pendingTarget()}" }
+        seekBy(direction * SEEK_STEP_SECONDS)
     }
 
     private fun showChrome() {
@@ -835,6 +893,10 @@ class PlayerActivity : ComponentActivity() {
         finish()
     }
 
+    private fun isSeekKey(code: Int) = code == KeyEvent.KEYCODE_DPAD_LEFT ||
+        code == KeyEvent.KEYCODE_DPAD_RIGHT || code == KeyEvent.KEYCODE_MEDIA_REWIND ||
+        code == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode in intArrayOf(
                 KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
@@ -843,9 +905,11 @@ class PlayerActivity : ComponentActivity() {
                 KeyEvent.KEYCODE_BACK) &&
             (event.repeatCount == 0 || event.repeatCount % 8 == 0 ||
              event.action == KeyEvent.ACTION_UP)) {
-            Log.i("OEWNav", "PLAYER_KEY code=${event.keyCode} action=${event.action}" +
-                " repeat=${event.repeatCount} focus=${currentFocus?.contentDescription}" +
-                " chrome=${if (::chrome.isInitialized) chrome.visibility else -1}")
+            NavTrace.log {
+                "PLAYER_KEY code=${event.keyCode} action=${event.action}" +
+                    " repeat=${event.repeatCount} focus=${currentFocus?.contentDescription}" +
+                    " chrome=${if (::chrome.isInitialized) chrome.visibility else -1}"
+            }
         }
         if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
         val direction = event.keyCode
@@ -853,20 +917,31 @@ class PlayerActivity : ComponentActivity() {
             KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
             KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT
         )
+        if (::chrome.isInitialized && isSeekKey(direction)) {
+            val mediaKey = direction == KeyEvent.KEYCODE_MEDIA_REWIND ||
+                direction == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD
+            val focused = currentFocus
+            // Left/Right seek unless the viewer has moved down to the toolbar
+            // buttons, where they still move between buttons.
+            val seeks = mediaKey || chrome.visibility != View.VISIBLE ||
+                focused == null || focused === timeline
+            if (seeks) {
+                // Consume DOWN *and* UP: the SeekBar must never apply its own
+                // key increment on top of ours.
+                if (event.action == KeyEvent.ACTION_DOWN) {
+                    val sign = if (direction == KeyEvent.KEYCODE_DPAD_RIGHT ||
+                        direction == KeyEvent.KEYCODE_MEDIA_FAST_FORWARD) 1 else -1
+                    handleSeekKey(sign, event.repeatCount)
+                }
+                return true
+            }
+        }
         if (isDpad && event.action == KeyEvent.ACTION_UP) {
             if (lastRemoteDirection == direction) lastRemoteDirection = -1
             return true
         }
         if (event.action == KeyEvent.ACTION_DOWN && ::chrome.isInitialized) {
             when (direction) {
-                KeyEvent.KEYCODE_MEDIA_FAST_FORWARD -> {
-                    if (event.repeatCount == 0) seekBy(10.0)
-                    return true
-                }
-                KeyEvent.KEYCODE_MEDIA_REWIND -> {
-                    if (event.repeatCount == 0) seekBy(-10.0)
-                    return true
-                }
                 KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE -> {
                     if (event.repeatCount == 0) {
                         val active = player
@@ -874,6 +949,18 @@ class PlayerActivity : ComponentActivity() {
                         showChrome()
                     }
                     return true
+                }
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                    // OK on the timeline toggles play/pause (the bar itself is
+                    // not clickable).
+                    if (chrome.visibility == View.VISIBLE && currentFocus === timeline) {
+                        if (event.repeatCount == 0) {
+                            val active = player
+                            if (active?.isPlaying == true) active.pause() else active?.play()
+                            showChrome()
+                        }
+                        return true
+                    }
                 }
             }
             if (isDpad) {
@@ -884,13 +971,8 @@ class PlayerActivity : ComponentActivity() {
                 lastRemoteMoveAt = now
                 if (chrome.visibility != View.VISIBLE) {
                     showChrome()
-                    // First press reveals playback controls; left/right can
-                    // seek immediately without accidentally shifting focus.
-                    when (direction) {
-                        KeyEvent.KEYCODE_DPAD_LEFT -> seekBy(-10.0)
-                        KeyEvent.KEYCODE_DPAD_RIGHT -> seekBy(10.0)
-                        else -> playButton.requestFocus()
-                    }
+                    // First Up/Down press reveals the controls.
+                    playButton.requestFocus()
                     return true
                 }
                 // The native player has three logical focus rows. Do not
@@ -1047,27 +1129,41 @@ class PlayerActivity : ComponentActivity() {
 
     private fun startHls(position: Double) {
         if (shuttingDown) return
+        val serial = hlsStarts.next()
         player?.stop()
-        network.execute { startHlsOnNetwork(position) }
+        network.execute { startHlsOnNetwork(position, serial) }
     }
 
-    private fun startHlsOnNetwork(position: Double) {
-        if (shuttingDown) return
+    /**
+     * Starts a transcoding session at [position] and plays it, unless a newer
+     * start (or a newer seek) has been issued meanwhile. A superseded start
+     * deletes the session it created and never touches the player, so an older
+     * asynchronous seek cannot overwrite a newer one. [generation] ties the
+     * start to the seek that caused it.
+     */
+    private fun startHlsOnNetwork(
+        position: Double,
+        serial: Long = hlsStarts.next(),
+        generation: Long = SeekTracker.NO_GENERATION
+    ) {
+        fun superseded() = shuttingDown || !hlsStarts.isCurrent(serial)
+        if (superseded()) return
         var createdToken: String? = null
+        fun discard(token: String) {
+            try { request("/api/stream/hls/$token", "DELETE") } catch (_: Exception) {}
+            if (session == token) session = null
+        }
         try {
             val start = position.coerceAtLeast(0.0)
-            handler.post { if (!shuttingDown) showMessage("Preparing compatible HLS stream…") }
+            handler.post { if (!superseded()) showMessage("Preparing compatible HLS stream…") }
             val created = request("/api/stream/hls/start/$mediaId?start=$start", "POST")
             val token = created.getString("session")
             createdToken = token
-            if (shuttingDown) {
-                try { request("/api/stream/hls/$token", "DELETE") } catch (_: Exception) {}
-                return
-            }
+            if (superseded()) { discard(token); return }
             session = token
             var ready: JSONObject? = null
             for (attempt in 0 until 80) {
-                if (shuttingDown) return
+                if (superseded()) { discard(token); return }
                 Thread.sleep(400)
                 val candidate = request("/api/stream/hls/$token/status")
                 if (candidate.optBoolean("ready")) { ready = candidate; break }
@@ -1075,7 +1171,10 @@ class PlayerActivity : ComponentActivity() {
             val playlist = ready?.optString("playlist").orEmpty()
             if (playlist.isBlank()) throw IllegalStateException("HLS transcoder did not become ready")
             handler.post {
-                if (shuttingDown) return@post
+                if (superseded()) {
+                    network.execute { discard(token) }
+                    return@post
+                }
                 hlsMode = true
                 hlsOffset = start
                 val item = MediaItem.Builder()
@@ -1087,15 +1186,17 @@ class PlayerActivity : ComponentActivity() {
                 player?.seekTo(0L) // EVENT HLS begins at zero, not the live edge.
                 player?.playWhenReady = true
                 if (selectedCaption != null) applyCaption()
+                // The new session now starts at the requested position. If the
+                // viewer has pressed again meanwhile, settle() is a no-op and
+                // their newer target stays on screen.
+                if (generation != SeekTracker.NO_GENERATION) seek.settle(generation)
+                NavTrace.log { "HLS_READY serial=$serial offset=$start gen=$generation" }
             }
         } catch (error: Exception) {
-            createdToken?.let { token ->
-                try { request("/api/stream/hls/$token", "DELETE") }
-                catch (_: Exception) {}
-                if (session == token) session = null
-            }
+            createdToken?.let { discard(it) }
             handler.post {
-                if (!shuttingDown) showMessage("Compatible playback failed: ${error.message}")
+                if (generation != SeekTracker.NO_GENERATION) seek.settle(generation)
+                if (!superseded()) showMessage("Compatible playback failed: ${error.message}")
             }
         }
     }
@@ -1195,6 +1296,8 @@ class PlayerActivity : ComponentActivity() {
         handler.removeCallbacks(uiRefresh)
         handler.removeCallbacks(hideChrome)
         handler.removeCallbacks(scrubCommit)
+        seekCommit?.let(handler::removeCallbacks)
+        seekCommit = null
         if (::thumbnailPreview.isInitialized) thumbnailPreview.hide()
         saveProgress(false)
         player?.pause()
@@ -1214,12 +1317,13 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        Log.i("OEWNav", "PLAYER_DESTROY")
+        NavTrace.log { "PLAYER_DESTROY" }
         shuttingDown = true
         visibleForPlayback = false
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        pendingSeekAction?.let(handler::removeCallbacks)
-        pendingSeekAction = null
+        seekCommit?.let(handler::removeCallbacks)
+        seekCommit = null
+        hlsStarts.invalidate()   // abandon any HLS start still in flight
         handler.removeCallbacks(scrubCommit)
         if (::thumbnailPreview.isInitialized) thumbnailPreview.dispose()
         handler.removeCallbacks(checkpoint)
