@@ -963,6 +963,10 @@ class PlayerActivity : ComponentActivity() {
                     .openConnection() as HttpURLConnection
                 try {
                     connection.requestMethod = "POST"
+                    // Avoid reusing a stale keep-alive socket while Media3
+                    // sustains its long-lived video streaming connection.
+                    connection.setRequestProperty("Connection", "close")
+                    connection.useCaches = false
                     connection.connectTimeout = 8_000
                     connection.readTimeout = 12_000
                     connection.doOutput = true
@@ -985,6 +989,7 @@ class PlayerActivity : ComponentActivity() {
                 // request body or the user's server URL.
                 val kind = error.javaClass.simpleName
                 lastFailure = if (kind.isNotEmpty()) kind else "Network error"
+                Log.w("OneEyedWillie", "Progress POST attempt ${attempt + 1} failed: $lastFailure: ${error.message}", error)
                 if (error !is java.io.IOException) break
             }
         }
@@ -1020,6 +1025,13 @@ class PlayerActivity : ComponentActivity() {
                 Log.w("OneEyedWillie", "Playback checkpoint queued locally: $failure")
             }
         }
+    }
+
+    override fun onPause() {
+        // Persist before MainActivity resumes and flushes the pending POST.
+        // onStop can occur after the browsing activity has already resumed.
+        saveProgress(false)
+        super.onPause()
     }
 
     override fun onStop() {
