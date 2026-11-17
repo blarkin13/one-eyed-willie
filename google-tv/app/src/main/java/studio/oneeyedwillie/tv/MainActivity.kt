@@ -64,10 +64,6 @@ class MainActivity : ComponentActivity() {
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var initialPageLoaded = false
-    private var preparedBrowser: WebView? = null
-    private var preparedDestination: String? = null
-    private var preparedBackdropUrl: String? = null
-    private var prepareEpoch = 0
     private var splashStartedAt = 0L
     private var playedStartupSound = false
     @Volatile private var discoveryGeneration = 0
@@ -281,11 +277,10 @@ class MainActivity : ComponentActivity() {
         val generation = ++discoveryGeneration
         loadingFailed = false
         loadingActions?.visibility = View.GONE
-        loadingCaption?.apply {
-            text = "Looking for One-Eyed Willie on your network…"
-            visibility = View.VISIBLE
-        }
-        loadingErrorPanel?.visibility = View.VISIBLE
+        // Discovery is silent. The splash stays visible; only failures
+        // reveal an error message and recovery controls.
+        loadingCaption?.visibility = View.GONE
+        loadingErrorPanel?.visibility = View.GONE
         loadingOverlay?.visibility = View.VISIBLE
         discoveryWorker.execute {
             val candidates = linkedSetOf<String>()
@@ -437,190 +432,6 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /** Home and catalogs are prepared behind the current, fully rendered page.
-     * No snapshots, spinners, loading screen, or visible empty WebView. */
-    private fun cancelPreparedNavigation() {
-        ++prepareEpoch
-        val pending = preparedBrowser
-        preparedBrowser = null
-        preparedDestination = null
-        preparedBackdropUrl = null
-        if (pending != null) {
-            pending.stopLoading()
-            (pending.parent as? ViewGroup)?.removeView(pending)
-            pending.destroy()
-        }
-    }
-
-    private fun prepareNavigation(web: WebView, destination: String): Boolean {
-        if (browser !== web || !initialPageLoaded || !sameOrigin(destination)) return false
-        val path = Uri.parse(destination).path
-        if (path !in setOf("/", "/movies", "/tv")) return false
-        if (preparedDestination == destination) return true
-        cancelPreparedNavigation()
-        val frame = web.parent as? FrameLayout ?: return false
-        val candidate = WebView(this)
-        configureBrowser(candidate)
-        candidate.isFocusable = false
-        candidate.isFocusableInTouchMode = false
-        // Render the destination fully *behind* the outgoing page.
-        // A nearly transparent WebView may not paint until it becomes visible,
-        // leaving a frozen frame instead of a real crossfade.
-        candidate.alpha = 1f
-        candidate.isClickable = false
-        frame.addView(candidate, frame.indexOfChild(web), FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        preparedBrowser = candidate
-        preparedDestination = destination
-        val epoch = prepareEpoch
-        // Capture the real outgoing selected artwork, not a navy placeholder.
-        // This transfer does not delay loading or navigation.
-        web.evaluateJavascript(
-            """(() => {
-              const layers=[...document.querySelectorAll(
-                '.willie-hover-backdrop-layer.is-visible,.oew-tv-cinematic-image.is-visible')];
-              const layer=layers.find(node=>getComputedStyle(node).backgroundImage.includes('url('));
-              const raw=layer?getComputedStyle(layer).backgroundImage:'';
-              const matched=raw.match(/url\(["']?(.+?)["']?\)/);
-              const poster=document.querySelector(
-                '.tile-button:focus .poster-image,.tile-button:focus img');
-              const src=matched?.[1]||poster?.currentSrc||poster?.src;
-              try{return src?new URL(src,location.href).href:null}catch(_){return null}
-            })()""".trimIndent()
-        ) { result ->
-            if (epoch != prepareEpoch || preparedBrowser !== candidate) return@evaluateJavascript
-            val url = try { org.json.JSONArray("[" + result + "]").optString(0) }
-                catch (_: Exception) { "" }
-            preparedBackdropUrl = url.takeIf {
-                it.startsWith("$origin/api/artwork/") ||
-                    it.startsWith("https://image.tmdb.org/t/p/")
-            }
-        }
-        candidate.loadUrl(destination)
-        candidate.postDelayed({
-            if (epoch == prepareEpoch && preparedBrowser === candidate) {
-                // Never leave the viewer on a frozen outgoing page. If
-                // destination readiness stalls, use normal page navigation.
-                cancelPreparedNavigation()
-                if (browser === web) web.loadUrl(destination)
-            }
-        }, 2500L)
-        return true
-    }
-
-    private fun prepareReveal(web: WebView, attempt: Int = 0) {
-        if (preparedBrowser !== web) return
-        // Do not block navigation on poster metadata or backdrop downloads.
-        // The destination is already rendered underneath the outgoing page.
-        if (attempt >= 14) {
-            revealPreparedBrowser(web)
-            return
-        }
-        web.evaluateJavascript(
-            """(() => {
-              const path=location.pathname;
-              if(path==='/')return window.__oewHomeReady===true;
-              if(path==='/movies'||path==='/tv')
-                return Boolean(document.querySelector('#items .tile-button,#items .empty'));
-              return document.readyState!=='loading';
-            })()""".trimIndent()
-        ) { ready ->
-            if (preparedBrowser !== web) return@evaluateJavascript
-            if (ready == "true") {
-                web.postDelayed({
-                    if (preparedBrowser === web) revealPreparedBrowser(web)
-                }, 45L)
-            } else {
-                web.postDelayed({ prepareReveal(web, attempt + 1) }, 75L)
-            }
-        }
-    }
-
-    private fun revealPreparedBrowser(web: WebView) {
-        if (preparedBrowser !== web) return
-        val old = browser ?: return
-        val frame = old.parent as? FrameLayout ?: return
-        preparedBrowser = null
-        preparedDestination = null
-        val previousArtwork = preparedBackdropUrl
-        preparedBackdropUrl = null
-        ++prepareEpoch
-        browser = web
-        tvTextEditing = false
-        ++pageLoadSerial
-        stopTvRepeat()
-        web.isFocusable = true
-        web.isFocusableInTouchMode = true
-        web.isClickable = true
-        // The old page remains in front until the carried backdrop is
-        // installed (or a short fallback expires). Never wait for new artwork.
-        var fadeStarted = false
-        val fadeOnce: () -> Unit = {
-            if (!fadeStarted && browser === web) {
-                fadeStarted = true
-                old.bringToFront()
-                loadingOverlay?.bringToFront()
-                old.animate().cancel()
-                web.animate().cancel()
-                old.animate().alpha(0f).setDuration(220L)
-                    .setInterpolator(android.view.animation.DecelerateInterpolator())
-                    .withEndAction {
-                        (old.parent as? ViewGroup)?.removeView(old)
-                        old.stopLoading()
-                        old.destroy()
-                        web.isFocusable = true
-                        web.isFocusableInTouchMode = true
-                        web.requestFocus()
-                    }.start()
-            }
-        }
-        // Begin the destination with the previous page's actual artwork.
-        // A translucent gradient keeps text readable. The retained image fades
-        // away only after the newly selected title's backdrop is ready.
-        if (previousArtwork != null) {
-            val quoted = JSONObject.quote(previousArtwork)
-            web.evaluateJavascript(
-                """(() => {
-                  const parent=document.querySelector('.willie-hover-backdrop') ||
-                    document.querySelector('.oew-tv-cinematic-backdrop');
-                  if(!parent)return;
-                  const old=document.getElementById('oew-carried-page-artwork');
-                  old?.remove();
-                  const layer=document.createElement('div');
-                  layer.id='oew-carried-page-artwork';
-                  const url=$quoted;
-                  Object.assign(layer.style,{
-                    position:'absolute',inset:'0',zIndex:'1',
-                    pointerEvents:'none',backgroundPosition:'center 28%',
-                    backgroundSize:'cover',backgroundRepeat:'no-repeat',
-                    backgroundImage:'linear-gradient(90deg,rgba(8,13,22,.30),rgba(8,13,22,.12)),url('+JSON.stringify(url)+')',
-                    opacity:'1',transition:'opacity 210ms ease'
-                  });
-                  parent.append(layer);
-                  let finished=false;
-                  const stop=()=>{
-                    if(finished)return;
-                    finished=true;
-                    watcher.disconnect();
-                    layer.style.opacity='0';
-                    setTimeout(()=>layer.remove(),250);
-                  };
-                  const ready=()=>Boolean(document.querySelector(
-                    '.willie-hover-backdrop-layer.is-visible,.oew-tv-cinematic-image.is-visible'));
-                  const watcher=new MutationObserver(()=>{if(ready())stop()});
-                  watcher.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
-                  if(ready())setTimeout(stop,140);
-                  // Empty libraries retain the outgoing image rather than
-                  // flashing navy; the next focused poster will replace it.
-                })()""".trimIndent()
-            ) { fadeOnce() }
-            // Fallback prevents a stalled JS callback from freezing navigation.
-            old.postDelayed({ fadeOnce() }, 75L)
-        } else {
-            fadeOnce()
-        }
-    }
-
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showUnconfigured(); return }
         ++discoveryGeneration
@@ -716,28 +527,6 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
-                // TV sidebar navigation is initiated from JavaScript. Route
-                // it explicitly through the prepared WebView crossfade rather
-                // than relying on shouldOverrideUrlLoading timing.
-                if (sameOrigin(url) && browser === web &&
-                    message.startsWith("oewtv:navigate:")) {
-                    val target = message.removePrefix("oewtv:navigate:")
-                    val destination = try {
-                        val parsed = URI(target)
-                        if (parsed.isAbsolute || parsed.rawAuthority != null ||
-                            parsed.rawFragment != null || parsed.rawQuery != null ||
-                            target !in setOf("/", "/movies", "/tv")) null
-                        else origin + target
-                    } catch (_: Exception) { null }
-                    if (destination != null && !isFinishing) {
-                        result.confirm("ACK")
-                        web.post {
-                            if (browser === web && !isFinishing)
-                                prepareNavigation(web, destination)
-                        }
-                    } else result.cancel()
-                    return true
-                }
                 if (sameOrigin(url) && browser === web &&
                     message == "oewtv:settings:server") {
                     result.confirm("ACK")
@@ -816,20 +605,15 @@ class MainActivity : ComponentActivity() {
             override fun onReceivedError(
                 web: WebView, request: WebResourceRequest, error: WebResourceError
             ) {
-                if (preparedBrowser === web && request.isForMainFrame)
-                    cancelPreparedNavigation()
-                else if (browser === web && request.isForMainFrame)
+                if (browser === web && request.isForMainFrame)
                     showLoadingFailure("Unable to reach your server")
                 super.onReceivedError(web, request, error)
             }
             override fun onReceivedHttpError(
                 web: WebView, request: WebResourceRequest, response: WebResourceResponse
             ) {
-                if (preparedBrowser === web && request.isForMainFrame &&
+                if (browser === web && request.isForMainFrame &&
                     response.statusCode >= 400)
-                    cancelPreparedNavigation()
-                else if (browser === web && request.isForMainFrame &&
-                         response.statusCode >= 400)
                     showLoadingFailure("Server error ${response.statusCode}")
                 super.onReceivedHttpError(web, request, response)
             }
@@ -851,9 +635,6 @@ class MainActivity : ComponentActivity() {
                 // Only open approved HTTPS metadata destinations outside our
                 // embedded server WebView. Rotten Tomatoes review links must be
                 // usable on Google TV instead of silently being blocked.
-                if (request.isForMainFrame && browser === web &&
-                    sameOrigin(uri.toString()) && uri.toString() != web.url &&
-                    prepareNavigation(web, uri.toString())) return true
                 if (!sameOrigin(uri.toString())) {
                     val host = uri.host?.lowercase().orEmpty()
                     if (uri.scheme == "https" && host in setOf(
@@ -875,10 +656,7 @@ class MainActivity : ComponentActivity() {
             }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
-                if (preparedBrowser === web && sameOrigin(url.orEmpty())) {
-                    installRemoteNavigation(web)
-                    prepareReveal(web)
-                } else if (browser === web && sameOrigin(url.orEmpty())) {
+                if (browser === web && sameOrigin(url.orEmpty())) {
                     val completedSerial = pageLoadSerial
                     installRemoteNavigation(web)
                     // A page with autofocus must not leave the keyboard open
@@ -928,11 +706,10 @@ class MainActivity : ComponentActivity() {
                 catch (_: Exception) { "/" }
             if (target == "handled") return@evaluateJavascript
             if (target.startsWith("/") && !target.startsWith("//")) {
-                if (web.url != origin + target &&
-                    !prepareNavigation(web, origin + target))
-                    web.loadUrl(origin + target)
-            } else if (!prepareNavigation(web, origin + "/"))
+                if (web.url != origin + target) web.loadUrl(origin + target)
+            } else if (web.url != origin + "/") {
                 web.loadUrl(origin + "/")
+            }
         }
     }
 
@@ -1149,7 +926,6 @@ class MainActivity : ComponentActivity() {
         loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false
-        cancelPreparedNavigation()
         browser?.destroy()
         browser = null
         super.onDestroy()
@@ -1158,22 +934,25 @@ class MainActivity : ComponentActivity() {
     companion object {
         private val TV_REMOTE_SCRIPT = """
             (() => {
-              // Intercept sidebar clicks before the WebView performs a
-              // full document navigation. The native handler prepares the
-              // destination behind the outgoing page and blends the frames.
-              if(!window.__oewTvPageTransitionLinksInstalled){
-                window.__oewTvPageTransitionLinksInstalled=true;
-                document.addEventListener('click',event=>{
-                  const link=event.target?.closest?.('#app-nav a[href]');
-                  if(!link || event.defaultPrevented || event.button!==0 ||
-                     event.metaKey||event.ctrlKey||event.altKey||event.shiftKey)return;
-                  const target=new URL(link.href,location.href);
-                  if(target.origin!==location.origin ||
-                     !['/','/movies','/tv'].includes(target.pathname) ||
-                     target.search || target.hash ||
-                     target.pathname===location.pathname)return;
-                  const acknowledged=window.prompt('oewtv:navigate:'+target.pathname,'');
-                  if(acknowledged==='ACK')event.preventDefault();
+              // Sidebar icons navigate on remote focus. No Select press,
+              // prepared WebView, screenshot hold or page crossfade.
+              if(!window.__oewTvSidebarAutoNavigate){
+                window.__oewTvSidebarAutoNavigate=true;
+                let queuedPage=null;
+                document.addEventListener('focusin',event=>{
+                  const link=event.target?.closest?.('#app-nav .side-nav a[href]');
+                  if(!link)return;
+                  const next=new URL(link.href,location.href);
+                  if(next.origin!==location.origin)return;
+                  if(next.pathname===location.pathname &&
+                     next.search===location.search)return;
+                  const destination=next.href;
+                  queuedPage=destination;
+                  // Defer to the end of the current D-pad event, not a
+                  // preloaded page. Focus never blocks while artwork loads.
+                  setTimeout(()=>{
+                    if(queuedPage===destination)location.assign(destination);
+                  },0);
                 },true);
               }
               // Google TV remote navigation may focus a search box while the
@@ -1897,6 +1676,19 @@ class MainActivity : ComponentActivity() {
                 }
                 body[data-page] .sidebar .nav-link[aria-current="page"]::before{
                   display:none!important;content:none!important
+                }
+                /* Underline the ACTIVE destination with the configured TV
+                   selection color; keep icon surfaces borderless and clear. */
+                body[data-page] .sidebar .side-nav .nav-link[aria-current="page"]::after{
+                  content:""!important;display:block!important;
+                  position:absolute!important;left:50%!important;
+                  bottom:1px!important;top:auto!important;right:auto!important;
+                  width:28px!important;height:2px!important;
+                  transform:translateX(-50%)!important;
+                  border:0!important;border-radius:2px!important;
+                  background:var(--oew-tv-select-color,#8B5CF6)!important;
+                  opacity:1!important;box-shadow:none!important;
+                  pointer-events:none!important
                 }
                 body[data-page] .sidebar .nav-link:not([data-service-nav="radarr"]):not(
                   [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon,
