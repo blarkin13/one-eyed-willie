@@ -51,9 +51,11 @@ class MainActivity : ComponentActivity() {
     private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
-    private val dpadHandler = android.os.Handler(android.os.Looper.getMainLooper())
-    private var dpadRepeat: Runnable? = null
+    // Only the Android key-repeat stream drives navigation. Never run a
+    // second synthetic repeat timer against WebView focus updates.
     private var heldDpadKey = -1
+    private var lastDpadMoveTime = 0L
+    private var playerLaunchPending = false
 
     private var loadingOverlay: FrameLayout? = null
     private var loadingCaption: TextView? = null
@@ -686,7 +688,11 @@ class MainActivity : ComponentActivity() {
 
     private fun play(mediaId: Int, restart: Boolean = false, title: String = "",
                      shuffleQueue: String? = null) {
-        if (mediaId <= 0) return
+        // A rapid/duplicate activation must never open two player activities
+        // or start two simultaneous playback sessions.
+        if (mediaId <= 0 || playerLaunchPending || isFinishing) return
+        playerLaunchPending = true
+        stopTvRepeat()
         startActivity(Intent(this, PlayerActivity::class.java)
             .putExtra("url", "$origin/api/playback/$mediaId/stream")
             .putExtra("media_id", mediaId)
@@ -714,9 +720,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun stopTvRepeat() {
-        dpadRepeat?.let(dpadHandler::removeCallbacks)
-        dpadRepeat = null
         heldDpadKey = -1
+        lastDpadMoveTime = 0L
     }
 
     private fun moveTvDirection(web: WebView, direction: String) {
@@ -752,7 +757,10 @@ class MainActivity : ComponentActivity() {
             (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
              event.keyCode == KeyEvent.KEYCODE_ENTER ||
              event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
+            // Select cannot activate a poster during an unfinished D-pad
+            // hold, and Android's repeated Select presses are ignored.
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
+                heldDpadKey == -1 && !playerLaunchPending)
                 web.evaluateJavascript("window.__willieTvSelect?.()", null)
             return true
         }
@@ -777,26 +785,20 @@ class MainActivity : ComponentActivity() {
             }
             if (event.action == KeyEvent.ACTION_UP) {
                 if (heldDpadKey == event.keyCode) stopTvRepeat()
-            } else if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                stopTvRepeat()
-                heldDpadKey = event.keyCode
-                moveTvDirection(web, direction)
-                // Leave time for the selected media's artwork to load and
-                // for one scroll animation to settle before the next step.
-                // Ignore the OS repeat stream; this timer owns held movement.
-                val repeating = object : Runnable {
-                    override fun run() {
-                        if (heldDpadKey != event.keyCode || browser !== web ||
-                            tvTextEditing || isFinishing) {
-                            stopTvRepeat()
-                            return
-                        }
-                        moveTvDirection(web, direction)
-                        dpadHandler.postDelayed(this, 260L)
-                    }
+            } else if (event.action == KeyEvent.ACTION_DOWN && !playerLaunchPending) {
+                // The framework emits repeatCount > 0 while a physical
+                // button is held. Throttle those events once; don't generate
+                // another independent stream with a Handler.
+                val now = android.os.SystemClock.uptimeMillis()
+                val fresh = heldDpadKey != event.keyCode || event.repeatCount == 0
+                if (fresh) {
+                    heldDpadKey = event.keyCode
+                    lastDpadMoveTime = 0L
                 }
-                dpadRepeat = repeating
-                dpadHandler.postDelayed(repeating, 480L)
+                if (fresh || now - lastDpadMoveTime >= 190L) {
+                    lastDpadMoveTime = now
+                    moveTvDirection(web, direction)
+                }
             }
             return true
         }
@@ -874,6 +876,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        playerLaunchPending = false
+        stopTvRepeat()
         // Read the player state via the JavaScript evaluation callback.
         // Never use JS prompt() here: after a second launch/resume it can
         // surface oewtv:awake:0 as a visible browser dialog.
