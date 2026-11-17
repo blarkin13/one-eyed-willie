@@ -16,6 +16,7 @@ class PlaybackUpdate(BaseModel):
     position_seconds: float = Field(ge=0, le=10000000)
     duration_seconds: float = Field(ge=0, le=10000000)
     completed: bool = False
+    replaying: bool = False  # An explicitly restarted, previously watched episode
 
 
 def _describe(media, lib):
@@ -222,9 +223,12 @@ def update_playback(item: PlaybackUpdate):
         duration = item.duration_seconds
         if duration == 0 and previous and previous["duration_seconds"] >= item.position_seconds:
             duration = previous["duration_seconds"]
-        # Prevent a late heartbeat from undoing an episode marked watched.
-        completed = bool(item.completed or (previous and previous["completed"]) or (
-            duration > 0 and item.position_seconds >= duration * .95
+        # Preserve a manual/completed watched state against late checkpoints,
+        # except when the viewer explicitly starts replaying a watched item.
+        # A replay must be allowed to become in-progress and show on Home.
+        finished = duration > 0 and item.position_seconds >= duration * .95
+        completed = bool(item.completed or finished or (
+            previous and previous["completed"] and not item.replaying
         ))
         connection.execute(
             """INSERT INTO playback_progress

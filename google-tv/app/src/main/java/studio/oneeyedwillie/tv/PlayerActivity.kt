@@ -49,6 +49,7 @@ class PlayerActivity : ComponentActivity() {
     private var hlsOffset = 0.0
     private var durationSeconds = 0.0
     private var completed = false
+    private var replayingWatchedEpisode = false
     private var shuttingDown = false
     private var visibleForPlayback = false
     private var fallbackStarted = false
@@ -535,7 +536,11 @@ class PlayerActivity : ComponentActivity() {
                         it.write(JSONObject().put("watched",next).toString().toByteArray())
                     }
                     if(connection.responseCode !in 200..299)throw IllegalStateException("HTTP "+connection.responseCode)
-                    handler.post {completed=next;showMessage(if(next)"Marked watched" else "Marked unwatched")}
+                    handler.post {
+                        completed = next
+                        replayingWatchedEpisode = false
+                        showMessage(if(next)"Marked watched" else "Marked unwatched")
+                    }
                 }finally{connection.disconnect()}
             }catch(error:Exception){
                 handler.post {showMessage("Could not update watched status: "+error.message)}
@@ -868,6 +873,7 @@ class PlayerActivity : ComponentActivity() {
                     else maxOf(serverPosition, storedPosition)
                 durationSeconds = info.optDouble("duration_seconds", 0.0)
                 completed = info.optBoolean("watched",false)
+                replayingWatchedEpisode = completed
                 val mode = info.optString("mode", "")
                 val actual = info.optJSONObject("media")
                 val direct = if (actual != null && actual.optString("video_codec").isNotBlank())
@@ -1009,7 +1015,10 @@ class PlayerActivity : ComponentActivity() {
             put("media_id", mediaId)
             put("position_seconds", safePosition)
             put("duration_seconds", knownDuration)
-            put("completed", finished || completed)
+            // A previously watched episode is *not* finished merely because
+            // the server said it had been watched before this playback.
+            put("completed", finished)
+            put("replaying", replayingWatchedEpisode && !finished)
         }.toString()
         // Save locally BEFORE scheduling any network operation. A failed
         // connection or immediate Back no longer discards the resume point.
