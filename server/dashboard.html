@@ -7,7 +7,7 @@
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <script defer src="/assets/player.js?v=continue-next-1"></script>
 <style>
-.shelf{margin-top:36px}.shelf:first-of-type{margin-top:0}
+.shelf{display:none;margin-top:36px}.shelf:first-of-type{margin-top:0}
 .shelf-title{font-size:1.24rem;letter-spacing:-.025em;margin:0}.shelf-desc{color:var(--muted);font-size:.82rem;margin:4px 0 0}
 .shelf-track{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(160px,193px);gap:18px;overflow-x:auto;padding:4px 2px 18px;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scrollbar-color:#40516b transparent}
 /* Shelves remain single-row horizontal carousels, never vertically scrollable. */
@@ -401,15 +401,16 @@ function tile(item, watching=false){
 }
 function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  const target=byId(id);target.replaceChildren();
+ const section=target.closest('.shelf');
  if(!Array.isArray(items)||!items.length){
+  if(section)section.style.display='none';
   target.closest('.shelf')?.querySelector(':scope > .home-feature')?.remove();
   const empty=document.createElement('div');empty.className='shelf-empty';
   const title=document.createElement('h3');title.textContent=emptyTitle;
   const info=document.createElement('p');info.textContent=emptyDescription;
   empty.append(title,info);target.appendChild(empty);return;
  }
- const section=target.closest('.shelf');
- if(section)makeHomeFeature(section);
+ if(section){section.style.display='block';makeHomeFeature(section);}
  const track=document.createElement('div');track.className='shelf-track';
  for(const item of items)track.appendChild(tile(item,watching));target.appendChild(track);
  const first=track.querySelector('.tile-button');
