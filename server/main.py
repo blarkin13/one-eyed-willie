@@ -173,6 +173,15 @@ def browse():
 # paint, rather than in a script injected after page load. Only requests from
 # our native app get this final CSS override; browsers keep normal navigation.
 TV_RAIL_CSS = """
+/* TV-only first paint: no navy canvas and no skull watermark while artwork loads. */
+:root,html,body,
+body[data-page="home"],body[data-page="movies"],
+body[data-page="tv"],body[data-page="explore"] {
+  background:#000!important;
+}
+.willie-hover-backdrop {background:#000!important}
+#items::before,.shelf-track::before,.explore-grid::before,
+.movie-grid::before,.tv-grid::before {content:none!important;display:none!important}
 /* TV rail: hidden until the remote deliberately moves focus into navigation. */
 body .sidebar,body .sidebar:hover,body .sidebar:focus-within {
   transform:translateX(-120%)!important;
