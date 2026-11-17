@@ -66,6 +66,7 @@ class MainActivity : ComponentActivity() {
     private var initialPageLoaded = false
     private var preparedBrowser: WebView? = null
     private var preparedDestination: String? = null
+    private var preparedBackdropUrl: String? = null
     private var prepareEpoch = 0
     private var splashStartedAt = 0L
     private var playedStartupSound = false
@@ -443,6 +444,7 @@ class MainActivity : ComponentActivity() {
         val pending = preparedBrowser
         preparedBrowser = null
         preparedDestination = null
+        preparedBackdropUrl = null
         if (pending != null) {
             pending.stopLoading()
             (pending.parent as? ViewGroup)?.removeView(pending)
@@ -471,6 +473,29 @@ class MainActivity : ComponentActivity() {
         preparedBrowser = candidate
         preparedDestination = destination
         val epoch = prepareEpoch
+        // Capture the real outgoing selected artwork, not a navy placeholder.
+        // This transfer does not delay loading or navigation.
+        web.evaluateJavascript(
+            """(() => {
+              const layers=[...document.querySelectorAll(
+                '.willie-hover-backdrop-layer.is-visible,.oew-tv-cinematic-image.is-visible')];
+              const layer=layers.find(node=>getComputedStyle(node).backgroundImage.includes('url('));
+              const raw=layer?getComputedStyle(layer).backgroundImage:'';
+              const matched=raw.match(/url\\(["']?(.+?)["']?\\)/);
+              const poster=document.querySelector(
+                '.tile-button:focus .poster-image,.tile-button:focus img');
+              const src=matched?.[1]||poster?.currentSrc||poster?.src;
+              try{return src?new URL(src,location.href).href:null}catch(_){return null}
+            })()""".trimIndent()
+        ) { result ->
+            if (epoch != prepareEpoch || preparedBrowser !== candidate) return@evaluateJavascript
+            val url = try { org.json.JSONArray("[" + result + "]").optString(0) }
+                catch (_: Exception) { "" }
+            preparedBackdropUrl = url.takeIf {
+                it.startsWith("$origin/api/artwork/") ||
+                    it.startsWith("https://image.tmdb.org/t/p/")
+            }
+        }
         candidate.loadUrl(destination)
         candidate.postDelayed({
             if (epoch == prepareEpoch && preparedBrowser === candidate) {
@@ -517,6 +542,8 @@ class MainActivity : ComponentActivity() {
         val frame = old.parent as? FrameLayout ?: return
         preparedBrowser = null
         preparedDestination = null
+        val previousArtwork = preparedBackdropUrl
+        preparedBackdropUrl = null
         ++prepareEpoch
         browser = web
         tvTextEditing = false
@@ -525,6 +552,47 @@ class MainActivity : ComponentActivity() {
         web.isFocusable = true
         web.isFocusableInTouchMode = true
         web.isClickable = true
+        // Begin the destination with the previous page's actual artwork.
+        // A translucent gradient keeps text readable. The retained image fades
+        // away only after the newly selected title's backdrop is ready.
+        if (previousArtwork != null) {
+            val quoted = JSONObject.quote(previousArtwork)
+            web.evaluateJavascript(
+                """(() => {
+                  const parent=document.querySelector('.willie-hover-backdrop') ||
+                    document.querySelector('.oew-tv-cinematic-backdrop');
+                  if(!parent)return;
+                  const old=document.getElementById('oew-carried-page-artwork');
+                  old?.remove();
+                  const layer=document.createElement('div');
+                  layer.id='oew-carried-page-artwork';
+                  const url=$quoted;
+                  Object.assign(layer.style,{
+                    position:'absolute',inset:'0',zIndex:'1',
+                    pointerEvents:'none',backgroundPosition:'center 28%',
+                    backgroundSize:'cover',backgroundRepeat:'no-repeat',
+                    backgroundImage:'linear-gradient(90deg,rgba(8,13,22,.30),rgba(8,13,22,.12)),url('+JSON.stringify(url)+')',
+                    opacity:'1',transition:'opacity 210ms ease'
+                  });
+                  parent.append(layer);
+                  let finished=false;
+                  const stop=()=>{
+                    if(finished)return;
+                    finished=true;
+                    watcher.disconnect();
+                    layer.style.opacity='0';
+                    setTimeout(()=>layer.remove(),250);
+                  };
+                  const ready=()=>Boolean(document.querySelector(
+                    '.willie-hover-backdrop-layer.is-visible,.oew-tv-cinematic-image.is-visible'));
+                  const watcher=new MutationObserver(()=>{if(ready())stop()});
+                  watcher.observe(document.body,{subtree:true,attributes:true,attributeFilter:['class']});
+                  if(ready())setTimeout(stop,140);
+                  // Empty libraries retain the outgoing image rather than
+                  // flashing navy; the next focused poster will replace it.
+                })()""".trimIndent(), null
+            )
+        }
         // Keep the outgoing view in front until its fade is complete.
         // This exposes the already-painted destination progressively,
         // instead of showing a blank new WebView or a static hold.
