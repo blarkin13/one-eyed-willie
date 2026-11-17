@@ -54,6 +54,18 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("destination.focus({preventScroll:true})", src)
         self.assertIn("if(!settleInitialFocus())", src)
 
+    def test_closed_sidebar_still_accepts_dpad_left_navigation(self):
+        src = self.source
+        self.assertIn("const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')]", src)
+        self.assertNotIn("const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')].filter(isVisible)", src)
+        self.assertIn("Closed TV rail uses pointer-events:none", src)
+        self.assertIn("getComputedStyle(node).display!=='none'", src)
+        self.assertIn("document.body.classList.toggle('oew-tv-rail-open',isMenu(node))", src)
+        self.assertIn("if(direction==='left'){", src)
+        self.assertIn("if(menu.length)return focusNode(", src)
+        self.assertIn("if(isMenu(active)){", src)
+        self.assertIn("if(direction==='right'){", src)
+
     def test_native_connection_setup_requires_click(self):
         src = self.source
         self.assertIn("showSoftInputOnFocus = false", src)
