@@ -1841,6 +1841,12 @@ class MainActivity : ComponentActivity() {
                   target.closest('.tile-button,.detail-trigger');
               };
               document.addEventListener('focusin',event=>{
+                // The library toolbar is a navigation layer over the selected
+                // poster, not a new media selection. Keep its backdrop when
+                // moving to Search, Sort, Filter, Refresh or Explore.
+                if(['/movies','/tv'].includes(location.pathname) &&
+                   event.target?.closest?.('#library-masthead .library-head-actions'))
+                  return;
                 setBackdropTarget(locateBackdrop(event.target),Boolean(event.__oewInitialRefresh));
               },true);
               document.addEventListener('mouseover',event=>{
@@ -1852,6 +1858,9 @@ class MainActivity : ComponentActivity() {
                 if(target!==backdropTarget)return;
                 if(event.relatedTarget instanceof Node&&target.contains(event.relatedTarget))return;
                 const focused=locateBackdrop(document.activeElement);
+                if(!focused && ['/movies','/tv'].includes(location.pathname) &&
+                   document.activeElement?.closest?.('#library-masthead .library-head-actions'))
+                  return;
                 setBackdropTarget(focused);
               });
               document.addEventListener('visibilitychange',()=>{
@@ -2198,7 +2207,12 @@ class MainActivity : ComponentActivity() {
                   const target=row.sort((a,b)=>
                     Math.abs(centerX(rect(a))-center)-Math.abs(centerX(rect(b))-center))[0];
                   readingScroll=false;
-                  return focusNode(target);
+                  // Returning to the first row restores the same complete
+                  // header/trivia view visible on first library entry.
+                  const root=document.scrollingElement||document.documentElement;
+                  const ok=focusNode(target,{preserveVertical:true});
+                  glideTo(root,'top',0);
+                  return ok;
                 }
                 return false;
               };
@@ -2236,6 +2250,15 @@ class MainActivity : ComponentActivity() {
                 // the top used to reverse or overshoot the visible motion.
                 const delta=r.top<upper?r.top-upper:
                   r.bottom>lower?r.bottom-lower:0;
+                if(direction==='up'){
+                  const firstRowTop=Math.min(...rows.map(row=>row.top));
+                  if(Math.abs(rowTop-firstRowTop)<15){
+                    // Scrolling to the top row must also show the complete
+                    // library masthead, not just the selected poster edge.
+                    glideTo(root,'top',0);
+                    return true;
+                  }
+                }
                 if(Math.abs(delta)>1)glideTo(root,'top',root.scrollTop+delta);
                 return true;
               };
