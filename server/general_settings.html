@@ -79,6 +79,16 @@
 </div>
 </section>
 
+<section class="settings-section" aria-labelledby="sidebar-icons-heading">
+<h2 id="sidebar-icons-heading">Sidebar icons</h2>
+<p>Customize each navigation icon, including Home and download services. Upload a transparent PNG for the best result, or restore the pirate-themed default.</p>
+<div class="settings-card">
+  <div id="system-sidebar-icons" class="settings-list" aria-label="Sidebar icon customization">Loading icons…</div>
+  <p class="settings-muted" id="system-icon-message" role="status"></p>
+  <p class="settings-muted">Icons for individually named libraries are managed in <a class="text-link" href="/settings/libraries">Library settings</a>.</p>
+</div>
+</section>
+
 <section class="settings-section" aria-labelledby="server-heading">
 <h2 id="server-heading">Server</h2>
 <div class="settings-card"><p id="server-info">Checking server status…</p>
@@ -228,7 +238,73 @@ el('reset-sidebar').onclick=()=>{
  sidebarItems.forEach(x=>x.visible=true);
  renderSidebar();notice('Default layout ready. Click Save sidebar layout to apply.');
 };
-Promise.allSettled([loadPlayback(),loadMaintenance(),loadRemote(),loadSidebar(),
+const systemIconNames={
+ home:'Home',movies:'Movies',tv:'TV Shows',radarr:'Radarr',
+ sonarr:'Sonarr',sabnzbd:'SABnzbd',settings:'Settings'
+};
+async function loadSystemIcons(){
+ const data=await api('/api/settings/sidebar/icons');
+ const root=el('system-sidebar-icons');
+ root.replaceChildren();
+ for(const item of data.icons){
+  const row=document.createElement('div');
+  row.className='settings-list-row';
+  row.style.cssText='display:flex;align-items:center;gap:14px;flex-wrap:wrap';
+  const preview=document.createElement('img');
+  preview.src=item.url;preview.alt='';
+  preview.width=56;preview.height=56;
+  preview.style.cssText='object-fit:contain;flex:none';
+  const label=document.createElement('span');
+  label.className='settings-list-title';
+  label.textContent=systemIconNames[item.name]||item.name;
+  label.style.flex='1';
+  const status=document.createElement('span');
+  status.className='settings-muted';
+  status.textContent=item.custom?'Custom':'Default';
+  const upload=document.createElement('button');
+  upload.type='button';upload.className='secondary-button';
+  upload.textContent=item.custom?'Replace':'Upload';
+  const input=document.createElement('input');
+  input.type='file';input.accept='image/png,image/jpeg,image/webp';input.hidden=true;
+  input.addEventListener('change',async()=>{
+   const file=input.files?.[0];if(!file)return;
+   if(file.size>3_000_000){
+    el('system-icon-message').textContent='Choose an image smaller than 3 MB.';
+    return;
+   }
+   upload.disabled=true;
+   try{
+    const response=await fetch('/api/settings/sidebar/icons/'+item.name,{
+     method:'PUT',headers:{'Content-Type':file.type},body:file
+    });
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw Error(data.detail||'Icon upload failed');
+    preview.src=data.url;status.textContent='Custom';
+    upload.textContent='Replace';restore.disabled=false;
+    document.dispatchEvent(new CustomEvent('willie:sidebar-icon-updated',{detail:data}));
+    el('system-icon-message').textContent=label.textContent+' icon saved.';
+   }catch(error){el('system-icon-message').textContent=error.message}
+   finally{upload.disabled=false;input.value=''}
+  });
+  upload.onclick=()=>input.click();
+  const restore=document.createElement('button');
+  restore.type='button';restore.className='secondary-button';
+  restore.textContent='Restore default';restore.disabled=!item.custom;
+  restore.onclick=async()=>{
+   restore.disabled=true;
+   try{
+    const data=await api('/api/settings/sidebar/icons/'+item.name,{method:'DELETE'});
+    preview.src=data.url;status.textContent='Default';upload.textContent='Upload';
+    document.dispatchEvent(new CustomEvent('willie:sidebar-icon-updated',{detail:data}));
+    el('system-icon-message').textContent=label.textContent+' restored to default.';
+   }catch(error){
+    restore.disabled=false;el('system-icon-message').textContent=error.message;
+   }
+  };
+  row.append(preview,label,status,upload,restore,input);root.append(row);
+ }
+}
+Promise.allSettled([loadPlayback(),loadMaintenance(),loadRemote(),loadSidebar(),loadSystemIcons(),
  api('/health').then(data=>{
   el('server-info').textContent='Server: '+(data.application||'One-Eyed Willie')+
    ' · version '+(data.version||'unknown')+' · '+(data.status||'unknown');
