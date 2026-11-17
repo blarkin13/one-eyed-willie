@@ -57,6 +57,26 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertIn('/api/settings/tv-appearance', web)
         self.assertIn('applyPlayerSelectionColor', native)
 
+    def test_radarr_sonarr_are_service_tabs_not_sidebar_destinations(self):
+        from server.sidebar_settings import NAV, ICON_NAMES
+        nav_ids = {item[0] for item in NAV}
+        self.assertNotIn("radarr", nav_ids)
+        self.assertNotIn("sonarr", nav_ids)
+        self.assertNotIn("radarr", ICON_NAMES)
+        self.assertNotIn("sonarr", ICON_NAMES)
+        self.assertIn("sabnzbd", nav_ids)
+        self.assertIn("sabnzbd", ICON_NAMES)
+        shell = (ROOT / "shell.js").read_text()
+        for link in ("{id:'radarr'", "{id:'sonarr'"):
+            self.assertNotIn(link, shell)
+        appearance = (ROOT / "appearance_settings.html").read_text()
+        self.assertNotIn("radarr:'Radarr'", appearance)
+        self.assertNotIn("sonarr:'Sonarr'", appearance)
+        for name in ("manager_dashboard.html", "sab_dashboard.html"):
+            page = (ROOT / name).read_text()
+            self.assertIn('href="/radarr"', page)
+            self.assertIn('href="/sonarr"', page)
+
     def test_playback_is_only_configured_in_general(self):
         from server.main import playback_settings_page
         general = (ROOT / "general_settings.html").read_text()
