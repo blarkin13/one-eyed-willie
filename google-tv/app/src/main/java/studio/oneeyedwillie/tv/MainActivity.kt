@@ -56,6 +56,7 @@ class MainActivity : ComponentActivity() {
     private var heldDpadKey = -1
     private var lastDpadMoveTime = 0L
     private var playerLaunchPending = false
+    private var tvNavigationSerial = 0L
 
     private var loadingOverlay: FrameLayout? = null
     private var loadingCaption: TextView? = null
@@ -580,6 +581,7 @@ class MainActivity : ComponentActivity() {
                     val payload = JSONObject(Uri.decode(message.removePrefix("oewtv:play:")))
                     val id = payload.optInt("id")
                     if (id <= 0) throw IllegalArgumentException("Invalid media ID")
+                    android.util.Log.i("OEWNav", "PLAY_BRIDGE prompt id=$id")
                     result.confirm("ACK")
                     web.post {
                         if (browser === web)
@@ -622,6 +624,7 @@ class MainActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
                 if (uri.scheme == "oewtv" && uri.host == "play") {
+                    android.util.Log.i("OEWNav", "PLAY_BRIDGE scheme")
                     uri.path?.trim('/')?.toIntOrNull()?.takeIf { it > 0 }?.let {
                         play(it, uri.getQueryParameter("restart") == "1",
                             uri.getQueryParameter("title").orEmpty())
@@ -629,6 +632,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 if (uri.path?.matches(Regex("/watch/[0-9]+")) == true && sameOrigin(uri.toString())) {
+                    android.util.Log.i("OEWNav", "PLAY_BRIDGE watch-url")
                     uri.lastPathSegment?.toIntOrNull()?.let {
                         play(it, uri.getQueryParameter("restart") == "1", "Now Playing")
                     }
@@ -690,8 +694,11 @@ class MainActivity : ComponentActivity() {
                      shuffleQueue: String? = null) {
         // A rapid/duplicate activation must never open two player activities
         // or start two simultaneous playback sessions.
+        android.util.Log.i("OEWNav",
+            "PLAY_REQUEST id=$mediaId pending=$playerLaunchPending finishing=$isFinishing")
         if (mediaId <= 0 || playerLaunchPending || isFinishing) return
         playerLaunchPending = true
+        android.util.Log.i("OEWNav", "PLAY_START id=$mediaId")
         stopTvRepeat()
         startActivity(Intent(this, PlayerActivity::class.java)
             .putExtra("url", "$origin/api/playback/$mediaId/stream")
@@ -725,7 +732,23 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun moveTvDirection(web: WebView, direction: String) {
-        web.evaluateJavascript("window.__willieTvMove?.('$direction')", null)
+        val serial = ++tvNavigationSerial
+        val diagnostic = """(() => {
+            const from = document.activeElement;
+            const before = from?.getAttribute?.('href') ||
+                from?.id || from?.className || from?.tagName || '';
+            const moved = window.__willieTvMove?.('$direction');
+            const to = document.activeElement;
+            const after = to?.getAttribute?.('href') ||
+                to?.id || to?.className || to?.tagName || '';
+            return JSON.stringify({path:location.pathname,direction:'$direction',
+                before:String(before).slice(0,100),after:String(after).slice(0,100),
+                scroll:Math.round(document.scrollingElement?.scrollTop || 0),
+                moved:Boolean(moved)});
+        })()""".trimIndent()
+        web.evaluateJavascript(diagnostic) { state ->
+            android.util.Log.i("OEWNav", "MOVE #$serial " + state.take(400))
+        }
         val sound = when (direction) {
             "left" -> android.view.SoundEffectConstants.NAVIGATION_LEFT
             "right" -> android.view.SoundEffectConstants.NAVIGATION_RIGHT
@@ -744,6 +767,12 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         val web = browser
+        if (direction != null && (event.repeatCount == 0 ||
+                event.repeatCount % 8 == 0 || event.action == KeyEvent.ACTION_UP)) {
+            android.util.Log.i("OEWNav", "KEY direction=$direction action=${event.action} " +
+                "repeat=${event.repeatCount} held=$heldDpadKey editing=$tvTextEditing " +
+                "launchPending=$playerLaunchPending")
+        }
         if (loadingOverlay?.visibility == View.VISIBLE && direction != null)
             return if (loadingFailed) super.dispatchKeyEvent(event) else true
         if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {

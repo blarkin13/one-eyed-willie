@@ -141,6 +141,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        Log.i("OEWNav", "PLAYER_CREATE")
         mediaId = intent.getIntExtra("media_id", -1)
         server = intent.getStringExtra("server")?.trimEnd('/') ?: ""
         seasonShuffle = intent.hasExtra("shuffle_queue")
@@ -835,6 +836,17 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (event.keyCode in intArrayOf(
+                KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN,
+                KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_DPAD_RIGHT,
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_BACK) &&
+            (event.repeatCount == 0 || event.repeatCount % 8 == 0 ||
+             event.action == KeyEvent.ACTION_UP)) {
+            Log.i("OEWNav", "PLAYER_KEY code=${event.keyCode} action=${event.action}" +
+                " repeat=${event.repeatCount} focus=${currentFocus?.contentDescription}" +
+                " chrome=${if (::chrome.isInitialized) chrome.visibility else -1}")
+        }
         if (event.keyCode == KeyEvent.KEYCODE_BACK) return super.dispatchKeyEvent(event)
         val direction = event.keyCode
         val isDpad = direction in intArrayOf(
@@ -1202,6 +1214,7 @@ class PlayerActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        Log.i("OEWNav", "PLAYER_DESTROY")
         shuttingDown = true
         visibleForPlayback = false
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
