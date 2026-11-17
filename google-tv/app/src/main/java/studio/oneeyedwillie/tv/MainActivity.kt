@@ -1084,6 +1084,8 @@ class MainActivity : ComponentActivity() {
                 if(p==='/tv/show')return libraryParent('/tv');
                 if(['/movies','/tv','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
                    p.startsWith('/sonarr/'))return '/';
+                if(p.startsWith('/settings/'))return '/settings';
+                if(p==='/settings')return '/';
                 if(p==='/')return 'handled';
                 if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
                 return '/';
