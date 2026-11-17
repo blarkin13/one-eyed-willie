@@ -751,6 +751,20 @@ class MainActivity : ComponentActivity() {
         if (direction != null && web != null) {
             if (tvTextEditing) {
                 stopTvRepeat()
+                // Leaving the library Search field is intentional navigation,
+                // not an Android IME focus change. Release native text-input
+                // mode before routing the remote back into the TV page.
+                val librarySearchPage = try {
+                    android.net.Uri.parse(web.url ?: "").path in listOf("/movies", "/tv")
+                } catch (_: Exception) { false }
+                if (librarySearchPage && direction in listOf("left", "down")) {
+                    if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                        finishTvTextEditing(web)
+                        web.evaluateJavascript(
+                            "window.__willieTvExitLibrarySearch?.('$direction')", null)
+                    }
+                    return true
+                }
                 return super.dispatchKeyEvent(event)
             }
             if (event.action == KeyEvent.ACTION_UP) {
@@ -2467,6 +2481,31 @@ class MainActivity : ComponentActivity() {
                   dest.dispatchEvent(refresh);
                 }
                 return true;
+              };
+              // Search editing temporarily owns the D-pad. Explicit Left
+              // returns to the sidebar, Down to the first poster row. This
+              // bypasses spatial search so keyboard focus cannot trap navigation.
+              window.__willieTvExitLibrarySearch=direction=>{
+                if(!isLibraryGrid())return false;
+                if(direction==='left'){
+                  const menu=allMenu();
+                  const selected=menu.find(node=>
+                    node.getAttribute('aria-current')==='page')||menu[0];
+                  if(selected){readingScroll=false;return focusNode(selected)}
+                }
+                if(direction==='down'){
+                  const cards=[...document.querySelectorAll('#items .tile-button')]
+                    .filter(isVisible);
+                  if(!cards.length)return false;
+                  const top=Math.min(...cards.map(libraryRowTop));
+                  const first=cards.filter(node=>Math.abs(libraryRowTop(node)-top)<3);
+                  const search=document.getElementById('search');
+                  const x=search?centerX(rect(search)):0;
+                  const target=first.sort((a,b)=>
+                    Math.abs(centerX(rect(a))-x)-Math.abs(centerX(rect(b))-x))[0];
+                  if(target){readingScroll=false;return focusNode(target)}
+                }
+                return false;
               };
               window.__willieTvMove=direction=>{
                 tvUserMoved=true;return move(direction);

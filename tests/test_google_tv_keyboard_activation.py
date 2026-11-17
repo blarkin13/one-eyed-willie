@@ -54,6 +54,16 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("destination.focus({preventScroll:true})", src)
         self.assertIn("if(!settleInitialFocus())", src)
 
+    def test_library_search_leaves_text_mode_for_sidebar_and_posters(self):
+        src = self.source
+        self.assertIn('librarySearchPage && direction in listOf("left", "down")', src)
+        self.assertIn('finishTvTextEditing(web)', src)
+        self.assertIn("window.__willieTvExitLibrarySearch", src)
+        self.assertIn("if(direction==='left'){", src)
+        self.assertIn("if(direction==='down'){", src)
+        self.assertIn("return focusNode(selected)", src)
+        self.assertIn("return focusNode(target)", src)
+
     def test_closed_sidebar_still_accepts_dpad_left_navigation(self):
         src = self.source
         self.assertIn("const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')]", src)
