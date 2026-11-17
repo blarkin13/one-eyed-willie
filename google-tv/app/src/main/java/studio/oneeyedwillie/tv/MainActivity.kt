@@ -489,14 +489,27 @@ class MainActivity : ComponentActivity() {
         web.evaluateJavascript(
             """(() => {
               const path=location.pathname;
-              if(path==='/')return window.__oewHomeReady===true;
-              if(path==='/movies'||path==='/tv'){
-                const grid=document.getElementById('items');
-                const status=document.getElementById('status');
-                return !!grid && !!grid.querySelector('.tile-button,.empty') &&
-                  !(status?.textContent||'').includes('Loading titles');
+              const loaded=path==='/'?window.__oewHomeReady===true:
+                (path==='/movies'||path==='/tv')
+                  ?Boolean(document.querySelector('#items .tile-button,#items .empty')) &&
+                   !(document.querySelector('#status')?.textContent||'').includes('Loading titles')
+                  :true;
+              if(!loaded)return false;
+              if(path!=='/'&&path!=='/movies'&&path!=='/tv')return true;
+              const first=path==='/'?
+                document.querySelector('.content .shelf-track .tile-button'):
+                document.querySelector('#items .tile-button');
+              if(!first)return true; // Empty libraries have no artwork to wait for.
+              // Warm the actual destination selection in the hidden WebView.
+              // Poster/metadata lookup and image decode complete behind the
+              // outgoing page; this avoids revealing the default navy canvas.
+              if(!document.body.dataset.oewPreparedFocus){
+                document.body.dataset.oewPreparedFocus='1';
+                first.focus({preventScroll:true});
+                first.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
               }
-              return true;
+              return document.body.classList.contains('oew-tv-backdrop-active') ||
+                $attempt >= 22; // Bounded fallback for titles without artwork.
             })()""".trimIndent()
         ) { ready ->
             if (preparedBrowser !== web) return@evaluateJavascript
@@ -504,7 +517,7 @@ class MainActivity : ComponentActivity() {
                 // Allow the frame with populated titles to paint before swapping.
                 web.postDelayed({
                     if (preparedBrowser === web) revealPreparedBrowser(web)
-                }, 100L)
+                }, 80L)
             } else {
                 web.postDelayed({ prepareReveal(web, attempt + 1) }, 90L)
             }
@@ -528,8 +541,15 @@ class MainActivity : ComponentActivity() {
         web.bringToFront()
         loadingOverlay?.bringToFront()
         web.requestFocus()
-        web.animate().alpha(1f).setDuration(170L).start()
-        old.animate().alpha(0f).setDuration(170L).withEndAction {
+        // Cross-dissolve the fully rendered destination over the previous
+        // live page. Keeping both frames composited creates a smooth blended
+        // gradient between the outgoing and incoming cinematic backdrops.
+        web.animate().cancel()
+        old.animate().cancel()
+        web.animate().alpha(1f).setDuration(650L)
+            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).start()
+        old.animate().alpha(0f).setDuration(650L)
+            .setInterpolator(android.view.animation.AccelerateDecelerateInterpolator()).withEndAction {
             (old.parent as? ViewGroup)?.removeView(old)
             old.stopLoading()
             old.destroy()
