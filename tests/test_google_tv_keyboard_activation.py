@@ -135,6 +135,24 @@ class TvTextInputFocusTests(unittest.TestCase):
         catalog = (ROOT / "server" / "catalog.html").read_text()
         self.assertIn('shell.js?v=library-backdrop-2', catalog)
 
+    def test_tv_switches_pages_without_exposing_unpopulated_content(self):
+        source = self.source
+        self.assertIn("private fun captureNavigationStill(web: WebView, target: Uri)", source)
+        self.assertIn("web.draw(android.graphics.Canvas(bitmap))", source)
+        self.assertIn("target.path !in setOf(\"/\", \"/movies\", \"/tv\")", source)
+        self.assertIn("window.__oewHomeReady===true", source)
+        self.assertIn("grid.querySelector('.tile-button,.empty')", source)
+        self.assertIn("revealPopulatedPage(web, completedSerial)", source)
+        self.assertIn("still.animate().alpha(0f).setDuration(220L)", source)
+        self.assertIn("5500L", source)
+
+    def test_library_title_icons_are_large_but_sidebar_icons_unchanged(self):
+        catalog = (ROOT / "server" / "catalog.html").read_text()
+        self.assertIn("width:76px;height:76px", catalog)
+        self.assertIn("className='library-page-icon'", catalog)
+        self.assertIn("libraryAppearance.createIcon(iconKey,76)", catalog)
+        self.assertIn("width:60px;height:60px", catalog)
+
     def test_non_text_inputs_are_unaffected(self):
         src = self.source
         self.assertIn("['text','search','email','password','tel','url','number']", src)
