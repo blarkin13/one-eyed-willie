@@ -539,10 +539,14 @@ class MainActivity : ComponentActivity() {
                         web.postDelayed({
                             if (browser === web && tvTextEditing && !isFinishing) {
                                 web.requestFocus()
-                                web.evaluateJavascript(
-                                    "window.__willieTvRefocusText?.()", null)
-                                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
-                                    .showSoftInput(web, InputMethodManager.SHOW_IMPLICIT)
+                                web.evaluateJavascript("window.__willieTvRefocusText?.()") {
+                                    if (browser === web && tvTextEditing && !isFinishing) {
+                                        val ime = getSystemService(INPUT_METHOD_SERVICE)
+                                            as InputMethodManager
+                                        ime.restartInput(web)
+                                        ime.showSoftInput(web, InputMethodManager.SHOW_IMPLICIT)
+                                    }
+                                }
                             }
                         }, 80L)
                     }
