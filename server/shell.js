@@ -44,8 +44,8 @@ document.addEventListener('DOMContentLoaded', () => {
     wrap.append(image);return wrap;
   }
   function defaultIcon(kind){
-    const safe=['home','movies','tv','settings'].includes(kind)?kind:'movies';
-    return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=1');
+    const safe=['home','movies','tv','radarr','sonarr','sabnzbd','settings'].includes(kind)?kind:'movies';
+    return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v2');
   }
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
@@ -85,21 +85,24 @@ document.addEventListener('DOMContentLoaded', () => {
     if(item.id==='services'&&['radarr','sonarr','sabnzbd'].includes(page))a.classList.add('mobile-service-active');
     if(item.id===active)a.setAttribute('aria-current','page');
     a.dataset.navId=item.id;
-    if(['radarr','sonarr','sabnzbd'].includes(item.id)){
-      const icon=document.createElement('span');
-      icon.className='nav-icon nav-brand-icon';
-      icon.setAttribute('aria-hidden','true');
-      const image=document.createElement('img');
-      image.className='integration-logo';
-      image.src='/assets/brand/'+item.id+'.svg';
-      image.alt='';
-      image.width=26;image.height=26;
-      icon.append(image);a.append(icon);
-    }else if(['home','movies','tv','settings'].includes(item.id))a.append(defaultIcon(item.id));
-    else a.append(glyph(item.fa,item.fallback));
+    a.append(defaultIcon(item.id));
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
+  // Refresh all default icons from server-side overrides; the response
+  // includes cache-busting revisions so new artwork appears without relaunch.
+  function updateSystemIcon(name,url){
+    const target=nav.querySelector('a[data-nav-id="'+name+'"]');
+    const image=target?.querySelector('.nav-icon img');
+    if(image&&url&&url.startsWith('/assets/sidebar-icon-'))image.src=url;
+  }
+  fetch('/api/settings/sidebar/icons',{cache:'no-store'}).then(r=>r.ok?r.json():null)
+    .then(data=>data?.icons?.forEach(icon=>updateSystemIcon(icon.name,icon.url)))
+    .catch(()=>{});
+  document.addEventListener('willie:sidebar-icon-updated',event=>{
+    if(event.detail?.name&&event.detail?.url)
+      updateSystemIcon(event.detail.name,event.detail.url);
+  });
   // The gear is the only Settings destination in the sidebar.
   // General, Library, Metadata and Connections live on /settings only.
   // The same first-party SVG set powers the editor preview and actual sidebar.
