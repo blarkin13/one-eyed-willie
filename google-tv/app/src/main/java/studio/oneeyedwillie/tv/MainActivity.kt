@@ -2290,28 +2290,33 @@ class MainActivity : ComponentActivity() {
                 }
                 return false;
               };
-              // Library grid rows should be moved by actual adjacent card
-              // rows, not viewport animation geometry. Avoid competing
-              // requestAnimationFrame loops that can scroll downward while
-              // focus has already moved upward.
+              // Use stable layout rows, never animated viewport coordinates.
+              // getBoundingClientRect().top changes whenever a scroll or poster
+              // focus animation runs; held D-pad presses must not use it to
+              // decide whether a card belongs to the previous or next row.
               const moveLibraryGridRow=(active,direction)=>{
                 if(!['up','down'].includes(direction)||
                    !['/movies','/tv'].includes(location.pathname)||
                    !active?.matches?.('#items .tile-button'))return false;
                 const cards=[...document.querySelectorAll('#items .tile-button')].filter(isVisible);
-                const current=cards.indexOf(active);
-                if(current<0)return false;
-                const top=rect(active).top;
-                const rows=cards.map(node=>({node,top:rect(node).top,left:rect(node).left}));
-                const candidates=rows.filter(row=>direction==='up'
-                  ? row.top<top-15 : row.top>top+15);
-                if(!candidates.length)return true;
-                const rowTop=direction==='up'
-                  ?Math.max(...candidates.map(row=>row.top))
-                  :Math.min(...candidates.map(row=>row.top));
-                const adjacent=candidates.filter(row=>Math.abs(row.top-rowTop)<15);
-                const x=rect(active).left;
-                adjacent.sort((a,b)=>Math.abs(a.left-x)-Math.abs(b.left-x));
+                if(!cards.includes(active))return false;
+                const positions=cards.map(node=>({
+                  node,top:libraryRowTop(node),x:centerX(rect(node))
+                }));
+                const activeTop=libraryRowTop(active);
+                const rowTops=[...new Set(positions.map(p=>p.top))].sort((a,b)=>a-b);
+                // Tiles in a CSS row can differ by a few layout pixels.
+                const rows=[];
+                for(const top of rowTops){
+                  if(!rows.length||top-rows[rows.length-1]>3)rows.push(top);
+                }
+                const rowIndex=rows.findIndex(top=>Math.abs(top-activeTop)<=3);
+                if(rowIndex<0)return true;
+                const next=rowIndex+(direction==='down'?1:-1);
+                if(next<0||next>=rows.length)return true;
+                const adjacent=positions.filter(p=>Math.abs(p.top-rows[next])<=3);
+                const x=centerX(rect(active));
+                adjacent.sort((a,b)=>Math.abs(a.x-x)-Math.abs(b.x-x));
                 const target=adjacent[0]?.node;
                 if(!target)return true;
                 readingScroll=false;
@@ -2320,19 +2325,15 @@ class MainActivity : ComponentActivity() {
                 const r=rect(target);
                 const upper=Math.max(36,innerHeight*.13);
                 const lower=innerHeight-Math.max(44,innerHeight*.1);
-                // Reveal only the clipped edge. Aligning every next row to
-                // the top used to reverse or overshoot the visible motion.
+                // A new key repeat retargets the same scroll animation.
+                // Calculate the reveal from the selected row only, without
+                // modifying which row is selected based on scroll progress.
+                if(direction==='up' && next===0){
+                  glideTo(root,'top',0);
+                  return true;
+                }
                 const delta=r.top<upper?r.top-upper:
                   r.bottom>lower?r.bottom-lower:0;
-                if(direction==='up'){
-                  const firstRowTop=Math.min(...rows.map(row=>row.top));
-                  if(Math.abs(rowTop-firstRowTop)<15){
-                    // Scrolling to the top row must also show the complete
-                    // library masthead, not just the selected poster edge.
-                    glideTo(root,'top',0);
-                    return true;
-                  }
-                }
                 if(Math.abs(delta)>1)glideTo(root,'top',root.scrollTop+delta);
                 return true;
               };
