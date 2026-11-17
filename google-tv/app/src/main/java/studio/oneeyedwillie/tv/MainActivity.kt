@@ -552,6 +552,28 @@ class MainActivity : ComponentActivity() {
         web.isFocusable = true
         web.isFocusableInTouchMode = true
         web.isClickable = true
+        // The old page remains in front until the carried backdrop is
+        // installed (or a short fallback expires). Never wait for new artwork.
+        var fadeStarted = false
+        val fadeOnce: () -> Unit = {
+            if (!fadeStarted && browser === web) {
+                fadeStarted = true
+                old.bringToFront()
+                loadingOverlay?.bringToFront()
+                old.animate().cancel()
+                web.animate().cancel()
+                old.animate().alpha(0f).setDuration(220L)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .withEndAction {
+                        (old.parent as? ViewGroup)?.removeView(old)
+                        old.stopLoading()
+                        old.destroy()
+                        web.isFocusable = true
+                        web.isFocusableInTouchMode = true
+                        web.requestFocus()
+                    }.start()
+            }
+        }
         // Begin the destination with the previous page's actual artwork.
         // A translucent gradient keeps text readable. The retained image fades
         // away only after the newly selected title's backdrop is ready.
@@ -590,26 +612,13 @@ class MainActivity : ComponentActivity() {
                   if(ready())setTimeout(stop,140);
                   // Empty libraries retain the outgoing image rather than
                   // flashing navy; the next focused poster will replace it.
-                })()""".trimIndent(), null
-            )
+                })()""".trimIndent()
+            ) { fadeOnce() }
+            // Fallback prevents a stalled JS callback from freezing navigation.
+            old.postDelayed({ fadeOnce() }, 75L)
+        } else {
+            fadeOnce()
         }
-        // Keep the outgoing view in front until its fade is complete.
-        // This exposes the already-painted destination progressively,
-        // instead of showing a blank new WebView or a static hold.
-        old.bringToFront()
-        loadingOverlay?.bringToFront()
-        old.animate().cancel()
-        web.animate().cancel()
-        old.animate().alpha(0f).setDuration(220L)
-            .setInterpolator(android.view.animation.DecelerateInterpolator())
-            .withEndAction {
-                (old.parent as? ViewGroup)?.removeView(old)
-                old.stopLoading()
-                old.destroy()
-                web.isFocusable = true
-                web.isFocusableInTouchMode = true
-                web.requestFocus()
-            }.start()
     }
 
     private fun showServer(server: String) {
