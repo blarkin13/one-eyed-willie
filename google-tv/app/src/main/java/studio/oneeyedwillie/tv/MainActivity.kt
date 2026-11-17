@@ -1594,8 +1594,8 @@ class MainActivity : ComponentActivity() {
                 layers.forEach(layer=>layer.classList.remove('is-visible'));
                 document.body.classList.remove('oew-tv-backdrop-active');
               };
-              const setBackdropTarget=async target=>{
-                if(target===backdropTarget)return;
+              const setBackdropTarget=async (target,force=false)=>{
+                if(target===backdropTarget&&!force)return;
                 backdropTarget=target;
                 if(!target){clearBackdrop();return}
                 const serial=++backdropSerial;
@@ -1622,7 +1622,7 @@ class MainActivity : ComponentActivity() {
                   target.closest('.tile-button,.detail-trigger');
               };
               document.addEventListener('focusin',event=>{
-                setBackdropTarget(locateBackdrop(event.target));
+                setBackdropTarget(locateBackdrop(event.target),Boolean(event.__oewInitialRefresh));
               },true);
               document.addEventListener('mouseover',event=>{
                 const target=locateBackdrop(event.target);
@@ -2108,10 +2108,10 @@ class MainActivity : ComponentActivity() {
               const settleInitialFocus=()=>{
                 if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
-                if(tvUserMoved || (active && !isMenu(active) &&
+                const library=['/movies','/tv'].includes(location.pathname);
+                if(tvUserMoved || (!library && active && !isMenu(active) &&
                    active!==document.body && active!==document.documentElement))
                   return true;
-                const library=['/movies','/tv'].includes(location.pathname);
                 const preferred=library?null:primaryDetailAction();
                 const field=document.querySelector(
                   '.content input[type="search"],.content input[type="text"]');
@@ -2124,8 +2124,11 @@ class MainActivity : ComponentActivity() {
                 if(!dest)return false;
                 dest.focus({preventScroll:true});
                 if(library)(document.scrollingElement||document.documentElement).scrollTop=0;
-                if(location.pathname==='/')
-                  dest.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
+                if(location.pathname==='/'){
+                  const refresh=new FocusEvent('focusin',{bubbles:true});
+                  Object.defineProperty(refresh,'__oewInitialRefresh',{value:true});
+                  dest.dispatchEvent(refresh);
+                }
                 return true;
               };
               window.__willieTvMove=direction=>{
