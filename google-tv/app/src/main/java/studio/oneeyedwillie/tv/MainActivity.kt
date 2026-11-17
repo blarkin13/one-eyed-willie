@@ -934,30 +934,6 @@ class MainActivity : ComponentActivity() {
     companion object {
         private val TV_REMOTE_SCRIPT = """
             (() => {
-              // Sidebar icons navigate on remote focus. No Select press,
-              // prepared WebView, screenshot hold or page crossfade.
-              if(!window.__oewTvSidebarAutoNavigate){
-                window.__oewTvSidebarAutoNavigate=true;
-                let queuedPage=null;
-                document.addEventListener('focusin',event=>{
-                  const link=event.target?.closest?.('#app-nav .side-nav a[href]');
-                  if(!link)return;
-                  const next=new URL(link.href,location.href);
-                  if(next.origin!==location.origin)return;
-                  if(next.pathname===location.pathname &&
-                     next.search===location.search)return;
-                  const destination=next.href;
-                  queuedPage=destination;
-                  // Preserve sidebar browsing on the destination page so
-                  // Up/Down immediately switches to the next icon as well.
-                  try{sessionStorage.setItem('oew-tv-sidebar-route',next.pathname+next.search)}catch(_){}
-                  // Defer to the end of the current D-pad event, not a
-                  // preloaded page. Focus never blocks while artwork loads.
-                  setTimeout(()=>{
-                    if(queuedPage===destination)location.assign(destination);
-                  },0);
-                },true);
-              }
               // Google TV remote navigation may focus a search box while the
               // viewer is just moving through the interface. A focused text
               // input remains read-only until OK/Select or a real click.
@@ -1387,7 +1363,12 @@ class MainActivity : ComponentActivity() {
                 }
                 .mobile-settings-sheet{display:none!important}
                 .workspace,.topbar,.content{background:transparent!important}
-                body{background:#080d16!important}
+                html,body{background:#000!important}
+                .willie-hover-backdrop{background:#000!important}
+                #items::before,.shelf-track::before,.explore-grid::before,
+                .movie-grid::before,.tv-grid::before{
+                  content:none!important;display:none!important
+                }
                 /* Match the server: the skull disappears with a real backdrop. */
                 body:has(.willie-hover-backdrop-layer.is-visible) #items::before,
                 body:has(.willie-hover-backdrop-layer.is-visible) .shelf-track::before,
@@ -1402,7 +1383,7 @@ class MainActivity : ComponentActivity() {
                 .willie-hover-backdrop{display:block!important}
                 body:has(.willie-hover-backdrop-layer.is-visible) .oew-tv-cinematic-backdrop{opacity:0!important}
                 .oew-tv-cinematic-backdrop{position:fixed;inset:0;z-index:1;
-                  overflow:hidden;pointer-events:none;background:#080d16}
+                  overflow:hidden;pointer-events:none;background:#000}
                 .oew-tv-cinematic-image{position:absolute;inset:-3%;
                   background-position:center 28%;background-size:cover;
                   background-repeat:no-repeat;opacity:0;transform:scale(1.045);
@@ -2558,32 +2539,9 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               document.body.classList.remove('oew-tv-rail-open');
-              // When D-pad navigation opened this page from the sidebar,
-              // keep focus on its active icon. This lets the next Up/Down
-              // immediately navigate again without re-entering the rail.
-              let restoreSidebarFocus=false;
-              try{
-                const route=sessionStorage.getItem('oew-tv-sidebar-route');
-                sessionStorage.removeItem('oew-tv-sidebar-route');
-                const current=location.pathname+location.search;
-                // Catalogs always open with the first available poster
-                // focused; never restore the icon focus after switching to
-                // Movies or TV Shows. Other sidebar destinations keep it.
-                if(route===current && !['/movies','/tv'].includes(location.pathname)){
-                  const link=[...document.querySelectorAll('#app-nav .side-nav a[href]')]
-                    .find(a=>{
-                      const url=new URL(a.href,location.href);
-                      return url.pathname+url.search===current;
-                    });
-                  if(link){
-                    restoreSidebarFocus=true;
-                    document.body.classList.add('oew-tv-rail-open');
-                    link.focus({preventScroll:true});
-                  }
-                }
-              }catch(_){}
-              // Wait for async library content, then focus its first poster.
-              let tvUserMoved=restoreSidebarFocus,initialFocusSettled=restoreSidebarFocus;
+              // Pages open only when Select/OK activates a focused link.
+              // Focus the first poster when a library's grid is ready.
+              let tvUserMoved=false,initialFocusSettled=false;
               const settleInitialFocus=()=>{
                 if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
