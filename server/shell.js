@@ -9,7 +9,6 @@ document.addEventListener('DOMContentLoaded', () => {
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
-    {id:'services',href:'/services',name:'Download services',fa:'fa-layer-group',fallback:'services'},
     {id:'radarr',href:'/radarr',name:'Radarr',fa:'fa-bullseye',fallback:'radarr'},
     {id:'sonarr',href:'/sonarr',name:'Sonarr',fa:'fa-wave-square',fallback:'sonarr'},
     {id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd',fa:'fa-download',fallback:'sabnzbd'},
