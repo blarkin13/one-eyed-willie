@@ -670,7 +670,15 @@ function drawAlphabet(items){
    const a=document.createElement('button');a.type='button';a.textContent=letter;
    a.title=item?'Jump to '+letter:'No titles beginning with '+letter;
    a.setAttribute('aria-label',a.title);a.disabled=!item;
-   if(item)a.onclick=()=>item.scrollIntoView({behavior:'smooth',block:'start'});
+   if(item)a.onclick=()=>{
+     const poster=item.querySelector('.tile-button');
+     if(navigator.userAgent.includes('OneEyedWillieTV/1')){
+       // The alphabet jumps to a real selected poster, not just a scroll
+       // position with keyboard focus stranded on the letter rail.
+       poster?.focus({preventScroll:true});
+       item.scrollIntoView({behavior:'instant',block:'start'});
+     }else item.scrollIntoView({behavior:'smooth',block:'start'});
+   };
    nav.append(a);
  }
 }
