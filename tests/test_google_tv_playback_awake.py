@@ -45,6 +45,20 @@ class GoogleTvPlaybackAwakeTests(unittest.TestCase):
         self.assertIn("if (network.isShutdown) return", player)
         self.assertIn("network.execute {", player)
 
+    def test_failed_checkpoint_has_durable_on_device_resume(self):
+        src = (ANDROID / "PlayerActivity.kt").read_text()
+        self.assertIn('getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE)', src)
+        self.assertIn('private fun rememberProgress(body: String)', src)
+        self.assertIn('private fun pendingProgress(): JSONObject?', src)
+        self.assertIn('if (progressStore.getString(progressKey(), null) == body)', src)
+        self.assertIn('rememberProgress(body)', src)
+        self.assertIn('acknowledgeProgress(body)', src)
+        self.assertIn('maxOf(serverPosition, storedPosition)', src)
+        self.assertIn('if (restart) progressStore.edit().remove(progressKey()).apply()', src)
+        self.assertIn('Log.w("OneEyedWillie", "Playback checkpoint queued locally: $failure")', src)
+        self.assertNotIn('showMessage("Playback progress was not saved ($failure).")', src)
+        self.assertIn('if (network.isShutdown) return', src)
+
     def test_webview_fallback_releases_screen_after_video_or_navigation(self):
         src = (ANDROID / "MainActivity.kt").read_text()
         self.assertIn('message == "oewtv:awake:1" || message == "oewtv:awake:0"', src)
