@@ -122,6 +122,19 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("glideTo(document.scrollingElement||document.documentElement,'top',0)", self.source)
         self.assertIn("if(moveLibraryToolbar(active,direction))return true;", self.source)
 
+    def test_library_return_restores_header_and_retains_selected_backdrop(self):
+        src = self.source
+        self.assertIn("const firstRowTop=Math.min(...rows.map(row=>row.top))", src)
+        self.assertIn("if(Math.abs(rowTop-firstRowTop)<15)", src)
+        self.assertIn("glideTo(root,'top',0);", src)
+        self.assertIn("focusNode(target,{preserveVertical:true})", src)
+        self.assertIn("event.target?.closest?.('#library-masthead .library-head-actions')", src)
+        shell = (ROOT / "server" / "shell.js").read_text()
+        self.assertIn("const onLibraryToolbar=target=>", shell)
+        self.assertIn("else if(!onLibraryToolbar(document.activeElement))select(null);", shell)
+        catalog = (ROOT / "server" / "catalog.html").read_text()
+        self.assertIn('shell.js?v=library-backdrop-2', catalog)
+
     def test_non_text_inputs_are_unaffected(self):
         src = self.source
         self.assertIn("['text','search','email','password','tel','url','number']", src)
