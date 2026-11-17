@@ -33,6 +33,7 @@ import java.net.HttpURLConnection
 import java.net.URI
 import java.net.URL
 import java.util.concurrent.Executors
+import android.util.Log
 
 /**
  * Native TV playback follows the server player's playback negotiation:
@@ -88,6 +89,24 @@ class PlayerActivity : ComponentActivity() {
     }
     private val handler = Handler(Looper.getMainLooper())
     private val network = Executors.newSingleThreadExecutor()
+    // Keep an on-device checkpoint until the server confirms it. This also
+    // preserves resume when a separate POST connection fails while streaming.
+    private val progressStore by lazy {
+        getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE)
+    }
+    private fun progressKey(): String = "progress:$server:$mediaId"
+    private fun pendingProgress(): JSONObject? = try {
+        progressStore.getString(progressKey(), null)?.let(::JSONObject)
+    } catch (_: Exception) { null }
+    private fun rememberProgress(body: String) {
+        progressStore.edit().putString(progressKey(), body).apply()
+    }
+    private fun acknowledgeProgress(body: String) {
+        // The next checkpoint may have been queued while this one was sent.
+        // Never clear a newer on-device position after an older POST succeeds.
+        if (progressStore.getString(progressKey(), null) == body)
+            progressStore.edit().remove(progressKey()).apply()
+    }
 
     private val checkpoint = object : Runnable {
         override fun run() {
@@ -839,8 +858,14 @@ class PlayerActivity : ComponentActivity() {
         network.execute {
             try {
                 val info = request("/api/watch/$mediaId/status")
-                val resume = if (intent.getBooleanExtra("restart", false) || info.optBoolean("watched", false)) 0.0
-                    else info.optDouble("position_seconds", 0.0).coerceAtLeast(0.0)
+                val restart = intent.getBooleanExtra("restart", false)
+                if (restart) progressStore.edit().remove(progressKey()).apply()
+                val stored = if (restart) null else pendingProgress()
+                val serverPosition = info.optDouble("position_seconds", 0.0).coerceAtLeast(0.0)
+                val storedPosition = stored?.optDouble("position_seconds", 0.0)
+                    ?.takeIf { it.isFinite() && it > 0.0 } ?: 0.0
+                val resume = if (restart || info.optBoolean("watched", false)) 0.0
+                    else maxOf(serverPosition, storedPosition)
                 durationSeconds = info.optDouble("duration_seconds", 0.0)
                 completed = info.optBoolean("watched",false)
                 val mode = info.optString("mode", "")
@@ -981,16 +1006,18 @@ class PlayerActivity : ComponentActivity() {
             put("duration_seconds", knownDuration)
             put("completed", finished || completed)
         }.toString()
-        // A final close checkpoint is enqueued before executor shutdown;
-        // ThreadPoolExecutor.shutdown() drains already-queued writes.
+        // Save locally BEFORE scheduling any network operation. A failed
+        // connection or immediate Back no longer discards the resume point.
+        rememberProgress(body)
         if (network.isShutdown) return
         network.execute {
             val failure = persistProgress(body)
-            if (failure != null) {
-                handler.post {
-                    if (!shuttingDown && visibleForPlayback)
-                        showMessage("Playback progress was not saved ($failure).")
-                }
+            if (failure == null) {
+                acknowledgeProgress(body)
+            } else {
+                // Network failures should not cover a still-playing video.
+                // The next heartbeat (or next launch) retries the saved point.
+                Log.w("OneEyedWillie", "Playback checkpoint queued locally: $failure")
             }
         }
     }
