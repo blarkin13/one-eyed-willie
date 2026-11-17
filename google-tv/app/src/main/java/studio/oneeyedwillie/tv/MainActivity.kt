@@ -330,13 +330,20 @@ class MainActivity : ComponentActivity() {
     private fun waitForStartupContent(web: WebView, serial: Int, attempts: Int = 0) {
         if (browser !== web || initialPageLoaded || loadingFailed || serial != pageLoadSerial)
             return
+        // Wait for the first selected artwork as well as the shelf data.
+        // Never block indefinitely for titles that have no backdrop.
+        val artworkGraceElapsed =
+            android.os.SystemClock.uptimeMillis() - splashStartedAt >= 3500L
         web.evaluateJavascript(
             """(() => {
                 if(location.pathname!=='/')return document.readyState==='complete';
-                if(window.__oewHomeReady)return true;
-                // Compatibility for a server upgraded after the TV app.
-                return Boolean(document.querySelector('#continue-watching .shelf-track') &&
-                  !document.querySelector('#status')?.textContent?.trim());
+                const ready=Boolean(window.__oewHomeReady ||
+                  (document.querySelector('#continue-watching .shelf-track') &&
+                   !document.querySelector('#status')?.textContent?.trim()));
+                if(!ready)return false;
+                const hasPosters=Boolean(document.querySelector('.shelf-track .tile-button'));
+                return !hasPosters || document.body.classList.contains('oew-tv-backdrop-active') ||
+                  $artworkGraceElapsed;
             })()""".trimIndent()
         ) { ready ->
             if (browser !== web || serial != pageLoadSerial || initialPageLoaded || loadingFailed)
