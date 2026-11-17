@@ -140,11 +140,13 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("private fun captureNavigationStill(web: WebView, target: Uri)", source)
         self.assertIn("web.draw(android.graphics.Canvas(bitmap))", source)
         self.assertIn("target.path !in setOf(\"/\", \"/movies\", \"/tv\")", source)
-        self.assertIn("window.__oewHomeReady===true", source)
-        self.assertIn("grid.querySelector('.tile-button,.empty')", source)
-        self.assertIn("revealPopulatedPage(web, completedSerial)", source)
-        self.assertIn("still.animate().alpha(0f).setDuration(220L)", source)
-        self.assertIn("5500L", source)
+        self.assertIn("override fun onPageCommitVisible(web: WebView, url: String?)", source)
+        self.assertIn("releaseNavigationStill()", source)
+        self.assertIn("setDuration(180L)", source)
+        self.assertIn("translationX(-dp(12).toFloat())", source)
+        self.assertIn("480L", source)
+        self.assertNotIn("revealPopulatedPage", source)
+        self.assertNotIn("5500L", source)
 
     def test_library_title_icons_are_large_but_sidebar_icons_unchanged(self):
         catalog = (ROOT / "server" / "catalog.html").read_text()
