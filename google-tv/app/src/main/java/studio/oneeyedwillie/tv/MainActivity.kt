@@ -2115,11 +2115,12 @@ class MainActivity : ComponentActivity() {
                 const preferred=library?null:primaryDetailAction();
                 const field=document.querySelector(
                   '.content input[type="search"],.content input[type="text"]');
-                const dest=(preferred&&isVisible(preferred)?preferred:null)||
+                const dest=library?firstPoster():
+                  ((preferred&&isVisible(preferred)?preferred:null)||
                   firstPoster()||
-                  (!library?[...document.querySelectorAll(
-                    '.content button,.content a[href]')].find(isVisible):null)||
-                  (field&&isVisible(field)?field:null);
+                  [...document.querySelectorAll(
+                    '.content button,.content a[href]')].find(isVisible)||
+                  (field&&isVisible(field)?field:null));
                 if(!dest)return false;
                 dest.focus({preventScroll:true});
                 if(library)(document.scrollingElement||document.documentElement).scrollTop=0;
