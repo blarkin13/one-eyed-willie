@@ -435,9 +435,8 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Keep the already-rendered page visible during same-origin Home/library
-     * navigations. This is a still of the page being LEFT, not a loading page.
-     * Never block forever if a metadata endpoint fails or a library is empty.
+     * Give page changes a brief crossfade using the outgoing page instead
+     * of a separate loading screen or waiting for artwork to download.
      */
     private fun captureNavigationStill(web: WebView, target: Uri) {
         if (!initialPageLoaded || navigationStill != null ||
@@ -458,10 +457,11 @@ class MainActivity : ComponentActivity() {
             frame.addView(still, 1, FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             navigationStill = still
-            // Bound the handoff even if a page never reaches ready state.
+            // Navigation should feel immediate, not like a frozen screen.
+            // Start a short crossfade even when the server is slow.
             still.postDelayed({
                 if (navigationStill === still) releaseNavigationStill()
-            }, 5500L)
+            }, 480L)
         } catch (_: Exception) {
             // A screenshot is an enhancement; navigation must still work if
             // bitmap allocation or the WebView capture is unavailable.
@@ -471,42 +471,11 @@ class MainActivity : ComponentActivity() {
     private fun releaseNavigationStill() {
         val still = navigationStill ?: return
         navigationStill = null
-        still.animate().alpha(0f).setDuration(220L).withEndAction {
+        still.animate().alpha(0f).translationX(-dp(12).toFloat())
+            .setDuration(180L).withEndAction {
             (still.parent as? ViewGroup)?.removeView(still)
             still.setImageDrawable(null)
         }.start()
-    }
-
-    private fun revealPopulatedPage(web: WebView, serial: Int, attempt: Int = 0) {
-        if (navigationStill == null || browser !== web || serial != pageLoadSerial) return
-        if (attempt >= 40) { releaseNavigationStill(); return }
-        web.evaluateJavascript(
-            """(() => {
-              const path=location.pathname;
-              let ready=false;
-              if(path==='/')ready=window.__oewHomeReady===true;
-              else if(path==='/movies'||path==='/tv'){
-                const status=document.getElementById('status');
-                const grid=document.getElementById('items');
-                ready=!!grid && !!grid.querySelector('.tile-button,.empty') &&
-                  !(status?.textContent||'').includes('Loading titles');
-              }else ready=true;
-              if(!ready)return false;
-              // Avoid exposing the new page during its first empty artwork
-              // frame, but do not delay indefinitely on missing metadata.
-              const backdrop=document.querySelector(
-                '.oew-tv-cinematic-image.is-visible,.willie-hover-backdrop-layer.is-visible');
-              const poster=[...document.querySelectorAll(
-                '.shelf-track .poster-image,#items .poster-image')].some(
-                  img=>img.complete && img.naturalWidth>0);
-              return !!backdrop||poster;
-            })()""".trimIndent()
-        ) { result ->
-            if (navigationStill == null || browser !== web || serial != pageLoadSerial)
-                return@evaluateJavascript
-            if (result == "true" || attempt >= 30) releaseNavigationStill()
-            else web.postDelayed({ revealPopulatedPage(web, serial, attempt + 1) }, 100L)
-        }
     }
 
     private fun showServer(server: String) {
@@ -722,13 +691,19 @@ class MainActivity : ComponentActivity() {
                 }
                 return false
             }
+            override fun onPageCommitVisible(web: WebView, url: String?) {
+                super.onPageCommitVisible(web, url)
+                if (browser === web && sameOrigin(url.orEmpty()))
+                    releaseNavigationStill()
+            }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
                 if (browser === web && sameOrigin(url.orEmpty())) {
                     val completedSerial = pageLoadSerial
                     installRemoteNavigation(web)
-                    if (navigationStill != null)
-                        web.postDelayed({ revealPopulatedPage(web, completedSerial) }, 120L)
+                    // The first committed paint triggers the crossfade; this
+                    // fallback also handles WebViews without commit callbacks.
+                    if (navigationStill != null) releaseNavigationStill()
                     // A page with autofocus must not leave the keyboard open
                     // before its inputs receive the TV read-only focus guard.
                     if (!tvTextEditing)
