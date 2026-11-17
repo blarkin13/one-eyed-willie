@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
     private val startupSounds = mutableListOf<MediaPlayer>()
     private var loadingFailed = false
     private var pageLoadSerial = 0
+    private var initialPageLoaded = false
     private var playedStartupSound = false
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
@@ -143,6 +144,9 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showLoading() {
+        // The ship splash belongs to cold startup and initial connection,
+        // not every internal document navigation.
+        if (initialPageLoaded) return
         loadingFailed = false
         loadingCaption?.visibility = View.GONE
         loadingActions?.visibility = View.GONE
@@ -156,6 +160,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun showLoadingFailure(message: String) {
+        if (initialPageLoaded) {
+            // Keep ordinary page navigation visible rather than restarting the
+            // ship splash. Report failures without hiding the previous page.
+            android.widget.Toast.makeText(this, message, android.widget.Toast.LENGTH_LONG).show()
+            return
+        }
         loadingFailed = true
         loadingCaption?.text = message
         loadingCaption?.visibility = View.VISIBLE
@@ -171,6 +181,8 @@ class MainActivity : ComponentActivity() {
 
     private fun finishLoading(web: WebView, serial: Int) {
         if (browser !== web || loadingFailed || serial != pageLoadSerial) return
+        if (initialPageLoaded) return
+        initialPageLoaded = true
         loadingOverlay?.animate()?.alpha(0f)?.setDuration(180L)?.withEndAction {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
@@ -221,6 +233,7 @@ class MainActivity : ComponentActivity() {
     } catch (_: Exception) { false }
 
     private fun showSetup(error: String = "") {
+        initialPageLoaded = false
         tvTextEditing = false
         loadingOverlay?.animate()?.cancel()
         loadingOverlay = null
@@ -320,6 +333,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showSetup("Invalid server URL"); return }
+        initialPageLoaded = false
         tvTextEditing = false
         origin = server.trimEnd('/')
         val view = WebView(this)
@@ -328,6 +342,11 @@ class MainActivity : ComponentActivity() {
         view.isFocusable = true
         view.isFocusableInTouchMode = true
         view.settings.apply {
+            // The server sends TV-only first-paint CSS for this WebView.
+            // Without it, the desktop sidebar flashes before onPageFinished
+            // injects the remote-navigation styling.
+            if (!userAgentString.contains("OneEyedWillieTV/1"))
+                userAgentString = userAgentString + " OneEyedWillieTV/1"
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
@@ -406,7 +425,8 @@ class MainActivity : ComponentActivity() {
                 tvTextEditing = false
                 web.keepScreenOn = false
                 pageLoadSerial++
-                if (browser === web && sameOrigin(url.orEmpty())) showLoading()
+                if (browser === web && sameOrigin(url.orEmpty()) && !initialPageLoaded)
+                    showLoading()
                 super.onPageStarted(web, url, favicon)
             }
             override fun onReceivedError(
@@ -1517,6 +1537,9 @@ class MainActivity : ComponentActivity() {
               };
               const focusNode=node=>{
                 if(!node)return false;
+                // The sidebar opens only when the remote deliberately moves
+                // focus into it; normal page-load autofocus cannot reveal it.
+                document.body.classList.toggle('oew-tv-rail-open',isMenu(node));
                 node.focus({preventScroll:true});
                 let r=rect(node);
                 const padding=44;
@@ -1903,6 +1926,7 @@ class MainActivity : ComponentActivity() {
                 }
                 return true;
               };
+              document.body.classList.remove('oew-tv-rail-open');
               // New documents must not show the rail just because WebView
               // transferred focus from the old page's selected nav link.
               // Begin on content; the rail opens only after remote Left.
