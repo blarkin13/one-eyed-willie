@@ -193,7 +193,7 @@ def ui_stylesheet(request: Request):
         return FileResponse(Path(__file__).with_name("ui.css"), media_type="text/css",
                             headers={"Vary": "User-Agent"})
     stylesheet = Path(__file__).with_name("ui.css").read_text(encoding="utf-8")
-    return Response(stylesheet + "\\n" + TV_RAIL_CSS, media_type="text/css",
+    return Response(stylesheet + "\n" + TV_RAIL_CSS, media_type="text/css",
                     headers={"Cache-Control": "no-store", "Vary": "User-Agent"})
 
 @app.get("/assets/brand/{brand}.svg")
