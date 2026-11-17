@@ -311,7 +311,7 @@ class MainActivity : ComponentActivity() {
         val names = arrayOf("Purple (default)", "Blue", "Teal", "Green", "Orange", "Pink", "Red", "White")
         val colors = arrayOf("#8B5CF6", "#3B82F6", "#14B8A6", "#22C55E",
             "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF")
-        val stored = prefs.getString("tv_focus_color", "#8B5CF6")
+        val stored = prefs.getString("tv_focus_color", "#8B5CF6") ?: "#8B5CF6"
         val selected = colors.indexOf(stored).coerceAtLeast(0)
         android.app.AlertDialog.Builder(this)
             .setTitle("TV Selection Color")
