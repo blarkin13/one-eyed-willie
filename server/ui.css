@@ -860,3 +860,23 @@ html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:fo
 .theme-music-hint{display:inline-block;max-width:250px;color:#a8b8c9;
   font-size:.76rem;line-height:1.35;white-space:normal}
 .theme-control-slot:has(.theme-music-hint){max-width:250px}
+
+
+/* Colorful sidebar artwork keeps native colors; never tint the entire PNG. */
+.sidebar .nav-icon.nav-colored-icon,
+.sidebar .nav-icon.nav-colored-icon .sidebar-colored-image{
+  display:flex;align-items:center;justify-content:center;
+  width:36px;height:36px;min-width:36px;min-height:36px;
+}
+.sidebar .nav-icon.nav-colored-icon img.sidebar-colored-image{
+  display:block;object-fit:contain;background:transparent;
+  border:0;box-shadow:none;filter:none;max-width:36px;max-height:36px;
+}
+.sidebar .nav-link:is(:focus,:focus-visible) .sidebar-colored-image{
+  transform:scale(1.12);filter:drop-shadow(0 0 3px #8b5cf6);
+}
+.library-preview-icon img.sidebar-icon-preview-image,
+.library-settings-icon img.sidebar-icon-preview-image,
+#art-preview-icon img.sidebar-icon-preview-image{
+  display:block;object-fit:contain;max-width:100%;background:transparent;
+}
