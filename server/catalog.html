@@ -91,19 +91,19 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 .catalog-genre-menu{max-height:min(390px,70vh)}
 .catalog-tool-menu::-webkit-scrollbar{width:7px}
 .catalog-tool-menu::-webkit-scrollbar-thumb{background:#3c5772;border-radius:8px}
-/* Reserve fixed line boxes for rotating trivia. Minimum heights let longer
-   questions and answers push the poster grid down when they wrap. */
+/* Compact, fixed trivia lines: changing question/answer lengths never
+   resize the header or move the grid, on Movies, TV or custom libraries. */
 .library-trivia{position:relative;z-index:0;width:100%;max-width:min(100%,1040px);
  display:flex;flex-direction:column;justify-content:flex-start;gap:5px;padding-top:2px}
-.library-trivia .trivia-question{margin:0;max-width:100%;height:5.44em;min-height:0;
+.library-trivia .trivia-question{margin:0;max-width:100%;height:2.72em;min-height:0;
  flex:none;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;
- -webkit-line-clamp:4;line-clamp:4;
+ -webkit-line-clamp:2;line-clamp:2;
  font-size:clamp(1rem,1.07vw,1.25rem);line-height:1.36;letter-spacing:-.018em;
  font-weight:600;color:#e1eaf5;text-wrap:pretty;overflow-wrap:break-word;
  transition:opacity .35s ease,transform .35s ease}
 .library-trivia .trivia-question.is-changing{opacity:0;transform:translateY(5px)}
 .library-trivia .trivia-answer{display:flex;align-items:flex-start;gap:10px;
- height:4.2em;min-height:0;flex:none;overflow:hidden;
+ height:2.8em;min-height:0;flex:none;overflow:hidden;
  font-size:clamp(.94rem,1vw,1.14rem);
  opacity:0;visibility:hidden;transform:translateY(6px);
  transition:opacity .42s ease,transform .42s ease,visibility .42s}
@@ -114,7 +114,18 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
  font-size:inherit;font-weight:650;color:#b4daf8;min-width:0;
  max-width:890px;overflow-wrap:anywhere;text-wrap:pretty;
  overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;
- -webkit-line-clamp:3;line-clamp:3}
+ -webkit-line-clamp:2;line-clamp:2}
+/* Explicitly cover the built-in Movies landing page as well as TV and
+   user-created library routes. Keep both boxes the same height through
+   rotating trivia and ignore older TV min-height rules. */
+body[data-page="movies"] #library-masthead .trivia-question,
+body[data-page="tv"] #library-masthead .trivia-question{
+ height:2.72em!important;min-height:0!important;max-height:2.72em!important;
+}
+body[data-page="movies"] #library-masthead .trivia-answer,
+body[data-page="tv"] #library-masthead .trivia-answer{
+ height:2.8em!important;min-height:0!important;max-height:2.8em!important;
+}
 .library-head + .section-heading{margin-bottom:12px}
 #status:empty{display:none}
 @media(min-width:1600px){
