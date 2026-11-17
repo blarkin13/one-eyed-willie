@@ -1065,6 +1065,9 @@ class MainActivity : ComponentActivity() {
                   node.click();return true;
                 }
                 if(node instanceof HTMLSelectElement){node.focus();node.click();return true;}
+                if(node.matches?.('input[type="checkbox"],input[type="radio"]')){
+                  node.click();return true;
+                }
                 node.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
                 return true;
               };
@@ -2162,9 +2165,20 @@ class MainActivity : ComponentActivity() {
                   }
                   return true;
                 }
+                const active=document.activeElement;
+                if(active?.matches?.('input[type="range"]') &&
+                    (direction==='left'||direction==='right')){
+                  const min=Number(active.min)||0,max=Number(active.max)||100;
+                  const step=Number(active.step)||1;
+                  const value=Number(active.value)||0;
+                  active.value=String(Math.min(max,Math.max(min,
+                    value+(direction==='right'?step:-step))));
+                  active.dispatchEvent(new Event('input',{bubbles:true}));
+                  active.dispatchEvent(new Event('change',{bubbles:true}));
+                  return true;
+                }
                 const nodes=candidates();
                 if(!nodes.length)return false;
-                const active=document.activeElement;
                 if(moveLibraryGridRow(active,direction))return true;
                 // Intentional TV navigation: every episode tile leads DOWN to
                 // the current Play action, even when the tile is scrolled
