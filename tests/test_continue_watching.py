@@ -5,7 +5,10 @@ from pathlib import Path
 from unittest.mock import patch
 
 from server import library
-from server.home import PlaybackUpdate, home_shelves, update_playback
+from server.home import (
+    PlaybackUpdate, home_shelves, home_revision, update_playback,
+    dismiss_continue_watching, started_continue_watching,
+)
 
 
 class ContinueWatchingTests(unittest.TestCase):
@@ -124,6 +127,47 @@ class ContinueWatchingTests(unittest.TestCase):
         next_cards=[x for x in self.cards() if x["kind"]=="tv"]
         self.assertEqual(len(next_cards),1)
         self.assertEqual(next_cards[0]["media_id"],4)
+
+    def test_dismissal_persists_without_erasing_resume_progress(self):
+        update_playback(PlaybackUpdate(media_id=1,position_seconds=180,duration_seconds=7200))
+        self.assertEqual(self.cards()[0]["media_id"],1)
+        before=home_revision()["progress_revision"]
+        dismiss_continue_watching(1)
+        self.assertEqual(self.cards(),[])
+        self.assertNotEqual(home_revision()["progress_revision"],before)
+        with library.db() as conn:
+            row=conn.execute("SELECT position_seconds,completed FROM playback_progress "
+                             "WHERE media_id=1").fetchone()
+            self.assertEqual(row["position_seconds"],180)
+            self.assertEqual(row["completed"],0)
+        # Refreshing or even receiving a delayed checkpoint does not undo removal.
+        update_playback(PlaybackUpdate(media_id=1,position_seconds=210,duration_seconds=7200))
+        self.assertEqual(self.cards(),[])
+        started_continue_watching(1)
+        self.assertEqual([card["media_id"] for card in self.cards()],[1])
+
+    def test_dismissed_tv_title_hides_resume_and_up_next(self):
+        update_playback(PlaybackUpdate(media_id=2,position_seconds=300,duration_seconds=1800))
+        self.assertEqual(self.cards()[0]["season_number"],1)
+        dismiss_continue_watching(2)
+        self.assertEqual(self.cards(),[])
+        update_playback(PlaybackUpdate(media_id=2,position_seconds=1800,
+                                       duration_seconds=1800,completed=True))
+        # The same series should not return as Up Next after completion.
+        self.assertEqual(self.cards(),[])
+        started_continue_watching(3)
+        self.assertEqual(self.cards()[0]["media_id"],3)
+        self.assertEqual(self.cards()[0]["play_state"],"next")
+        self.assertEqual(self.cards()[0]["season_number"],1)
+
+    def test_dismissed_up_next_item_can_be_reopened(self):
+        update_playback(PlaybackUpdate(media_id=2,position_seconds=1800,
+                                       duration_seconds=1800,completed=True))
+        self.assertEqual(self.cards()[0]["media_id"],3)
+        dismiss_continue_watching(3)
+        self.assertEqual(self.cards(),[])
+        started_continue_watching(3)
+        self.assertEqual(self.cards()[0]["media_id"],3)
 
     def test_post_endpoint_supports_unload_beacon(self):
         # New FastAPI releases can defer include_router flattening into
