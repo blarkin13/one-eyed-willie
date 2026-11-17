@@ -44,6 +44,9 @@ class MainActivity : ComponentActivity() {
     private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
+    private val dpadHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var dpadRepeat: Runnable? = null
+    private var heldDpadKey = -1
 
     private var loadingOverlay: FrameLayout? = null
     private var loadingCaption: TextView? = null
@@ -213,14 +216,7 @@ class MainActivity : ComponentActivity() {
                     finishTvTextEditing(web)
                     return
                 }
-                // Closing the tiny episode menu must never navigate away from
-                // the season page. Evaluation is asynchronous on the UI thread.
-                web.evaluateJavascript("Boolean(window.__willieCloseSeasonMenu?.())") { result ->
-                    if (result == "true") return@evaluateJavascript
-                    if (web.canGoBack()) web.goBack()
-                    else if (web.url != origin + "/") web.loadUrl(origin + "/")
-                    else showSetup()
-                }
+                navigateBackToParent(web)
             }
         })
         val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
@@ -552,11 +548,38 @@ class MainActivity : ComponentActivity() {
             .apply { if (shuffleQueue != null) putExtra("shuffle_queue", shuffleQueue) })
     }
 
-    /**
-     * WebView's native spatial navigation and page-level JavaScript navigation
-     * must never both process one D-pad key. Dispatch exactly one focus move
-     * on ACTION_DOWN; consume ACTION_UP as well so WebView cannot jump twice.
-     */
+    /** Back is hierarchical, not the WebView's browsing history. */
+    private fun navigateBackToParent(web: WebView) {
+        web.evaluateJavascript(
+            "window.__willieTvBack ? window.__willieTvBack() : '/'"
+        ) { result ->
+            if (browser !== web || isFinishing) return@evaluateJavascript
+            val target = try { org.json.JSONArray("[" + result + "]").optString(0, "/") }
+                catch (_: Exception) { "/" }
+            if (target == "handled") return@evaluateJavascript
+            if (target.startsWith("/") && !target.startsWith("//")) {
+                if (web.url != origin + target) web.loadUrl(origin + target)
+            } else web.loadUrl(origin + "/")
+        }
+    }
+
+    private fun stopTvRepeat() {
+        dpadRepeat?.let(dpadHandler::removeCallbacks)
+        dpadRepeat = null
+        heldDpadKey = -1
+    }
+
+    private fun moveTvDirection(web: WebView, direction: String) {
+        web.evaluateJavascript("window.__willieTvMove?.('$direction')", null)
+        val sound = when (direction) {
+            "left" -> android.view.SoundEffectConstants.NAVIGATION_LEFT
+            "right" -> android.view.SoundEffectConstants.NAVIGATION_RIGHT
+            "up" -> android.view.SoundEffectConstants.NAVIGATION_UP
+            else -> android.view.SoundEffectConstants.NAVIGATION_DOWN
+        }
+        web.playSoundEffect(sound)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val direction = when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> "left"
@@ -566,44 +589,49 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         val web = browser
-        if (loadingOverlay?.visibility == View.VISIBLE && direction != null) {
-            // An error screen uses native focusable Retry / Settings buttons.
+        if (loadingOverlay?.visibility == View.VISIBLE && direction != null)
             return if (loadingFailed) super.dispatchKeyEvent(event) else true
-        }
         if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                if (tvTextEditing) {
-                    finishTvTextEditing(web)
-                    return true
-                }
-                // Explore More opens its details within the same WebView
-                // document. Close that view before leaving the whole page.
-                web.evaluateJavascript(
-                    """(() => {
-                        const panel = document.getElementById('explore-detail');
-                        if (panel && !panel.hidden && typeof window.restoreExplore === 'function') {
-                            window.restoreExplore();
-                            return true;
-                        }
-                        return false;
-                    })()""".trimIndent()
-                ) { result ->
-                    if (browser === web && result != "true") {
-                        if (web.canGoBack()) web.goBack() else finish()
-                    }
-                }
+                if (tvTextEditing) finishTvTextEditing(web)
+                else navigateBackToParent(web)
             }
             return true
         }
+        if (web != null && !tvTextEditing &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+             event.keyCode == KeyEvent.KEYCODE_ENTER ||
+             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
+                web.evaluateJavascript("window.__willieTvSelect?.()", null)
+            return true
+        }
         if (direction != null && web != null) {
-            // Cursor/IME arrows belong to the editor after OK, but otherwise
-            // navigate normally between fields and the rest of the page.
-            if (tvTextEditing) return super.dispatchKeyEvent(event)
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                web.evaluateJavascript(
-                    "window.__willieTvMove && window.__willieTvMove('$direction')",
-                    null
-                )
+            if (tvTextEditing) {
+                stopTvRepeat()
+                return super.dispatchKeyEvent(event)
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
+                if (heldDpadKey == event.keyCode) stopTvRepeat()
+            } else if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                stopTvRepeat()
+                heldDpadKey = event.keyCode
+                moveTvDirection(web, direction)
+                // Short initial pause, then continuous 85ms navigation.
+                // Ignore Android's own repeat events so every press is unique.
+                val repeating = object : Runnable {
+                    override fun run() {
+                        if (heldDpadKey != event.keyCode || browser !== web ||
+                            tvTextEditing || isFinishing) {
+                            stopTvRepeat()
+                            return
+                        }
+                        moveTvDirection(web, direction)
+                        dpadHandler.postDelayed(this, 85L)
+                    }
+                }
+                dpadRepeat = repeating
+                dpadHandler.postDelayed(repeating, 240L)
             }
             return true
         }
@@ -705,6 +733,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        stopTvRepeat()
         // Never hold the display awake when browsing or watching is backgrounded.
         browser?.keepScreenOn = false
         // Google TV's keyboard may be a full-screen IME activity. Opening it
@@ -766,6 +795,10 @@ class MainActivity : ComponentActivity() {
                   return true;
                 };
                 window.__willieTvEndTextEdit=endEditing;
+                window.__willieTvActivateFocusedText=()=>{
+                  const field=document.activeElement;
+                  return isTextField(field)&&beginEditing(field);
+                };
                 const beginEditing=field=>{
                   if(!protectedFields.has(field)||field.disabled)return false;
                   if(editingField===field)return true;
@@ -873,6 +906,59 @@ class MainActivity : ComponentActivity() {
                 installPlayerHook();
                 if(++hookRetries>=24)clearInterval(hookTimer);
               },250);
+              
+              window.__willieTvSelect=()=>{
+                const node=document.activeElement;
+                if(!node||node===document.body)return false;
+                if(window.__willieTvActivateFocusedText?.())return true;
+                if(node.matches?.('a[href],button,[role="button"],[role="option"]')){
+                  node.click();return true;
+                }
+                if(node instanceof HTMLSelectElement){node.focus();node.click();return true;}
+                node.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+                return true;
+              };
+              window.__willieTvBack=()=>{
+                if(window.__willieCloseSeasonMenu?.())return 'handled';
+                const detail=document.getElementById('explore-detail');
+                if(detail&&!detail.hidden&&typeof window.restoreExplore==='function'){
+                  window.restoreExplore();return 'handled';
+                }
+                const dialog=[...document.querySelectorAll('dialog[open]')].pop();
+                if(dialog){
+                  const close=[...dialog.querySelectorAll('button')].find(b=>
+                    /close|cancel|dismiss|back/i.test((b.getAttribute('aria-label')||'')+' '+b.textContent));
+                  if(close)close.click();else dialog.close?.();
+                  return 'handled';
+                }
+                const menu=[...document.querySelectorAll(
+                  '.season-more-popover,.catalog-tool-menu,[role="menu"],[role="listbox"]')]
+                  .find(n=>n.getClientRects().length&&!n.hidden&&
+                     getComputedStyle(n).visibility!=='hidden');
+                if(menu){
+                  const owner=menu.id?document.querySelector('[aria-controls="'+menu.id+'"]'):null;
+                  if(owner)owner.click();
+                  else menu.hidden=true;
+                  owner?.focus({preventScroll:true});
+                  return 'handled';
+                }
+                const toggle=[...document.querySelectorAll('[aria-expanded="true"]')]
+                  .find(n=>!n.closest('#app-nav'));
+                if(toggle){toggle.click();return 'handled';}
+                const p=location.pathname,q=new URLSearchParams(location.search);
+                if(p==='/movie')return '/movies';
+                if(p==='/tv/episode')return document.querySelector(
+                  'a[href^="/tv/season?"]')?.getAttribute('href')||
+                  document.querySelector('a[href^="/tv/show?"]')?.getAttribute('href')||'/tv';
+                if(p==='/tv/season')return '/tv/show?'+new URLSearchParams({
+                  library_id:q.get('library_id')||'',key:q.get('key')||''}).toString();
+                if(p==='/tv/show')return '/tv';
+                if(['/movies','/tv','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
+                   p.startsWith('/sonarr/'))return '/';
+                if(p==='/')return 'handled';
+                if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
+                return '/';
+              };
               if (document.getElementById('oew-tv-remote-style')) return;
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
@@ -954,7 +1040,22 @@ class MainActivity : ComponentActivity() {
                   padding-right:clamp(36px,5vw,95px)!important
                 }
                 #items{grid-template-columns:repeat(5,minmax(0,1fr))!important;
-                  gap:32px 20px!important}
+                  gap:22px 20px!important}
+                body:is([data-page="movies"],[data-page="tv"]) .library-head{
+                  padding:7px 7px 4px!important;gap:4px!important;margin-bottom:5px!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .library-trivia{
+                  gap:1px!important;padding-top:0!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .trivia-question{
+                  min-height:1.45em!important;line-height:1.2!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .trivia-answer{
+                  min-height:1.4em!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .library-head + .section-heading{
+                  margin-bottom:5px!important
+                }
                 /* Fit five comfortable posters across TV WebView's CSS viewport.
                    Android TV often reports ~960 CSS px even on a 1080p set. */
                 /* Home-only trial: 60% of the current poster dimensions,
@@ -1521,8 +1622,8 @@ class MainActivity : ComponentActivity() {
                 layers.forEach(layer=>layer.classList.remove('is-visible'));
                 document.body.classList.remove('oew-tv-backdrop-active');
               };
-              const setBackdropTarget=async target=>{
-                if(target===backdropTarget)return;
+              const setBackdropTarget=async (target,force=false)=>{
+                if(target===backdropTarget&&!force)return;
                 backdropTarget=target;
                 if(!target){clearBackdrop();return}
                 const serial=++backdropSerial;
@@ -1549,7 +1650,7 @@ class MainActivity : ComponentActivity() {
                   target.closest('.tile-button,.detail-trigger');
               };
               document.addEventListener('focusin',event=>{
-                setBackdropTarget(locateBackdrop(event.target));
+                setBackdropTarget(locateBackdrop(event.target),Boolean(event.__oewInitialRefresh));
               },true);
               document.addEventListener('mouseover',event=>{
                 const target=locateBackdrop(event.target);
@@ -2030,31 +2131,58 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               document.body.classList.remove('oew-tv-rail-open');
-              // New documents must not show the rail just because WebView
-              // transferred focus from the old page's selected nav link.
-              // Begin on content; the rail opens only after remote Left.
+              // Wait for async library content, then focus its first poster.
+              let tvUserMoved=false,initialFocusSettled=false;
               const settleInitialFocus=()=>{
-                if(document.querySelector('dialog[open]'))return true;
+                if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
-                if(active && !isMenu(active) && active!==document.body &&
-                   active!==document.documentElement)return true;
-                const preferred=primaryDetailAction();
-                const field=document.querySelector('.content input[type="search"],.content input[type="text"]');
-                const destination=(preferred&&isVisible(preferred)?preferred:null)||
+                const library=['/movies','/tv'].includes(location.pathname);
+                if(tvUserMoved)return true;
+                if(!library && active && !isMenu(active) &&
+                   active!==document.body && active!==document.documentElement){
+                  if(location.pathname==='/'&&active.matches?.('.tile-button')){
+                    const refresh=new FocusEvent('focusin',{bubbles:true});
+                    Object.defineProperty(refresh,'__oewInitialRefresh',{value:true});
+                    active.dispatchEvent(refresh);
+                  }
+                  return true;
+                }
+                const preferred=library?null:primaryDetailAction();
+                const field=document.querySelector(
+                  '.content input[type="search"],.content input[type="text"]');
+                const dest=library?firstPoster():
+                  ((preferred&&isVisible(preferred)?preferred:null)||
                   firstPoster()||
-                  [...document.querySelectorAll('.content button,.content a[href]')].find(isVisible)||
-                  (field&&isVisible(field)?field:null);
-                if(!destination)return false;
-                destination.focus({preventScroll:true});
+                  [...document.querySelectorAll(
+                    '.content button,.content a[href]')].find(isVisible)||
+                  (field&&isVisible(field)?field:null));
+                if(!dest)return false;
+                dest.focus({preventScroll:true});
+                if(library)(document.scrollingElement||document.documentElement).scrollTop=0;
+                if(location.pathname==='/'){
+                  const refresh=new FocusEvent('focusin',{bubbles:true});
+                  Object.defineProperty(refresh,'__oewInitialRefresh',{value:true});
+                  dest.dispatchEvent(refresh);
+                }
                 return true;
               };
-              if(!settleInitialFocus()){
-                let attempts=0;
-                const focusTimer=setInterval(()=>{
-                  if(settleInitialFocus()||++attempts>=12)clearInterval(focusTimer);
-                },100);
-              }
-              window.__willieTvMove=move;
+              window.__willieTvMove=direction=>{
+                tvUserMoved=true;return move(direction);
+              };
+              const tryFocus=()=>{
+                if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
+              };
+              tryFocus();
+              const focusObserver=new MutationObserver(tryFocus);
+              focusObserver.observe(document.body,{childList:true,subtree:true});
+              let focusAttempts=0;
+              const focusTimer=setInterval(()=>{
+                tryFocus();
+                if(initialFocusSettled||++focusAttempts>=80){
+                  clearInterval(focusTimer);focusObserver.disconnect();
+                }
+              },100);
+              
             })();
         """.trimIndent()
     }
