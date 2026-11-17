@@ -121,7 +121,7 @@ el('save-sidebar').onclick=async()=>{
 };
 el('reset-sidebar').onclick=()=>{
  if(!confirm('Restore sidebar order and visibility to defaults?'))return;
- const priorities=['home','movies','tv','radarr','sonarr','sabnzbd','services'];
+ const priorities=['home','movies','tv','sabnzbd'];
  const originalPosition=new Map(sidebarItems.map((item,index)=>[item.id,index]));
  sidebarItems.sort((a,b)=>{
   const score=x=>x.id==='settings'?999:
@@ -132,8 +132,8 @@ el('reset-sidebar').onclick=()=>{
  renderSidebar();notice('Default layout ready. Click Save sidebar layout to apply.');
 };
 const systemIconNames={
- home:'Home',movies:'Movies',tv:'TV Shows',radarr:'Radarr',
- sonarr:'Sonarr',sabnzbd:'SABnzbd',settings:'Settings'
+ home:'Home',movies:'Movies',tv:'TV Shows',
+ sabnzbd:'SABnzbd',settings:'Settings'
 };
 async function loadSystemIcons(){
  const data=await api('/api/settings/sidebar/icons');
