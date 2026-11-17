@@ -70,8 +70,8 @@ class CatalogToolbarTests(unittest.TestCase):
         # '#items' creates its own isolated stacking context in ui.css.
         # The menu's z-index is ineffective unless its masthead is above it.
         import re
-        masthead = re.search(r"\\.library-head\\{([^}]*)\\}", self.page, re.S)
-        menu = re.search(r"\\.catalog-tool-menu\\{([^}]*)\\}", self.page, re.S)
+        masthead = re.search(r"\.library-head\{([^}]*)\}", self.page, re.S)
+        menu = re.search(r"\.catalog-tool-menu\{([^}]*)\}", self.page, re.S)
         self.assertIsNotNone(masthead)
         self.assertIsNotNone(menu)
         self.assertIn("position:relative", masthead.group(1))
