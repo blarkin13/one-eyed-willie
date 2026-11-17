@@ -489,8 +489,12 @@ class PlayerActivity : ComponentActivity() {
         if(!::timeline.isInitialized) return
         val duration = currentDuration()
         val position = currentPosition().coerceAtMost(if(duration>0)duration else Double.MAX_VALUE)
+        // A remote seek is committed after a short debounce. Until then,
+        // display the requested position rather than snapping the slider
+        // back to the decoder's previous frame on every UI refresh.
+        val displayedPosition = if (pendingSeekAction != null) pendingSeek else position
         if(!timeline.isPressed && !scrubbing && duration>0)
-            timeline.progress = (position/duration*1000).toInt().coerceIn(0,1000)
+            timeline.progress = (displayedPosition/duration*1000).toInt().coerceIn(0,1000)
         elapsed.text = fmt(position)
         totalTime.text = fmt(duration)
         playButton.setImageResource(

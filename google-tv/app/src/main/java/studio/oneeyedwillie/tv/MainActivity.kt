@@ -1972,7 +1972,7 @@ class MainActivity : ComponentActivity() {
                   :Math.max(0,element.scrollWidth-element.clientWidth);
                 const to=Math.max(0,Math.min(limit,destination));
                 const previous=scrollAnimations.get(element);
-                if(previous)cancelAnimationFrame(previous);
+                if(previous)cancelAnimationFrame(previous.frame);
                 scrollAnimations.delete(element);
                 const start=element[key],delta=to-start;
                 if(Math.abs(delta)<1)return;
@@ -1981,10 +1981,14 @@ class MainActivity : ComponentActivity() {
                 const tick=now=>{
                   const t=Math.min(1,(now-begun)/duration);
                   element[key]=start+delta*(1-Math.pow(1-t,3));
-                  if(t<1)scrollAnimations.set(element,requestAnimationFrame(tick));
+                  if(t<1)scrollAnimations.set(element,{
+                    frame:requestAnimationFrame(tick),target:to
+                  });
                   else scrollAnimations.delete(element);
                 };
-                scrollAnimations.set(element,requestAnimationFrame(tick));
+                scrollAnimations.set(element,{
+                  frame:requestAnimationFrame(tick),target:to
+                });
               };
               const focusNode=(node,{preserveVertical=false}={})=>{
                 if(!node)return false;
@@ -2049,7 +2053,7 @@ class MainActivity : ComponentActivity() {
                     // shift the page by a few pixels because focus scaling
                     // changes the selected poster's bounding rectangle.
                     const previous=scrollAnimations.get(root);
-                    if(previous)cancelAnimationFrame(previous);
+                    if(previous)cancelAnimationFrame(previous.frame);
                     scrollAnimations.delete(root);
                     return true;
                   }
@@ -2088,7 +2092,9 @@ class MainActivity : ComponentActivity() {
               const scrollRead=direction=>{
                 const root=document.scrollingElement||document.documentElement;
                 const amount=Math.round(Math.min(240,Math.max(115,innerHeight*.29)));
-                const before=root.scrollTop;
+                // Chain key repeats from the *destination* of the prior
+                // animation, not an intermediate scrollTop sample.
+                const before=scrollAnimations.get(root)?.target ?? root.scrollTop;
                 const max=Math.max(0,root.scrollHeight-root.clientHeight);
                 const target=Math.max(0,Math.min(max,before+
                   (direction==='down'?amount:-amount)));
@@ -2334,7 +2340,15 @@ class MainActivity : ComponentActivity() {
                 }
                 const delta=r.top<upper?r.top-upper:
                   r.bottom>lower?r.bottom-lower:0;
-                if(Math.abs(delta)>1)glideTo(root,'top',root.scrollTop+delta);
+                // Do not reverse an unfinished scroll merely because the
+                // newly selected poster is temporarily inside the viewport.
+                const pending=scrollAnimations.get(root)?.target ?? root.scrollTop;
+                const required=root.scrollTop+delta;
+                const destination=direction==='down'
+                  ?Math.max(pending,required)
+                  :Math.min(pending,required);
+                if(Math.abs(destination-root.scrollTop)>1)
+                  glideTo(root,'top',destination);
                 return true;
               };
               const move=direction=>{
