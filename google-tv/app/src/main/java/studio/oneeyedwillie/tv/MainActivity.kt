@@ -643,6 +643,9 @@ class MainActivity : ComponentActivity() {
                     });
                     if (response.ok) {
                       window.OneEyedWillieProgress?.confirmed($keyArg, $payload);
+                      // The server must finish writing progress before the
+                      // home shelf and detail pages read Continue Watching.
+                      document.dispatchEvent(new Event('willie:watch-updated'));
                     }
                     return response.ok;
                   } catch (_) { return false; }
@@ -676,6 +679,9 @@ class MainActivity : ComponentActivity() {
         // Native Media3 playback runs in another Activity. Refresh the
         // underlying season page's watched flags and resume positions when
         // returning to its WebView, without navigating away from the show.
+        // Refresh immediately for checkpoints already committed by the
+        // native player. Pending checkpoints trigger another refresh only
+        // after their HTTP POST succeeds (see syncPendingPlaybackProgress).
         browser?.evaluateJavascript(
             "document.dispatchEvent(new Event('willie:watch-updated'))", null
         )
