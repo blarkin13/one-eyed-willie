@@ -80,10 +80,13 @@ class LibraryTriviaTests(unittest.TestCase):
         page = self.page
         # Fixed four-line question and three-line answer reservations prevent
         # layout reflow as the timed question/answer carousel changes text.
-        self.assertIn("height:5.44em;min-height:0;", page)
-        self.assertIn("height:4.2em;min-height:0;flex:none;overflow:hidden;", page)
-        self.assertIn("-webkit-line-clamp:4", page)
-        self.assertIn("-webkit-line-clamp:3", page)
+        self.assertIn("height:2.72em;min-height:0;", page)
+        self.assertIn("height:2.8em;min-height:0;flex:none;overflow:hidden;", page)
+        self.assertIn("-webkit-line-clamp:2;line-clamp:2", page)
+        self.assertIn('body[data-page="movies"] #library-masthead .trivia-question', page)
+        self.assertIn('body[data-page="movies"] #library-masthead .trivia-answer', page)
+        self.assertIn('body[data-page="tv"] #library-masthead .trivia-question', page)
+        self.assertIn('body[data-page="tv"] #library-masthead .trivia-answer', page)
         self.assertIn(".library-trivia .trivia-answer{font-size:clamp(1rem,3.3vw,1.32rem)}", page)
         self.assertIn("scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS)", page)
 
