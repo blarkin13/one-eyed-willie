@@ -19,6 +19,8 @@ VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".web
 scan_lock = Lock()
 HEADER_DIRECTORY = DB_PATH.parent / 'library-headers'
 HEADER_MAX_BYTES = 5 * 1024 * 1024
+ICON_DIRECTORY = DB_PATH.parent / 'library-icons'
+ICON_MAX_BYTES = 2 * 1024 * 1024
 router = APIRouter(prefix="/api")
 
 
@@ -76,6 +78,7 @@ def db():
         ("header_scale", "INTEGER NOT NULL DEFAULT 100"),
         ("header_opacity", "INTEGER NOT NULL DEFAULT 60"),
         ("header_version", "INTEGER NOT NULL DEFAULT 0"),
+        ("icon_version", "INTEGER NOT NULL DEFAULT 0"),
     ):
         if name not in library_columns:
             connection.execute(f"ALTER TABLE libraries ADD COLUMN {name} {schema}")
@@ -149,6 +152,11 @@ def _library_view(conn, library_id=None):
     for row in rows:
         item = dict(row)
         item["sidebar_hidden"] = bool(row["sidebar_hidden"])
+        item["icon_custom"] = bool(row["icon_version"] % 2)
+        item["icon_image_url"] = (
+            f"/api/libraries/{item['id']}/icon.png?v={item['icon_version']}"
+            if item["icon_custom"] else None
+        )
         item["folders"] = folders.get(row["id"], [])
         item["header_custom"] = bool(item["header_version"] % 2)
         item["header_image_url"] = (
@@ -198,6 +206,91 @@ def update_library(library_id: int, item: LibraryEdit):
              item.header_x, item.header_y, item.header_scale, item.header_opacity,
              library_id))
         return _library_view(connection, library_id)[0]
+
+
+def _icon_path(library_id: int):
+    return ICON_DIRECTORY / f"{library_id}.png"
+
+
+@router.get("/libraries/{library_id}/icon.png")
+def library_icon_image(library_id: int):
+    with db() as connection:
+        row = connection.execute(
+            "SELECT icon_version FROM libraries WHERE id=?", (library_id,)
+        ).fetchone()
+    if not row:
+        raise HTTPException(404, "Library not found")
+    if row["icon_version"] % 2 == 0:
+        raise HTTPException(404, "This library uses its default icon")
+    image = _icon_path(library_id)
+    if not image.is_file():
+        raise HTTPException(404, "Custom library icon not found")
+    return FileResponse(image, media_type="image/png", headers={
+        "Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"
+    })
+
+
+@router.put("/libraries/{library_id}/icon.png")
+async def upload_library_icon(library_id: int, request: Request):
+    """Validate, resize, and atomically store a user-supplied library icon."""
+    with db() as connection:
+        if not connection.execute("SELECT 1 FROM libraries WHERE id=?", (library_id,)).fetchone():
+            raise HTTPException(404, "Library not found")
+    if request.headers.get("content-type", "").split(";", 1)[0].strip().lower() != "image/png":
+        raise HTTPException(415, "Upload a PNG icon")
+    parts, size = [], 0
+    async for chunk in request.stream():
+        size += len(chunk)
+        if size > ICON_MAX_BYTES:
+            raise HTTPException(413, "Icon exceeds 2 MB maximum")
+        parts.append(chunk)
+    data = b"".join(parts)
+    if not data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+        raise HTTPException(415, "The file is not a PNG")
+    try:
+        with Image.open(io.BytesIO(data)) as source:
+            if source.format != "PNG" or min(source.size) < 32:
+                raise ValueError("PNG must be at least 32 pixels in both dimensions")
+            if max(source.size) > 4096:
+                raise ValueError("PNG dimensions must not exceed 4096 pixels")
+            image = source.convert("RGBA")
+            image.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            # Square canvas preserves non-square artwork without distortion.
+            canvas = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
+            canvas.alpha_composite(image, ((256-image.width)//2, (256-image.height)//2))
+    except (UnidentifiedImageError, OSError, ValueError, SyntaxError, Image.DecompressionBombError) as error:
+        raise HTTPException(422, f"Invalid PNG icon: {error}") from error
+    ICON_DIRECTORY.mkdir(parents=True, exist_ok=True)
+    handle, temporary = tempfile.mkstemp(prefix=".icon-", suffix=".png", dir=ICON_DIRECTORY)
+    try:
+        with os.fdopen(handle, "wb") as stream:
+            canvas.save(stream, "PNG", optimize=True)
+        with db() as connection:
+            row = connection.execute("SELECT icon_version FROM libraries WHERE id=?", (library_id,)).fetchone()
+            if not row:
+                raise HTTPException(404, "Library not found")
+            os.replace(temporary, _icon_path(library_id))
+            version = row["icon_version"] + (1 if row["icon_version"] % 2 == 0 else 2)
+            connection.execute("UPDATE libraries SET icon_version=? WHERE id=?",
+                               (version, library_id))
+            return _library_view(connection, library_id)[0]
+    finally:
+        if os.path.exists(temporary):
+            os.unlink(temporary)
+
+
+@router.delete("/libraries/{library_id}/icon.png")
+def revert_library_icon(library_id: int):
+    with db() as connection:
+        row = connection.execute("SELECT icon_version FROM libraries WHERE id=?", (library_id,)).fetchone()
+        if not row:
+            raise HTTPException(404, "Library not found")
+        if row["icon_version"] % 2:
+            connection.execute("UPDATE libraries SET icon_version=icon_version+1 WHERE id=?",
+                               (library_id,))
+        result = _library_view(connection, library_id)[0]
+    _icon_path(library_id).unlink(missing_ok=True)
+    return result
 
 
 def _header_path(library_id: int):
@@ -370,6 +463,7 @@ def delete_library(library_id: int):
         connection.execute("DELETE FROM libraries WHERE id=?", (library_id,))
         connection.execute("UPDATE catalog_state SET revision=revision+1 WHERE id=1")
     _header_path(library_id).unlink(missing_ok=True)
+    _icon_path(library_id).unlink(missing_ok=True)
     return {"removed": True, "media_files_deleted": False}
 
 
