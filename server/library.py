@@ -245,7 +245,7 @@ async def upload_library_icon(library_id: int, request: Request):
             raise HTTPException(413, "Icon exceeds 2 MB maximum")
         parts.append(chunk)
     data = b"".join(parts)
-    if not data.startswith(b"\\x89PNG\\r\\n\\x1a\\n"):
+    if not data.startswith(b"\x89PNG\r\n\x1a\n"):
         raise HTTPException(415, "The file is not a PNG")
     try:
         with Image.open(io.BytesIO(data)) as source:
