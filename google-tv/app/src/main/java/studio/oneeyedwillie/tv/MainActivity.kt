@@ -329,14 +329,15 @@ class MainActivity : ComponentActivity() {
                     })
                 }
                 val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(9)
-                repeat(submitted.size) {
+                for (ignored in submitted.indices) {
+                    if (generation != discoveryGeneration) break
                     val remaining = deadline - System.nanoTime()
-                    if (remaining <= 0L) return@repeat
-                    val task = completion.poll(remaining, TimeUnit.NANOSECONDS) ?: return@repeat
+                    if (remaining <= 0L) break
+                    val task = completion.poll(remaining, TimeUnit.NANOSECONDS) ?: break
                     val found = try { task.get() } catch (_: Exception) { null }
                     if (found != null) {
                         matched = found
-                        return@repeat
+                        break
                     }
                 }
             } finally {
