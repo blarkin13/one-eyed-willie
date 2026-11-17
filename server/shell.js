@@ -113,12 +113,14 @@ document.addEventListener('DOMContentLoaded', () => {
       script.onerror=()=>resolve(null);
       document.head.append(script);
     });
-  function libraryGlyph(appearance,library){
+  function libraryGlyph(appearance,library,isStandard=false){
     if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
       return coloredIcon(library.icon_image_url);
     const kind=library.kind==='tv'?'tv':'movies';
-    // Standard libraries and new collections use the user's colorful
-    // artwork; selecting another preset retains the original icon picker.
+    // Built-in Movies / TV Shows retain the first-party PNG icons.
+    // Custom libraries use their individually chosen SVG presets.
+    if(isStandard && ['film','tv','folder'].includes(library.icon))
+      return defaultIcon(kind);
     if(!appearance?.icons[library.icon])
       return defaultIcon(kind);
     const wrap=document.createElement('span');wrap.className='nav-icon library-symbol';
@@ -149,7 +151,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const font=appearance?.fonts[library.font]?library.font:'default';
           base.classList.add('library-font--'+font);
           const oldIcon=base.querySelector('.nav-icon');
-          if(oldIcon)oldIcon.replaceWith(libraryGlyph(appearance,library));
+          if(oldIcon)oldIcon.replaceWith(libraryGlyph(appearance,library,true));
           if(library.sidebar_hidden)base.classList.add('sidebar-hidden');
         }
         continue;
