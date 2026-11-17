@@ -651,6 +651,28 @@ class MainActivity : ComponentActivity() {
                     }
                     return true
                 }
+                // TV sidebar navigation is initiated from JavaScript. Route
+                // it explicitly through the prepared WebView crossfade rather
+                // than relying on shouldOverrideUrlLoading timing.
+                if (sameOrigin(url) && browser === web &&
+                    message.startsWith("oewtv:navigate:")) {
+                    val target = message.removePrefix("oewtv:navigate:")
+                    val destination = try {
+                        val parsed = URI(target)
+                        if (parsed.isAbsolute || parsed.rawAuthority != null ||
+                            parsed.rawFragment != null || parsed.rawQuery != null ||
+                            target !in setOf("/", "/movies", "/tv")) null
+                        else origin + target
+                    } catch (_: Exception) { null }
+                    if (destination != null && !isFinishing) {
+                        result.confirm("ACK")
+                        web.post {
+                            if (browser === web && !isFinishing)
+                                prepareNavigation(web, destination)
+                        }
+                    } else result.cancel()
+                    return true
+                }
                 if (sameOrigin(url) && browser === web &&
                     message == "oewtv:settings:server") {
                     result.confirm("ACK")
@@ -1071,6 +1093,24 @@ class MainActivity : ComponentActivity() {
     companion object {
         private val TV_REMOTE_SCRIPT = """
             (() => {
+              // Intercept sidebar clicks before the WebView performs a
+              // full document navigation. The native handler prepares the
+              // destination behind the outgoing page and blends the frames.
+              if(!window.__oewTvPageTransitionLinksInstalled){
+                window.__oewTvPageTransitionLinksInstalled=true;
+                document.addEventListener('click',event=>{
+                  const link=event.target?.closest?.('#app-nav a[href]');
+                  if(!link || event.defaultPrevented || event.button!==0 ||
+                     event.metaKey||event.ctrlKey||event.altKey||event.shiftKey)return;
+                  const target=new URL(link.href,location.href);
+                  if(target.origin!==location.origin ||
+                     !['/','/movies','/tv'].includes(target.pathname) ||
+                     target.search || target.hash ||
+                     target.pathname===location.pathname)return;
+                  const acknowledged=window.prompt('oewtv:navigate:'+target.pathname,'');
+                  if(acknowledged==='ACK')event.preventDefault();
+                },true);
+              }
               // Google TV remote navigation may focus a search box while the
               // viewer is just moving through the interface. A focused text
               // input remains read-only until OK/Select or a real click.
