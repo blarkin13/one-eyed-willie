@@ -345,9 +345,13 @@ def watch_page(media_id: int):
 
 
 @app.get("/settings")
-def settings_home_page():
-    return FileResponse(Path(__file__).with_name("settings_hub.html"), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+def settings_home_page(request: Request):
+    # TV-only playback and connection preferences; server administration stays
+    # on the full web Settings page and is never shown in the TV navigation.
+    tv_client = "OneEyedWillieTV/1" in request.headers.get("user-agent", "")
+    template = "tv_settings.html" if tv_client else "settings_hub.html"
+    return FileResponse(Path(__file__).with_name(template), media_type="text/html",
+                        headers={"Cache-Control": "no-store", "Vary": "User-Agent"})
 
 
 @app.get("/settings/credits")

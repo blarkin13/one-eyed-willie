@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>TV Playback Settings · One-Eyed Willie</title>
+<link rel="stylesheet" href="/assets/ui.css?v=tv-playback-1">
+<script defer src="/assets/shell.js?v=tv-playback-1"></script>
+<style>
+.tv-playback-settings{max-width:920px}
+.tv-playback-settings .settings-card{margin-bottom:22px}
+.tv-playback-settings .setting-toggle{display:flex;align-items:center;gap:14px;min-height:52px}
+.tv-playback-settings select{min-height:48px;padding:10px 14px;border-radius:8px;
+ background:#142131;border:1px solid #53677f;color:#f2f4f9;max-width:420px;width:100%}
+.tv-playback-settings .form-actions{margin-top:18px}
+.tv-playback-settings dialog{background:#0f1b29;color:#f3f4f8;border:1px solid #526a85;
+ border-radius:13px;padding:22px;max-height:85vh;overflow:auto;width:min(460px,92vw)}
+.tv-playback-settings dialog::backdrop{background:#000c}
+.tv-playback-settings .tv-language-options{display:grid;gap:9px;margin:16px 0}
+.tv-playback-settings .tv-language-options button{padding:12px 18px;
+ background:#1b2b40;color:#f4f4f8;border:1px solid #455b77;border-radius:8px;
+ font:inherit;text-align:left;min-height:48px}
+.tv-playback-settings .tv-language-options button[aria-pressed="true"]{
+ border-color:#b5c9e4;font-weight:750}
+</style>
+</head><body data-page="settings"><div class="app-shell">
+<aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content tv-playback-settings">
+<div class="page-head"><div><p class="eyebrow">This TV</p>
+<h1>Playback Settings</h1>
+<p>Subtitle preferences apply only to this television. Shared playback preferences are stored on the server.</p>
+</div></div>
+<p id="tv-status" class="message" role="status" aria-live="polite"></p>
+<section class="settings-section" aria-labelledby="tv-subtitles-heading">
+<h2 id="tv-subtitles-heading">Subtitles on this TV</h2>
+<div class="settings-card"><form id="tv-subtitle-form">
+<label class="setting-toggle"><input type="checkbox" id="tv-subtitles-on">
+ Automatically show subtitles when playing media</label>
+<label for="tv-subtitle-language">Preferred subtitle language</label>
+<input type="hidden" id="tv-subtitle-language" value="en">
+<button type="button" class="secondary-button" id="tv-language-button" aria-haspopup="dialog" aria-controls="tv-language-dialog">English</button>
+<dialog id="tv-language-dialog" aria-labelledby="tv-language-heading">
+<h2 id="tv-language-heading">Preferred subtitle language</h2>
+<div id="tv-language-options" class="tv-language-options"></div>
+<button type="button" class="secondary-button" id="tv-language-cancel">Cancel</button>
+</dialog>
+<p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
+<div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
+</form></div></section>
+<section class="settings-section" aria-labelledby="tv-shared-heading"><h2 id="tv-shared-heading">Playback</h2>
+<div class="settings-card"><form id="tv-playback-form">
+<label class="setting-toggle"><input id="tv-auto-next" type="checkbox"> Automatically play the next TV episode</label>
+<label class="setting-toggle"><input id="tv-show-theme" type="checkbox"> Play local TV show theme music</label>
+<label class="setting-toggle"><input id="tv-movie-theme" type="checkbox"> Play local movie theme music</label>
+<label class="setting-toggle"><input id="tv-loop-theme" type="checkbox"> Loop theme music</label>
+<label class="setting-toggle"><input id="tv-fade-theme" type="checkbox"> Fade theme music in and out</label>
+<label for="tv-theme-volume">Theme music volume: <output id="tv-theme-volume-label">25%</output></label>
+<input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25">
+<p class="settings-muted">These playback options are shared with the server and other TVs.</p>
+<div class="form-actions"><button type="submit" class="primary-button">Save shared playback settings</button></div>
+</form></div></section>
+<section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Server connection</h2>
+<div class="settings-card"><p class="settings-muted">Change the IP address or port saved on this television. Other TVs and the server are unaffected.</p>
+<button type="button" id="tv-server-connection" class="secondary-button">Change this TV's server</button>
+</div></section>
+</main></div></div>
+<script>
+const el=id=>document.getElementById(id);
+const message=text=>{el('tv-status').textContent=text};
+async function api(path,options={}){
+ const r=await fetch(path,{cache:'no-store',...options,
+  headers:{'Content-Type':'application/json',...(options.headers||{})}});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(data.detail||'Request failed');
+ return data;
+}
+function devicePrompt(action,payload=''){
+ const reply=prompt('oewtv:subtitles:'+action,payload);
+ if(reply===null)throw Error('TV subtitle preferences unavailable');
+ return reply;
+}
+const tvLanguages=[
+ ['en','English'],['es','Spanish'],['fr','French'],['de','German'],
+ ['it','Italian'],['pt','Portuguese'],['ja','Japanese'],['ko','Korean']
+];
+const langDialog=el('tv-language-dialog'),langButton=el('tv-language-button');
+function chooseLanguage(language){
+ const pair=tvLanguages.find(row=>row[0]===language)||tvLanguages[0];
+ el('tv-subtitle-language').value=pair[0];
+ langButton.textContent=pair[1];
+ for(const item of el('tv-language-options').querySelectorAll('button'))
+  item.setAttribute('aria-pressed',String(item.dataset.lang===pair[0]));
+}
+for(const [code,label] of tvLanguages){
+ const option=document.createElement('button');
+ option.type='button';option.textContent=label;option.dataset.lang=code;
+ option.addEventListener('click',()=>{
+  chooseLanguage(code);
+  langDialog.close();
+ });
+ el('tv-language-options').append(option);
+}
+langButton.onclick=()=>{
+ langDialog.showModal();
+ (el('tv-language-options').querySelector('[aria-pressed="true"]')||
+  el('tv-language-options').querySelector('button'))?.focus();
+};
+el('tv-language-cancel').onclick=()=>langDialog.close();
+langDialog.addEventListener('close',()=>langButton.focus({preventScroll:true}));
+try{
+ const saved=JSON.parse(devicePrompt('get'));
+ el('tv-subtitles-on').checked=!!saved.enabled;
+ const valid=['en','es','fr','de','it','pt','ja','ko'];
+ chooseLanguage(valid.includes(saved.language)?saved.language:'en');
+}catch(error){message(error.message)}
+el('tv-subtitle-form').onsubmit=event=>{
+ event.preventDefault();
+ try{
+  const settings=JSON.stringify({enabled:el('tv-subtitles-on').checked,
+   language:el('tv-subtitle-language').value});
+  if(devicePrompt('set',settings)!=='ACK')throw Error('Could not save subtitle preferences');
+  message('Subtitle preferences saved on this TV only.');
+ }catch(error){message(error.message)}
+};
+el('tv-theme-volume').oninput=()=>{
+ el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
+};
+let sharedPlayback=null;
+api('/api/settings/playback').then(data=>{
+ sharedPlayback=data;
+ el('tv-auto-next').checked=!!data.auto_play_next;
+ el('tv-show-theme').checked=!!data.tv_theme_music;
+ el('tv-movie-theme').checked=!!data.movie_theme_music;
+ el('tv-loop-theme').checked=!!data.theme_loop;
+ el('tv-fade-theme').checked=!!data.theme_fade;
+ el('tv-theme-volume').value=Number.isFinite(data.theme_volume)?data.theme_volume:25;
+ el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
+}).catch(error=>message(error.message));
+el('tv-playback-form').onsubmit=async event=>{
+ event.preventDefault();
+ if(!sharedPlayback){message('Playback settings are not available');return}
+ try{
+  await api('/api/settings/playback',{method:'PUT',body:JSON.stringify({
+   auto_play_next:el('tv-auto-next').checked,
+   tv_theme_music:el('tv-show-theme').checked,
+   movie_theme_music:el('tv-movie-theme').checked,
+   theme_loop:el('tv-loop-theme').checked,
+   theme_fade:el('tv-fade-theme').checked,
+   theme_volume:Number(el('tv-theme-volume').value)
+  })});
+  message('Shared playback settings saved.');
+ }catch(error){message(error.message)}
+};
+el('tv-server-connection').onclick=()=>prompt('oewtv:settings:server','');
+</script></body></html>

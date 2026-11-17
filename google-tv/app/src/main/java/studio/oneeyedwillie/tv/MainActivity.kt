@@ -489,6 +489,31 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 if (sameOrigin(url) && browser === web &&
+                    message == "oewtv:subtitles:get") {
+                    val prefs = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
+                    result.confirm(JSONObject()
+                        .put("enabled", prefs.getBoolean("enabled", false))
+                        .put("language", prefs.getString("language", "en") ?: "en")
+                        .toString())
+                    return true
+                }
+                if (sameOrigin(url) && browser === web &&
+                    message == "oewtv:subtitles:set") {
+                    try {
+                        val requested = JSONObject(defaultValue ?: "")
+                        val language = requested.optString("language", "en")
+                        if (language !in setOf("en", "es", "fr", "de", "it", "pt", "ja", "ko"))
+                            throw IllegalArgumentException("Invalid subtitle language")
+                        val saved = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
+                            .edit().putBoolean("enabled", requested.optBoolean("enabled", false))
+                            .putString("language", language).commit()
+                        if (saved) result.confirm("ACK") else result.cancel()
+                    } catch (_: Exception) {
+                        result.cancel()
+                    }
+                    return true
+                }
+                if (sameOrigin(url) && browser === web &&
                     message == "oewtv:settings:server") {
                     result.confirm("ACK")
                     web.post { if (browser === web && !isFinishing) showConnectionSettings() }
@@ -1040,6 +1065,9 @@ class MainActivity : ComponentActivity() {
                   node.click();return true;
                 }
                 if(node instanceof HTMLSelectElement){node.focus();node.click();return true;}
+                if(node.matches?.('input[type="checkbox"],input[type="radio"]')){
+                  node.click();return true;
+                }
                 node.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
                 return true;
               };
@@ -2137,9 +2165,20 @@ class MainActivity : ComponentActivity() {
                   }
                   return true;
                 }
+                const active=document.activeElement;
+                if(active?.matches?.('input[type="range"]') &&
+                    (direction==='left'||direction==='right')){
+                  const min=Number(active.min)||0,max=Number(active.max)||100;
+                  const step=Number(active.step)||1;
+                  const value=Number(active.value)||0;
+                  active.value=String(Math.min(max,Math.max(min,
+                    value+(direction==='right'?step:-step))));
+                  active.dispatchEvent(new Event('input',{bubbles:true}));
+                  active.dispatchEvent(new Event('change',{bubbles:true}));
+                  return true;
+                }
                 const nodes=candidates();
                 if(!nodes.length)return false;
-                const active=document.activeElement;
                 if(moveLibraryGridRow(active,direction))return true;
                 // Intentional TV navigation: every episode tile leads DOWN to
                 // the current Play action, even when the tile is scrolled
