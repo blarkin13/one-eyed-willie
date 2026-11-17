@@ -1986,6 +1986,10 @@ class MainActivity : ComponentActivity() {
                   target.closest('.tile-button,.detail-trigger');
               };
               document.addEventListener('focusin',event=>{
+                // The sidebar is navigation over the currently selected title.
+                // Do not drop its backdrop just because D-pad focus leaves
+                // the poster for Home, Movies or TV Shows in the icon rail.
+                if(event.target?.closest?.('#app-nav'))return;
                 // The library toolbar is a navigation layer over the selected
                 // poster, not a new media selection. Keep its backdrop when
                 // moving to Search, Sort, Filter, Refresh or Explore.
@@ -2003,6 +2007,8 @@ class MainActivity : ComponentActivity() {
                 if(target!==backdropTarget)return;
                 if(event.relatedTarget instanceof Node&&target.contains(event.relatedTarget))return;
                 const focused=locateBackdrop(document.activeElement);
+                if(!focused && document.activeElement?.closest?.('#app-nav'))
+                  return;
                 if(!focused && ['/movies','/tv'].includes(location.pathname) &&
                    document.activeElement?.closest?.('#library-masthead .library-head-actions'))
                   return;
