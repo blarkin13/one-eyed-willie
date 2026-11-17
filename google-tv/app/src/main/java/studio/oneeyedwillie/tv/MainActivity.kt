@@ -64,6 +64,7 @@ class MainActivity : ComponentActivity() {
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var initialPageLoaded = false
+    private var navigationStill: ImageView? = null
     private var splashStartedAt = 0L
     private var playedStartupSound = false
     @Volatile private var discoveryGeneration = 0
@@ -433,6 +434,77 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Keep the already-rendered page visible during same-origin Home/library
+     * navigations. This is a still of the page being LEFT, not a loading page.
+     * Never block forever if a metadata endpoint fails or a library is empty.
+     */
+    private fun captureNavigationStill(web: WebView, target: Uri) {
+        if (!initialPageLoaded || navigationStill != null ||
+            target.path !in setOf("/", "/movies", "/tv")) return
+        val frame = web.parent as? FrameLayout ?: return
+        if (web.width <= 0 || web.height <= 0) return
+        try {
+            val bitmap = android.graphics.Bitmap.createBitmap(
+                web.width, web.height, android.graphics.Bitmap.Config.ARGB_8888)
+            web.draw(android.graphics.Canvas(bitmap))
+            val still = ImageView(this).apply {
+                setImageBitmap(bitmap)
+                scaleType = ImageView.ScaleType.FIT_XY
+                isFocusable = false
+                isClickable = true
+            }
+            // Above the WebView, below the existing cold-start overlay.
+            frame.addView(still, 1, FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+            navigationStill = still
+        } catch (_: Exception) {
+            // A screenshot is an enhancement; navigation must still work if
+            // bitmap allocation or the WebView capture is unavailable.
+        }
+    }
+
+    private fun releaseNavigationStill() {
+        val still = navigationStill ?: return
+        navigationStill = null
+        still.animate().alpha(0f).setDuration(220L).withEndAction {
+            (still.parent as? ViewGroup)?.removeView(still)
+            still.setImageDrawable(null)
+        }.start()
+    }
+
+    private fun revealPopulatedPage(web: WebView, serial: Int, attempt: Int = 0) {
+        if (navigationStill == null || browser !== web || serial != pageLoadSerial) return
+        if (attempt >= 40) { releaseNavigationStill(); return }
+        web.evaluateJavascript(
+            """(() => {
+              const path=location.pathname;
+              let ready=false;
+              if(path==='/')ready=window.__oewHomeReady===true;
+              else if(path==='/movies'||path==='/tv'){
+                const status=document.getElementById('status');
+                const grid=document.getElementById('items');
+                ready=!!grid && !!grid.querySelector('.tile-button,.empty') &&
+                  !(status?.textContent||'').includes('Loading titles');
+              }else ready=true;
+              if(!ready)return false;
+              // Avoid exposing the new page during its first empty artwork
+              // frame, but do not delay indefinitely on missing metadata.
+              const backdrop=document.querySelector(
+                '.oew-tv-cinematic-image.is-visible,.willie-hover-backdrop-layer.is-visible');
+              const poster=[...document.querySelectorAll(
+                '.shelf-track .poster-image,#items .poster-image')].some(
+                  img=>img.complete && img.naturalWidth>0);
+              return !!backdrop||poster;
+            })()""".trimIndent()
+        ) { result ->
+            if (navigationStill == null || browser !== web || serial != pageLoadSerial)
+                return@evaluateJavascript
+            if (result == "true" || attempt >= 15) releaseNavigationStill()
+            else web.postDelayed({ revealPopulatedPage(web, serial, attempt + 1) }, 100L)
+        }
+    }
+
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showUnconfigured(); return }
         ++discoveryGeneration
@@ -618,6 +690,11 @@ class MainActivity : ComponentActivity() {
                 // Only open approved HTTPS metadata destinations outside our
                 // embedded server WebView. Rotten Tomatoes review links must be
                 // usable on Google TV instead of silently being blocked.
+                if (request.isForMainFrame && initialPageLoaded &&
+                    sameOrigin(uri.toString()) &&
+                    uri.toString() != web.url) {
+                    captureNavigationStill(web, uri)
+                }
                 if (!sameOrigin(uri.toString())) {
                     val host = uri.host?.lowercase().orEmpty()
                     if (uri.scheme == "https" && host in setOf(
@@ -642,6 +719,8 @@ class MainActivity : ComponentActivity() {
                 if (browser === web && sameOrigin(url.orEmpty())) {
                     val completedSerial = pageLoadSerial
                     installRemoteNavigation(web)
+                    if (navigationStill != null)
+                        web.postDelayed({ revealPopulatedPage(web, completedSerial) }, 120L)
                     // A page with autofocus must not leave the keyboard open
                     // before its inputs receive the TV read-only focus guard.
                     if (!tvTextEditing)
@@ -918,6 +997,11 @@ class MainActivity : ComponentActivity() {
         loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false
+        navigationStill?.let { still ->
+            (still.parent as? ViewGroup)?.removeView(still)
+            still.setImageDrawable(null)
+        }
+        navigationStill = null
         browser?.destroy()
         browser = null
         super.onDestroy()
