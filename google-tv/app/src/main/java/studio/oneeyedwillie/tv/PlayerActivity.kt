@@ -69,6 +69,7 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var titleText: TextView
     private var title = "Now Playing"
     private var selectedCaption: String? = null
+    private var captionLanguage = "en"
     private var nextMediaId: Int? = null
     private var nextTitle = ""
     private var seasonShuffle = false
@@ -212,6 +213,7 @@ class PlayerActivity : ComponentActivity() {
             })
         }
         openMedia()
+        applyDefaultSubtitlesForThisTv()
         loadNextEpisode()
         handler.post(uiRefresh)
         handler.postDelayed(checkpoint, 15_000)
@@ -589,6 +591,55 @@ class PlayerActivity : ComponentActivity() {
         "Japanese" to "ja", "Korean" to "ko"
     )
 
+    /** Subtitle choices are stored in this TV's app data, never on the server. */
+    private fun applyDefaultSubtitlesForThisTv() {
+        val local = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
+        if (!local.getBoolean("enabled", false)) return
+        val preferred = local.getString("language", "en") ?: "en"
+        if (subtitleLanguages.none { it.second == preferred }) return
+        captionLanguage = preferred
+        network.execute {
+            try {
+                val tracks = request("/api/stream/subtitles/$mediaId").optJSONArray("tracks")
+                    ?: return@execute
+                val aliases = when (preferred) {
+                    "en" -> setOf("en", "eng", "english")
+                    "es" -> setOf("es", "spa", "spanish", "espanol", "español")
+                    "fr" -> setOf("fr", "fra", "fre", "french", "francais", "français")
+                    "de" -> setOf("de", "deu", "ger", "german", "deutsch")
+                    "it" -> setOf("it", "ita", "italian", "italiano")
+                    "pt" -> setOf("pt", "por", "portuguese", "portugues", "português")
+                    "ja" -> setOf("ja", "jpn", "japanese")
+                    "ko" -> setOf("ko", "kor", "korean")
+                    else -> emptySet()
+                }
+                val tracksFound = mutableListOf<Pair<String, String>>()
+                for (index in 0 until tracks.length()) {
+                    val item = tracks.optJSONObject(index) ?: continue
+                    val id = item.optString("id")
+                    if (!Regex("^(external|embedded)-[0-9]{1,3}$|^downloaded-[1-9][0-9]{0,11}-[a-z]{2,3}(-[a-z]{2})?$").matches(id)) continue
+                    val label = item.optString("label", "").lowercase(java.util.Locale.ROOT)
+                    val language = item.optString("language", "").lowercase(java.util.Locale.ROOT)
+                    tracksFound.add(id to "$language $label")
+                }
+                val chosen = tracksFound.firstOrNull { (_, descriptor) ->
+                    descriptor.split(Regex("[^\\p{L}\\p{N}]+")).any { it in aliases }
+                } ?: tracksFound.singleOrNull()?.takeIf { (_, descriptor) ->
+                    descriptor.trim() in setOf("", "subtitles", "embedded subtitles", "subtitle")
+                }
+                if (chosen != null) handler.post {
+                    if (!shuttingDown && selectedCaption == null) {
+                        selectedCaption = chosen.first
+                        applyCaption()
+                    }
+                }
+            } catch (_: Exception) {
+                // Missing tracks, unsupported formats, or network problems
+                // must never block a movie or episode from playing.
+            }
+        }
+    }
+
     /** Existing tracks plus the same OpenSubtitles workflow as server/player.js. */
     private fun showCaptions() {
         showChrome()
@@ -726,7 +777,7 @@ class PlayerActivity : ComponentActivity() {
                 android.net.Uri.parse(resolveUrl("/api/stream/subtitles/$mediaId/$id.vtt"+
                     if(hlsMode)"?start=$hlsOffset" else "")))
                 .setMimeType(MimeTypes.TEXT_VTT)
-                .setLanguage("en")
+                .setLanguage(captionLanguage)
                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                 .build()
         }
@@ -924,6 +975,7 @@ class PlayerActivity : ComponentActivity() {
                             player?.prepare()
                             player?.seekTo((resume * 1000).toLong())
                             player?.playWhenReady = true
+                            if (selectedCaption != null) applyCaption()
                         }
                     }
                 } else {
@@ -978,6 +1030,7 @@ class PlayerActivity : ComponentActivity() {
                 player?.prepare()
                 player?.seekTo(0L) // EVENT HLS begins at zero, not the live edge.
                 player?.playWhenReady = true
+                if (selectedCaption != null) applyCaption()
             }
         } catch (error: Exception) {
             createdToken?.let { token ->
