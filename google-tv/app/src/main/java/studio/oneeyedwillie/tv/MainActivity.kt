@@ -29,6 +29,7 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import java.net.URI
+import android.util.Log
 
 /**
  * The same One-Eyed Willie UI served to desktop browsers is the TV UI.
@@ -590,6 +591,61 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(TV_REMOTE_SCRIPT, null)
     }
 
+    /**
+     * Native HttpURLConnection writes can fail independently of ExoPlayer's
+     * ongoing video stream. The foreground WebView already has a working
+     * same-origin connection; use that path to flush any saved checkpoints
+     * whenever the viewer returns from PlayerActivity. Never clear a pending
+     * checkpoint without a real HTTP 2xx response from the server.
+     */
+    private fun syncPendingPlaybackProgress() {
+        val web = browser ?: return
+        if (!sameOrigin(web.url.orEmpty()) || origin.isBlank()) return
+        val store = getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE)
+        val prefix = "progress:$origin:"
+        for ((key, saved) in store.all) {
+            if (!key.startsWith(prefix) || saved !is String) continue
+            val mediaId = key.removePrefix(prefix).toIntOrNull() ?: continue
+            if (mediaId <= 0) continue
+            val checkpoint = try { JSONObject(saved) } catch (_: Exception) { continue }
+            if (checkpoint.optInt("media_id") != mediaId) continue
+            val seconds = checkpoint.optDouble("position_seconds", Double.NaN)
+            if (!seconds.isFinite() || seconds < 0.0) continue
+            // Escape JSON as a JS string, not as JavaScript source code.
+            val payload = JSONObject.quote(saved)
+            val script = """
+                (async () => {
+                  try {
+                    const response = await fetch('/api/playback/progress', {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: $payload,
+                      cache: 'no-store'
+                    });
+                    return response.ok;
+                  } catch (_) { return false; }
+                })()
+            """.trimIndent()
+            web.evaluateJavascript(script) { result ->
+                if (result == "true") {
+                    // A newer checkpoint might have been written by the player;
+                    // never delete newer progress based on an older response.
+                    if (store.getString(key, null) == saved) {
+                        store.edit().remove(key).apply()
+                    }
+                    if (browser === web && sameOrigin(web.url.orEmpty())) {
+                        web.evaluateJavascript(
+                            "document.dispatchEvent(new Event('willie:watch-updated'))",
+                            null
+                        )
+                    }
+                } else {
+                    Log.w("OneEyedWillie", "Pending progress sync did not get HTTP success for media $mediaId")
+                }
+            }
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Read the player state via the JavaScript evaluation callback.
@@ -614,6 +670,7 @@ class MainActivity : ComponentActivity() {
         browser?.evaluateJavascript(
             "document.dispatchEvent(new Event('willie:watch-updated'))", null
         )
+        syncPendingPlaybackProgress()
     }
 
     override fun onPause() {
