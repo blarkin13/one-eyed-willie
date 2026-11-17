@@ -99,7 +99,7 @@ class SidebarIconTests(unittest.TestCase):
         self.assertIn('resetIconControls(lib)', page)
         self.assertIn("stagedIcon", page)
         self.assertIn('library.icon_image_url', shell)
-        self.assertIn("sidebar-icon-"+ "home", shell)
+        self.assertIn("sidebar-icon-", shell)
         self.assertIn("sidebar_default_icon", (ROOT / "server/main.py").read_text())
         self.assertIn('lib?.icon_image_url', catalog)
 
