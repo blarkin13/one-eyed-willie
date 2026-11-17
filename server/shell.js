@@ -119,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const kind=library.kind==='tv'?'tv':'movies';
     // Standard libraries and new collections use the user's colorful
     // artwork; selecting another preset retains the original icon picker.
-    if(['folder','film','tv'].includes(library.icon)||!appearance?.icons[library.icon])
+    if(!appearance?.icons[library.icon])
       return defaultIcon(kind);
     const wrap=document.createElement('span');wrap.className='nav-icon library-symbol';
     wrap.setAttribute('aria-hidden','true');
@@ -161,8 +161,12 @@ document.addEventListener('DOMContentLoaded', () => {
         (appearance?.fonts[library.font]?library.font:'default');
       link.dataset.navId='library:'+library.id;
       if(library.sidebar_hidden)link.classList.add('sidebar-hidden');
-      if(selected===String(library.id)&&(page==='movies'||page==='tv'))link.setAttribute('aria-current','page');
-      const icon=libraryGlyph(appearance,library.icon);
+      if(selected===String(library.id) &&
+         ((page==='movies'||page==='tv') || ['/movie','/tv/show','/tv/season','/tv/episode'].includes(location.pathname))) {
+        link.setAttribute('aria-current','page');
+        nav.querySelector('a[data-nav-id="'+library.kind+'"]')?.removeAttribute('aria-current');
+      }
+      const icon=libraryGlyph(appearance,library);
       icon.classList.add('library-custom-icon');
       link.append(icon);
       const caption=document.createElement('span');caption.className='nav-text';caption.textContent=name;
