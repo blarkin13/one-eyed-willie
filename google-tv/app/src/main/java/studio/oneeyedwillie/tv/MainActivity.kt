@@ -461,9 +461,12 @@ class MainActivity : ComponentActivity() {
         configureBrowser(candidate)
         candidate.isFocusable = false
         candidate.isFocusableInTouchMode = false
-        // The candidate is below the existing page but remains attached,
-        // visible and allowed to draw its first frame and load artwork.
-        frame.addView(candidate, 0, FrameLayout.LayoutParams(
+        // Keep the prepared WebView barely visible in compositing so Android
+        // actually renders it before the swap. A fully covered/alpha-zero
+        // WebView may defer the first frame and flash black after the fade.
+        candidate.alpha = 0.01f
+        candidate.isClickable = false
+        frame.addView(candidate, frame.indexOfChild(web) + 1, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
         preparedBrowser = candidate
         preparedDestination = destination
@@ -521,7 +524,7 @@ class MainActivity : ComponentActivity() {
         stopTvRepeat()
         web.isFocusable = true
         web.isFocusableInTouchMode = true
-        web.alpha = 0f
+        web.isClickable = true
         web.bringToFront()
         loadingOverlay?.bringToFront()
         web.requestFocus()
