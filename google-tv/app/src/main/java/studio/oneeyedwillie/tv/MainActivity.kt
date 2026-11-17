@@ -30,6 +30,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import java.net.URI
 import android.util.Log
+import android.webkit.JavascriptInterface
 
 /**
  * The same One-Eyed Willie UI served to desktop browsers is the TV UI.
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("server", MODE_PRIVATE) }
     private var browser: WebView? = null
     private var origin = ""
+    private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
 
@@ -339,6 +341,22 @@ class MainActivity : ComponentActivity() {
         origin = server.trimEnd('/')
         val view = WebView(this)
         browser = view
+        // Only acknowledges the exact persisted checkpoint after same-origin
+        // JavaScript fetch received HTTP 2xx. It cannot modify other app data.
+        view.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun confirmed(key: String, serialized: String) {
+                runOnUiThread {
+                    if (browser !== view || !sameOrigin(view.url.orEmpty())) return@runOnUiThread
+                    if (!key.startsWith("progress:$origin:")) return@runOnUiThread
+                    if (pendingProgressPrefs.getString(key, null) != serialized) return@runOnUiThread
+                    pendingProgressPrefs.edit().remove(key).apply()
+                    view.evaluateJavascript(
+                        "document.dispatchEvent(new Event('willie:watch-updated'))", null
+                    )
+                }
+            }
+        }, "OneEyedWillieProgress")
         view.setBackgroundColor(Color.BLACK)
         view.isFocusable = true
         view.isFocusableInTouchMode = true
@@ -601,7 +619,7 @@ class MainActivity : ComponentActivity() {
     private fun syncPendingPlaybackProgress() {
         val web = browser ?: return
         if (!sameOrigin(web.url.orEmpty()) || origin.isBlank()) return
-        val store = getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE)
+        val store = pendingProgressPrefs
         val prefix = "progress:$origin:"
         for ((key, saved) in store.all) {
             if (!key.startsWith(prefix) || saved !is String) continue
@@ -613,6 +631,7 @@ class MainActivity : ComponentActivity() {
             if (!seconds.isFinite() || seconds < 0.0) continue
             // Escape JSON as a JS string, not as JavaScript source code.
             val payload = JSONObject.quote(saved)
+            val keyArg = JSONObject.quote(key)
             val script = """
                 (async () => {
                   try {
@@ -622,27 +641,17 @@ class MainActivity : ComponentActivity() {
                       body: $payload,
                       cache: 'no-store'
                     });
+                    if (response.ok) {
+                      window.OneEyedWillieProgress?.confirmed($keyArg, $payload);
+                    }
                     return response.ok;
                   } catch (_) { return false; }
                 })()
             """.trimIndent()
-            web.evaluateJavascript(script) { result ->
-                if (result == "true") {
-                    // A newer checkpoint might have been written by the player;
-                    // never delete newer progress based on an older response.
-                    if (store.getString(key, null) == saved) {
-                        store.edit().remove(key).apply()
-                    }
-                    if (browser === web && sameOrigin(web.url.orEmpty())) {
-                        web.evaluateJavascript(
-                            "document.dispatchEvent(new Event('willie:watch-updated'))",
-                            null
-                        )
-                    }
-                } else {
-                    Log.w("OneEyedWillie", "Pending progress sync did not get HTTP success for media $mediaId")
-                }
-            }
+            // Android evaluateJavascript does not await a returned Promise.
+            // The JS bridge above acknowledges only after fetch reports HTTP
+            // success; failed requests remain on disk for the next retry.
+            web.evaluateJavascript(script, null)
         }
     }
 
