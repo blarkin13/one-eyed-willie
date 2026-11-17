@@ -76,6 +76,17 @@ class LibraryTriviaTests(unittest.TestCase):
         self.assertNotIn(".library-head{min-height:305px", page)
         self.assertIn("#status:empty{display:none}", page)
 
+    def test_trivia_height_stays_fixed_when_question_or_answer_wraps(self):
+        page = self.page
+        # Fixed four-line question and three-line answer reservations prevent
+        # layout reflow as the timed question/answer carousel changes text.
+        self.assertIn("height:5.44em;min-height:0;", page)
+        self.assertIn("height:4.2em;min-height:0;flex:none;overflow:hidden;", page)
+        self.assertIn("-webkit-line-clamp:4", page)
+        self.assertIn("-webkit-line-clamp:3", page)
+        self.assertIn(".library-trivia .trivia-answer{font-size:clamp(1rem,3.3vw,1.32rem)}", page)
+        self.assertIn("scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS)", page)
+
     def test_trivia_remains_large_on_tv_and_responsive(self):
         page = self.page
         self.assertIn(".library-trivia .trivia-question{", page)
