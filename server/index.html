@@ -442,7 +442,10 @@ byId('library-form').onsubmit=async event=>{
    await api('/api/libraries/'+id+'/header.png',{method:'DELETE'});
   }
   byId('library-editor').close();notify('Library saved.');
-  await load();await loadOverview();
+  await load();
+  const updated=libraries.find(library=>library.id===id);
+  if(updated)document.dispatchEvent(new CustomEvent('willie:library-icon-updated',{detail:updated}));
+  await loadOverview();
  }catch(error){byId('editor-message').textContent=error.message}
  finally{working=false;byId('library-save').disabled=false}
 };
