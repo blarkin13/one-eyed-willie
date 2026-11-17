@@ -66,6 +66,22 @@ class CatalogToolbarTests(unittest.TestCase):
         self.assertIn("closeCatalogMenu(openId,true)", page)
         self.assertIn("focus({preventScroll:true})", page)
 
+    def test_catalog_popovers_render_above_poster_grid(self):
+        # '#items' creates its own isolated stacking context in ui.css.
+        # The menu's z-index is ineffective unless its masthead is above it.
+        import re
+        masthead = re.search(r"\\.library-head\\{([^}]*)\\}", self.page, re.S)
+        menu = re.search(r"\\.catalog-tool-menu\\{([^}]*)\\}", self.page, re.S)
+        self.assertIsNotNone(masthead)
+        self.assertIsNotNone(menu)
+        self.assertIn("position:relative", masthead.group(1))
+        self.assertIn("isolation:isolate", masthead.group(1))
+        self.assertIn("z-index:20", masthead.group(1))
+        self.assertIn("overflow:visible", masthead.group(1))
+        self.assertIn("z-index:45", menu.group(1))
+        styles = (SERVER / "ui.css").read_text()
+        self.assertIn("#items,.shelf-track,.explore-grid,.movie-grid,.tv-grid{position:relative;isolation:isolate}", styles)
+
     def test_open_menu_and_selected_filter_visuals(self):
         page = self.page
         self.assertIn(".catalog-tool-menu[hidden]{display:none!important}", page)
