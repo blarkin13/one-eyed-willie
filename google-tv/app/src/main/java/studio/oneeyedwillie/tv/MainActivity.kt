@@ -29,6 +29,13 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import java.net.URI
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.net.HttpURLConnection
+import java.net.URL
+import java.util.concurrent.ExecutorCompletionService
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import android.util.Log
 import android.webkit.JavascriptInterface
 
@@ -59,6 +66,8 @@ class MainActivity : ComponentActivity() {
     private var initialPageLoaded = false
     private var splashStartedAt = 0L
     private var playedStartupSound = false
+    @Volatile private var discoveryGeneration = 0
+    private val discoveryWorker = Executors.newSingleThreadExecutor()
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
@@ -100,7 +109,7 @@ class MainActivity : ComponentActivity() {
             backgroundTintList = ColorStateList.valueOf(0xFFF0EBE5.toInt())
             setOnClickListener {
                 val web = browser
-                if (web != null) web.reload() else showConnectionSettings()
+                if (web != null) web.reload() else discoverLocalServer()
             }
         }
         val settings = Button(this).apply {
@@ -187,11 +196,8 @@ class MainActivity : ComponentActivity() {
             alpha = 1f
             visibility = View.VISIBLE
         }
-        loadingRetry?.apply {
-            visibility = if (browser == null) View.GONE else View.VISIBLE
-        }
-        if (browser == null) loadingActions?.getChildAt(1)?.requestFocus()
-        else loadingRetry?.requestFocus()
+        loadingRetry?.visibility = View.VISIBLE
+        loadingRetry?.requestFocus()
     }
 
     private fun finishLoading(web: WebView, serial: Int) {
@@ -259,10 +265,100 @@ class MainActivity : ComponentActivity() {
         ))
         setContentView(screen)
         showLoading()
-        showLoadingFailure("No server configured. Open Server settings to connect.")
+        discoverLocalServer()
+    }
+
+    /**
+     * Search only this TV's local IPv4 /24 segment for the app's own /health
+     * signature. Bounded concurrency keeps startup responsive, and no IP
+     * configuration or discovery service is required on the server.
+     */
+    private fun discoverLocalServer() {
+        val generation = ++discoveryGeneration
+        loadingFailed = false
+        loadingActions?.visibility = View.GONE
+        loadingCaption?.apply {
+            text = "Looking for One-Eyed Willie on your network…"
+            visibility = View.VISIBLE
+        }
+        loadingErrorPanel?.visibility = View.VISIBLE
+        loadingOverlay?.visibility = View.VISIBLE
+        discoveryWorker.execute {
+            val candidates = linkedSetOf<String>()
+            try {
+                for (net in java.util.Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                    if (!net.isUp || net.isLoopback) continue
+                    for (address in java.util.Collections.list(net.inetAddresses)) {
+                        if (address !is Inet4Address || !address.isSiteLocalAddress) continue
+                        val parts = address.hostAddress?.split('.') ?: continue
+                        if (parts.size != 4) continue
+                        val prefix = parts.take(3).joinToString(".") + "."
+                        // Common host addresses first, then the rest of the LAN.
+                        listOf(1, 29, 30, 2, 10, 20, 50, 100, 200, 254).forEach {
+                            candidates.add(prefix + it)
+                        }
+                        for (last in 1..254) candidates.add(prefix + last)
+                    }
+                }
+            } catch (_: Exception) { }
+            val pool = Executors.newFixedThreadPool(24)
+            var matched: String? = null
+            try {
+                val completion = ExecutorCompletionService<String?>(pool)
+                val submitted = candidates.take(510)
+                for (host in submitted) {
+                    completion.submit(java.util.concurrent.Callable<String?> {
+                        val server = "http://$host:8787"
+                        var connection: HttpURLConnection? = null
+                        try {
+                            connection = (URL("$server/health").openConnection() as HttpURLConnection).apply {
+                                connectTimeout = 450
+                                readTimeout = 450
+                                instanceFollowRedirects = false
+                                requestMethod = "GET"
+                            }
+                            if (connection.responseCode == 200) {
+                                val payload = connection.inputStream.bufferedReader().use {
+                                    it.readText().take(2048)
+                                }
+                                if (JSONObject(payload).optString("application") == "one-eyed-willie")
+                                    server else null
+                            } else null
+                        } catch (_: Exception) { null }
+                        finally { connection?.disconnect() }
+                    })
+                }
+                val deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(9)
+                for (ignored in submitted.indices) {
+                    if (generation != discoveryGeneration) break
+                    val remaining = deadline - System.nanoTime()
+                    if (remaining <= 0L) break
+                    val task = completion.poll(remaining, TimeUnit.NANOSECONDS) ?: break
+                    val found = try { task.get() } catch (_: Exception) { null }
+                    if (found != null) {
+                        matched = found
+                        break
+                    }
+                }
+            } finally {
+                pool.shutdownNow()
+            }
+            val discovered = matched
+            runOnUiThread {
+                if (isFinishing || generation != discoveryGeneration || browser != null)
+                    return@runOnUiThread
+                if (discovered != null && validOrigin(discovered)) {
+                    prefs.edit().putString("url", discovered).apply()
+                    showServer(discovered)
+                } else {
+                    showLoadingFailure("Could not find One-Eyed Willie on this network. Retry or open Server settings.")
+                }
+            }
+        }
     }
 
     private fun showConnectionSettings() {
+        ++discoveryGeneration
         val input = EditText(this).apply {
             setSingleLine(true)
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
@@ -359,6 +455,7 @@ class MainActivity : ComponentActivity() {
 
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showUnconfigured(); return }
+        ++discoveryGeneration
         initialPageLoaded = false
         splashStartedAt = 0L
         tvTextEditing = false
@@ -792,6 +889,8 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         startupSounds.toList().forEach { it.release() }
         startupSounds.clear()
+        ++discoveryGeneration
+        discoveryWorker.shutdownNow()
         loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false
