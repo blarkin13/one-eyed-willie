@@ -676,7 +676,10 @@ function drawAlphabet(items){
        // The alphabet jumps to a real selected poster, not just a scroll
        // position with keyboard focus stranded on the letter rail.
        poster?.focus({preventScroll:true});
-       item.scrollIntoView({behavior:'instant',block:'start'});
+       // The TV script owns all scrolling; ask it so two scrollers never
+       // write scrollTop at the same time.
+       if(!(poster&&window.__willieTvJumpToPoster?.(poster)))
+         item.scrollIntoView({behavior:'instant',block:'start'});
      }else item.scrollIntoView({behavior:'smooth',block:'start'});
    };
    nav.append(a);
@@ -708,11 +711,15 @@ async function load({preserveFocus=false}={},quiet=false){
     previouslyFocused.dataset.hoverKey
   ].join('|'):null;
   const previousScroll=(document.scrollingElement||document.documentElement).scrollTop;
-  $('items').replaceChildren();
+  const cardId=item=>[type==='movies'?'movies':'tv',String(item.library_id),item.key].join('|');
+  const focusIndex=focusId?entries.findIndex(item=>cardId(item)===focusId):-1;
+  // Build the replacement grid off-DOM and swap it in one step. The old code
+  // emptied #items first, so the document collapsed, the browser clamped
+  // scrollTop (to a few hundred px), and the focused poster was only restored
+  // when it happened to be among the first 24 cards. Any deeper poster lost
+  // focus and the viewport sat near the top of the library.
   moviePosterJobs.length=0;posterQueue.length=0;movieFallbackQueue.length=0;
-  // Render a usable first row before constructing the rest of a large grid.
-  // Each appended chunk preserves existing cards, scroll and D-pad focus.
-  const appendCards=(start,end)=>{
+  const buildCards=(start,end)=>{
    const fragment=document.createDocumentFragment();
    for(let index=start;index<end;index++){
     const item=entries[index];
@@ -720,13 +727,17 @@ async function load({preserveFocus=false}={},quiet=false){
     card.dataset.letter=titleInitial(item.title);
     fragment.append(card);
    }
-   $('items').append(fragment);
+   return fragment;
   };
-  const firstCount=Math.min(24,entries.length);
-  appendCards(0,firstCount);
-  if(focusId){
-    const restored=[...$('items').querySelectorAll('.tile-button')].find(link=>
-      [link.dataset.hoverKind,link.dataset.hoverLibraryId,link.dataset.hoverKey].join('|')===focusId);
+  // Render a usable first row before constructing the rest of a large grid.
+  // When a poster was selected, everything up to it (plus a screenful below)
+  // is built synchronously so its layout position, focus and scroll can be
+  // restored exactly. Later chunks only append BELOW it and cannot shift it.
+  const firstCount=Math.min(entries.length,
+    Math.max(24,focusIndex>=0?focusIndex+30:0));
+  $('items').replaceChildren(buildCards(0,firstCount));
+  if(focusIndex>=0){
+    const restored=$('items').children[focusIndex]?.querySelector('.tile-button');
     if(restored){
       restored.focus({preventScroll:true});
       (document.scrollingElement||document.documentElement).scrollTop=previousScroll;
@@ -740,7 +751,7 @@ async function load({preserveFocus=false}={},quiet=false){
    for(let start=firstCount;start<entries.length;start+=48){
     await new Promise(resolve=>setTimeout(resolve,16));
     if(thisRequest!==requestId)return;
-    appendCards(start,Math.min(start+48,entries.length));
+    $('items').append(buildCards(start,Math.min(start+48,entries.length)));
     if(type==='movies')fetchMoviePosters();
    }
    if(thisRequest===requestId)drawAlphabet(entries);
@@ -757,6 +768,7 @@ async function load({preserveFocus=false}={},quiet=false){
 /* Spatial arrow navigation for keyboard, television D-pad and remote controls.
    Moving vertically between library poster rows scrolls smoothly without
    hijacking horizontal poster navigation or changing the chosen column. */
+const IS_TV_APP=navigator.userAgent.includes('OneEyedWillieTV/1');
 function scrollCatalogRowTo(card){
  const root=document.scrollingElement||document.documentElement;
  const bounds=card.getBoundingClientRect();
@@ -800,6 +812,9 @@ function remoteCatalogMove(key){
  return true;
 }
 document.addEventListener('keydown',event=>{
+ // Inside the Google TV app the injected remote script is the ONLY navigator
+ // and scroller; this browser/keyboard handler would compete with it.
+ if(IS_TV_APP)return;
  if(!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)||event.altKey||event.ctrlKey||event.metaKey)return;
  const focused=document.activeElement;
  if(focused?.matches('input,textarea,[contenteditable="true"]'))return;

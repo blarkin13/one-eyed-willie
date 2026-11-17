@@ -57,6 +57,11 @@ class MainActivity : ComponentActivity() {
     private var lastDpadMoveTime = 0L
     private var playerLaunchPending = false
     private var tvNavigationSerial = 0L
+    // Back-pressure for held D-pad repeats: a repeat is dropped while the page
+    // is still busy with the previous move, so a slow TV can never build up a
+    // queue of stale moves that keep scrolling after the button is released.
+    private var tvMoveInFlight = false
+    private var tvMoveSentAt = 0L
 
     private var loadingOverlay: FrameLayout? = null
     private var loadingCaption: TextView? = null
@@ -229,6 +234,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        NavTrace.init(applicationContext)
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
                 View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
@@ -581,7 +587,7 @@ class MainActivity : ComponentActivity() {
                     val payload = JSONObject(Uri.decode(message.removePrefix("oewtv:play:")))
                     val id = payload.optInt("id")
                     if (id <= 0) throw IllegalArgumentException("Invalid media ID")
-                    android.util.Log.i("OEWNav", "PLAY_BRIDGE prompt id=$id")
+                    NavTrace.log { "PLAY_BRIDGE prompt id=$id" }
                     result.confirm("ACK")
                     web.post {
                         if (browser === web)
@@ -624,7 +630,7 @@ class MainActivity : ComponentActivity() {
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
                 val uri = request.url
                 if (uri.scheme == "oewtv" && uri.host == "play") {
-                    android.util.Log.i("OEWNav", "PLAY_BRIDGE scheme")
+                    NavTrace.log { "PLAY_BRIDGE scheme" }
                     uri.path?.trim('/')?.toIntOrNull()?.takeIf { it > 0 }?.let {
                         play(it, uri.getQueryParameter("restart") == "1",
                             uri.getQueryParameter("title").orEmpty())
@@ -632,7 +638,7 @@ class MainActivity : ComponentActivity() {
                     return true
                 }
                 if (uri.path?.matches(Regex("/watch/[0-9]+")) == true && sameOrigin(uri.toString())) {
-                    android.util.Log.i("OEWNav", "PLAY_BRIDGE watch-url")
+                    NavTrace.log { "PLAY_BRIDGE watch-url" }
                     uri.lastPathSegment?.toIntOrNull()?.let {
                         play(it, uri.getQueryParameter("restart") == "1", "Now Playing")
                     }
@@ -694,11 +700,12 @@ class MainActivity : ComponentActivity() {
                      shuffleQueue: String? = null) {
         // A rapid/duplicate activation must never open two player activities
         // or start two simultaneous playback sessions.
-        android.util.Log.i("OEWNav",
-            "PLAY_REQUEST id=$mediaId pending=$playerLaunchPending finishing=$isFinishing")
+        NavTrace.log {
+            "PLAY_REQUEST id=$mediaId pending=$playerLaunchPending finishing=$isFinishing"
+        }
         if (mediaId <= 0 || playerLaunchPending || isFinishing) return
         playerLaunchPending = true
-        android.util.Log.i("OEWNav", "PLAY_START id=$mediaId")
+        NavTrace.log { "PLAY_START id=$mediaId" }
         stopTvRepeat()
         startActivity(Intent(this, PlayerActivity::class.java)
             .putExtra("url", "$origin/api/playback/$mediaId/stream")
@@ -733,21 +740,28 @@ class MainActivity : ComponentActivity() {
 
     private fun moveTvDirection(web: WebView, direction: String) {
         val serial = ++tvNavigationSerial
-        val diagnostic = """(() => {
-            const from = document.activeElement;
-            const before = from?.getAttribute?.('href') ||
-                from?.id || from?.className || from?.tagName || '';
-            const moved = window.__willieTvMove?.('$direction');
-            const to = document.activeElement;
-            const after = to?.getAttribute?.('href') ||
-                to?.id || to?.className || to?.tagName || '';
-            return JSON.stringify({path:location.pathname,direction:'$direction',
-                before:String(before).slice(0,100),after:String(after).slice(0,100),
-                scroll:Math.round(document.scrollingElement?.scrollTop || 0),
-                moved:Boolean(moved)});
-        })()""".trimIndent()
-        web.evaluateJavascript(diagnostic) { state ->
-            android.util.Log.i("OEWNav", "MOVE #$serial " + state.take(400))
+        val script = if (NavTrace.enabled) {
+            """(() => {
+                const from = document.activeElement;
+                const before = from?.getAttribute?.('href') ||
+                    from?.id || from?.className || from?.tagName || '';
+                const moved = window.__willieTvMove?.('$direction');
+                const to = document.activeElement;
+                const after = to?.getAttribute?.('href') ||
+                    to?.id || to?.className || to?.tagName || '';
+                return JSON.stringify({path:location.pathname,direction:'$direction',
+                    before:String(before).slice(0,100),after:String(after).slice(0,100),
+                    scroll:Math.round(document.scrollingElement?.scrollTop || 0),
+                    moved:Boolean(moved)});
+            })()""".trimIndent()
+        } else {
+            "window.__willieTvMove?.('$direction')"
+        }
+        tvMoveInFlight = true
+        tvMoveSentAt = android.os.SystemClock.uptimeMillis()
+        web.evaluateJavascript(script) { state ->
+            tvMoveInFlight = false
+            NavTrace.log { "MOVE #$serial " + (state ?: "").take(400) }
         }
         val sound = when (direction) {
             "left" -> android.view.SoundEffectConstants.NAVIGATION_LEFT
@@ -769,9 +783,11 @@ class MainActivity : ComponentActivity() {
         val web = browser
         if (direction != null && (event.repeatCount == 0 ||
                 event.repeatCount % 8 == 0 || event.action == KeyEvent.ACTION_UP)) {
-            android.util.Log.i("OEWNav", "KEY direction=$direction action=${event.action} " +
-                "repeat=${event.repeatCount} held=$heldDpadKey editing=$tvTextEditing " +
-                "launchPending=$playerLaunchPending")
+            NavTrace.log {
+                "KEY direction=$direction action=${event.action} " +
+                    "repeat=${event.repeatCount} held=$heldDpadKey " +
+                    "editing=$tvTextEditing launchPending=$playerLaunchPending"
+            }
         }
         if (loadingOverlay?.visibility == View.VISIBLE && direction != null)
             return if (loadingFailed) super.dispatchKeyEvent(event) else true
@@ -824,7 +840,8 @@ class MainActivity : ComponentActivity() {
                     heldDpadKey = event.keyCode
                     lastDpadMoveTime = 0L
                 }
-                if (fresh || now - lastDpadMoveTime >= 190L) {
+                val pageBusy = tvMoveInFlight && now - tvMoveSentAt < 1500L
+                if (fresh || (now - lastDpadMoveTime >= 190L && !pageBusy)) {
                     lastDpadMoveTime = now
                     moveTvDirection(web, direction)
                 }
@@ -1999,32 +2016,50 @@ class MainActivity : ComponentActivity() {
               const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
               const firstPoster=()=>allPosters()[0]||null;
               // A new remote press interrupts the previous animation cleanly.
+              // Exactly one animation exists per scroller. Its clock starts at
+              // the FIRST animation frame, and progress is clamped to [0,1].
+              // The old implementation took t=0 from performance.now() inside
+              // the key handler. Chromium's rAF timestamp is the frame START,
+              // which on a busy TV can precede that value, so t went negative,
+              // the ease-out curve returned a large negative fraction, and
+              // scrollTop was thrown backwards (often clamped to 0) before the
+              // animation recovered. Selection kept advancing correctly, which
+              // is exactly the symptom reported.
               const scrollAnimations=new WeakMap();
               const reducedMotion=()=>matchMedia('(prefers-reduced-motion: reduce)').matches;
-              const glideTo=(element,axis,destination)=>{
+              const cancelGlide=element=>{
+                const previous=scrollAnimations.get(element);
+                if(previous)cancelAnimationFrame(previous.frame);
+                scrollAnimations.delete(element);
+              };
+              // maxLag bounds how far behind its destination the viewport may
+              // start. When presses outrun the 190ms glide (rapid taps, a slow
+              // page) the animation would otherwise trail the selection by
+              // several rows and the selected poster could be entirely
+              // off-screen. Normal single-row steps are never affected.
+              const glideTo=(element,axis,destination,{maxLag=Infinity}={})=>{
                 const vertical=axis==='top',key=vertical?'scrollTop':'scrollLeft';
                 const limit=vertical
                   ?Math.max(0,element.scrollHeight-element.clientHeight)
                   :Math.max(0,element.scrollWidth-element.clientWidth);
                 const to=Math.max(0,Math.min(limit,destination));
-                const previous=scrollAnimations.get(element);
-                if(previous)cancelAnimationFrame(previous.frame);
-                scrollAnimations.delete(element);
+                cancelGlide(element);
+                if(Math.abs(to-element[key])>maxLag)
+                  element[key]=to-Math.sign(to-element[key])*maxLag;
                 const start=element[key],delta=to-start;
                 if(Math.abs(delta)<1)return;
                 if(reducedMotion()){element[key]=to;return}
-                const begun=performance.now(),duration=190;
+                const duration=190,animation={frame:0,target:to};
+                let begun=null;
                 const tick=now=>{
-                  const t=Math.min(1,(now-begun)/duration);
-                  element[key]=start+delta*(1-Math.pow(1-t,3));
-                  if(t<1)scrollAnimations.set(element,{
-                    frame:requestAnimationFrame(tick),target:to
-                  });
+                  if(begun===null)begun=now;
+                  const t=Math.max(0,Math.min(1,(now-begun)/duration));
+                  element[key]=t>=1?to:start+delta*(1-Math.pow(1-t,3));
+                  if(t<1)animation.frame=requestAnimationFrame(tick);
                   else scrollAnimations.delete(element);
                 };
-                scrollAnimations.set(element,{
-                  frame:requestAnimationFrame(tick),target:to
-                });
+                animation.frame=requestAnimationFrame(tick);
+                scrollAnimations.set(element,animation);
               };
               const focusNode=(node,{preserveVertical=false}={})=>{
                 if(!node)return false;
@@ -2086,11 +2121,10 @@ class MainActivity : ComponentActivity() {
                   const root=document.scrollingElement||document.documentElement;
                   if(preserveVertical){
                     // A left/right move within a library poster row must not
-                    // shift the page by a few pixels because focus scaling
-                    // changes the selected poster's bounding rectangle.
-                    const previous=scrollAnimations.get(root);
-                    if(previous)cancelAnimationFrame(previous.frame);
-                    scrollAnimations.delete(root);
+                    // start a vertical scroll of its own. Any glide already in
+                    // flight is left alone so it finishes at the row the
+                    // previous Up/Down chose; cancelling it here stranded the
+                    // viewport part-way and could leave the selection clipped.
                     return true;
                   }
                   const delta=r.top<padding?r.top-padding:
@@ -2234,8 +2268,62 @@ class MainActivity : ComponentActivity() {
                 '#library-masthead .library-head-actions button:not(:disabled),'+
                 '#library-masthead .library-head-actions a[href]'
               )].filter(isVisible);
-              const libraryRowTop=node=>
-                node.closest('.tile')?.offsetTop ?? node.offsetTop;
+              // Layout model of the poster grid: rows and columns come from
+              // LAYOUT offsets (never viewport rects, never animated
+              // transforms) and are cached. The previous code re-scanned every
+              // poster with getComputedStyle()+getBoundingClientRect() several
+              // times per key press (O(posters) forced style/layout work). On a
+              // Google TV with a few thousand posters that made each press a
+              // long task, which is what exposed the animation-clock bug above.
+              let libraryLayoutCache=null;
+              const buildLibraryLayout=()=>{
+                const grid=document.getElementById('items');
+                if(!grid)return null;
+                const rows=[],info=new Map();
+                let rowTop=-Infinity;
+                for(const tile of grid.children){
+                  const card=tile.querySelector?.('.tile-button');
+                  if(!card)continue;
+                  const top=tile.offsetTop;
+                  if(!rows.length||top-rowTop>3){rows.push([]);rowTop=top}
+                  info.set(card,{row:rows.length-1,
+                    x:tile.offsetLeft+tile.offsetWidth/2});
+                  rows[rows.length-1].push(card);
+                }
+                libraryLayoutCache={grid,count:grid.children.length,
+                  width:grid.clientWidth,rows,info};
+                return libraryLayoutCache;
+              };
+              const libraryLayout=known=>{
+                const grid=document.getElementById('items');
+                const cache=libraryLayoutCache;
+                if(cache&&cache.grid===grid&&grid&&
+                   cache.count===grid.children.length&&
+                   cache.width===grid.clientWidth&&
+                   (!known||cache.info.has(known)))return cache;
+                return buildLibraryLayout();
+              };
+              // Place a library row at a fixed, predictable viewport line using
+              // the tile's ABSOLUTE document position (viewport top + scrollTop
+              // is invariant while an animation runs), and always keep the whole
+              // selected tile on screen.
+              const libraryDestination=(card,firstRow)=>{
+                const root=document.scrollingElement||document.documentElement;
+                const tile=card.closest('.tile')||card;
+                const absoluteTop=root.scrollTop+tile.getBoundingClientRect().top;
+                // The first row always shows the complete header/trivia view.
+                if(firstRow)return 0;
+                const height=tile.offsetHeight||0,margin=24;
+                let destination=absoluteTop-Math.round(innerHeight*.27);
+                destination=Math.max(destination,absoluteTop+height+margin-innerHeight);
+                destination=Math.min(destination,absoluteTop-margin);
+                return Math.max(0,destination);
+              };
+              const revealLibraryRow=(card,firstRow)=>{
+                glideTo(document.scrollingElement||document.documentElement,'top',
+                  libraryDestination(card,firstRow),
+                  {maxLag:Math.round(innerHeight*.62)});
+              };
               let alphabetReturnPoster=null;
               const alphabetButtons=()=>[...document.querySelectorAll(
                 '#alpha-nav button:not(:disabled)')].filter(isVisible);
@@ -2261,19 +2349,18 @@ class MainActivity : ComponentActivity() {
                   if(direction==='right')return true;
                 }
                 if(direction==='right' && active?.matches?.('#items .tile-button')){
-                  const rowTop=libraryRowTop(active);
-                  const currentRow=[...document.querySelectorAll('#items .tile-button')]
-                    .filter(isVisible).filter(node=>
-                      Math.abs(libraryRowTop(node)-rowTop)<3);
-                  const last=currentRow.reduce((max,node)=>
-                    Math.max(max,rect(node).right),-Infinity);
-                  if(rect(active).right>=last-3){
-                    alphabetReturnPoster=active;
-                    const initial=active.closest('[data-letter]')?.dataset.letter;
-                    const target=letters.find(node=>node.textContent===initial)||
-                      letters[0];
-                    readingScroll=false;
-                    return focusNode(target,{preserveVertical:true});
+                  const layout=libraryLayout(active);
+                  const here=layout?.info.get(active);
+                  if(here){
+                    const row=layout.rows[here.row];
+                    if(row[row.length-1]===active){
+                      alphabetReturnPoster=active;
+                      const initial=active.closest('[data-letter]')?.dataset.letter;
+                      const target=letters.find(node=>node.textContent===initial)||
+                        letters[0];
+                      readingScroll=false;
+                      return focusNode(target,{preserveVertical:true});
+                    }
                   }
                 }
                 return false;
@@ -2281,13 +2368,11 @@ class MainActivity : ComponentActivity() {
               const moveLibraryHorizontal=(active,direction)=>{
                 if(!isLibraryGrid() || !['left','right'].includes(direction) ||
                    !active?.matches?.('#items .tile-button'))return false;
-                const rowTop=libraryRowTop(active);
-                const row=[...document.querySelectorAll('#items .tile-button')]
-                  .filter(isVisible).filter(node=>
-                    Math.abs(libraryRowTop(node)-rowTop)<3)
-                  .sort((a,b)=>rect(a).left-rect(b).left);
+                const layout=libraryLayout(active);
+                const here=layout?.info.get(active);
+                if(!here)return false;
+                const row=layout.rows[here.row];
                 const index=row.indexOf(active);
-                if(index<0)return false;
                 const next=index+(direction==='right'?1:-1);
                 if(next>=0 && next<row.length)
                   return focusNode(row[next],{preserveVertical:true});
@@ -2298,14 +2383,21 @@ class MainActivity : ComponentActivity() {
                 }
                 return true;
               };
+              const nearestInRow=(cards,x)=>{
+                let best=null,distance=Infinity;
+                for(const card of cards){
+                  const d=Math.abs(centerX(rect(card))-x);
+                  if(d<distance){distance=d;best=card}
+                }
+                return best;
+              };
               const moveLibraryToolbar=(active,direction)=>{
                 if(!isLibraryGrid())return false;
                 const toolbar=libraryToolbar();
                 if(!toolbar.length)return false;
                 if(direction==='up' && active?.matches?.('#items .tile-button')){
-                  const firstRowTop=Math.min(...[...document.querySelectorAll('#items .tile-button')]
-                    .filter(isVisible).map(libraryRowTop));
-                  if(Math.abs(libraryRowTop(active)-firstRowTop)>3)return false;
+                  const layout=libraryLayout(active);
+                  if(layout?.info.get(active)?.row!==0)return false;
                   const center=centerX(rect(active));
                   const target=toolbar.slice().sort((a,b)=>
                     Math.abs(centerX(rect(a))-center)-Math.abs(centerX(rect(b))-center))[0];
@@ -2315,64 +2407,40 @@ class MainActivity : ComponentActivity() {
                   return true;
                 }
                 if(toolbar.includes(active) && direction==='down'){
-                  const cards=[...document.querySelectorAll('#items .tile-button')].filter(isVisible);
-                  if(!cards.length)return true;
-                  const rowTop=Math.min(...cards.map(libraryRowTop));
-                  const row=cards.filter(node=>Math.abs(libraryRowTop(node)-rowTop)<3);
-                  const center=centerX(rect(active));
-                  const target=row.sort((a,b)=>
-                    Math.abs(centerX(rect(a))-center)-Math.abs(centerX(rect(b))-center))[0];
+                  const layout=libraryLayout();
+                  const first=layout?.rows[0];
+                  if(!first?.length)return true;
+                  const target=nearestInRow(first,centerX(rect(active)));
                   readingScroll=false;
                   // Returning to the first row restores the same complete
                   // header/trivia view visible on first library entry.
-                  const root=document.scrollingElement||document.documentElement;
                   const ok=focusNode(target,{preserveVertical:true});
-                  glideTo(root,'top',0);
+                  glideTo(document.scrollingElement||document.documentElement,'top',0);
                   return ok;
                 }
                 return false;
               };
-              // Use stable layout rows, never animated viewport coordinates.
-              // getBoundingClientRect().top changes whenever a scroll or poster
-              // focus animation runs; held D-pad presses must not use it to
-              // decide whether a card belongs to the previous or next row.
+              // Up/Down between poster rows. The target is chosen from the
+              // cached layout model and the scroll destination from the
+              // target's absolute document position, so a held button yields a
+              // strictly monotonic sequence of rows and scroll destinations.
               const moveLibraryGridRow=(active,direction)=>{
-                if(!['up','down'].includes(direction)||
-                   !['/movies','/tv'].includes(location.pathname)||
+                if(!['up','down'].includes(direction)||!isLibraryGrid()||
                    !active?.matches?.('#items .tile-button'))return false;
-                const cards=[...document.querySelectorAll('#items .tile-button')].filter(isVisible);
-                if(!cards.includes(active))return false;
-                const positions=cards.map(node=>({
-                  node,top:libraryRowTop(node),x:centerX(rect(node))
-                }));
-                const activeTop=libraryRowTop(active);
-                const rowTops=[...new Set(positions.map(p=>p.top))].sort((a,b)=>a-b);
-                // Tiles in a CSS row can differ by a few layout pixels.
-                const rows=[];
-                for(const top of rowTops){
-                  if(!rows.length||top-rows[rows.length-1]>3)rows.push(top);
+                const layout=libraryLayout(active);
+                const here=layout?.info.get(active);
+                if(!here)return false;
+                const next=here.row+(direction==='down'?1:-1);
+                if(next<0||next>=layout.rows.length)return true;
+                let target=null,distance=Infinity;
+                for(const card of layout.rows[next]){
+                  const d=Math.abs(layout.info.get(card).x-here.x);
+                  if(d<distance){distance=d;target=card}
                 }
-                const rowIndex=rows.findIndex(top=>Math.abs(top-activeTop)<=3);
-                if(rowIndex<0)return true;
-                const next=rowIndex+(direction==='down'?1:-1);
-                if(next<0||next>=rows.length)return true;
-                const adjacent=positions.filter(p=>Math.abs(p.top-rows[next])<=3);
-                const x=centerX(rect(active));
-                adjacent.sort((a,b)=>Math.abs(a.x-x)-Math.abs(b.x-x));
-                const target=adjacent[0]?.node;
                 if(!target)return true;
                 readingScroll=false;
                 target.focus({preventScroll:true});
-                const root=document.scrollingElement||document.documentElement;
-                // The diagnostic trace showed correct successive rows, but
-                // document scrollTop periodically jumped to zero or thousands
-                // of pixels backward during a single held Down input. Anchoring
-                // movement to the current viewport/animation is unstable.
-                // Use the target card's ABSOLUTE document position instead.
-                const absoluteTop=root.scrollTop+rect(target).top;
-                const destination=next===0?0:Math.max(0,
-                  absoluteTop-Math.round(innerHeight*.27));
-                glideTo(root,'top',destination);
+                revealLibraryRow(target,next===0);
                 return true;
               };
               const move=direction=>{
@@ -2403,12 +2471,14 @@ class MainActivity : ComponentActivity() {
                   active.dispatchEvent(new Event('change',{bubbles:true}));
                   return true;
                 }
-                const nodes=candidates();
-                if(!nodes.length)return false;
+                // Library handlers use the cached grid model and must run
+                // BEFORE candidates(), which style/layout-scans every link.
                 if(moveLibraryToolbar(active,direction))return true;
                 if(moveLibraryAlphabet(active,direction))return true;
                 if(moveLibraryHorizontal(active,direction))return true;
                 if(moveLibraryGridRow(active,direction))return true;
+                const nodes=candidates();
+                if(!nodes.length)return false;
                 // Intentional TV navigation: every episode tile leads DOWN to
                 // the current Play action, even when the tile is scrolled
                 // horizontally beyond the location of the action row.
@@ -2614,7 +2684,9 @@ class MainActivity : ComponentActivity() {
                 dest.focus({preventScroll:true});
                 if(library){
                   document.body.classList.remove('oew-tv-rail-open');
-                  (document.scrollingElement||document.documentElement).scrollTop=0;
+                  const root=document.scrollingElement||document.documentElement;
+                  cancelGlide(root);
+                  root.scrollTop=0;
                 }
                 if(location.pathname==='/'){
                   const refresh=new FocusEvent('focusin',{bubbles:true});
@@ -2635,18 +2707,25 @@ class MainActivity : ComponentActivity() {
                   if(selected){readingScroll=false;return focusNode(selected)}
                 }
                 if(direction==='down'){
-                  const cards=[...document.querySelectorAll('#items .tile-button')]
-                    .filter(isVisible);
-                  if(!cards.length)return false;
-                  const top=Math.min(...cards.map(libraryRowTop));
-                  const first=cards.filter(node=>Math.abs(libraryRowTop(node)-top)<3);
+                  const first=libraryLayout()?.rows[0];
+                  if(!first?.length)return false;
                   const search=document.getElementById('search');
-                  const x=search?centerX(rect(search)):0;
-                  const target=first.sort((a,b)=>
-                    Math.abs(centerX(rect(a))-x)-Math.abs(centerX(rect(b))-x))[0];
+                  const target=nearestInRow(first,search?centerX(rect(search)):0);
                   if(target){readingScroll=false;return focusNode(target)}
                 }
                 return false;
+              };
+              // Used by the server's A-Z rail: an instant jump that cancels any
+              // glide in flight, so two scrollers never write scrollTop at once.
+              window.__willieTvJumpToPoster=card=>{
+                if(!card)return false;
+                const root=document.scrollingElement||document.documentElement;
+                cancelGlide(root);
+                root.scrollTop=libraryDestination(card,false);
+                return true;
+              };
+              window.__willieTvCancelScroll=()=>{
+                cancelGlide(document.scrollingElement||document.documentElement);
               };
               window.__willieTvMove=direction=>{
                 tvUserMoved=true;return move(direction);

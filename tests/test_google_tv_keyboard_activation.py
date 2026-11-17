@@ -18,7 +18,7 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("protectedFields.add(node)", src)
         self.assertIn("document.addEventListener('focusin',event=>{", src)
         self.assertIn("new MutationObserver(records=>", src)
-        self.assertIn("const focusNode=node=>{", src)
+        self.assertIn("const focusNode=(node,{preserveVertical=false}={})=>{", src)
         self.assertIn("node.focus({preventScroll:true});", src)
         self.assertIn("window.__willieTvEndTextEdit=endEditing", src)
 
@@ -124,9 +124,9 @@ class TvTextInputFocusTests(unittest.TestCase):
 
     def test_library_return_restores_header_and_retains_selected_backdrop(self):
         src = self.source
-        self.assertIn("const firstRowTop=Math.min(...rows.map(row=>row.top))", src)
-        self.assertIn("if(Math.abs(rowTop-firstRowTop)<15)", src)
-        self.assertIn("glideTo(root,'top',0);", src)
+        self.assertIn("if(layout?.info.get(active)?.row!==0)return false;", src)
+        self.assertIn("const first=layout?.rows[0];", src)
+        self.assertIn("glideTo(document.scrollingElement||document.documentElement,'top',0);", src)
         self.assertIn("focusNode(target,{preserveVertical:true})", src)
         self.assertIn("event.target?.closest?.('#library-masthead .library-head-actions')", src)
         shell = (ROOT / "server" / "shell.js").read_text()
