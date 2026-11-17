@@ -210,7 +210,7 @@ body[data-page="tv"] #library-masthead .trivia-answer{
             </button>
             <div class="catalog-tool-menu catalog-genre-menu" id="genre-menu" role="menu" aria-label="Filter by genre" hidden></div>
           </div>
-           <button id="refresh-metadata" class="catalog-refresh-metadata" type="button" title="Refresh genre, rating and runtime metadata" aria-label="Refresh genre, rating and runtime metadata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 5.4"/><path d="M20 4v7h-7"/></svg></button>
+           <button id="refresh-metadata" class="catalog-refresh-metadata" type="button" title="Scan media folders and refresh metadata" aria-label="Scan media folders and refresh metadata"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 5.4"/><path d="M20 4v7h-7"/></svg></button>
            <a id="explore-library" class="explore-icon-link" href="/explore?type=movies" title="Explore More" aria-label="Explore more movies"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m15.5 8.5-2.2 4.8-4.8 2.2 2.2-4.8z"/></svg></a>
         </div>
         </div>
@@ -857,65 +857,59 @@ $('search').addEventListener('input',()=>{clearTimeout(debounce);debounce=setTim
 $('sort').addEventListener('change',()=>{setMenuLabels();load()});
 $('genre').addEventListener('change',()=>{selectedGenre=$('genre').value;setMenuLabels();load()});
 
-/* Metadata indexing runs separately from poster artwork. */
-let metadataRevision=-1, metadataReloadAt=0, metadataTimer=null, lastMetadataFinished=0;
+/* Metadata indexing and drive scans run without rebuilding visible poster grids.
+   New media appears via the catalog revision poll; metadata is reflected on the
+   next regular navigation rather than moving posters during remote browsing. */
+let metadataTimer=null;
 async function checkMetadata(){
  try{
   const response=await fetch('/api/catalog/metadata/status',{cache:'no-store'});
-  if(!response.ok)throw Error('Metadata status unavailable');
+  if(!response.ok)return;
   const state=await response.json();
-  const revision=Number(state.revision)||0,processed=Number(state.processed)||0,
-        totalTitles=Number(state.total)||0,
-        available=Number(state.available)||0,missing=Number(state.missing)||0;
-  $('refresh-metadata').disabled=!!state.running;
-  if(state.running){
-   $('metadata-status').textContent='Checking genres, ratings and runtimes · '+processed+' of '+totalTitles+' titles';
-  }else if(state.error){
-   $('metadata-status').textContent=state.error;
-  }else if(!state.last_finished){
-   $('metadata-status').textContent='Preparing library metadata…';
-  }else if(totalTitles===0){
-   $('metadata-status').textContent='';
-  }else if(available===0){
-   $('metadata-status').textContent='No genre, rating or runtime metadata found for '+totalTitles+
-     ' titles. Check Settings → Connections (Radarr/Sonarr) and Settings → Metadata (TMDB).';
-  }else if(missing>0 && missing/totalTitles>=0.05){
-   // Suppress low-noise coverage warnings (for example, 4 of 427 titles).
-   // Retries still run in the background regardless of the warning display.
-   $('metadata-status').textContent='Metadata available for '+available+' of '+totalTitles+
-     ' titles; '+missing+' still missing. Unmatched titles are retried automatically.';
-  }else{
-   $('metadata-status').textContent='';
-  }
-  const finished=Number(state.last_finished)||0;
-  const newMetadata=metadataRevision>=0&&revision!==metadataRevision;
-  const newlyFinished=finished>0&&finished!==lastMetadataFinished;
-  metadataRevision=revision;
-  lastMetadataFinished=finished;
-  if((newlyFinished||newMetadata) && !loading &&
-     (newlyFinished || processed-metadataReloadAt>=25 || !state.running)){
-    metadataReloadAt=processed;
-    load({preserveFocus:true});
-  }
- }catch(error){
-  $('metadata-status').textContent='Metadata status unavailable: '+error.message;
- }finally{
+  $('refresh-metadata').setAttribute('aria-busy',state.running?'true':'false');
+ }catch(_){/* Background metadata status is intentionally silent. */}
+ finally{
   clearTimeout(metadataTimer);
   metadataTimer=setTimeout(checkMetadata,4000);
  }
 }
+let refreshRunning=false;
 $('refresh-metadata').addEventListener('click',async()=>{
- $('refresh-metadata').disabled=true;
- $('metadata-status').textContent='Starting metadata refresh…';
+ if(refreshRunning)return;
+ refreshRunning=true;
+ const button=$('refresh-metadata');
+ button.setAttribute('aria-busy','true');
+ button.title='Refreshing libraries and metadata in the background';
+ // Keep focus and the existing grid intact while scans run.
  try{
-  const response=await fetch('/api/catalog/metadata/refresh',{method:'POST'});
-  if(!response.ok)throw Error('Unable to start metadata refresh.');
-  await checkMetadata();
+  const response=await fetch('/api/libraries',{cache:'no-store'});
+  if(!response.ok)throw Error('Unable to get configured libraries');
+  const libraries=await response.json();
+  if(!Array.isArray(libraries))throw Error('Invalid library listing');
+  const failures=[];
+  // The scan endpoint indexes the existing configured media roots without
+  // modifying files. A 409 means another scan is already underway.
+  for(const lib of libraries){
+   if(!lib.id)continue;
+   try{
+    const scan=await fetch('/api/libraries/'+encodeURIComponent(lib.id)+'/scan',{method:'POST'});
+    if(!scan.ok&&scan.status!==409)failures.push(lib.name||String(lib.id));
+   }catch(_){failures.push(lib.name||String(lib.id));}
+  }
+  const metadata=await fetch('/api/catalog/metadata/refresh',{method:'POST'});
+  if(!metadata.ok)failures.push('metadata');
+  if(failures.length)$('status').textContent='Could not refresh: '+failures.join(', ');
+  // Normal catalog-revision polling updates media changes without replacing
+  // posters simply because a metadata batch finished.
  }catch(error){
-  $('metadata-status').textContent=error.message;
-  $('refresh-metadata').disabled=false;
+  $('status').textContent='Background refresh failed: '+error.message;
+ }finally{
+  button.removeAttribute('aria-busy');
+  button.title='Scan media folders and refresh metadata';
+  refreshRunning=false;
  }
 });
+checkMetadata();
 
 /* One tiny revision request per 15 seconds. Only rebuild posters after an
    actual media change; preserve focused TV poster and the current scroll. */
