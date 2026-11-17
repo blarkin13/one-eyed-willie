@@ -350,10 +350,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else if(!onLibraryToolbar(document.activeElement))select(null);
+      else if(!document.activeElement?.closest?.('#app-nav') &&
+              !onLibraryToolbar(document.activeElement))select(null);
     },130);
   });
   document.addEventListener('focusin',event=>{
+    // Moving from a poster to the sidebar should retain the last backdrop.
+    if(event.target?.closest?.('#app-nav'))return;
     const element=locate(event.target);
     if(element)select(element);
   });
@@ -363,7 +366,8 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else if(!onLibraryToolbar(document.activeElement))select(null);
+      else if(!document.activeElement?.closest?.('#app-nav') &&
+              !onLibraryToolbar(document.activeElement))select(null);
     },140);
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)select(null)});
