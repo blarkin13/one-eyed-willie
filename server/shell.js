@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
-  const inSettings=['settings','general','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
+  const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
   const active=inSettings?'settings':page;
   const navItems=[
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},

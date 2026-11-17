@@ -58,7 +58,8 @@ background:linear-gradient(#020711df,transparent);display:flex;align-items:cente
 opacity:0;transition:opacity .15s}
 .willie-player:hover .willie-controls,.willie-player:focus-within .willie-controls{opacity:1}
 .willie-controls button,.willie-toolbar button{background:transparent;border:0;border-radius:50%;width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink,#fff);padding:11px;cursor:pointer}
-.willie-controls button:hover,.willie-toolbar button:hover,.willie-controls button:focus-visible,.willie-toolbar button:focus-visible{background:#ffffff2c}
+.willie-controls button:hover,.willie-toolbar button:hover,.willie-controls button:focus-visible,.willie-toolbar button:focus-visible{background:#ffffff1c;color:var(--oew-tv-select-color,#8B5CF6)}
+.willie-player button:focus-visible{outline:2px solid var(--oew-tv-select-color,#8B5CF6);outline-offset:2px}
 .willie-controls button svg,.willie-toolbar button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 .willie-bottom{position:absolute;bottom:0;left:0;right:0;z-index:5;background:linear-gradient(transparent,#000e 65%);padding:44px 25px 20px;transition:opacity .2s}
 .willie-preview-tooltip{position:absolute;bottom:102px;left:50%;transform:translateX(-50%);z-index:9;width:180px;text-align:center;pointer-events:none;background:#090c11ed;border:1px solid #ffffff50;border-radius:9px;padding:6px;box-shadow:0 8px 22px #0009}
@@ -101,7 +102,7 @@ max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
 .willie-next-actions button:focus-visible{outline:2px solid #fff}
 .willie-timeline{display:flex;
 align-items:center;gap:12px;padding:10px 15px;z-index:5}
-.willie-timeline input{flex:1;accent-color:var(--accent,#e5e0d5);cursor:pointer}
+.willie-timeline input{flex:1;accent-color:var(--oew-tv-select-color,#8B5CF6);cursor:pointer}
 .willie-timeline span{font-size:12px;color:#bccddd;font-variant-numeric:tabular-nums}
 @media(hover:none){.willie-controls,.willie-bottom{opacity:1}}
 `;
@@ -326,6 +327,12 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     document.addEventListener('visibilitychange',onVisibilityChange);
     window.addEventListener('pagehide',onPageHide);
     const surface=document.createElement('div');surface.className='willie-player';
+    requestJson('/api/settings/tv-appearance').then(settings=>{
+      if(current!==surface)return;
+      const color=settings.selection_color;
+      if(/^#[0-9A-Fa-f]{6}$/.test(color||''))
+        surface.style.setProperty('--oew-tv-select-color',color);
+    }).catch(()=>{});
     surface.setAttribute('role','dialog');surface.setAttribute('aria-label','Media player');
     const video=document.createElement('video');video.className='willie-video';
     video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';

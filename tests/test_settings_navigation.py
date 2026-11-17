@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1] / "server"
 class SettingsNavigationTests(unittest.TestCase):
     def test_four_settings_pages_have_routes(self):
         routes = {getattr(route, "path", "") for route in app.routes}
-        for expected in ("/settings", "/settings/general", "/settings/libraries",
+        for expected in ("/settings", "/settings/general", "/settings/appearance", "/settings/libraries",
                          "/settings/metadata", "/settings/connections"):
             self.assertIn(expected, routes)
 
@@ -18,10 +18,14 @@ class SettingsNavigationTests(unittest.TestCase):
         for endpoint in (
             "/api/settings/playback", "/api/maintenance/settings",
             "/api/maintenance/run", "/api/maintenance/previews/generate",
-            "/api/remote/settings", "/api/settings/sidebar",
+            "/api/remote/settings",
         ):
             self.assertIn(endpoint, page)
-        self.assertIn('id="sidebar-order"', page)
+        appearance = (ROOT / "appearance_settings.html").read_text()
+        self.assertIn("/api/settings/sidebar", appearance)
+        self.assertIn('id="sidebar-order"', appearance)
+        self.assertIn("/api/settings/tv-appearance", appearance)
+        self.assertIn('id="tv-selection-color"', appearance)
 
     def test_gear_is_only_settings_sidebar_entry(self):
         shell = (ROOT / "shell.js").read_text()
@@ -35,13 +39,23 @@ class SettingsNavigationTests(unittest.TestCase):
         # not the sidebar on settings screens.
         page = (ROOT / "settings_hub.html").read_text()
         for heading, route in [
-            ("General", "/settings/general"),
-            ("Library", "/settings/libraries"),
+            ("Playback &amp; Server", "/settings/general"),
+            ("Appearance &amp; Navigation", "/settings/appearance"),
+            ("Libraries", "/settings/libraries"),
             ("Metadata", "/settings/metadata"),
             ("Connections", "/settings/connections"),
         ]:
             self.assertIn("<h2>"+heading+"</h2>", page)
             self.assertIn('href="'+route+'"', page)
+
+    def test_tv_appearance_is_shared_with_native_and_web_players(self):
+        main = (ROOT / "sidebar_settings.py").read_text()
+        native = (ROOT.parent / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/PlayerActivity.kt").read_text()
+        web = (ROOT / "player.js").read_text()
+        self.assertIn('tv_selection_color', main)
+        self.assertIn('/api/settings/tv-appearance', native)
+        self.assertIn('/api/settings/tv-appearance', web)
+        self.assertIn('applyPlayerSelectionColor', native)
 
     def test_playback_is_only_configured_in_general(self):
         from server.main import playback_settings_page

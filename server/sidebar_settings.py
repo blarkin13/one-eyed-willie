@@ -5,6 +5,7 @@ import time
 from PIL import Image, UnidentifiedImageError
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from typing import Literal
 from .library import db
 
 router = APIRouter(prefix="/api/settings")
@@ -19,6 +20,41 @@ NAV = (
 )
 ALWAYS_VISIBLE = {"home", "settings"}
 ICON_NAMES = ("home", "movies", "tv", "radarr", "sonarr", "sabnzbd", "settings")
+
+# Shared TV focus appearance: one setting for all TV clients, editable on web.
+DEFAULT_SELECTION_COLOR = "#8B5CF6"
+SelectionColor = Literal["#8B5CF6", "#3B82F6", "#14B8A6", "#22C55E",
+                         "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF"]
+
+
+class TvAppearanceRequest(BaseModel):
+    selection_color: SelectionColor = DEFAULT_SELECTION_COLOR
+
+
+@router.get("/tv-appearance")
+def get_tv_appearance():
+    with db() as conn:
+        _settings_table(conn)
+        row = conn.execute(
+            "SELECT value FROM app_settings WHERE key='tv_selection_color'"
+        ).fetchone()
+    selected = row["value"] if row else DEFAULT_SELECTION_COLOR
+    if selected not in SelectionColor.__args__:
+        selected = DEFAULT_SELECTION_COLOR
+    return {"selection_color": selected}
+
+
+@router.put("/tv-appearance")
+def save_tv_appearance(preferences: TvAppearanceRequest):
+    with db() as conn:
+        _settings_table(conn)
+        conn.execute(
+            "INSERT INTO app_settings(key,value) VALUES('tv_selection_color',?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (preferences.selection_color,),
+        )
+    return preferences.model_dump()
+
 
 
 class SidebarRequest(BaseModel):

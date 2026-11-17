@@ -403,26 +403,6 @@ class MainActivity : ComponentActivity() {
         dialog.show()
     }
 
-    private fun showFocusColorSettings() {
-        val names = arrayOf("Purple (default)", "Blue", "Teal", "Green", "Orange", "Pink", "Red", "White")
-        val colors = arrayOf("#8B5CF6", "#3B82F6", "#14B8A6", "#22C55E",
-            "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF")
-        val stored = prefs.getString("tv_focus_color", "#8B5CF6") ?: "#8B5CF6"
-        val selected = colors.indexOf(stored).coerceAtLeast(0)
-        android.app.AlertDialog.Builder(this)
-            .setTitle("TV Selection Color")
-            .setSingleChoiceItems(names, selected) { dialog, which ->
-                val color = colors[which]
-                prefs.edit().putString("tv_focus_color", color).apply()
-                browser?.evaluateJavascript(
-                    "document.documentElement.style.setProperty('--oew-tv-select-color','$color')", null
-                )
-                dialog.dismiss()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
     private fun waitForStartupContent(web: WebView, serial: Int, attempts: Int = 0) {
         if (browser !== web || initialPageLoaded || loadingFailed || serial != pageLoadSerial)
             return
@@ -512,12 +492,6 @@ class MainActivity : ComponentActivity() {
                     message == "oewtv:settings:server") {
                     result.confirm("ACK")
                     web.post { if (browser === web && !isFinishing) showConnectionSettings() }
-                    return true
-                }
-                if (sameOrigin(url) && browser === web &&
-                    message == "oewtv:settings:color") {
-                    result.confirm("ACK")
-                    web.post { if (browser === web && !isFinishing) showFocusColorSettings() }
                     return true
                 }
                 if (sameOrigin(url) && browser === web &&
@@ -777,14 +751,19 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun installRemoteNavigation(view: WebView) {
-        // Keep the TV's chosen focus color across every WebView page load.
-        val selected = prefs.getString("tv_focus_color", "#8B5CF6") ?: "#8B5CF6"
-        val color = if (selected in setOf("#8B5CF6", "#3B82F6", "#14B8A6",
-                "#22C55E", "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF"))
-            selected else "#8B5CF6"
         view.evaluateJavascript(TV_REMOTE_SCRIPT, null)
+        // Appearance preferences are now owned by the server, shared across
+        // connected TV clients and editable in the web Settings UI.
         view.evaluateJavascript(
-            "document.documentElement.style.setProperty('--oew-tv-select-color','$color')", null
+            """fetch('/api/settings/tv-appearance',{cache:'no-store'})
+               .then(r=>r.ok?r.json():null)
+               .then(p=>{
+                 if(p && /^#[0-9A-Fa-f]{6}$/.test(p.selection_color)){
+                   document.documentElement.style.setProperty(
+                     '--oew-tv-select-color',p.selection_color);
+                 }
+               }).catch(()=>{});""".trimIndent(),
+            null
         )
     }
 
@@ -1105,42 +1084,12 @@ class MainActivity : ComponentActivity() {
                 if(p==='/tv/show')return libraryParent('/tv');
                 if(['/movies','/tv','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
                    p.startsWith('/sonarr/'))return '/';
+                if(p.startsWith('/settings/'))return '/settings';
+                if(p==='/settings')return '/';
                 if(p==='/')return 'handled';
                 if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
                 return '/';
               };
-              // Native TV-only configuration; no change to the shared
-              // web Settings screen for desktop/mobile users.
-              if(location.pathname==='/settings' &&
-                 !document.getElementById('oew-tv-server-connection')){
-                const grid=document.querySelector('.settings-grid');
-                if(grid){
-                  const tile=document.createElement('button');
-                  tile.type='button';
-                  tile.id='oew-tv-server-connection';
-                  tile.className='settings-tile';
-                  tile.style.cssText='color:inherit;text-align:left;cursor:pointer;font:inherit';
-                  tile.innerHTML='<span class="settings-tile-icon" aria-hidden="true">⚙</span>'+
-                    '<h2>TV Server Connection</h2>'+
-                    '<p>Change the saved server IP address or port for this TV.</p>';
-                  tile.addEventListener('click',()=>{
-                    try{prompt('oewtv:settings:server','')}catch(_){}
-                  });
-                  grid.append(tile);
-                  const colors=document.createElement('button');
-                  colors.type='button';
-                  colors.id='oew-tv-selection-color';
-                  colors.className='settings-tile';
-                  colors.style.cssText='color:inherit;text-align:left;cursor:pointer;font:inherit';
-                  colors.innerHTML='<span class="settings-tile-icon" aria-hidden="true">◉</span>'+
-                    '<h2>TV Selection Color</h2>'+
-                    '<p>Choose the highlighted icon color. Purple is the default.</p>';
-                  colors.addEventListener('click',()=>{
-                    try{prompt('oewtv:settings:color','')}catch(_){}
-                  });
-                  grid.append(colors);
-                }
-              }
               if (document.getElementById('oew-tv-remote-style')) return;
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
