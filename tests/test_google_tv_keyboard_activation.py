@@ -139,7 +139,8 @@ class TvTextInputFocusTests(unittest.TestCase):
         source = self.source
         self.assertIn("private var preparedBrowser: WebView? = null", source)
         self.assertIn("private fun prepareNavigation(web: WebView, destination: String)", source)
-        self.assertIn("frame.addView(candidate, 0", source)
+        self.assertIn("frame.addView(candidate, frame.indexOfChild(web) + 1", source)
+        self.assertIn("candidate.alpha = 0.01f", source)
         self.assertIn("const grid=document.getElementById('items')", source)
         self.assertIn("window.__oewHomeReady===true", source)
         self.assertIn("private fun revealPreparedBrowser(web: WebView)", source)
