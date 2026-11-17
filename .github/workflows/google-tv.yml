@@ -1,4 +1,5 @@
 name: Google TV APK
+run-name: Google TV APK build · ${{ github.sha }}
 on:
   pull_request:
     paths:
