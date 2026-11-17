@@ -328,6 +328,11 @@ class MainActivity : ComponentActivity() {
         view.isFocusable = true
         view.isFocusableInTouchMode = true
         view.settings.apply {
+            // The server sends TV-only first-paint CSS for this WebView.
+            // Without it, the desktop sidebar flashes before onPageFinished
+            // injects the remote-navigation styling.
+            if (!userAgentString.contains("OneEyedWillieTV/1"))
+                userAgentString = userAgentString + " OneEyedWillieTV/1"
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
@@ -1517,6 +1522,9 @@ class MainActivity : ComponentActivity() {
               };
               const focusNode=node=>{
                 if(!node)return false;
+                // The sidebar opens only when the remote deliberately moves
+                // focus into it; normal page-load autofocus cannot reveal it.
+                document.body.classList.toggle('oew-tv-rail-open',isMenu(node));
                 node.focus({preventScroll:true});
                 let r=rect(node);
                 const padding=44;
@@ -1903,6 +1911,7 @@ class MainActivity : ComponentActivity() {
                 }
                 return true;
               };
+              document.body.classList.remove('oew-tv-rail-open');
               // New documents must not show the rail just because WebView
               // transferred focus from the old page's selected nav link.
               // Begin on content; the rail opens only after remote Left.
