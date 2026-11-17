@@ -1771,6 +1771,9 @@ class MainActivity : ComponentActivity() {
                 }
                 /* Avoid competing browser snap while the D-pad animation runs. */
                 html,body{scroll-behavior:auto!important;scroll-padding:0!important}
+                /* Keep the document from re-anchoring itself to newly loaded
+                   posters or changing artwork while a TV row is selected. */
+                html,body,.content,#items{overflow-anchor:none!important}
                 .shelf-track,.discovery-row{scroll-snap-type:none!important}
                 /* Focus movement is animated on artwork, icons and controls. */
                 body[data-page] :is(.cover,.person-credit-poster,.season-episode-tile,
@@ -2361,27 +2364,15 @@ class MainActivity : ComponentActivity() {
                 readingScroll=false;
                 target.focus({preventScroll:true});
                 const root=document.scrollingElement||document.documentElement;
-                const r=rect(target);
-                const upper=Math.max(36,innerHeight*.13);
-                const lower=innerHeight-Math.max(44,innerHeight*.1);
-                // A new key repeat retargets the same scroll animation.
-                // Calculate the reveal from the selected row only, without
-                // modifying which row is selected based on scroll progress.
-                if(direction==='up' && next===0){
-                  glideTo(root,'top',0);
-                  return true;
-                }
-                const delta=r.top<upper?r.top-upper:
-                  r.bottom>lower?r.bottom-lower:0;
-                // Do not reverse an unfinished scroll merely because the
-                // newly selected poster is temporarily inside the viewport.
-                const pending=scrollAnimations.get(root)?.target ?? root.scrollTop;
-                const required=root.scrollTop+delta;
-                const destination=direction==='down'
-                  ?Math.max(pending,required)
-                  :Math.min(pending,required);
-                if(Math.abs(destination-root.scrollTop)>1)
-                  glideTo(root,'top',destination);
+                // The diagnostic trace showed correct successive rows, but
+                // document scrollTop periodically jumped to zero or thousands
+                // of pixels backward during a single held Down input. Anchoring
+                // movement to the current viewport/animation is unstable.
+                // Use the target card's ABSOLUTE document position instead.
+                const absoluteTop=root.scrollTop+rect(target).top;
+                const destination=next===0?0:Math.max(0,
+                  absoluteTop-Math.round(innerHeight*.27));
+                glideTo(root,'top',destination);
                 return true;
               };
               const move=direction=>{
