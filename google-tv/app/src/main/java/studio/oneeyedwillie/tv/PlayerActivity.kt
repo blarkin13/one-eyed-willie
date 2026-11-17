@@ -74,6 +74,7 @@ class PlayerActivity : ComponentActivity() {
     private var seasonShuffle = false
     private var shuffleQueue = JSONArray()
     private var autoPlayNext = false
+    private var advancingToNext = false
     private var pendingSeek = 0.0
     private var pendingSeekAction: Runnable? = null
     private val uiRefresh = object : Runnable {
@@ -188,7 +189,7 @@ class PlayerActivity : ComponentActivity() {
                         saveProgress(true)
                         chrome.visibility = View.VISIBLE
                         handler.removeCallbacks(hideChrome)
-                        if (autoPlayNext && nextMediaId != null) showNextEpisode()
+                        if (autoPlayNext && nextMediaId != null) playNextEpisode()
                     }
                 }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -392,7 +393,7 @@ class PlayerActivity : ComponentActivity() {
         }
         extras.addView(iconControl(R.drawable.ic_player_captions, "Subtitles") { showCaptions() })
         extras.addView(iconControl(R.drawable.ic_player_next, "Next episode") {
-            if (nextMediaId != null) showNextEpisode() else showMessage("No next episode available")
+            if (nextMediaId != null) playNextEpisode() else showMessage("No next episode available")
         })
         extras.addView(iconControl(R.drawable.ic_player_more, "More playback options") {
             showPlaybackMenu()
@@ -720,25 +721,26 @@ class PlayerActivity : ComponentActivity() {
         }
     }
 
-    private fun showNextEpisode() {
-        val next=nextMediaId ?: return
-        AlertDialog.Builder(this).setTitle("Up next")
-            .setMessage(nextTitle)
-            .setPositiveButton("Play Next"){_,_->
-                val following=android.content.Intent(this,PlayerActivity::class.java)
-                    .putExtra("media_id",next).putExtra("title",nextTitle)
-                    .putExtra("server",server)
-                    .putExtra("restart",
-                        if(seasonShuffle)shuffleQueue.optJSONObject(0)?.optBoolean("restart",true) ?: true
-                        else true)
-                if(seasonShuffle){
-                    val remaining=JSONArray()
-                    for(i in 1 until shuffleQueue.length())remaining.put(shuffleQueue.get(i))
-                    following.putExtra("shuffle_queue",remaining.toString())
-                }
-                startActivity(following)
-                finish()
-            }.setNegativeButton("Cancel",null).show()
+    private fun playNextEpisode() {
+        val next = nextMediaId ?: return
+        // The configured auto-play setting means play without a dialog.
+        // Guard against duplicate STATE_ENDED callbacks and fast remote presses.
+        if (advancingToNext || isFinishing) return
+        advancingToNext = true
+        val following = android.content.Intent(this, PlayerActivity::class.java)
+            .putExtra("media_id", next).putExtra("title", nextTitle)
+            .putExtra("server", server)
+            .putExtra("restart",
+                if (seasonShuffle)
+                    shuffleQueue.optJSONObject(0)?.optBoolean("restart", true) ?: true
+                else true)
+        if (seasonShuffle) {
+            val remaining = JSONArray()
+            for (i in 1 until shuffleQueue.length()) remaining.put(shuffleQueue.get(i))
+            following.putExtra("shuffle_queue", remaining.toString())
+        }
+        startActivity(following)
+        finish()
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {

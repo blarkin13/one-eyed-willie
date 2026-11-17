@@ -446,37 +446,19 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const playPause=document.createElement('button');setIcon(playPause,'pause','Pause');
     playPause.onclick=()=>video.paused?video.play().catch(()=>{}):video.pause();
     let nextEpisode=null;
-    let countdownTimer=null;
     let autoPlayNext=false;
     const next=document.createElement('button');setIcon(next,'next','Play next episode');next.hidden=true;
-    function stopCountdown(){if(countdownTimer!==null){clearInterval(countdownTimer);countdownTimer=null}}
     function launchNext(){
-      stopCountdown();
       if(!nextEpisode||current!==surface)return;
       const chosen=nextEpisode;
       if(seasonShuffle && shuffleQueue[0]?.media_id===chosen.media_id)shuffleQueue.shift();
       start(chosen.media_id,chosen.title,{restart:chosen.restart!==false});
     }
     next.onclick=launchNext;
-    const nextPrompt=document.createElement('div');nextPrompt.className='willie-next-prompt';nextPrompt.hidden=true;
-    nextPrompt.setAttribute('role','group');nextPrompt.setAttribute('aria-label','Play next episode');
-    const nextLabel=document.createElement('p');
-    const nextActions=document.createElement('div');nextActions.className='willie-next-actions';
-    const cancelNext=document.createElement('button');cancelNext.type='button';cancelNext.textContent='Cancel';cancelNext.onclick=()=>{stopCountdown();nextPrompt.hidden=true};
-    const playNext=document.createElement('button');playNext.type='button';playNext.textContent='Play Next';playNext.onclick=launchNext;
-    nextActions.append(cancelNext,playNext);nextPrompt.append(nextLabel,nextActions);
+    // When auto-play is enabled, proceed at the end without a countdown,
+    // confirmation dialog, or focus-stealing overlay.
     function showNextCountdown(){
-      if(!autoPlayNext||!nextEpisode||current!==surface)return;
-      stopCountdown();nextPrompt.hidden=false;surface.classList.remove('willie-chrome-hidden');
-      let remaining=8;
-      nextLabel.textContent='Up next: '+nextEpisode.title+' · Playing in '+remaining+' seconds';
-      playNext.focus({preventScroll:true});
-      countdownTimer=setInterval(()=>{
-        if(current!==surface){stopCountdown();return}
-        remaining--;
-        if(remaining<=0){launchNext();return}
-        nextLabel.textContent='Up next: '+nextEpisode.title+' · Playing in '+remaining+' seconds';
-      },1000);
+      if(autoPlayNext&&nextEpisode&&current===surface)launchNext();
     }
     const diagnostics=document.createElement('button');setIcon(diagnostics,'info','Playback diagnostics');
     diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':'HLS transcoding')+
@@ -531,10 +513,9 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     loadPreviews();
     timeline.append(preview);
     timeline.append(elapsed,slider,total);
-    bottom.prepend(timeline);surface.append(video,controls,info,bottom,nextPrompt);
+    bottom.prepend(timeline);surface.append(video,controls,info,bottom);
     document.body.append(surface);current=surface;mediaId=id;started=false;saveAt=0;offset=0;captionsSelect=cc;
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
-    surface.addEventListener('willie:closing',stopCountdown);
     surface.addEventListener('pointerdown',revealChrome);
     surface.addEventListener('focusin',revealChrome);
     surface.addEventListener('focusout',concealChromeSoon);
