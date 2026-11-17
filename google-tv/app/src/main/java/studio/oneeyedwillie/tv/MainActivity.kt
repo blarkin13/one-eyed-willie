@@ -64,7 +64,9 @@ class MainActivity : ComponentActivity() {
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var initialPageLoaded = false
-    private var navigationStill: ImageView? = null
+    private var preparedBrowser: WebView? = null
+    private var preparedDestination: String? = null
+    private var prepareEpoch = 0
     private var splashStartedAt = 0L
     private var playedStartupSound = false
     @Volatile private var discoveryGeneration = 0
@@ -434,47 +436,103 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    /**
-     * Give page changes a brief crossfade using the outgoing page instead
-     * of a separate loading screen or waiting for artwork to download.
-     */
-    private fun captureNavigationStill(web: WebView, target: Uri) {
-        if (!initialPageLoaded || navigationStill != null ||
-            target.path !in setOf("/", "/movies", "/tv")) return
-        val frame = web.parent as? FrameLayout ?: return
-        if (web.width <= 0 || web.height <= 0) return
-        try {
-            val bitmap = android.graphics.Bitmap.createBitmap(
-                web.width, web.height, android.graphics.Bitmap.Config.ARGB_8888)
-            web.draw(android.graphics.Canvas(bitmap))
-            val still = ImageView(this).apply {
-                setImageBitmap(bitmap)
-                scaleType = ImageView.ScaleType.FIT_XY
-                isFocusable = false
-                isClickable = true
-            }
-            // Above the WebView, below the existing cold-start overlay.
-            frame.addView(still, 1, FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
-            navigationStill = still
-            // Navigation should feel immediate, not like a frozen screen.
-            // Start a short crossfade even when the server is slow.
-            still.postDelayed({
-                if (navigationStill === still) releaseNavigationStill()
-            }, 480L)
-        } catch (_: Exception) {
-            // A screenshot is an enhancement; navigation must still work if
-            // bitmap allocation or the WebView capture is unavailable.
+    /** Home and catalogs are prepared behind the current, fully rendered page.
+     * No snapshots, spinners, loading screen, or visible empty WebView. */
+    private fun cancelPreparedNavigation() {
+        ++prepareEpoch
+        val pending = preparedBrowser
+        preparedBrowser = null
+        preparedDestination = null
+        if (pending != null) {
+            pending.stopLoading()
+            (pending.parent as? ViewGroup)?.removeView(pending)
+            pending.destroy()
         }
     }
 
-    private fun releaseNavigationStill() {
-        val still = navigationStill ?: return
-        navigationStill = null
-        still.animate().alpha(0f).translationX(-dp(12).toFloat())
-            .setDuration(180L).withEndAction {
-            (still.parent as? ViewGroup)?.removeView(still)
-            still.setImageDrawable(null)
+    private fun prepareNavigation(web: WebView, destination: String): Boolean {
+        if (browser !== web || !initialPageLoaded || !sameOrigin(destination)) return false
+        val path = Uri.parse(destination).path
+        if (path !in setOf("/", "/movies", "/tv")) return false
+        if (preparedDestination == destination) return true
+        cancelPreparedNavigation()
+        val frame = web.parent as? FrameLayout ?: return false
+        val candidate = WebView(this)
+        configureBrowser(candidate)
+        candidate.isFocusable = false
+        candidate.isFocusableInTouchMode = false
+        // Keep the prepared WebView barely visible in compositing so Android
+        // actually renders it before the swap. A fully covered/alpha-zero
+        // WebView may defer the first frame and flash black after the fade.
+        candidate.alpha = 0.01f
+        candidate.isClickable = false
+        frame.addView(candidate, frame.indexOfChild(web) + 1, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        preparedBrowser = candidate
+        preparedDestination = destination
+        val epoch = prepareEpoch
+        candidate.loadUrl(destination)
+        candidate.postDelayed({
+            if (epoch == prepareEpoch && preparedBrowser === candidate) {
+                // Network failures should never strand an invisible page.
+                cancelPreparedNavigation()
+                android.widget.Toast.makeText(this,
+                    "Could not open library", android.widget.Toast.LENGTH_SHORT).show()
+            }
+        }, 10000L)
+        return true
+    }
+
+    private fun prepareReveal(web: WebView, attempt: Int = 0) {
+        if (preparedBrowser !== web) return
+        if (attempt >= 100) { cancelPreparedNavigation(); return }
+        web.evaluateJavascript(
+            """(() => {
+              const path=location.pathname;
+              if(path==='/')return window.__oewHomeReady===true;
+              if(path==='/movies'||path==='/tv'){
+                const grid=document.getElementById('items');
+                const status=document.getElementById('status');
+                return !!grid && !!grid.querySelector('.tile-button,.empty') &&
+                  !(status?.textContent||'').includes('Loading titles');
+              }
+              return true;
+            })()""".trimIndent()
+        ) { ready ->
+            if (preparedBrowser !== web) return@evaluateJavascript
+            if (ready == "true") {
+                // Allow the frame with populated titles to paint before swapping.
+                web.postDelayed({
+                    if (preparedBrowser === web) revealPreparedBrowser(web)
+                }, 100L)
+            } else {
+                web.postDelayed({ prepareReveal(web, attempt + 1) }, 90L)
+            }
+        }
+    }
+
+    private fun revealPreparedBrowser(web: WebView) {
+        if (preparedBrowser !== web) return
+        val old = browser ?: return
+        val frame = old.parent as? FrameLayout ?: return
+        preparedBrowser = null
+        preparedDestination = null
+        ++prepareEpoch
+        browser = web
+        tvTextEditing = false
+        ++pageLoadSerial
+        stopTvRepeat()
+        web.isFocusable = true
+        web.isFocusableInTouchMode = true
+        web.isClickable = true
+        web.bringToFront()
+        loadingOverlay?.bringToFront()
+        web.requestFocus()
+        web.animate().alpha(1f).setDuration(170L).start()
+        old.animate().alpha(0f).setDuration(170L).withEndAction {
+            (old.parent as? ViewGroup)?.removeView(old)
+            old.stopLoading()
+            old.destroy()
         }.start()
     }
 
@@ -487,6 +545,21 @@ class MainActivity : ComponentActivity() {
         origin = server.trimEnd('/')
         val view = WebView(this)
         browser = view
+        configureBrowser(view)
+        val screen = FrameLayout(this)
+        screen.addView(view, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        loadingOverlay = createLoadingOverlay()
+        screen.addView(loadingOverlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(screen)
+        showLoading()
+        view.loadUrl("$origin/")
+    }
+
+    private fun configureBrowser(view: WebView) {
         // Only acknowledges the exact persisted checkpoint after same-origin
         // JavaScript fetch received HTTP 2xx. It cannot modify other app data.
         view.addJavascriptInterface(object {
@@ -624,9 +697,11 @@ class MainActivity : ComponentActivity() {
         }
         view.webViewClient = object : WebViewClient() {
             override fun onPageStarted(web: WebView, url: String?, favicon: android.graphics.Bitmap?) {
-                tvTextEditing = false
                 web.keepScreenOn = false
-                pageLoadSerial++
+                if (browser === web) {
+                    tvTextEditing = false
+                    pageLoadSerial++
+                }
                 if (browser === web && sameOrigin(url.orEmpty()) && !initialPageLoaded)
                     showLoading()
                 super.onPageStarted(web, url, favicon)
@@ -634,19 +709,21 @@ class MainActivity : ComponentActivity() {
             override fun onReceivedError(
                 web: WebView, request: WebResourceRequest, error: WebResourceError
             ) {
-                if (browser === web && request.isForMainFrame) {
-                    releaseNavigationStill()
+                if (preparedBrowser === web && request.isForMainFrame)
+                    cancelPreparedNavigation()
+                else if (browser === web && request.isForMainFrame)
                     showLoadingFailure("Unable to reach your server")
-                }
                 super.onReceivedError(web, request, error)
             }
             override fun onReceivedHttpError(
                 web: WebView, request: WebResourceRequest, response: WebResourceResponse
             ) {
-                if (browser === web && request.isForMainFrame && response.statusCode >= 400) {
-                    releaseNavigationStill()
+                if (preparedBrowser === web && request.isForMainFrame &&
+                    response.statusCode >= 400)
+                    cancelPreparedNavigation()
+                else if (browser === web && request.isForMainFrame &&
+                         response.statusCode >= 400)
                     showLoadingFailure("Server error ${response.statusCode}")
-                }
                 super.onReceivedHttpError(web, request, response)
             }
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
@@ -667,11 +744,9 @@ class MainActivity : ComponentActivity() {
                 // Only open approved HTTPS metadata destinations outside our
                 // embedded server WebView. Rotten Tomatoes review links must be
                 // usable on Google TV instead of silently being blocked.
-                if (request.isForMainFrame && initialPageLoaded &&
-                    sameOrigin(uri.toString()) &&
-                    uri.toString() != web.url) {
-                    captureNavigationStill(web, uri)
-                }
+                if (request.isForMainFrame && browser === web &&
+                    sameOrigin(uri.toString()) && uri.toString() != web.url &&
+                    prepareNavigation(web, uri.toString())) return true
                 if (!sameOrigin(uri.toString())) {
                     val host = uri.host?.lowercase().orEmpty()
                     if (uri.scheme == "https" && host in setOf(
@@ -691,19 +766,14 @@ class MainActivity : ComponentActivity() {
                 }
                 return false
             }
-            override fun onPageCommitVisible(web: WebView, url: String?) {
-                super.onPageCommitVisible(web, url)
-                if (browser === web && sameOrigin(url.orEmpty()))
-                    releaseNavigationStill()
-            }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
-                if (browser === web && sameOrigin(url.orEmpty())) {
+                if (preparedBrowser === web && sameOrigin(url.orEmpty())) {
+                    installRemoteNavigation(web)
+                    prepareReveal(web)
+                } else if (browser === web && sameOrigin(url.orEmpty())) {
                     val completedSerial = pageLoadSerial
                     installRemoteNavigation(web)
-                    // The first committed paint triggers the crossfade; this
-                    // fallback also handles WebViews without commit callbacks.
-                    if (navigationStill != null) releaseNavigationStill()
                     // A page with autofocus must not leave the keyboard open
                     // before its inputs receive the TV read-only focus guard.
                     if (!tvTextEditing)
@@ -720,17 +790,6 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
-        val screen = FrameLayout(this)
-        screen.addView(view, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ))
-        loadingOverlay = createLoadingOverlay()
-        screen.addView(loadingOverlay, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ))
-        setContentView(screen)
-        showLoading()
-        view.loadUrl("$origin/")
     }
 
     private fun sameOrigin(url: String): Boolean = try {
@@ -762,8 +821,11 @@ class MainActivity : ComponentActivity() {
                 catch (_: Exception) { "/" }
             if (target == "handled") return@evaluateJavascript
             if (target.startsWith("/") && !target.startsWith("//")) {
-                if (web.url != origin + target) web.loadUrl(origin + target)
-            } else web.loadUrl(origin + "/")
+                if (web.url != origin + target &&
+                    !prepareNavigation(web, origin + target))
+                    web.loadUrl(origin + target)
+            } else if (!prepareNavigation(web, origin + "/"))
+                web.loadUrl(origin + "/")
         }
     }
 
@@ -980,11 +1042,7 @@ class MainActivity : ComponentActivity() {
         loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false
-        navigationStill?.let { still ->
-            (still.parent as? ViewGroup)?.removeView(still)
-            still.setImageDrawable(null)
-        }
-        navigationStill = null
+        cancelPreparedNavigation()
         browser?.destroy()
         browser = null
         super.onDestroy()
