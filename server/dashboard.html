@@ -426,6 +426,9 @@ async function load({preserveFocus=false}={}){
   shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
   shelf('recent-movies',data.recent_movies,'No movies yet','');
   shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  // Native TV navigation is installed after document load. Notify it when
+  // dynamically populated posters are ready for initial focus and backdrop.
+  document.dispatchEvent(new Event('willie:home-shelves-ready'));
   if(preserveFocus){
    for(const [id,x] of Object.entries(shelfPositions)){
     const track=byId(id).querySelector('.shelf-track');
