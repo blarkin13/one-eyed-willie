@@ -45,10 +45,17 @@
 .home-feature-copy{
  width:min(76%,880px);max-height:100%;overflow:hidden;
  padding:12px clamp(20px,3vw,45px);
- opacity:1;transition:opacity .2s ease;
+ opacity:1;
  text-shadow:0 2px 14px #000c;
 }
-.home-feature-copy.is-changing{opacity:.65}
+@keyframes homeMediaTextEnter{
+ from{opacity:0;transform:translateY(9px)}
+ to{opacity:1;transform:translateY(0)}
+}
+.home-feature-copy.is-entering{
+ animation:homeMediaTextEnter 240ms cubic-bezier(.2,.72,.25,1) both;
+ will-change:opacity,transform;
+}
 .home-feature-kicker{height:18px;line-height:18px;margin:0 0 5px;
  color:#b5dafa;font-weight:780;font-size:.76rem;
  letter-spacing:.12em;text-transform:uppercase;white-space:nowrap;overflow:hidden}
@@ -77,7 +84,7 @@
  .home-feature-genres,.home-feature-cast{display:none}
 }
 @media(prefers-reduced-motion:reduce){
- .home-feature-copy{transition:none!important}
+ .home-feature-copy.is-entering{animation:none!important;will-change:auto}
 }
 
 </style></head>
@@ -192,13 +199,15 @@ function updateHomeFeature(link,item){
    .map(actor=>actor?.name||actor?.person?.name||'').filter(Boolean):[];
   cast.textContent=actors.length?'Starring: '+actors.join(', '):'';
  };
- const finishFade=()=>{
-  if(state.serial!==serial)return;
-  requestAnimationFrame(()=>{if(state.serial===serial)copy.classList.remove('is-changing')});
- };
- if(!prefersReducedMotion())copy.classList.add('is-changing');
+ // Restart a short enter transition for each new selection. The text
+ // changes immediately, and the background metadata request remains
+ // asynchronous; neither can leave stale text from a previous poster.
+ copy.classList.remove('is-entering');
  render(null);
- finishFade();
+ if(!prefersReducedMotion()){
+  void copy.offsetWidth; // restart animation even during rapid D-pad changes
+  copy.classList.add('is-entering');
+ }
  homeDetails(item).then(details=>{
   if(state.serial!==serial)return;
   render(details);
