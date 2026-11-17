@@ -241,6 +241,17 @@ def brand_logo():
                         headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/assets/sidebar-icon-{name}.png")
+def sidebar_default_icon(name: str):
+    from fastapi import HTTPException
+    from server.sidebar_default_icons import ICONS, default_icon_png
+    if name not in ICONS:
+        raise HTTPException(404, "Unknown sidebar icon")
+    return Response(content=default_icon_png(name), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=604800",
+                             "X-Content-Type-Options": "nosniff"})
+
+
 @app.get("/assets/library-header-{kind}.png")
 def default_library_header_image(kind: str):
     from server.library_header_art import default_png

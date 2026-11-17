@@ -37,6 +37,17 @@ document.addEventListener('DOMContentLoaded', () => {
     fallback.innerHTML=paths[svg];icon.append(font,fallback);
     return icon;
   }
+  function coloredIcon(url,size=34){
+    const wrap=document.createElement('span');wrap.className='nav-icon nav-colored-icon';
+    wrap.setAttribute('aria-hidden','true');
+    const image=document.createElement('img');image.className='sidebar-colored-image';
+    image.src=url;image.alt='';image.width=size;image.height=size;
+    wrap.append(image);return wrap;
+  }
+  function defaultIcon(kind){
+    const safe=['home','movies','tv','settings'].includes(kind)?kind:'movies';
+    return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=1');
+  }
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
   brand.title='One-Eyed Willie';
@@ -85,7 +96,8 @@ document.addEventListener('DOMContentLoaded', () => {
       image.alt='';
       image.width=26;image.height=26;
       icon.append(image);a.append(icon);
-    }else a.append(glyph(item.fa,item.fallback));
+    }else if(['home','movies','tv','settings'].includes(item.id))a.append(defaultIcon(item.id));
+    else a.append(glyph(item.fa,item.fallback));
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
@@ -101,11 +113,17 @@ document.addEventListener('DOMContentLoaded', () => {
       script.onerror=()=>resolve(null);
       document.head.append(script);
     });
-  function libraryGlyph(appearance,key){
-    if(!appearance?.icons[key])return glyph('fa-folder','services');
+  function libraryGlyph(appearance,library){
+    if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
+      return coloredIcon(library.icon_image_url);
+    const kind=library.kind==='tv'?'tv':'movies';
+    // Standard libraries and new collections use the user's colorful
+    // artwork; selecting another preset retains the original icon picker.
+    if(['folder','film','tv'].includes(library.icon)||!appearance?.icons[library.icon])
+      return defaultIcon(kind);
     const wrap=document.createElement('span');wrap.className='nav-icon library-symbol';
     wrap.setAttribute('aria-hidden','true');
-    wrap.append(appearance.createIcon(key,25));
+    wrap.append(appearance.createIcon(library.icon,28));
     return wrap;
   }
   Promise.all([
@@ -131,7 +149,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const font=appearance?.fonts[library.font]?library.font:'default';
           base.classList.add('library-font--'+font);
           const oldIcon=base.querySelector('.nav-icon');
-          if(oldIcon)oldIcon.replaceWith(libraryGlyph(appearance,library.icon));
+          if(oldIcon)oldIcon.replaceWith(libraryGlyph(appearance,library));
           if(library.sidebar_hidden)base.classList.add('sidebar-hidden');
         }
         continue;
@@ -173,6 +191,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   }).catch(()=>{});
+  // Update the sidebar immediately after saving icon changes in Library Settings
+  // without requiring the user to navigate away or reload the entire page.
+  document.addEventListener('willie:library-icon-updated',event=>{
+    const lib=event.detail;
+    if(!lib||!Number.isInteger(lib.id)||!['movies','tv'].includes(lib.kind))return;
+    const name=String(lib.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const standard=(lib.kind==='movies'&&name==='movies')||
+      (lib.kind==='tv'&&(name==='tv'||name==='tvshows'));
+    const navId=standard?lib.kind:'library:'+lib.id;
+    const link=nav.querySelector('a[data-nav-id="'+navId+'"]');
+    if(!link)return;
+    const old=link.querySelector('.nav-icon');
+    if(old)old.replaceWith(libraryGlyph(window.WillieLibraryAppearance,lib));
+  });
   if(!document.querySelector('link[rel~="icon"]')){
     const favicon=document.createElement('link');
     favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=5';
