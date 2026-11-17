@@ -164,6 +164,15 @@ class PlayerActivity : ComponentActivity() {
             JSONArray(intent.getStringExtra("shuffle_queue") ?: "[]")
         } catch (_: Exception) { JSONArray() }
         if (mediaId <= 0 || server.isBlank()) { finish(); return }
+        // Only a newly opened native player restores a previously dismissed
+        // Continue Watching entry; passive progress refreshes never do.
+        network.execute {
+            try {
+                request("/api/home/continue/$mediaId/start", "POST")
+            } catch (error: Exception) {
+                Log.w("OneEyedWillie", "Could not restore Continue Watching entry", error)
+            }
+        }
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
