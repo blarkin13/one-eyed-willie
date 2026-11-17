@@ -48,6 +48,28 @@ class SettingsNavigationTests(unittest.TestCase):
             self.assertIn("<h2>"+heading+"</h2>", page)
             self.assertIn('href="'+route+'"', page)
 
+    def test_tv_uses_device_specific_playback_settings_page(self):
+        from starlette.requests import Request
+        from server.main import settings_home_page
+        tv_request = Request({"type": "http", "method": "GET", "path": "/settings",
+                              "headers": [(b"user-agent", b"OneEyedWillieTV/1")]})
+        browser_request = Request({"type": "http", "method": "GET", "path": "/settings",
+                                   "headers": [(b"user-agent", b"Mozilla/5.0")]})
+        self.assertTrue(str(settings_home_page(tv_request).path).endswith("tv_settings.html"))
+        self.assertTrue(str(settings_home_page(browser_request).path).endswith("settings_hub.html"))
+        page = (ROOT / "tv_settings.html").read_text()
+        for term in ("tv-subtitle-form", "tv-subtitles-on", "tv-language-dialog",
+                     "tv-playback-form", "tv-server-connection"):
+            self.assertIn(term, page)
+        for title in ("Library settings", "Metadata", "Maintenance", "Connections",
+                      "Appearance &amp; Navigation"):
+            self.assertNotIn("<h2>" + title + "</h2>", page)
+        main = (ROOT.parent / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/MainActivity.kt").read_text()
+        player = (ROOT.parent / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/PlayerActivity.kt").read_text()
+        self.assertIn('getSharedPreferences("oew_tv_subtitles"', main)
+        self.assertIn('getSharedPreferences("oew_tv_subtitles"', player)
+        self.assertIn("applyDefaultSubtitlesForThisTv", player)
+
     def test_tv_appearance_is_shared_with_native_and_web_players(self):
         main = (ROOT / "sidebar_settings.py").read_text()
         native = (ROOT.parent / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/PlayerActivity.kt").read_text()
