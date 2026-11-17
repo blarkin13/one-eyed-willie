@@ -946,13 +946,17 @@ class MainActivity : ComponentActivity() {
                   .find(n=>!n.closest('#app-nav'));
                 if(toggle){toggle.click();return 'handled';}
                 const p=location.pathname,q=new URLSearchParams(location.search);
-                if(p==='/movie')return '/movies';
+                const libraryId=q.get('library_id');
+                const libraryParent=type=>libraryId&&/^[1-9][0-9]*$/.test(libraryId)
+                  ?type+'?'+new URLSearchParams({library_id:libraryId})
+                  :type;
+                if(p==='/movie')return libraryParent('/movies');
                 if(p==='/tv/episode')return document.querySelector(
                   'a[href^="/tv/season?"]')?.getAttribute('href')||
                   document.querySelector('a[href^="/tv/show?"]')?.getAttribute('href')||'/tv';
                 if(p==='/tv/season')return '/tv/show?'+new URLSearchParams({
                   library_id:q.get('library_id')||'',key:q.get('key')||''}).toString();
-                if(p==='/tv/show')return '/tv';
+                if(p==='/tv/show')return libraryParent('/tv');
                 if(['/movies','/tv','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
                    p.startsWith('/sonarr/'))return '/';
                 if(p==='/')return 'handled';
@@ -2052,6 +2056,30 @@ class MainActivity : ComponentActivity() {
                     return true;
                   }
                 }
+                // Home shelves are independent horizontal rows. Never let
+                // Left/Right jump into another shelf, which leaves the
+                // Continue Watching details attached to the wrong poster.
+                if(document.body.dataset.page==='home' &&
+                   (direction==='left'||direction==='right') &&
+                   active?.matches?.('.shelf-track .tile-button')){
+                  const track=active.closest('.shelf-track');
+                  const links=[...track.querySelectorAll('.tile-button')].filter(isVisible);
+                  const index=links.indexOf(active);
+                  if(index>=0){
+                    const step=direction==='right'?1:-1;
+                    const next=index+step;
+                    if(next>=0&&next<links.length){
+                      readingScroll=false;
+                      return focusNode(links[next]);
+                    }
+                    if(direction==='left'){
+                      const menu=allMenu();
+                      return focusNode(menu.find(n=>
+                        n.getAttribute('aria-current')==='page')||menu[0]);
+                    }
+                    return true;
+                  }
+                }
                 // Page-level vertical navigation moves to the first item of the
                 // next logical section, including Series actions -> Season 1.
                 if(moveThroughSections(active,direction))return true;
@@ -2137,8 +2165,9 @@ class MainActivity : ComponentActivity() {
                 if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
                 const library=['/movies','/tv'].includes(location.pathname);
+                const home=location.pathname==='/';
                 if(tvUserMoved)return true;
-                if(!library && active && !isMenu(active) &&
+                if(!library && !home && active && !isMenu(active) &&
                    active!==document.body && active!==document.documentElement){
                   if(location.pathname==='/'&&active.matches?.('.tile-button')){
                     const refresh=new FocusEvent('focusin',{bubbles:true});
@@ -2150,7 +2179,12 @@ class MainActivity : ComponentActivity() {
                 const preferred=library?null:primaryDetailAction();
                 const field=document.querySelector(
                   '.content input[type="search"],.content input[type="text"]');
-                const dest=library?firstPoster():
+                // On Home and library pages, don't settle focus onto
+                // another section while the first shelf/grid is loading.
+                const firstHome=document.querySelector(
+                  '#continue-watching .shelf-track .tile-button')||
+                  document.querySelector('.content .shelf-track .tile-button');
+                const dest=library?firstPoster():home?firstHome:
                   ((preferred&&isVisible(preferred)?preferred:null)||
                   firstPoster()||
                   [...document.querySelectorAll(
