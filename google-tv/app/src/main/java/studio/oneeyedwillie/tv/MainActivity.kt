@@ -2523,7 +2523,10 @@ class MainActivity : ComponentActivity() {
                 const route=sessionStorage.getItem('oew-tv-sidebar-route');
                 sessionStorage.removeItem('oew-tv-sidebar-route');
                 const current=location.pathname+location.search;
-                if(route===current){
+                // Catalogs always open with the first available poster
+                // focused; never restore the icon focus after switching to
+                // Movies or TV Shows. Other sidebar destinations keep it.
+                if(route===current && !['/movies','/tv'].includes(location.pathname)){
                   const link=[...document.querySelectorAll('#app-nav .side-nav a[href]')]
                     .find(a=>{
                       const url=new URL(a.href,location.href);
@@ -2569,7 +2572,10 @@ class MainActivity : ComponentActivity() {
                   (field&&isVisible(field)?field:null));
                 if(!dest)return false;
                 dest.focus({preventScroll:true});
-                if(library)(document.scrollingElement||document.documentElement).scrollTop=0;
+                if(library){
+                  document.body.classList.remove('oew-tv-rail-open');
+                  (document.scrollingElement||document.documentElement).scrollTop=0;
+                }
                 if(location.pathname==='/'){
                   const refresh=new FocusEvent('focusin',{bubbles:true});
                   Object.defineProperty(refresh,'__oewInitialRefresh',{value:true});
