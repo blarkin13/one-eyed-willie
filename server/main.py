@@ -185,6 +185,58 @@ body.oew-tv-rail-open .sidebar:focus-within {
   pointer-events:auto!important;
 }
 body .workspace {margin-left:0!important}
+/* TV-only first-paint sizes. Include in CSS response so the Home shelves
+   never flash at their larger desktop size before WebView JS injection. */
+body[data-page="home"] .shelf-track {
+  grid-auto-columns:clamp(87px,10.8vw,130.8px)!important;
+  grid-template-rows:max-content!important;
+  grid-auto-rows:0!important;
+  align-items:start!important;
+  align-content:start!important;
+  gap:14px!important;
+  padding:11px 11px 9px!important;
+  width:calc(100% + 22px)!important;
+  margin:0 -11px!important;
+  overflow-y:hidden!important;
+  min-height:0!important;
+  scroll-padding-inline:11px!important;
+  scroll-snap-type:none!important;
+}
+body[data-page="home"] .shelf {
+  margin-top:13px!important;min-height:0!important;
+}
+body[data-page="home"] .shelf:first-of-type {margin-top:0!important}
+body[data-page="home"] .shelf .section-heading {margin-bottom:5px!important}
+body[data-page="home"] .shelf-track .tile {min-height:0!important;align-self:start!important}
+body[data-page="home"] .shelf-track .tile h3 {
+  margin:5px 0 2px!important;line-height:1.17!important;
+}
+body[data-page="home"] .workspace>.content,
+body[data-page="movies"] .workspace>.content,
+body[data-page="tv"] .workspace>.content {
+  max-width:none!important;
+  padding-left:clamp(36px,5vw,95px)!important;
+  padding-right:clamp(36px,5vw,95px)!important;
+}
+body:is([data-page="movies"],[data-page="tv"]) #items {
+  grid-template-columns:repeat(5,minmax(0,1fr))!important;
+  gap:22px 20px!important;
+}
+body:is([data-page="movies"],[data-page="tv"]) .library-head {
+  padding:7px 7px 4px!important;gap:4px!important;margin-bottom:5px!important;
+}
+body:is([data-page="movies"],[data-page="tv"]) .library-trivia {
+  gap:1px!important;padding-top:0!important;
+}
+body:is([data-page="movies"],[data-page="tv"]) .trivia-question {
+  min-height:1.45em!important;line-height:1.2!important;
+}
+body:is([data-page="movies"],[data-page="tv"]) .trivia-answer {
+  min-height:1.4em!important;
+}
+body:is([data-page="movies"],[data-page="tv"]) .library-head + .section-heading {
+  margin-bottom:5px!important;
+}
 """
 
 @app.get("/assets/ui.css")
