@@ -68,6 +68,25 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertNotIn("finishTvTextEditing", pause)
         self.assertIn("super.onPause()", pause)
 
+    def test_sidebar_hidden_before_first_paint_and_explicitly_reopened(self):
+        src = self.source
+        stylesheet = (ROOT / "server" / "main.py").read_text()
+        self.assertIn('OneEyedWillieTV/1', src)
+        self.assertIn('OneEyedWillieTV/1', stylesheet)
+        self.assertIn("body .sidebar,body .sidebar:hover,body .sidebar:focus-within", stylesheet)
+        self.assertIn("transform:translateX(-120%)!important", stylesheet)
+        self.assertIn("body.oew-tv-rail-open .sidebar", stylesheet)
+        self.assertIn("document.body.classList.toggle('oew-tv-rail-open',isMenu(node))", src)
+        self.assertIn("document.body.classList.remove('oew-tv-rail-open')", src)
+
+    def test_ship_loading_screen_runs_only_at_initial_connection(self):
+        src = self.source
+        self.assertIn("private var initialPageLoaded = false", src)
+        self.assertIn("if (initialPageLoaded) return", src)
+        self.assertIn("initialPageLoaded = true", src)
+        self.assertIn("!initialPageLoaded)", src)
+        self.assertIn("if (browser === web && sameOrigin(url.orEmpty()) && !initialPageLoaded)", src)
+
     def test_non_text_inputs_are_unaffected(self):
         src = self.source
         self.assertIn("['text','search','email','password','tel','url','number']", src)
