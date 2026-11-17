@@ -308,8 +308,11 @@ class MainActivity : ComponentActivity() {
                 val entered = input.text.toString().trim().trimEnd('/')
                 if (!validOrigin(entered)) status.text = "Enter a valid http:// or https:// server address."
                 else {
-                    prefs.edit().putString("url", entered).apply()
-                    showServer(entered)
+                    if (prefs.edit().putString("url", entered).commit()) {
+                        showServer(entered)
+                    } else {
+                        status.text = "Could not save server address. Check available device storage."
+                    }
                 }
             }
         }
@@ -381,6 +384,12 @@ class MainActivity : ComponentActivity() {
                 if ((message.startsWith("oewtv:") || message.startsWith("oewtv.")) &&
                     (!sameOrigin(url) || browser !== web)) {
                     result.cancel()
+                    return true
+                }
+                if (sameOrigin(url) && browser === web &&
+                    message == "oewtv:settings:server") {
+                    result.confirm("ACK")
+                    web.post { if (browser === web && !isFinishing) showSetup() }
                     return true
                 }
                 if (sameOrigin(url) && browser === web &&
@@ -963,6 +972,26 @@ class MainActivity : ComponentActivity() {
                 if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
                 return '/';
               };
+              // Native TV-only configuration; no change to the shared
+              // web Settings screen for desktop/mobile users.
+              if(location.pathname==='/settings' &&
+                 !document.getElementById('oew-tv-server-connection')){
+                const grid=document.querySelector('.settings-grid');
+                if(grid){
+                  const tile=document.createElement('button');
+                  tile.type='button';
+                  tile.id='oew-tv-server-connection';
+                  tile.className='settings-tile';
+                  tile.style.cssText='color:inherit;text-align:left;cursor:pointer;font:inherit';
+                  tile.innerHTML='<span class="settings-tile-icon" aria-hidden="true">⚙</span>'+
+                    '<h2>TV Server Connection</h2>'+
+                    '<p>Change the saved server IP address or port for this TV.</p>';
+                  tile.addEventListener('click',()=>{
+                    try{prompt('oewtv:settings:server','')}catch(_){}
+                  });
+                  grid.append(tile);
+                }
+              }
               if (document.getElementById('oew-tv-remote-style')) return;
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
