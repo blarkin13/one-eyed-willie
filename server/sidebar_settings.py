@@ -117,7 +117,7 @@ def sidebar_icons_status():
         revisions = {r["name"]: r["revision"] for r in rows}
     return {"icons": [
         {"name": name, "custom": name in revisions,
-         "url": f"/assets/sidebar-icon-{name}.png?v={revisions.get(name, 'pirate-v2')}"}
+         "url": f"/assets/sidebar-icon-{name}.png?v={revisions.get(name, 'pirate-v3')}"}
         for name in ICON_NAMES
     ]}
 
@@ -134,7 +134,7 @@ def sidebar_icon_bytes(name: str):
     if row:
         return bytes(row["png"]), str(row["revision"])
     from .sidebar_default_icons import default_icon_png
-    return default_icon_png(name), "pirate-v2"
+    return default_icon_png(name), "pirate-v3"
 
 
 @router.put("/sidebar/icons/{name}")
@@ -178,4 +178,4 @@ def restore_sidebar_icon(name: str):
         _icon_table(conn)
         conn.execute("DELETE FROM sidebar_custom_icons WHERE name=?", (name,))
     return {"name": name, "custom": False,
-            "url": f"/assets/sidebar-icon-{name}.png?v=pirate-v2"}
+            "url": f"/assets/sidebar-icon-{name}.png?v=pirate-v3"}
