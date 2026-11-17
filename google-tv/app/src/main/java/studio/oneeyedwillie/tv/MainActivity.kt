@@ -767,6 +767,10 @@ class MainActivity : ComponentActivity() {
                   return true;
                 };
                 window.__willieTvEndTextEdit=endEditing;
+                window.__willieTvActivateFocusedText=()=>{
+                  const field=document.activeElement;
+                  return isTextField(field)&&beginEditing(field);
+                };
                 const beginEditing=field=>{
                   if(!protectedFields.has(field)||field.disabled)return false;
                   if(editingField===field)return true;
@@ -874,6 +878,59 @@ class MainActivity : ComponentActivity() {
                 installPlayerHook();
                 if(++hookRetries>=24)clearInterval(hookTimer);
               },250);
+              
+              window.__willieTvSelect=()=>{
+                const node=document.activeElement;
+                if(!node||node===document.body)return false;
+                if(window.__willieTvActivateFocusedText?.())return true;
+                if(node.matches?.('a[href],button,[role="button"],[role="option"]')){
+                  node.click();return true;
+                }
+                if(node instanceof HTMLSelectElement){node.focus();node.click();return true;}
+                node.dispatchEvent(new KeyboardEvent('keydown',{key:'Enter',bubbles:true}));
+                return true;
+              };
+              window.__willieTvBack=()=>{
+                if(window.__willieCloseSeasonMenu?.())return 'handled';
+                const detail=document.getElementById('explore-detail');
+                if(detail&&!detail.hidden&&typeof window.restoreExplore==='function'){
+                  window.restoreExplore();return 'handled';
+                }
+                const dialog=[...document.querySelectorAll('dialog[open]')].pop();
+                if(dialog){
+                  const close=[...dialog.querySelectorAll('button')].find(b=>
+                    /close|cancel|dismiss|back/i.test((b.getAttribute('aria-label')||'')+' '+b.textContent));
+                  if(close)close.click();else dialog.close?.();
+                  return 'handled';
+                }
+                const menu=[...document.querySelectorAll(
+                  '.season-more-popover,.catalog-tool-menu,[role="menu"],[role="listbox"]')]
+                  .find(n=>n.getClientRects().length&&!n.hidden&&
+                     getComputedStyle(n).visibility!=='hidden');
+                if(menu){
+                  const owner=menu.id?document.querySelector('[aria-controls="'+menu.id+'"]'):null;
+                  if(owner)owner.click();
+                  else menu.hidden=true;
+                  owner?.focus({preventScroll:true});
+                  return 'handled';
+                }
+                const toggle=[...document.querySelectorAll('[aria-expanded="true"]')]
+                  .find(n=>!n.closest('#app-nav'));
+                if(toggle){toggle.click();return 'handled';}
+                const p=location.pathname,q=new URLSearchParams(location.search);
+                if(p==='/movie')return '/movies';
+                if(p==='/tv/episode')return document.querySelector(
+                  'a[href^="/tv/season?"]')?.getAttribute('href')||
+                  document.querySelector('a[href^="/tv/show?"]')?.getAttribute('href')||'/tv';
+                if(p==='/tv/season')return '/tv/show?'+new URLSearchParams({
+                  library_id:q.get('library_id')||'',key:q.get('key')||''}).toString();
+                if(p==='/tv/show')return '/tv';
+                if(['/movies','/tv','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
+                   p.startsWith('/sonarr/'))return '/';
+                if(p==='/')return 'handled';
+                if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
+                return '/';
+              };
               if (document.getElementById('oew-tv-remote-style')) return;
               const style=document.createElement('style');
               style.id='oew-tv-remote-style';
