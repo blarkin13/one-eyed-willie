@@ -948,6 +948,9 @@ class MainActivity : ComponentActivity() {
                      next.search===location.search)return;
                   const destination=next.href;
                   queuedPage=destination;
+                  // Preserve sidebar browsing on the destination page so
+                  // Up/Down immediately switches to the next icon as well.
+                  try{sessionStorage.setItem('oew-tv-sidebar-route',next.pathname+next.search)}catch(_){}
                   // Defer to the end of the current D-pad event, not a
                   // preloaded page. Focus never blocks while artwork loads.
                   setTimeout(()=>{
@@ -2512,8 +2515,29 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               document.body.classList.remove('oew-tv-rail-open');
+              // When D-pad navigation opened this page from the sidebar,
+              // keep focus on its active icon. This lets the next Up/Down
+              // immediately navigate again without re-entering the rail.
+              let restoreSidebarFocus=false;
+              try{
+                const route=sessionStorage.getItem('oew-tv-sidebar-route');
+                sessionStorage.removeItem('oew-tv-sidebar-route');
+                const current=location.pathname+location.search;
+                if(route===current){
+                  const link=[...document.querySelectorAll('#app-nav .side-nav a[href]')]
+                    .find(a=>{
+                      const url=new URL(a.href,location.href);
+                      return url.pathname+url.search===current;
+                    });
+                  if(link){
+                    restoreSidebarFocus=true;
+                    document.body.classList.add('oew-tv-rail-open');
+                    link.focus({preventScroll:true});
+                  }
+                }
+              }catch(_){}
               // Wait for async library content, then focus its first poster.
-              let tvUserMoved=false,initialFocusSettled=false;
+              let tvUserMoved=restoreSidebarFocus,initialFocusSettled=restoreSidebarFocus;
               const settleInitialFocus=()=>{
                 if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
