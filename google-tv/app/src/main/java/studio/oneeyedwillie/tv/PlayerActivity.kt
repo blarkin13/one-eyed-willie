@@ -75,6 +75,8 @@ class PlayerActivity : ComponentActivity() {
     private var shuffleQueue = JSONArray()
     private var autoPlayNext = false
     private var advancingToNext = false
+    private var selectedColor = 0xFF8B5CF6.toInt()
+    private val iconControls = mutableListOf<ImageButton>()
     private var pendingSeek = 0.0
     private var pendingSeekAction: Runnable? = null
     private val uiRefresh = object : Runnable {
@@ -175,6 +177,7 @@ class PlayerActivity : ComponentActivity() {
         ))
         setContentView(surface)
         playButton.requestFocus()
+        loadPlayerAppearance()
         thumbnailPreview.start()
         player = ExoPlayer.Builder(this).build().also { exo ->
             playerView.player = exo
@@ -217,6 +220,36 @@ class PlayerActivity : ComponentActivity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
+    private fun applyPlayerSelectionColor(color: Int) {
+        selectedColor = color
+        iconControls.forEach { icon ->
+            icon.imageTintList = android.content.res.ColorStateList.valueOf(
+                if (icon.hasFocus()) color else 0xFFF4EFE4.toInt()
+            )
+        }
+        if (::timeline.isInitialized) {
+            timeline.thumbTintList = android.content.res.ColorStateList.valueOf(color)
+            timeline.progressTintList = android.content.res.ColorStateList.valueOf(color)
+        }
+    }
+
+    private fun loadPlayerAppearance() {
+        // Native playback is a separate Activity from the WebView and must
+        // load the server-owned selection color independently.
+        network.execute {
+            try {
+                val settings = request("/api/settings/tv-appearance")
+                val hex = settings.optString("selection_color", "#8B5CF6")
+                if (!Regex("^#[0-9a-fA-F]{6}$").matches(hex)) return@execute
+                val color = Color.parseColor(hex)
+                runOnUiThread { if (!isFinishing && !shuttingDown)
+                    applyPlayerSelectionColor(color) }
+            } catch (_: Exception) {
+                // Older or offline servers retain the purple default.
+            }
+        }
+    }
+
     private fun iconControl(icon: Int, description: String, large: Boolean = false,
                             action: () -> Unit): ImageButton = ImageButton(this).apply {
         val dimension = dp(if (large) 64 else 54)
@@ -234,12 +267,13 @@ class PlayerActivity : ComponentActivity() {
             cornerRadius = dp(40).toFloat()
             setColor(Color.TRANSPARENT)
         }
+        iconControls.add(this)
         setOnFocusChangeListener { button, hasFocus ->
-            // Purple focused icons, retaining the borderless scale transition.
+            // Match the server's selected focus color and borderless transition.
             // Keep their normal off-white color when focus leaves.
             (button as ImageButton).imageTintList =
                 android.content.res.ColorStateList.valueOf(
-                    if (hasFocus) 0xFF8B5CF6.toInt() else 0xFFF4EFE4.toInt()
+                    if (hasFocus) selectedColor else 0xFFF4EFE4.toInt()
                 )
             button.animate().scaleX(if (hasFocus) 1.16f else 1f)
                 .scaleY(if (hasFocus) 1.16f else 1f)
@@ -325,8 +359,8 @@ class PlayerActivity : ComponentActivity() {
         timeline = SeekBar(this).apply {
             max = 1000
             keyProgressIncrement = 5
-            progressTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE4.toInt())
-            thumbTintList = android.content.res.ColorStateList.valueOf(0xFFF4EFE4.toInt())
+            progressTintList = android.content.res.ColorStateList.valueOf(selectedColor)
+            thumbTintList = android.content.res.ColorStateList.valueOf(selectedColor)
             progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0x66F4EFE4)
             contentDescription = "Seek through video with left and right remote buttons"
             setOnFocusChangeListener { _, hasFocus ->
