@@ -510,6 +510,13 @@ class MainActivity : ComponentActivity() {
                         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
                             .hideSoftInputFromWindow(web.windowToken, 0)
                     web.postDelayed({ finishLoading(web, completedSerial) }, 110L)
+                    // Returning from the native player can precede the page's
+                    // JavaScript readiness. Retry pending playback checkpoints
+                    // after every successful same-origin page load as well.
+                    web.postDelayed({
+                        if (browser === web && sameOrigin(web.url.orEmpty()))
+                            syncPendingPlaybackProgress()
+                    }, 450L)
                 }
             }
         }
@@ -648,7 +655,10 @@ class MainActivity : ComponentActivity() {
                       document.dispatchEvent(new Event('willie:watch-updated'));
                     }
                     return response.ok;
-                  } catch (_) { return false; }
+                  } catch (error) {
+                    console.warn('TV playback progress retry failed', error);
+                    return false;
+                  }
                 })()
             """.trimIndent()
             // Android evaluateJavascript does not await a returned Promise.
@@ -686,6 +696,12 @@ class MainActivity : ComponentActivity() {
             "document.dispatchEvent(new Event('willie:watch-updated'))", null
         )
         syncPendingPlaybackProgress()
+        // A checkpoint can be written as PlayerActivity finishes *after*
+        // MainActivity.onResume. Retry it on the main WebView rather than
+        // assuming the single onResume attempt caught the last position.
+        browser?.postDelayed({
+            if (!isFinishing && browser != null) syncPendingPlaybackProgress()
+        }, 1300L)
     }
 
     override fun onPause() {
