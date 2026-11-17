@@ -626,8 +626,9 @@ class MainActivity : ComponentActivity() {
                 stopTvRepeat()
                 heldDpadKey = event.keyCode
                 moveTvDirection(web, direction)
-                // Short initial pause, then continuous 85ms navigation.
-                // Ignore Android's own repeat events so every press is unique.
+                // Leave time for the selected media's artwork to load and
+                // for one scroll animation to settle before the next step.
+                // Ignore the OS repeat stream; this timer owns held movement.
                 val repeating = object : Runnable {
                     override fun run() {
                         if (heldDpadKey != event.keyCode || browser !== web ||
@@ -636,11 +637,11 @@ class MainActivity : ComponentActivity() {
                             return
                         }
                         moveTvDirection(web, direction)
-                        dpadHandler.postDelayed(this, 85L)
+                        dpadHandler.postDelayed(this, 260L)
                     }
                 }
                 dpadRepeat = repeating
-                dpadHandler.postDelayed(repeating, 240L)
+                dpadHandler.postDelayed(repeating, 480L)
             }
             return true
         }
@@ -1786,7 +1787,7 @@ class MainActivity : ComponentActivity() {
                 const start=element[key],delta=to-start;
                 if(Math.abs(delta)<1)return;
                 if(reducedMotion()){element[key]=to;return}
-                const begun=performance.now(),duration=210;
+                const begun=performance.now(),duration=190;
                 const tick=now=>{
                   const t=Math.min(1,(now-begun)/duration);
                   element[key]=start+delta*(1-Math.pow(1-t,3));
@@ -1986,47 +1987,41 @@ class MainActivity : ComponentActivity() {
                 if(scrollRead(direction))readingScroll=true;
                 return true;
               };
-              // Movie and TV libraries keep spatial poster navigation.
-              // Animate ONLY cross-row scrolling; the old focusNode() used
-              // instant scrollBy here, causing an abrupt jump on every row.
-              let libraryScrollFrame=0;
-              const scrollLibraryRowTo=(node)=>{
-                if(libraryScrollFrame){
-                  cancelAnimationFrame(libraryScrollFrame);
-                  libraryScrollFrame=0;
-                }
-                const root=document.scrollingElement||document.documentElement;
-                const r=rect(node);
-                const upper=Math.max(36,innerHeight*.13);
-                const lower=innerHeight-Math.max(44,innerHeight*.1);
-                if(r.top>=upper&&r.bottom<=lower)return;
-                const max=Math.max(0,root.scrollHeight-root.clientHeight);
-                const from=root.scrollTop;
-                const to=Math.max(0,Math.min(max,from+r.top-upper));
-                if(Math.abs(to-from)<2)return;
-                if(reducedMotion()){
-                  root.scrollTop=to;return;
-                }
-                const started=performance.now(),duration=285;
-                const tick=now=>{
-                  const amount=Math.min(1,(now-started)/duration);
-                  const ease=1-Math.pow(1-amount,3);
-                  root.scrollTop=from+(to-from)*ease;
-                  if(amount<1)libraryScrollFrame=requestAnimationFrame(tick);
-                  else libraryScrollFrame=0;
-                };
-                libraryScrollFrame=requestAnimationFrame(tick);
-              };
+              // Library grid rows should be moved by actual adjacent card
+              // rows, not viewport animation geometry. Avoid competing
+              // requestAnimationFrame loops that can scroll downward while
+              // focus has already moved upward.
               const moveLibraryGridRow=(active,direction)=>{
                 if(!['up','down'].includes(direction)||
                    !['/movies','/tv'].includes(location.pathname)||
                    !active?.matches?.('#items .tile-button'))return false;
                 const cards=[...document.querySelectorAll('#items .tile-button')].filter(isVisible);
-                const target=findAdjacent(active,direction,cards);
-                if(!target)return false;
+                const current=cards.indexOf(active);
+                if(current<0)return false;
+                const top=rect(active).top;
+                const rows=cards.map(node=>({node,top:rect(node).top,left:rect(node).left}));
+                const candidates=rows.filter(row=>direction==='up'
+                  ? row.top<top-15 : row.top>top+15);
+                if(!candidates.length)return true;
+                const rowTop=direction==='up'
+                  ?Math.max(...candidates.map(row=>row.top))
+                  :Math.min(...candidates.map(row=>row.top));
+                const adjacent=candidates.filter(row=>Math.abs(row.top-rowTop)<15);
+                const x=rect(active).left;
+                adjacent.sort((a,b)=>Math.abs(a.left-x)-Math.abs(b.left-x));
+                const target=adjacent[0]?.node;
+                if(!target)return true;
                 readingScroll=false;
                 target.focus({preventScroll:true});
-                scrollLibraryRowTo(target);
+                const root=document.scrollingElement||document.documentElement;
+                const r=rect(target);
+                const upper=Math.max(36,innerHeight*.13);
+                const lower=innerHeight-Math.max(44,innerHeight*.1);
+                // Reveal only the clipped edge. Aligning every next row to
+                // the top used to reverse or overshoot the visible motion.
+                const delta=r.top<upper?r.top-upper:
+                  r.bottom>lower?r.bottom-lower:0;
+                if(Math.abs(delta)>1)glideTo(root,'top',root.scrollTop+delta);
                 return true;
               };
               const move=direction=>{
