@@ -11,6 +11,15 @@
 .tv-playback-settings select{min-height:48px;padding:10px 14px;border-radius:8px;
  background:#142131;border:1px solid #53677f;color:#f2f4f9;max-width:420px;width:100%}
 .tv-playback-settings .form-actions{margin-top:18px}
+.tv-playback-settings dialog{background:#0f1b29;color:#f3f4f8;border:1px solid #526a85;
+ border-radius:13px;padding:22px;max-height:85vh;overflow:auto;width:min(460px,92vw)}
+.tv-playback-settings dialog::backdrop{background:#000c}
+.tv-playback-settings .tv-language-options{display:grid;gap:9px;margin:16px 0}
+.tv-playback-settings .tv-language-options button{padding:12px 18px;
+ background:#1b2b40;color:#f4f4f8;border:1px solid #455b77;border-radius:8px;
+ font:inherit;text-align:left;min-height:48px}
+.tv-playback-settings .tv-language-options button[aria-pressed="true"]{
+ border-color:#b5c9e4;font-weight:750}
 </style>
 </head><body data-page="settings"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
@@ -26,12 +35,13 @@
 <label class="setting-toggle"><input type="checkbox" id="tv-subtitles-on">
  Automatically show subtitles when playing media</label>
 <label for="tv-subtitle-language">Preferred subtitle language</label>
-<select id="tv-subtitle-language">
-<option value="en">English</option><option value="es">Spanish</option>
-<option value="fr">French</option><option value="de">German</option>
-<option value="it">Italian</option><option value="pt">Portuguese</option>
-<option value="ja">Japanese</option><option value="ko">Korean</option>
-</select>
+<input type="hidden" id="tv-subtitle-language" value="en">
+<button type="button" class="secondary-button" id="tv-language-button" aria-haspopup="dialog" aria-controls="tv-language-dialog">English</button>
+<dialog id="tv-language-dialog" aria-labelledby="tv-language-heading">
+<h2 id="tv-language-heading">Preferred subtitle language</h2>
+<div id="tv-language-options" class="tv-language-options"></div>
+<button type="button" class="secondary-button" id="tv-language-cancel">Cancel</button>
+</dialog>
 <p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
 </form></div></section>
@@ -67,11 +77,39 @@ function devicePrompt(action,payload=''){
  if(reply===null)throw Error('TV subtitle preferences unavailable');
  return reply;
 }
+const tvLanguages=[
+ ['en','English'],['es','Spanish'],['fr','French'],['de','German'],
+ ['it','Italian'],['pt','Portuguese'],['ja','Japanese'],['ko','Korean']
+];
+const langDialog=el('tv-language-dialog'),langButton=el('tv-language-button');
+function chooseLanguage(language){
+ const pair=tvLanguages.find(row=>row[0]===language)||tvLanguages[0];
+ el('tv-subtitle-language').value=pair[0];
+ langButton.textContent=pair[1];
+ for(const item of el('tv-language-options').querySelectorAll('button'))
+  item.setAttribute('aria-pressed',String(item.dataset.lang===pair[0]));
+}
+for(const [code,label] of tvLanguages){
+ const option=document.createElement('button');
+ option.type='button';option.textContent=label;option.dataset.lang=code;
+ option.addEventListener('click',()=>{
+  chooseLanguage(code);
+  langDialog.close();
+ });
+ el('tv-language-options').append(option);
+}
+langButton.onclick=()=>{
+ langDialog.showModal();
+ (el('tv-language-options').querySelector('[aria-pressed="true"]')||
+  el('tv-language-options').querySelector('button'))?.focus();
+};
+el('tv-language-cancel').onclick=()=>langDialog.close();
+langDialog.addEventListener('close',()=>langButton.focus({preventScroll:true}));
 try{
  const saved=JSON.parse(devicePrompt('get'));
  el('tv-subtitles-on').checked=!!saved.enabled;
  const valid=['en','es','fr','de','it','pt','ja','ko'];
- el('tv-subtitle-language').value=valid.includes(saved.language)?saved.language:'en';
+ chooseLanguage(valid.includes(saved.language)?saved.language:'en');
 }catch(error){message(error.message)}
 el('tv-subtitle-form').onsubmit=event=>{
  event.preventDefault();
