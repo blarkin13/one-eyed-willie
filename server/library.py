@@ -105,6 +105,13 @@ def db():
         completed INTEGER NOT NULL DEFAULT 0,
         updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     )""")
+    # Hide an entire Continue Watching title (including its next-episode
+    # suggestion) until playback is explicitly started again. Group keys
+    # survive poster refreshes and application restarts.
+    connection.execute("""CREATE TABLE IF NOT EXISTS continue_watching_hidden (
+        kind TEXT NOT NULL, library_id INTEGER NOT NULL, media_key TEXT NOT NULL,
+        PRIMARY KEY (kind,library_id,media_key)
+    )""")
     # A persistent revision lets open web/Google TV pages detect real media
     # changes without refreshing their entire poster grids every scan.
     connection.execute("""CREATE TABLE IF NOT EXISTS catalog_state (
