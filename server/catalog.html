@@ -495,49 +495,62 @@ function addMoviePoster(cover,item,src,fromDetails=false){
  };
  cover.append(img);img.src=src;
 }
-async function fetchMoviePosters(){
+// Resolve artwork only for the opening cards and those approaching the
+// viewport. Querying every poster at once competes with remote navigation.
+const moviePosterPending=[];
+let moviePosterActive=0;
+const movieBatchObserver='IntersectionObserver' in window
+ ?new IntersectionObserver(entries=>{
+   for(const entry of entries){
+    if(!entry.isIntersecting)continue;
+    movieBatchObserver.unobserve(entry.target);
+    entry.target._queueMoviePoster?.();
+   }
+   pumpMoviePosterBatches();
+  },{rootMargin:'350px'}):null;
+function pumpMoviePosterBatches(){
+ while(moviePosterActive<2&&moviePosterPending.length){
+  const part=moviePosterPending.splice(0,18).filter(job=>job.cover.isConnected);
+  if(!part.length)continue;
+  moviePosterActive++;
+  fetch('/api/movies/posters',{
+   method:'POST',headers:{'Content-Type':'application/json'},
+   body:JSON.stringify({items:part.map(j=>({
+    library_id:j.item.library_id,key:j.item.key
+   }))})
+  }).then(response=>{
+   if(!response.ok)throw Error('Poster batch unavailable');
+   return response.json();
+  }).then(data=>{
+   const map=new Map((data.items||[]).map(e=>[e.library_id+'|'+e.key,e.poster_url]));
+   for(const job of part){
+    if(!job.cover.isConnected)continue;
+    const poster=map.get(job.item.library_id+'|'+job.item.key);
+    if(poster?.startsWith('/api/artwork/'))addMoviePoster(job.cover,job.item,poster);
+    else requestMissingMoviePoster(job.cover,job.item);
+   }
+  }).catch(()=>{
+   for(const job of part)if(job.cover.isConnected)
+    requestMissingMoviePoster(job.cover,job.item);
+  }).finally(()=>{moviePosterActive--;pumpMoviePosterBatches()});
+ }
+}
+function fetchMoviePosters(){
  const jobs=moviePosterJobs.splice(0);
  if(!jobs.length)return;
- const batches=[jobs.slice(0,12)];
- for(let i=12;i<jobs.length;i+=50)batches.push(jobs.slice(i,i+50));
- let next=0;
- async function workerFirstBatch(){
-  // The same worker logic handles the first batch, with remaining batches
-  // held back until it finishes.
-  const first=batches[0];
-  const remaining=batches.splice(1);
-  next=0;
-  await worker();
-  batches.push(...remaining);
- }
- async function worker(){
-  while(next<batches.length){
-   const part=batches[next++];
-   try{
-    const response=await fetch('/api/movies/posters',{
-     method:'POST',headers:{'Content-Type':'application/json'},
-     body:JSON.stringify({items:part.map(j=>({
-      library_id:j.item.library_id,key:j.item.key
-     }))})
-    });
-    if(!response.ok)throw Error('Poster batch unavailable');
-    const data=await response.json();
-    const map=new Map((data.items||[]).map(e=>[e.library_id+'|'+e.key,e.poster_url]));
-    for(const job of part){
-     if(!job.cover.isConnected)continue;
-     const poster=map.get(job.item.library_id+'|'+job.item.key);
-     if(poster?.startsWith('/api/artwork/'))addMoviePoster(job.cover,job.item,poster);
-     else requestMissingMoviePoster(job.cover,job.item);
-    }
-   }catch(_){
-    for(const job of part)if(job.cover.isConnected)
-     requestMissingMoviePoster(job.cover,job.item);
-   }
+ for(const job of jobs){
+  if(!job.cover.isConnected)continue;
+  const card=job.cover.closest('.tile');
+  if(job.cover.dataset.priorityPoster==='1'||!movieBatchObserver||!card){
+   moviePosterPending.push(job);
+  }else{
+   card._queueMoviePoster=()=>{if(job.cover.isConnected){
+    moviePosterPending.push(job);pumpMoviePosterBatches();
+   }};
+   movieBatchObserver.observe(card);
   }
  }
-// Resolve the visible first row before starting lower-priority batches.
- await workerFirstBatch();
- await Promise.all([worker(),worker(),worker()]);
+ pumpMoviePosterBatches();
 }
 // Artwork requests are intentionally lazy and capped to avoid rate limiting.
 const posterQueue=[];
@@ -689,14 +702,20 @@ async function load({preserveFocus=false}={},quiet=false){
   const previousScroll=(document.scrollingElement||document.documentElement).scrollTop;
   $('items').replaceChildren();
   moviePosterJobs.length=0;posterQueue.length=0;movieFallbackQueue.length=0;
-  const fragment=document.createDocumentFragment();
-  for(const [index,item] of entries.entries()){
+  // Render a usable first row before constructing the rest of a large grid.
+  // Each appended chunk preserves existing cards, scroll and D-pad focus.
+  const appendCards=(start,end)=>{
+   const fragment=document.createDocumentFragment();
+   for(let index=start;index<end;index++){
+    const item=entries[index];
     const card=createCard(item,index);
-    const letter=titleInitial(item.title);
-    card.dataset.letter=letter;
+    card.dataset.letter=titleInitial(item.title);
     fragment.append(card);
-  }
-  $('items').append(fragment);
+   }
+   $('items').append(fragment);
+  };
+  const firstCount=Math.min(24,entries.length);
+  appendCards(0,firstCount);
   if(focusId){
     const restored=[...$('items').querySelectorAll('.tile-button')].find(link=>
       [link.dataset.hoverKind,link.dataset.hoverLibraryId,link.dataset.hoverKey].join('|')===focusId);
@@ -705,10 +724,20 @@ async function load({preserveFocus=false}={},quiet=false){
       (document.scrollingElement||document.documentElement).scrollTop=previousScroll;
     }
   }
-  drawAlphabet(entries);
-  if(type==='movies')fetchMoviePosters();
   $('results-count').textContent=total.toLocaleString()+' titles';
   $('status').textContent='';
+  if(type==='movies')fetchMoviePosters();
+  // Yield to paint and the remote between bounded construction passes.
+  const appendRemaining=async()=>{
+   for(let start=firstCount;start<entries.length;start+=48){
+    await new Promise(resolve=>setTimeout(resolve,16));
+    if(thisRequest!==requestId)return;
+    appendCards(start,Math.min(start+48,entries.length));
+    if(type==='movies')fetchMoviePosters();
+   }
+   if(thisRequest===requestId)drawAlphabet(entries);
+  };
+  void appendRemaining();
   if(!total){
     const empty=document.createElement('div');empty.className='empty';
     const heading=document.createElement('h3');heading.textContent='No titles found';
