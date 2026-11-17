@@ -45,6 +45,12 @@
 <div id="library-icon-categories" class="library-icon-categories" role="group" aria-label="Icon categories"></div>
 <div id="library-icon-grid" class="library-icon-picker" role="group" aria-labelledby="icon-heading"></div>
 <p id="library-icons-empty" class="settings-muted" hidden>No matching icons.</p>
+<div class="library-art-actions" id="sidebar-icon-actions">
+ <button type="button" class="secondary-button" id="icon-upload">Upload / Replace PNG</button>
+ <button type="button" class="secondary-button" id="icon-reset">Revert to default</button>
+ <input type="file" id="icon-file" accept="image/png,.png" hidden>
+</div>
+<p id="icon-upload-status" class="settings-muted" role="status">Default sidebar icon · PNG up to 2 MB. Preview before saving.</p>
 <div class="library-choice-heading"><h4 id="font-heading">Sidebar font</h4><span class="settings-muted">Select to preview</span></div>
 <div id="library-font-grid" class="library-font-picker" role="group" aria-labelledby="font-heading"></div>
 <section class="library-artwork-editor" aria-labelledby="art-heading">
@@ -101,10 +107,34 @@ const {icons,fonts}=appearance;
 const fontClass=id=>'library-font--'+(fonts[id]?id:'default');
 const categories=['All','Media','Genres','Collections','Themes'];
 let iconCategory='All';
+function defaultSidebarIcon(){
+ return '/assets/sidebar-icon-'+(byId('library-kind').value==='tv'?'tv':'movies')+'.png?v=1';
+}
+let stagedIcon=null,revertIcon=false,iconObjectUrl=null,currentIconUrl='';
+function sidebarPreviewIcon(size=35){
+ const key=byId('library-icon').value;
+ if(iconObjectUrl||currentIconUrl||['film','tv','folder'].includes(key)){
+  const image=document.createElement('img');
+  image.src=iconObjectUrl||currentIconUrl||defaultSidebarIcon();
+  image.width=size;image.height=size;image.alt='';image.className='sidebar-icon-preview-image';
+  return image;
+ }
+ return appearance.createIcon(key,size);
+}
+function releaseIconPreview(){
+ if(iconObjectUrl){URL.revokeObjectURL(iconObjectUrl);iconObjectUrl=null;}
+}
+function resetIconControls(lib=null){
+ releaseIconPreview();stagedIcon=null;revertIcon=false;
+ byId('icon-file').value='';
+ currentIconUrl=lib?.icon_image_url||'';
+ byId('icon-upload-status').textContent=lib?.icon_custom?'Custom uploaded sidebar icon':'Default sidebar icon';
+ updatePreview();
+}
 function updatePreview(){
  const name=byId('library-name').value.trim()||'Untitled library';
  const key=byId('library-icon').value,font=byId('library-font').value;
- byId('library-preview-icon').replaceChildren(appearance.createIcon(key,35));
+ byId('library-preview-icon').replaceChildren(sidebarPreviewIcon(35));
  const title=byId('library-preview-name');
  title.className='library-preview-name '+fontClass(font);title.textContent=name;
  byId('library-preview-kind').textContent=(byId('library-kind').value==='tv'?'TV Shows':'Movies')+' library';
@@ -116,6 +146,8 @@ function updatePreview(){
 }
 function chooseIcon(id){
  if(!icons[id])return;
+ releaseIconPreview();stagedIcon=null;currentIconUrl='';revertIcon=true;
+ byId('icon-upload-status').textContent='Preset icon selected — save to apply.';
  byId('library-icon').value=id;
  document.querySelectorAll('.library-icon-card').forEach(e=>e.setAttribute('aria-pressed',String(e.dataset.icon===id)));
  updatePreview();
@@ -163,6 +195,28 @@ function renderFonts(){
  }
 }
 function refreshAppearance(){renderCategories();renderIcons();renderFonts();updatePreview()}
+byId('icon-upload').addEventListener('click',()=>byId('icon-file').click());
+byId('icon-file').addEventListener('change',event=>{
+ const file=event.target.files?.[0];if(!file)return;
+ if(file.type!=='image/png'||!file.name.toLowerCase().endsWith('.png')){
+  byId('icon-upload-status').textContent='Choose a PNG image.';return;
+ }
+ if(file.size>2*1024*1024){
+  byId('icon-upload-status').textContent='PNG must be 2 MB or smaller.';return;
+ }
+ releaseIconPreview();stagedIcon=file;revertIcon=false;currentIconUrl='';
+ iconObjectUrl=URL.createObjectURL(file);
+ byId('icon-upload-status').textContent='Custom icon selected — save to apply.';
+ updatePreview();
+});
+byId('icon-reset').addEventListener('click',()=>{
+ releaseIconPreview();stagedIcon=null;revertIcon=true;currentIconUrl='';
+ byId('icon-file').value='';
+ byId('library-icon').value=byId('library-kind').value==='tv'?'tv':'film';
+ byId('icon-upload-status').textContent='Default icon selected — save to apply.';
+ renderIcons();updatePreview();
+});
+byId('library-editor').addEventListener('close',releaseIconPreview);
 byId('library-icon-search').addEventListener('input',renderIcons);
 byId('library-name').addEventListener('input',updatePreview);
 byId('library-visible').addEventListener('change',updatePreview);
@@ -180,7 +234,7 @@ function updateHeaderPreview(){
  const font=byId('library-font').value;
  const heading=byId('art-preview-name');
  heading.textContent=name;heading.className=fontClass(font);
- byId('art-preview-icon').replaceChildren(appearance.createIcon(byId('library-icon').value,31));
+ byId('art-preview-icon').replaceChildren(sidebarPreviewIcon(31));
  const src=headerObjectUrl||currentHeaderUrl||defaultHeader();
  if(image.getAttribute('src')!==src)image.src=src;
  for(const key of ['x','y','scale','opacity']){
@@ -249,7 +303,12 @@ async function load(){
    const article=document.createElement('article');article.className='settings-card';
    const head=document.createElement('div');head.className='library-settings-row';
    const logo=document.createElement('span');logo.className='library-settings-icon';logo.setAttribute('aria-hidden','true');
-   logo.append(appearance.createIcon(lib.icon,27));
+   const iconImage=document.createElement('img');
+   iconImage.src=lib.icon_image_url||('/assets/sidebar-icon-'+(lib.kind==='tv'?'tv':'movies')+'.png?v=1');
+   iconImage.className='sidebar-icon-preview-image';iconImage.width=30;iconImage.height=30;
+   iconImage.alt='';
+   if(lib.icon_image_url||['folder','film','tv'].includes(lib.icon))logo.append(iconImage);
+   else logo.append(appearance.createIcon(lib.icon,27));
    const details=document.createElement('div');details.className='library-settings-details';
    const title=document.createElement('h3');title.textContent=lib.name;
    const caption=document.createElement('p');caption.className='settings-muted';
@@ -310,7 +369,7 @@ function openAdd(){
  byId('editor-message').textContent='';
  byId('library-save').textContent='Create library';
  byId('library-icon-search').value='';iconCategory='All';refreshAppearance();
- resetHeaderControls();
+ resetHeaderControls();resetIconControls();
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
@@ -324,7 +383,7 @@ function openEdit(lib){
  byId('library-new-path').hidden=true;byId('editor-message').textContent='';
  byId('library-save').textContent='Save changes';
  byId('library-icon-search').value='';iconCategory='All';refreshAppearance();
- resetHeaderControls(lib);
+ resetHeaderControls(lib);resetIconControls(lib);
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
@@ -339,7 +398,7 @@ byId('library-kind').onchange=()=>{
  if(editing!==null)return;
  byId('library-name').value=byId('library-kind').value==='movies'?'Movies':'TV Shows';
  byId('library-icon').value=byId('library-kind').value==='movies'?'film':'tv';
- refreshAppearance();
+ resetIconControls();refreshAppearance();
  if(!stagedHeader){currentHeaderUrl=defaultHeader();updateHeaderPreview();}
 };
 byId('library-form').onsubmit=async event=>{
@@ -360,6 +419,17 @@ byId('library-form').onsubmit=async event=>{
    id=created.id;editing=id;
   }
   await api('/api/libraries/'+id,{method:'PATCH',body:JSON.stringify(payload)});
+  if(stagedIcon){
+   const response=await fetch('/api/libraries/'+id+'/icon.png',{
+    method:'PUT',headers:{'Content-Type':'image/png'},body:stagedIcon
+   });
+   if(!response.ok){
+    const error=await response.json().catch(()=>({}));
+    throw Error(typeof error.detail==='string'?error.detail:'Sidebar icon upload failed.');
+   }
+  }else if(revertIcon){
+   await api('/api/libraries/'+id+'/icon.png',{method:'DELETE'});
+  }
   if(stagedHeader){
    const result=await fetch('/api/libraries/'+id+'/header.png',{
      method:'PUT',headers:{'Content-Type':'image/png'},body:stagedHeader
