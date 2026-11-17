@@ -114,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.head.append(script);
     });
   function libraryGlyph(appearance,library){
-    if(library.icon_image_url && /^\\/api\\/libraries\\/[0-9]+\\/icon\\.png\\?v=[0-9]+$/.test(library.icon_image_url))
+    if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
       return coloredIcon(library.icon_image_url);
     const kind=library.kind==='tv'?'tv':'movies';
     // Standard libraries and new collections use the user's colorful
