@@ -45,6 +45,23 @@
 <p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
 </form></div></section>
+<section class="settings-section" aria-labelledby="tv-color-heading">
+<h2 id="tv-color-heading">Selection color</h2>
+<div class="settings-card">
+<p>Choose the highlight color for selected icons, navigation, and player controls.</p>
+<form id="tv-color-form">
+<label for="tv-color-button">Highlight color</label>
+<input type="hidden" id="tv-selected-color" value="#8B5CF6">
+<button type="button" id="tv-color-button" class="secondary-button" aria-haspopup="dialog" aria-controls="tv-color-dialog">Purple (default)</button>
+<dialog id="tv-color-dialog" aria-labelledby="tv-color-dialog-heading">
+<h2 id="tv-color-dialog-heading">Select a color</h2>
+<div id="tv-color-options" class="tv-language-options"></div>
+<button type="button" id="tv-color-cancel" class="secondary-button">Cancel</button>
+</dialog>
+<p class="settings-muted">This color is saved on the server and shared with other TVs. Subtitle preferences remain specific to this TV.</p>
+<div class="form-actions"><button type="submit" class="primary-button">Save selection color</button></div>
+</form>
+</div></section>
 <section class="settings-section" aria-labelledby="tv-shared-heading"><h2 id="tv-shared-heading">Playback</h2>
 <div class="settings-card"><form id="tv-playback-form">
 <label class="setting-toggle"><input id="tv-auto-next" type="checkbox"> Automatically play the next TV episode</label>
@@ -122,6 +139,54 @@ el('tv-subtitle-form').onsubmit=event=>{
 };
 el('tv-theme-volume').oninput=()=>{
  el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
+};
+const tvColors=[
+ ['#8B5CF6','Purple (default)'],['#3B82F6','Blue'],
+ ['#14B8A6','Teal'],['#22C55E','Green'],
+ ['#F59E0B','Orange'],['#EC4899','Pink'],
+ ['#EF4444','Red'],['#FFFFFF','White']
+];
+const colorDialog=el('tv-color-dialog'),colorButton=el('tv-color-button');
+function chooseColor(value){
+ const selected=tvColors.find(item=>item[0]===value)||tvColors[0];
+ el('tv-selected-color').value=selected[0];
+ colorButton.textContent=selected[1];
+ for(const item of el('tv-color-options').querySelectorAll('button')){
+  item.setAttribute('aria-pressed',String(item.dataset.color===selected[0]));
+ }
+}
+for(const [code,name] of tvColors){
+ const option=document.createElement('button');
+ option.type='button';option.dataset.color=code;
+ option.style.display='flex';option.style.alignItems='center';option.style.gap='12px';
+ const swatch=document.createElement('span');
+ swatch.style.cssText='display:inline-block;width:23px;height:23px;flex:none;border-radius:50%;border:1px solid #8b9db2';
+ swatch.style.backgroundColor=code;
+ const title=document.createElement('span');title.textContent=name;
+ option.append(swatch,title);
+ option.addEventListener('click',()=>{chooseColor(code);colorDialog.close()});
+ el('tv-color-options').append(option);
+}
+colorButton.onclick=()=>{
+ colorDialog.showModal();
+ (el('tv-color-options').querySelector('[aria-pressed="true"]')||
+  el('tv-color-options').querySelector('button'))?.focus();
+};
+el('tv-color-cancel').onclick=()=>colorDialog.close();
+colorDialog.addEventListener('close',()=>colorButton.focus({preventScroll:true}));
+api('/api/settings/tv-appearance').then(data=>{
+ chooseColor(data.selection_color);
+}).catch(error=>message('Could not load selection color: '+error.message));
+el('tv-color-form').onsubmit=async event=>{
+ event.preventDefault();
+ try{
+  const chosen=el('tv-selected-color').value;
+  await api('/api/settings/tv-appearance',{
+   method:'PUT',body:JSON.stringify({selection_color:chosen})
+  });
+  document.documentElement.style.setProperty('--oew-tv-select-color',chosen);
+  message('Selection color saved. Player controls use it when playback opens.');
+ }catch(error){message('Could not save selection color: '+error.message)}
 };
 let sharedPlayback=null;
 api('/api/settings/playback').then(data=>{
