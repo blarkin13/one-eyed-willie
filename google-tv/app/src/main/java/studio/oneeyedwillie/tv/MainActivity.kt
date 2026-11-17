@@ -481,7 +481,7 @@ class MainActivity : ComponentActivity() {
                 '.willie-hover-backdrop-layer.is-visible,.oew-tv-cinematic-image.is-visible')];
               const layer=layers.find(node=>getComputedStyle(node).backgroundImage.includes('url('));
               const raw=layer?getComputedStyle(layer).backgroundImage:'';
-              const matched=raw.match(/url\\(["']?(.+?)["']?\\)/);
+              const matched=raw.match(/url\(["']?(.+?)["']?\)/);
               const poster=document.querySelector(
                 '.tile-button:focus .poster-image,.tile-button:focus img');
               const src=matched?.[1]||poster?.currentSrc||poster?.src;
