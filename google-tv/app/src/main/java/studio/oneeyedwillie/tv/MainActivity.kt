@@ -44,6 +44,8 @@ class MainActivity : ComponentActivity() {
     private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
+    private var lastTvMoveAt = 0L
+    private var lastTvDirection = ""
 
     private var loadingOverlay: FrameLayout? = null
     private var loadingCaption: TextView? = null
@@ -213,14 +215,7 @@ class MainActivity : ComponentActivity() {
                     finishTvTextEditing(web)
                     return
                 }
-                // Closing the tiny episode menu must never navigate away from
-                // the season page. Evaluation is asynchronous on the UI thread.
-                web.evaluateJavascript("Boolean(window.__willieCloseSeasonMenu?.())") { result ->
-                    if (result == "true") return@evaluateJavascript
-                    if (web.canGoBack()) web.goBack()
-                    else if (web.url != origin + "/") web.loadUrl(origin + "/")
-                    else showSetup()
-                }
+                navigateBackToParent(web)
             }
         })
         val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
@@ -552,11 +547,21 @@ class MainActivity : ComponentActivity() {
             .apply { if (shuffleQueue != null) putExtra("shuffle_queue", shuffleQueue) })
     }
 
-    /**
-     * WebView's native spatial navigation and page-level JavaScript navigation
-     * must never both process one D-pad key. Dispatch exactly one focus move
-     * on ACTION_DOWN; consume ACTION_UP as well so WebView cannot jump twice.
-     */
+    /** Back is hierarchical, not the WebView's browsing history. */
+    private fun navigateBackToParent(web: WebView) {
+        web.evaluateJavascript(
+            "window.__willieTvBack ? window.__willieTvBack() : '/'"
+        ) { result ->
+            if (browser !== web || isFinishing) return@evaluateJavascript
+            val target = try { org.json.JSONArray("[" + result + "]").optString(0, "/") }
+                catch (_: Exception) { "/" }
+            if (target == "handled") return@evaluateJavascript
+            if (target.startsWith("/") && !target.startsWith("//")) {
+                if (web.url != origin + target) web.loadUrl(origin + target)
+            } else web.loadUrl(origin + "/")
+        }
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val direction = when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> "left"
@@ -566,44 +571,40 @@ class MainActivity : ComponentActivity() {
             else -> null
         }
         val web = browser
-        if (loadingOverlay?.visibility == View.VISIBLE && direction != null) {
-            // An error screen uses native focusable Retry / Settings buttons.
+        if (loadingOverlay?.visibility == View.VISIBLE && direction != null)
             return if (loadingFailed) super.dispatchKeyEvent(event) else true
-        }
         if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                if (tvTextEditing) {
-                    finishTvTextEditing(web)
-                    return true
-                }
-                // Explore More opens its details within the same WebView
-                // document. Close that view before leaving the whole page.
-                web.evaluateJavascript(
-                    """(() => {
-                        const panel = document.getElementById('explore-detail');
-                        if (panel && !panel.hidden && typeof window.restoreExplore === 'function') {
-                            window.restoreExplore();
-                            return true;
-                        }
-                        return false;
-                    })()""".trimIndent()
-                ) { result ->
-                    if (browser === web && result != "true") {
-                        if (web.canGoBack()) web.goBack() else finish()
-                    }
-                }
+                if (tvTextEditing) finishTvTextEditing(web)
+                else navigateBackToParent(web)
             }
             return true
         }
+        if (web != null && !tvTextEditing &&
+            (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
+             event.keyCode == KeyEvent.KEYCODE_ENTER ||
+             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0)
+                web.evaluateJavascript("window.__willieTvSelect?.()", null)
+            return true
+        }
         if (direction != null && web != null) {
-            // Cursor/IME arrows belong to the editor after OK, but otherwise
-            // navigate normally between fields and the rest of the page.
             if (tvTextEditing) return super.dispatchKeyEvent(event)
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                web.evaluateJavascript(
-                    "window.__willieTvMove && window.__willieTvMove('$direction')",
-                    null
-                )
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                val now = android.os.SystemClock.uptimeMillis()
+                if (event.repeatCount == 0 || direction != lastTvDirection ||
+                    now - lastTvMoveAt >= 75L) {
+                    lastTvMoveAt = now
+                    lastTvDirection = direction
+                    web.evaluateJavascript("window.__willieTvMove?.('$direction')", null)
+                    val sound = when (direction) {
+                        "left" -> android.view.SoundEffectConstants.NAVIGATION_LEFT
+                        "right" -> android.view.SoundEffectConstants.NAVIGATION_RIGHT
+                        "up" -> android.view.SoundEffectConstants.NAVIGATION_UP
+                        else -> android.view.SoundEffectConstants.NAVIGATION_DOWN
+                    }
+                    web.playSoundEffect(sound)
+                }
             }
             return true
         }
