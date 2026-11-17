@@ -41,11 +41,17 @@ document.addEventListener('DOMContentLoaded', () => {
     wrap.setAttribute('aria-hidden','true');
     const image=document.createElement('img');image.className='sidebar-colored-image';
     image.src=url;image.alt='';image.width=size;image.height=size;
+    // Keep navigation usable if a configured image fails to load.
+    image.addEventListener('error',()=>{
+      const fallback=glyph('fa-gear','settings');
+      fallback.classList.add('nav-icon-fallback');
+      wrap.replaceWith(fallback);
+    },{once:true});
     wrap.append(image);return wrap;
   }
   function defaultIcon(kind){
     const safe=['home','movies','tv','radarr','sonarr','sabnzbd','settings'].includes(kind)?kind:'movies';
-    return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v2');
+    return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v3');
   }
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
