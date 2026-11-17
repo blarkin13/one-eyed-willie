@@ -355,6 +355,12 @@ def credits_settings_page():
     return FileResponse(Path(__file__).with_name("credits.html"), media_type="text/html")
 
 
+@app.get("/settings/appearance")
+def appearance_settings_page():
+    return FileResponse(Path(__file__).with_name("appearance_settings.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/settings/general")
 def general_settings_page():
     return FileResponse(Path(__file__).with_name("general_settings.html"), media_type="text/html",
