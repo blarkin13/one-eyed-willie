@@ -99,6 +99,19 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("!initialPageLoaded)", src)
         self.assertIn("if (browser === web && sameOrigin(url.orEmpty()) && !initialPageLoaded)", src)
 
+    def test_search_ime_stays_active_during_transient_focus_changes(self):
+        self.assertIn("window.__willieTvRefocusText", self.source)
+        self.assertIn("ime.restartInput(web)", self.source)
+        self.assertIn("ime.showSoftInput(web", self.source)
+        self.assertIn("Only Back, deliberate remote navigation or an", self.source)
+
+    def test_library_horizontal_movement_is_level_and_up_reaches_toolbar(self):
+        self.assertIn("const moveLibraryHorizontal=(active,direction)=>", self.source)
+        self.assertIn("focusNode(row[next],{preserveVertical:true})", self.source)
+        self.assertIn("const moveLibraryToolbar=(active,direction)=>", self.source)
+        self.assertIn("glideTo(document.scrollingElement||document.documentElement,'top',0)", self.source)
+        self.assertIn("if(moveLibraryToolbar(active,direction))return true;", self.source)
+
     def test_non_text_inputs_are_unaffected(self):
         src = self.source
         self.assertIn("['text','search','email','password','tel','url','number']", src)
