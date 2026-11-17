@@ -2213,6 +2213,48 @@ class MainActivity : ComponentActivity() {
               )].filter(isVisible);
               const libraryRowTop=node=>
                 node.closest('.tile')?.offsetTop ?? node.offsetTop;
+              let alphabetReturnPoster=null;
+              const alphabetButtons=()=>[...document.querySelectorAll(
+                '#alpha-nav button:not(:disabled)')].filter(isVisible);
+              const moveLibraryAlphabet=(active,direction)=>{
+                if(!isLibraryGrid())return false;
+                const letters=alphabetButtons();
+                if(!letters.length)return false;
+                if(active?.matches?.('#alpha-nav button')){
+                  const index=letters.indexOf(active);
+                  if(direction==='left'){
+                    const previous=alphabetReturnPoster?.isConnected?
+                      alphabetReturnPoster:document.querySelector('#items .tile-button');
+                    alphabetReturnPoster=null;
+                    if(previous){readingScroll=false;return focusNode(previous,{preserveVertical:true})}
+                    return true;
+                  }
+                  if(direction==='up'||direction==='down'){
+                    const next=Math.max(0,Math.min(letters.length-1,
+                      index+(direction==='down'?1:-1)));
+                    readingScroll=false;
+                    return focusNode(letters[next]);
+                  }
+                  if(direction==='right')return true;
+                }
+                if(direction==='right' && active?.matches?.('#items .tile-button')){
+                  const rowTop=libraryRowTop(active);
+                  const currentRow=[...document.querySelectorAll('#items .tile-button')]
+                    .filter(isVisible).filter(node=>
+                      Math.abs(libraryRowTop(node)-rowTop)<3);
+                  const last=currentRow.reduce((max,node)=>
+                    Math.max(max,rect(node).right),-Infinity);
+                  if(rect(active).right>=last-3){
+                    alphabetReturnPoster=active;
+                    const initial=active.closest('[data-letter]')?.dataset.letter;
+                    const target=letters.find(node=>node.textContent===initial)||
+                      letters[0];
+                    readingScroll=false;
+                    return focusNode(target,{preserveVertical:true});
+                  }
+                }
+                return false;
+              };
               const moveLibraryHorizontal=(active,direction)=>{
                 if(!isLibraryGrid() || !['left','right'].includes(direction) ||
                    !active?.matches?.('#items .tile-button'))return false;
@@ -2344,6 +2386,7 @@ class MainActivity : ComponentActivity() {
                 const nodes=candidates();
                 if(!nodes.length)return false;
                 if(moveLibraryToolbar(active,direction))return true;
+                if(moveLibraryAlphabet(active,direction))return true;
                 if(moveLibraryHorizontal(active,direction))return true;
                 if(moveLibraryGridRow(active,direction))return true;
                 // Intentional TV navigation: every episode tile leads DOWN to
