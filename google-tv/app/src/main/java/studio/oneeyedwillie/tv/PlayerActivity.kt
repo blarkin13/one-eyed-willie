@@ -895,7 +895,7 @@ class PlayerActivity : ComponentActivity() {
                     } else if (focused === iconControls.firstOrNull()) {
                         if (direction == KeyEvent.KEYCODE_DPAD_DOWN)
                             timeline.requestFocus()
-                    } else if (iconControls.contains(focused)) {
+                    } else if (iconControls.any { it === focused }) {
                         if (direction == KeyEvent.KEYCODE_DPAD_UP)
                             timeline.requestFocus()
                     } else playButton.requestFocus()
