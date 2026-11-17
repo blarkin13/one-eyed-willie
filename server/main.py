@@ -296,11 +296,11 @@ def brand_logo():
 @app.get("/assets/sidebar-icon-{name}.png")
 def sidebar_default_icon(name: str):
     from fastapi import HTTPException
-    from server.sidebar_default_icons import ICONS, default_icon_png
-    if name not in ICONS:
-        raise HTTPException(404, "Unknown sidebar icon")
-    return Response(content=default_icon_png(name), media_type="image/png",
-                    headers={"Cache-Control": "public, max-age=604800",
+    from server.sidebar_settings import sidebar_icon_bytes
+    icon, revision = sidebar_icon_bytes(name)
+    return Response(content=icon, media_type="image/png",
+                    headers={"Cache-Control": "private, no-cache",
+                             "ETag": f'"{name}-{revision}"',
                              "X-Content-Type-Options": "nosniff"})
 
 
