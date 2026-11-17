@@ -1012,7 +1012,22 @@ class MainActivity : ComponentActivity() {
                   padding-right:clamp(36px,5vw,95px)!important
                 }
                 #items{grid-template-columns:repeat(5,minmax(0,1fr))!important;
-                  gap:32px 20px!important}
+                  gap:22px 20px!important}
+                body:is([data-page="movies"],[data-page="tv"]) .library-head{
+                  padding:7px 7px 4px!important;gap:4px!important;margin-bottom:5px!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .library-trivia{
+                  gap:1px!important;padding-top:0!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .trivia-question{
+                  min-height:1.45em!important;line-height:1.2!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .trivia-answer{
+                  min-height:1.4em!important
+                }
+                body:is([data-page="movies"],[data-page="tv"]) .library-head + .section-heading{
+                  margin-bottom:5px!important
+                }
                 /* Fit five comfortable posters across TV WebView's CSS viewport.
                    Android TV often reports ~960 CSS px even on a 1080p set. */
                 /* Home-only trial: 60% of the current poster dimensions,
@@ -2088,31 +2103,47 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               document.body.classList.remove('oew-tv-rail-open');
-              // New documents must not show the rail just because WebView
-              // transferred focus from the old page's selected nav link.
-              // Begin on content; the rail opens only after remote Left.
+              // Wait for async library content, then focus its first poster.
+              let tvUserMoved=false,initialFocusSettled=false;
               const settleInitialFocus=()=>{
-                if(document.querySelector('dialog[open]'))return true;
+                if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
-                if(active && !isMenu(active) && active!==document.body &&
-                   active!==document.documentElement)return true;
-                const preferred=primaryDetailAction();
-                const field=document.querySelector('.content input[type="search"],.content input[type="text"]');
-                const destination=(preferred&&isVisible(preferred)?preferred:null)||
+                if(tvUserMoved || (active && !isMenu(active) &&
+                   active!==document.body && active!==document.documentElement))
+                  return true;
+                const library=['/movies','/tv'].includes(location.pathname);
+                const preferred=library?null:primaryDetailAction();
+                const field=document.querySelector(
+                  '.content input[type="search"],.content input[type="text"]');
+                const dest=(preferred&&isVisible(preferred)?preferred:null)||
                   firstPoster()||
-                  [...document.querySelectorAll('.content button,.content a[href]')].find(isVisible)||
+                  (!library?[...document.querySelectorAll(
+                    '.content button,.content a[href]')].find(isVisible):null)||
                   (field&&isVisible(field)?field:null);
-                if(!destination)return false;
-                destination.focus({preventScroll:true});
+                if(!dest)return false;
+                dest.focus({preventScroll:true});
+                if(library)(document.scrollingElement||document.documentElement).scrollTop=0;
+                if(location.pathname==='/')
+                  dest.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
                 return true;
               };
-              if(!settleInitialFocus()){
-                let attempts=0;
-                const focusTimer=setInterval(()=>{
-                  if(settleInitialFocus()||++attempts>=12)clearInterval(focusTimer);
-                },100);
-              }
-              window.__willieTvMove=move;
+              window.__willieTvMove=direction=>{
+                tvUserMoved=true;return move(direction);
+              };
+              const tryFocus=()=>{
+                if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
+              };
+              tryFocus();
+              const focusObserver=new MutationObserver(tryFocus);
+              focusObserver.observe(document.body,{childList:true,subtree:true});
+              let focusAttempts=0;
+              const focusTimer=setInterval(()=>{
+                tryFocus();
+                if(initialFocusSettled||++focusAttempts>=80){
+                  clearInterval(focusTimer);focusObserver.disconnect();
+                }
+              },100);
+              
             })();
         """.trimIndent()
     }
