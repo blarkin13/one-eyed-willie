@@ -29,6 +29,8 @@ import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import java.net.URI
+import android.util.Log
+import android.webkit.JavascriptInterface
 
 /**
  * The same One-Eyed Willie UI served to desktop browsers is the TV UI.
@@ -39,6 +41,7 @@ class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("server", MODE_PRIVATE) }
     private var browser: WebView? = null
     private var origin = ""
+    private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
 
@@ -338,6 +341,22 @@ class MainActivity : ComponentActivity() {
         origin = server.trimEnd('/')
         val view = WebView(this)
         browser = view
+        // Only acknowledges the exact persisted checkpoint after same-origin
+        // JavaScript fetch received HTTP 2xx. It cannot modify other app data.
+        view.addJavascriptInterface(object {
+            @JavascriptInterface
+            fun confirmed(key: String, serialized: String) {
+                runOnUiThread {
+                    if (browser !== view || !sameOrigin(view.url.orEmpty())) return@runOnUiThread
+                    if (!key.startsWith("progress:$origin:")) return@runOnUiThread
+                    if (pendingProgressPrefs.getString(key, null) != serialized) return@runOnUiThread
+                    pendingProgressPrefs.edit().remove(key).apply()
+                    view.evaluateJavascript(
+                        "document.dispatchEvent(new Event('willie:watch-updated'))", null
+                    )
+                }
+            }
+        }, "OneEyedWillieProgress")
         view.setBackgroundColor(Color.BLACK)
         view.isFocusable = true
         view.isFocusableInTouchMode = true
@@ -590,6 +609,52 @@ class MainActivity : ComponentActivity() {
         view.evaluateJavascript(TV_REMOTE_SCRIPT, null)
     }
 
+    /**
+     * Native HttpURLConnection writes can fail independently of ExoPlayer's
+     * ongoing video stream. The foreground WebView already has a working
+     * same-origin connection; use that path to flush any saved checkpoints
+     * whenever the viewer returns from PlayerActivity. Never clear a pending
+     * checkpoint without a real HTTP 2xx response from the server.
+     */
+    private fun syncPendingPlaybackProgress() {
+        val web = browser ?: return
+        if (!sameOrigin(web.url.orEmpty()) || origin.isBlank()) return
+        val store = pendingProgressPrefs
+        val prefix = "progress:$origin:"
+        for ((key, saved) in store.all) {
+            if (!key.startsWith(prefix) || saved !is String) continue
+            val mediaId = key.removePrefix(prefix).toIntOrNull() ?: continue
+            if (mediaId <= 0) continue
+            val checkpoint = try { JSONObject(saved) } catch (_: Exception) { continue }
+            if (checkpoint.optInt("media_id") != mediaId) continue
+            val seconds = checkpoint.optDouble("position_seconds", Double.NaN)
+            if (!seconds.isFinite() || seconds < 0.0) continue
+            // Escape JSON as a JS string, not as JavaScript source code.
+            val payload = JSONObject.quote(saved)
+            val keyArg = JSONObject.quote(key)
+            val script = """
+                (async () => {
+                  try {
+                    const response = await fetch('/api/playback/progress', {
+                      method: 'POST',
+                      headers: {'Content-Type': 'application/json'},
+                      body: $payload,
+                      cache: 'no-store'
+                    });
+                    if (response.ok) {
+                      window.OneEyedWillieProgress?.confirmed($keyArg, $payload);
+                    }
+                    return response.ok;
+                  } catch (_) { return false; }
+                })()
+            """.trimIndent()
+            // Android evaluateJavascript does not await a returned Promise.
+            // The JS bridge above acknowledges only after fetch reports HTTP
+            // success; failed requests remain on disk for the next retry.
+            web.evaluateJavascript(script, null)
+        }
+    }
+
     override fun onResume() {
         super.onResume()
         // Read the player state via the JavaScript evaluation callback.
@@ -614,6 +679,7 @@ class MainActivity : ComponentActivity() {
         browser?.evaluateJavascript(
             "document.dispatchEvent(new Event('willie:watch-updated'))", null
         )
+        syncPendingPlaybackProgress()
     }
 
     override fun onPause() {

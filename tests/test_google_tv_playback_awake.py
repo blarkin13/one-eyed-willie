@@ -59,6 +59,26 @@ class GoogleTvPlaybackAwakeTests(unittest.TestCase):
         self.assertNotIn('showMessage("Playback progress was not saved ($failure).")', src)
         self.assertIn('if (network.isShutdown) return', src)
 
+    def test_pending_progress_syncs_through_same_origin_webview(self):
+        main = (ANDROID / "MainActivity.kt").read_text()
+        player = (ANDROID / "PlayerActivity.kt").read_text()
+        self.assertIn('getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE)', main)
+        self.assertIn('private fun syncPendingPlaybackProgress()', main)
+        self.assertIn('if (!sameOrigin(web.url.orEmpty()) || origin.isBlank()) return', main)
+        self.assertIn("if (!key.startsWith(prefix) || saved !is String) continue", main)
+        self.assertIn("if (checkpoint.optInt(\"media_id\") != mediaId) continue", main)
+        self.assertIn("fetch('/api/playback/progress'", main)
+        self.assertIn("if (response.ok)", main)
+        self.assertIn("OneEyedWillieProgress?.confirmed", main)
+        self.assertIn("if (pendingProgressPrefs.getString(key, null) != serialized)", main)
+        self.assertIn("pendingProgressPrefs.edit().remove(key).apply()", main)
+        self.assertIn("syncPendingPlaybackProgress()", main)
+        self.assertIn("document.dispatchEvent(new Event('willie:watch-updated'))", main)
+        self.assertIn("override fun onPause()", player)
+        self.assertIn("saveProgress(false)", player)
+        self.assertIn('connection.setRequestProperty("Connection", "close")', player)
+        self.assertIn("Log.w(\"OneEyedWillie\", \"Progress POST attempt", player)
+
     def test_webview_fallback_releases_screen_after_video_or_navigation(self):
         src = (ANDROID / "MainActivity.kt").read_text()
         self.assertIn('message == "oewtv:awake:1" || message == "oewtv:awake:0"', src)
