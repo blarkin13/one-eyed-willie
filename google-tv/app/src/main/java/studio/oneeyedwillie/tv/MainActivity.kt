@@ -1506,7 +1506,15 @@ class MainActivity : ComponentActivity() {
               const centerY=r=>r.top+r.height/2;
               const candidates=()=>[...document.querySelectorAll(selector)].filter(isVisible)
                 .filter(node=>!node.matches('[data-season-scroll-arrow]'));
-              const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')].filter(isVisible);
+              // Closed TV rail uses pointer-events:none. Such links are
+              // deliberately omitted by isVisible(), but D-pad Left must
+              // still be able to enter and reveal the closed rail. Filter
+              // actual hidden navigation destinations, not hit-testing state.
+              const allMenu=()=>[...document.querySelectorAll('#app-nav .side-nav .nav-link')]
+                .filter(node=>node.isConnected &&
+                  !node.closest('[hidden],[inert],[aria-hidden="true"]') &&
+                  getComputedStyle(node).display!=='none' &&
+                  getComputedStyle(node).visibility!=='hidden');
               const isMenu=node=>Boolean(node?.closest?.('#app-nav'));
               const contentSelector='.tile-button,.explore-card .detail-trigger,.episode-card a[href],.season-card a[href],.person-credit-link,.season-episode-tile';
               const allPosters=()=>[...document.querySelectorAll(contentSelector)].filter(isVisible);
@@ -1918,6 +1926,13 @@ class MainActivity : ComponentActivity() {
                 const other=nodes.filter(node=>!isMenu(node));
                 const next=findAdjacent(active,direction,other);
                 if(next)return focusNode(next);
+                // Give Left a reliable escape into navigation even on a
+                // details/search page without poster cards.
+                if(direction==='left'){
+                  const menu=allMenu();
+                  if(menu.length)return focusNode(
+                    menu.find(n=>n.getAttribute('aria-current')==='page')||menu[0]);
+                }
                 if(direction==='up'||direction==='down'){
                   if(scrollRead(direction)){
                     readingScroll=true;
