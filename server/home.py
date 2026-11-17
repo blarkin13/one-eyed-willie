@@ -42,6 +42,8 @@ def _describe(media, lib):
             "subtitle": " · ".join(parts) if parts else "TV Show",
             "library_id": lib["id"], "key": info["key"],
             "group": (lib["id"], info["key"]),
+            "season_number": season,
+            "episode_number": episode,
         }
     except (ValueError, OSError):
         return None
@@ -60,7 +62,11 @@ def _progress_revision(connection):
         "COALESCE(SUM(duration_seconds), 0), "
         "COALESCE(SUM(completed), 0) FROM playback_progress"
     ).fetchone()
-    return [row[0], row[1], round(row[2], 3), round(row[3], 3), row[4]]
+    hidden = connection.execute(
+        "SELECT COUNT(*), COALESCE(SUM(rowid), 0) FROM continue_watching_hidden"
+    ).fetchone()
+    return [row[0], row[1], round(row[2], 3), round(row[3], 3), row[4],
+            hidden[0], hidden[1]]
 
 
 @router.get("/home/revision")
@@ -71,6 +77,46 @@ def home_revision():
         ).fetchone()[0]
         progress = _progress_revision(connection)
     return {"catalog_revision": catalog, "progress_revision": progress}
+
+
+def _media_group(connection, media_id: int):
+    row = connection.execute(
+        "SELECT media.id,media.path,media.source_root,libraries.id AS library_id,"
+        "libraries.kind,libraries.path AS library_path FROM media "
+        "JOIN libraries ON libraries.id=media.library_id WHERE media.id=?",
+        (media_id,)
+    ).fetchone()
+    if not row:
+        raise HTTPException(404, "Media item not found")
+    lib = {"id": row["library_id"], "kind": row["kind"],
+           "path": row["library_path"]}
+    description = _describe(row, lib)
+    if not description:
+        raise HTTPException(404, "Media details unavailable")
+    return (description["kind"], description["library_id"], description["key"])
+
+
+@router.post("/home/continue/{media_id}/dismiss")
+def dismiss_continue_watching(media_id: int):
+    with db() as connection:
+        group = _media_group(connection, media_id)
+        connection.execute(
+            "INSERT OR IGNORE INTO continue_watching_hidden(kind,library_id,media_key) "
+            "VALUES(?,?,?)", group
+        )
+    return {"dismissed": True, "media_id": media_id}
+
+
+@router.post("/home/continue/{media_id}/start")
+def started_continue_watching(media_id: int):
+    """Explicit playback start restores dismissed titles, not page refreshes."""
+    with db() as connection:
+        group = _media_group(connection, media_id)
+        connection.execute(
+            "DELETE FROM continue_watching_hidden WHERE kind=? AND library_id=? "
+            "AND media_key=?", group
+        )
+    return {"dismissed": False, "media_id": media_id}
 
 
 @router.get("/home")
@@ -93,6 +139,12 @@ def home_shelves():
             "FROM playback_progress"
         )}
         watched_ids = {media_id for media_id, entry in progress.items() if entry["completed"]}
+        hidden_groups = {
+            (row["kind"], row["library_id"], row["media_key"])
+            for row in connection.execute(
+                "SELECT kind,library_id,media_key FROM continue_watching_hidden"
+            )
+        }
         rows = connection.execute(
             "SELECT id,library_id,path,source_root,added_at,mtime_ns FROM media "
             "ORDER BY added_at DESC, mtime_ns DESC, id DESC"
@@ -134,7 +186,9 @@ def home_shelves():
             if duration > 0 and position >= duration * .95:
                 continue
             desc = descriptions.get(media_id)
-            if not desc or desc["group"] in in_progress_groups:
+            if not desc or desc["group"] in in_progress_groups or (
+                desc["kind"], desc["library_id"], desc["key"]
+            ) in hidden_groups:
                 continue
             in_progress_groups.add(desc["group"])
             candidates.append((
@@ -143,6 +197,7 @@ def home_shelves():
                     "title": desc["title"], "year": desc["year"],
                     "library_id": desc["library_id"], "key": desc["key"],
                     "subtitle": desc["subtitle"], "play_state": "resume",
+                    "season_number": desc.get("season_number"),
                     "position_seconds": position,
                     "duration_seconds": duration,
                     "progress_percent": round(position * 100 / duration) if duration > 0 else None,
@@ -151,7 +206,7 @@ def home_shelves():
             ))
 
         for group, episodes in tv_episodes.items():
-            if group in in_progress_groups:
+            if group in in_progress_groups or ("tv", group[0], group[1]) in hidden_groups:
                 continue
             # Completed episodes establish series history. Next means the
             # first indexed, unwatched episode after the latest completed one,
@@ -180,6 +235,7 @@ def home_shelves():
                     "title": desc["title"], "year": desc["year"],
                     "library_id": desc["library_id"], "key": desc["key"],
                     "subtitle": desc["subtitle"], "play_state": "next",
+                    "season_number": desc.get("season_number"),
                     "position_seconds": 0, "duration_seconds": 0,
                     "progress_percent": None, "updated_at": last_date,
                 }
