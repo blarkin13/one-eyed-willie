@@ -1,6 +1,9 @@
 """Persist ordered, visible sidebar destinations without exposing arbitrary links."""
 import json
-from fastapi import APIRouter, HTTPException
+import io
+import time
+from PIL import Image, UnidentifiedImageError
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from .library import db
 
@@ -15,6 +18,7 @@ NAV = (
     ("services", "Download services"),
 )
 ALWAYS_VISIBLE = {"home", "settings"}
+ICON_NAMES = ("home", "movies", "tv", "radarr", "sonarr", "sabnzbd", "settings")
 
 
 class SidebarRequest(BaseModel):
@@ -98,3 +102,80 @@ def update_sidebar(payload: SidebarRequest):
                              (int(entry["id"] in payload.hidden),
                               int(entry["id"].split(":")[1])))
     return get_sidebar()
+
+def _icon_table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS sidebar_custom_icons (
+        name TEXT PRIMARY KEY, png BLOB NOT NULL, revision INTEGER NOT NULL
+    )""")
+
+
+@router.get("/sidebar/icons")
+def sidebar_icons_status():
+    with db() as conn:
+        _icon_table(conn)
+        rows = conn.execute("SELECT name,revision FROM sidebar_custom_icons").fetchall()
+        revisions = {r["name"]: r["revision"] for r in rows}
+    return {"icons": [
+        {"name": name, "custom": name in revisions,
+         "url": f"/assets/sidebar-icon-{name}.png?v={revisions.get(name, 'pirate-v2')}"}
+        for name in ICON_NAMES
+    ]}
+
+
+def sidebar_icon_bytes(name: str):
+    """Return the customized icon or its built-in default, with revision."""
+    if name not in ICON_NAMES:
+        raise HTTPException(404, "Unknown sidebar icon")
+    with db() as conn:
+        _icon_table(conn)
+        row = conn.execute(
+            "SELECT png,revision FROM sidebar_custom_icons WHERE name=?", (name,)
+        ).fetchone()
+    if row:
+        return bytes(row["png"]), str(row["revision"])
+    from .sidebar_default_icons import default_icon_png
+    return default_icon_png(name), "pirate-v2"
+
+
+@router.put("/sidebar/icons/{name}")
+async def upload_sidebar_icon(name: str, request: Request):
+    if name not in ICON_NAMES:
+        raise HTTPException(404, "Unknown sidebar icon")
+    if request.headers.get("content-type", "").split(";")[0] not in (
+            "image/png", "image/jpeg", "image/webp"):
+        raise HTTPException(415, "Use a PNG, JPEG, or WebP image")
+    raw = await request.body()
+    if not raw or len(raw) > 3_000_000:
+        raise HTTPException(413, "Icon must be smaller than 3 MB")
+    try:
+        with Image.open(io.BytesIO(raw)) as original:
+            original.verify()
+        with Image.open(io.BytesIO(raw)) as original:
+            if original.width > 4096 or original.height > 4096:
+                raise ValueError("Image dimensions exceed limit")
+            icon = original.convert("RGBA")
+            icon.thumbnail((256, 256), Image.Resampling.LANCZOS)
+            output = io.BytesIO()
+            icon.save(output, format="PNG", optimize=True)
+    except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError):
+        raise HTTPException(422, "Invalid or oversized image")
+    revision = time.time_ns()
+    with db() as conn:
+        _icon_table(conn)
+        conn.execute("""INSERT INTO sidebar_custom_icons(name,png,revision)
+            VALUES(?,?,?) ON CONFLICT(name) DO UPDATE SET
+            png=excluded.png, revision=excluded.revision""",
+            (name, output.getvalue(), revision))
+    return {"name": name, "custom": True,
+            "url": f"/assets/sidebar-icon-{name}.png?v={revision}"}
+
+
+@router.delete("/sidebar/icons/{name}")
+def restore_sidebar_icon(name: str):
+    if name not in ICON_NAMES:
+        raise HTTPException(404, "Unknown sidebar icon")
+    with db() as conn:
+        _icon_table(conn)
+        conn.execute("DELETE FROM sidebar_custom_icons WHERE name=?", (name,))
+    return {"name": name, "custom": False,
+            "url": f"/assets/sidebar-icon-{name}.png?v=pirate-v2"}
