@@ -2137,9 +2137,16 @@ class MainActivity : ComponentActivity() {
                 if(document.querySelector('dialog[open]'))return false;
                 const active=document.activeElement;
                 const library=['/movies','/tv'].includes(location.pathname);
-                if(tvUserMoved || (!library && active && !isMenu(active) &&
-                   active!==document.body && active!==document.documentElement))
+                if(tvUserMoved)return true;
+                if(!library && active && !isMenu(active) &&
+                   active!==document.body && active!==document.documentElement){
+                  if(location.pathname==='/'&&active.matches?.('.tile-button')){
+                    const refresh=new FocusEvent('focusin',{bubbles:true});
+                    Object.defineProperty(refresh,'__oewInitialRefresh',{value:true});
+                    active.dispatchEvent(refresh);
+                  }
                   return true;
+                }
                 const preferred=library?null:primaryDetailAction();
                 const field=document.querySelector(
                   '.content input[type="search"],.content input[type="text"]');
