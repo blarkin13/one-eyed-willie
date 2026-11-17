@@ -44,8 +44,9 @@ class MainActivity : ComponentActivity() {
     private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
-    private var lastTvMoveAt = 0L
-    private var lastTvDirection = ""
+    private val dpadHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var dpadRepeat: Runnable? = null
+    private var heldDpadKey = -1
 
     private var loadingOverlay: FrameLayout? = null
     private var loadingCaption: TextView? = null
@@ -562,6 +563,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun stopTvRepeat() {
+        dpadRepeat?.let(dpadHandler::removeCallbacks)
+        dpadRepeat = null
+        heldDpadKey = -1
+    }
+
+    private fun moveTvDirection(web: WebView, direction: String) {
+        web.evaluateJavascript("window.__willieTvMove?.('$direction')", null)
+        val sound = when (direction) {
+            "left" -> android.view.SoundEffectConstants.NAVIGATION_LEFT
+            "right" -> android.view.SoundEffectConstants.NAVIGATION_RIGHT
+            "up" -> android.view.SoundEffectConstants.NAVIGATION_UP
+            else -> android.view.SoundEffectConstants.NAVIGATION_DOWN
+        }
+        web.playSoundEffect(sound)
+    }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val direction = when (event.keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> "left"
@@ -589,22 +607,31 @@ class MainActivity : ComponentActivity() {
             return true
         }
         if (direction != null && web != null) {
-            if (tvTextEditing) return super.dispatchKeyEvent(event)
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                val now = android.os.SystemClock.uptimeMillis()
-                if (event.repeatCount == 0 || direction != lastTvDirection ||
-                    now - lastTvMoveAt >= 75L) {
-                    lastTvMoveAt = now
-                    lastTvDirection = direction
-                    web.evaluateJavascript("window.__willieTvMove?.('$direction')", null)
-                    val sound = when (direction) {
-                        "left" -> android.view.SoundEffectConstants.NAVIGATION_LEFT
-                        "right" -> android.view.SoundEffectConstants.NAVIGATION_RIGHT
-                        "up" -> android.view.SoundEffectConstants.NAVIGATION_UP
-                        else -> android.view.SoundEffectConstants.NAVIGATION_DOWN
+            if (tvTextEditing) {
+                stopTvRepeat()
+                return super.dispatchKeyEvent(event)
+            }
+            if (event.action == KeyEvent.ACTION_UP) {
+                if (heldDpadKey == event.keyCode) stopTvRepeat()
+            } else if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                stopTvRepeat()
+                heldDpadKey = event.keyCode
+                moveTvDirection(web, direction)
+                // Short initial pause, then continuous 85ms navigation.
+                // Ignore Android's own repeat events so every press is unique.
+                val repeating = object : Runnable {
+                    override fun run() {
+                        if (heldDpadKey != event.keyCode || browser !== web ||
+                            tvTextEditing || isFinishing) {
+                            stopTvRepeat()
+                            return
+                        }
+                        moveTvDirection(web, direction)
+                        dpadHandler.postDelayed(this, 85L)
                     }
-                    web.playSoundEffect(sound)
                 }
+                dpadRepeat = repeating
+                dpadHandler.postDelayed(repeating, 240L)
             }
             return true
         }
@@ -706,6 +733,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        stopTvRepeat()
         // Never hold the display awake when browsing or watching is backgrounded.
         browser?.keepScreenOn = false
         // Google TV's keyboard may be a full-screen IME activity. Opening it
