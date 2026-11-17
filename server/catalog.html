@@ -36,8 +36,11 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
 /* Keep the title and all catalog controls together in the FIRST row.
    The trivia is a separate second row; no flex-wrap or bottom-aligned toolbar
    should push Search/Sort/Filter below it on a TV or desktop. */
+/* The poster grid (#items) is an isolated stacking context. Give the entire
+   masthead its own higher layer so Sort/Filter popovers can overlap posters:
+   a high z-index on .catalog-tool-menu alone cannot escape its parent. */
 .library-head{display:flex;flex-direction:column;align-items:stretch;justify-content:flex-start;
- gap:10px;margin-bottom:14px;position:relative;isolation:isolate;min-height:0;
+ gap:10px;margin-bottom:14px;position:relative;isolation:isolate;z-index:20;min-height:0;
  flex-wrap:nowrap;overflow:visible;padding:14px 8px 10px}
 .library-head-top{display:flex;align-items:center;justify-content:space-between;
  gap:20px;width:100%;min-width:0;position:relative;z-index:10}
