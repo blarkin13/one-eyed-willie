@@ -539,6 +539,8 @@ class MainActivity : ComponentActivity() {
                         web.postDelayed({
                             if (browser === web && tvTextEditing && !isFinishing) {
                                 web.requestFocus()
+                                web.evaluateJavascript(
+                                    "window.__willieTvRefocusText?.()", null)
                                 (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
                                     .showSoftInput(web, InputMethodManager.SHOW_IMPLICIT)
                             }
@@ -945,6 +947,12 @@ class MainActivity : ComponentActivity() {
                   return true;
                 };
                 window.__willieTvEndTextEdit=endEditing;
+                window.__willieTvRefocusText=()=>{
+                  if(editingField?.isConnected){
+                    editingField.readOnly=false;
+                    editingField.focus({preventScroll:true});
+                  }
+                };
                 window.__willieTvActivateFocusedText=()=>{
                   const field=document.activeElement;
                   return isTextField(field)&&beginEditing(field);
@@ -966,11 +974,9 @@ class MainActivity : ComponentActivity() {
                 };
                 document.addEventListener('focusin',event=>{
                   protect(event.target);
-                  // The system keyboard can temporarily blur WebView. Close
-                  // editing only when the user focuses a different control.
-                  if(editingField && event.target!==editingField &&
-                     !refocusing && event.target instanceof Element)
-                    endEditing();
+                  // Android's IME may cause transient focus transfers as it
+                  // opens. Only Back, deliberate remote navigation or an
+                  // outside pointer press should terminate text editing.
                 },true);
                 // Do NOT end editing on focusout: opening Android's IME
                 // moves WebView focus and used to close it immediately.
