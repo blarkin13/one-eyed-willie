@@ -191,6 +191,20 @@ document.addEventListener('DOMContentLoaded', () => {
       }
     }
   }).catch(()=>{});
+  // Update the sidebar immediately after saving icon changes in Library Settings
+  // without requiring the user to navigate away or reload the entire page.
+  document.addEventListener('willie:library-icon-updated',event=>{
+    const lib=event.detail;
+    if(!lib||!Number.isInteger(lib.id)||!['movies','tv'].includes(lib.kind))return;
+    const name=String(lib.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const standard=(lib.kind==='movies'&&name==='movies')||
+      (lib.kind==='tv'&&(name==='tv'||name==='tvshows'));
+    const navId=standard?lib.kind:'library:'+lib.id;
+    const link=nav.querySelector('a[data-nav-id="'+navId+'"]');
+    if(!link)return;
+    const old=link.querySelector('.nav-icon');
+    if(old)old.replaceWith(libraryGlyph(window.WillieLibraryAppearance,lib));
+  });
   if(!document.querySelector('link[rel~="icon"]')){
     const favicon=document.createElement('link');
     favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=5';
