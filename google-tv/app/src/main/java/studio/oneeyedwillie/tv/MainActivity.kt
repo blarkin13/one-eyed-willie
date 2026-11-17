@@ -458,6 +458,10 @@ class MainActivity : ComponentActivity() {
             frame.addView(still, 1, FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
             navigationStill = still
+            // Bound the handoff even if a page never reaches ready state.
+            still.postDelayed({
+                if (navigationStill === still) releaseNavigationStill()
+            }, 5500L)
         } catch (_: Exception) {
             // A screenshot is an enhancement; navigation must still work if
             // bitmap allocation or the WebView capture is unavailable.
@@ -500,7 +504,7 @@ class MainActivity : ComponentActivity() {
         ) { result ->
             if (navigationStill == null || browser !== web || serial != pageLoadSerial)
                 return@evaluateJavascript
-            if (result == "true" || attempt >= 15) releaseNavigationStill()
+            if (result == "true" || attempt >= 30) releaseNavigationStill()
             else web.postDelayed({ revealPopulatedPage(web, serial, attempt + 1) }, 100L)
         }
     }
@@ -661,15 +665,19 @@ class MainActivity : ComponentActivity() {
             override fun onReceivedError(
                 web: WebView, request: WebResourceRequest, error: WebResourceError
             ) {
-                if (browser === web && request.isForMainFrame)
+                if (browser === web && request.isForMainFrame) {
+                    releaseNavigationStill()
                     showLoadingFailure("Unable to reach your server")
+                }
                 super.onReceivedError(web, request, error)
             }
             override fun onReceivedHttpError(
                 web: WebView, request: WebResourceRequest, response: WebResourceResponse
             ) {
-                if (browser === web && request.isForMainFrame && response.statusCode >= 400)
+                if (browser === web && request.isForMainFrame && response.statusCode >= 400) {
+                    releaseNavigationStill()
                     showLoadingFailure("Server error ${response.statusCode}")
+                }
                 super.onReceivedHttpError(web, request, response)
             }
             override fun shouldOverrideUrlLoading(web: WebView, request: WebResourceRequest): Boolean {
