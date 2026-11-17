@@ -66,7 +66,7 @@ class MainActivity : ComponentActivity() {
     private var initialPageLoaded = false
     private var splashStartedAt = 0L
     private var playedStartupSound = false
-    private var discoveryGeneration = 0
+    @Volatile private var discoveryGeneration = 0
     private val discoveryWorker = Executors.newSingleThreadExecutor()
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
