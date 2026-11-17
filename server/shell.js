@@ -260,11 +260,28 @@ document.addEventListener('DOMContentLoaded',()=>{
   document.body.prepend(backdrop);
   const cache=new Map();
   let active=null,showTimer=null,hideTimer=null,generation=0,visible=-1,currentUrl='';
+  const imageCache=new Map();
+  const MAX_PREFETCH_IMAGES=18;
+  function preload(url){
+    if(!valid(url))return Promise.resolve(false);
+    if(imageCache.has(url))return imageCache.get(url);
+    const request=new Promise(resolve=>{
+      const img=new Image();
+      img.onload=()=>resolve(true);
+      img.onerror=()=>resolve(false);
+      img.src=url;
+      if(img.complete&&img.naturalWidth>0)resolve(true);
+    });
+    imageCache.set(url,request);
+    if(imageCache.size>MAX_PREFETCH_IMAGES)imageCache.delete(imageCache.keys().next().value);
+    return request;
+  }
   const valid=url=>typeof url==='string'&&(
     url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/'));
+  // Do not clear the last artwork on focus gaps, toolbar navigation or a
+  // missing backdrop. Those gaps previously exposed the dark navy canvas.
   function clear(){
-    generation++;active=null;currentUrl='';visible=-1;
-    for(const layer of layers)layer.classList.remove('is-visible');
+    generation++;active=null;
   }
   function cancel(){clearTimeout(showTimer);clearTimeout(hideTimer)}
   async function lookup(element){
@@ -305,32 +322,55 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(cache.size>90)cache.delete(cache.keys().next().value);
     return promise;
   }
-  function apply(url,serial){
-    if(serial!==generation)return;
-    if(!valid(url)){clear();return}
-    if(currentUrl===url)return;
-    const img=new Image();
-    img.onload=()=>{
+  async function apply(url,serial){
+    if(serial!==generation||!valid(url)||currentUrl===url)return;
+    const ready=await preload(url);
+    if(serial!==generation||!ready)return;
+    // Keep the outgoing artwork visible until the incoming image has loaded.
+    // The two composited layers fade directly between images, never via navy.
+    const index=visible===0?1:0;
+    layers[index].style.backgroundImage='url("'+url+'")';
+    // Commit the updated background before transitioning its opacity.
+    requestAnimationFrame(()=>{
       if(serial!==generation)return;
-      const index=visible===0?1:0;
-      layers[index].style.backgroundImage='url("'+url+'")';
       layers[index].classList.add('is-visible');
       layers[1-index].classList.remove('is-visible');
       visible=index;currentUrl=url;
+    });
+  }
+  // Prefetch only nearby titles, not the entire library. The selected card
+  // always takes priority; adjacent remote moves reuse warmed metadata/images.
+  let prefetchGeneration=0;
+  function prefetchAdjacent(element){
+    const serial=++prefetchGeneration;
+    const rail=element.closest('.shelf-track,#items,.explore-grid');
+    if(!rail)return;
+    const cards=[...rail.querySelectorAll('[data-hover-kind],[data-hover-backdrop]')];
+    const position=cards.indexOf(element);
+    if(position<0)return;
+    const adjacent=[cards[position+1],cards[position-1],cards[position+2]]
+      .filter(Boolean);
+    const run=async()=>{
+      for(const card of adjacent){
+        if(serial!==prefetchGeneration)return;
+        const url=await lookup(card);
+        if(serial!==prefetchGeneration)return;
+        if(valid(url))void preload(url);
+      }
     };
-    img.onerror=()=>{if(serial===generation)clear()};
-    img.src=url;
+    void run();
   }
   function select(element){
     if(element===active)return;
     cancel();
     active=element;const serial=++generation;
-    if(!element){clear();return}
+    if(!element)return; // Retain the last backdrop between poster selections.
+    prefetchAdjacent(element);
     showTimer=setTimeout(async()=>{
       const url=await lookup(element);
       if(serial!==generation)return;
-      apply(url,serial);
-    },180);
+      await apply(url,serial);
+    },60);
   }
   const onLibraryToolbar=target=>
     ['movies','tv'].includes(document.body.dataset.page) &&
