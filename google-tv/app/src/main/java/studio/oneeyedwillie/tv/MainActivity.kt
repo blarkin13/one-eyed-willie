@@ -57,6 +57,7 @@ class MainActivity : ComponentActivity() {
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var initialPageLoaded = false
+    private var splashStartedAt = 0L
     private var playedStartupSound = false
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
@@ -97,13 +98,16 @@ class MainActivity : ComponentActivity() {
             text = "Retry"
             setTextColor(Color.BLACK)
             backgroundTintList = ColorStateList.valueOf(0xFFF0EBE5.toInt())
-            setOnClickListener { browser?.reload() }
+            setOnClickListener {
+                val web = browser
+                if (web != null) web.reload() else showConnectionSettings()
+            }
         }
         val settings = Button(this).apply {
             text = "Server settings"
             setTextColor(Color.WHITE)
             backgroundTintList = ColorStateList.valueOf(0xFF263348.toInt())
-            setOnClickListener { showSetup() }
+            setOnClickListener { showConnectionSettings() }
         }
         loadingActions = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -153,6 +157,7 @@ class MainActivity : ComponentActivity() {
         // The ship splash belongs to cold startup and initial connection,
         // not every internal document navigation.
         if (initialPageLoaded) return
+        if (splashStartedAt == 0L) splashStartedAt = android.os.SystemClock.uptimeMillis()
         loadingFailed = false
         loadingCaption?.visibility = View.GONE
         loadingActions?.visibility = View.GONE
@@ -182,14 +187,23 @@ class MainActivity : ComponentActivity() {
             alpha = 1f
             visibility = View.VISIBLE
         }
-        loadingRetry?.requestFocus()
+        loadingRetry?.apply {
+            visibility = if (browser == null) View.GONE else View.VISIBLE
+        }
+        if (browser == null) loadingActions?.getChildAt(1)?.requestFocus()
+        else loadingRetry?.requestFocus()
     }
 
     private fun finishLoading(web: WebView, serial: Int) {
         if (browser !== web || loadingFailed || serial != pageLoadSerial) return
         if (initialPageLoaded) return
+        val elapsed = android.os.SystemClock.uptimeMillis() - splashStartedAt
+        if (elapsed < 1200L) {
+            web.postDelayed({ finishLoading(web, serial) }, 1200L - elapsed)
+            return
+        }
         initialPageLoaded = true
-        loadingOverlay?.animate()?.alpha(0f)?.setDuration(180L)?.withEndAction {
+        loadingOverlay?.animate()?.alpha(0f)?.setDuration(240L)?.withEndAction {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
                 web.requestFocus()
@@ -211,7 +225,7 @@ class MainActivity : ComponentActivity() {
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val web = browser
-                if (web == null) { showSetup(); return }
+                if (web == null) { showConnectionSettings(); return }
                 if (tvTextEditing) {
                     finishTvTextEditing(web)
                     return
@@ -220,7 +234,7 @@ class MainActivity : ComponentActivity() {
             }
         })
         val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
-        if (validOrigin(saved)) showServer(saved) else showSetup()
+        if (validOrigin(saved)) showServer(saved) else showUnconfigured()
     }
 
     private fun validOrigin(value: String): Boolean = try {
@@ -231,111 +245,122 @@ class MainActivity : ComponentActivity() {
             u.query == null && u.fragment == null
     } catch (_: Exception) { false }
 
-    private fun showSetup(error: String = "") {
+    // No separate IP/port setup page. On first installation the same native
+    // connection editor is accessible from the loading screen's Settings.
+    private fun showUnconfigured() {
         initialPageLoaded = false
-        tvTextEditing = false
-        loadingOverlay?.animate()?.cancel()
-        loadingOverlay = null
-        loadingErrorPanel = null
-        loadingCaption = null
-        loadingActions = null
-        loadingRetry = null
-        browser?.keepScreenOn = false
+        splashStartedAt = 0L
         browser?.destroy()
         browser = null
-        fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
-        val root = LinearLayout(this).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setBackgroundColor(Color.BLACK)
-            setPadding(dp(28), dp(20), dp(28), dp(20))
-        }
-        // Do not let the icon expand to match_parent or wrap its intrinsic size:
-        // that previously pushed the Connect button completely off the TV.
-        val brand = ImageView(this).apply {
-            setImageResource(R.drawable.tv_ship_icon)
-            adjustViewBounds = false
-            scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "One-Eyed Willie pirate ship"
-        }
-        root.addView(brand, LinearLayout.LayoutParams(dp(144), dp(144)).apply {
-            gravity = Gravity.CENTER_HORIZONTAL
-            bottomMargin = dp(12)
-        })
-        val title = TextView(this).apply {
-            text = "One-eyed Willie"
-            textSize = 33f
-            setTextColor(Color.WHITE)
-            gravity = Gravity.CENTER
-        }
-        val help = TextView(this).apply {
-            text = "Connect to your One-Eyed Willie server. The app will remember it."
-            textSize = 18f
-            setTextColor(0xFFBDBDBDL.toInt())
-            gravity = Gravity.CENTER
-        }
+        val screen = FrameLayout(this)
+        loadingOverlay = createLoadingOverlay()
+        screen.addView(loadingOverlay, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+        ))
+        setContentView(screen)
+        showLoading()
+        showLoadingFailure("No server configured. Open Server settings to connect.")
+    }
+
+    private fun showConnectionSettings() {
         val input = EditText(this).apply {
             setSingleLine(true)
-            // A highlighted server-address field should not summon the IME.
-            showSoftInputOnFocus = false
-            setOnFocusChangeListener { _, focused ->
-                if (!focused) showSoftInputOnFocus = false
-            }
-            setOnClickListener {
-                showSoftInputOnFocus = true
-                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
-                    .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
-            }
-            setText(prefs.getString("url", "http://192.168.86.29:8787"))
-            hint = "http://your-server:8787"
-            textSize = 20f
-            setTextColor(Color.WHITE)
-            setHintTextColor(0xFF999999L.toInt())
-            setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE))
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_URI
+            setText(prefs.getString("url", "")?.orEmpty())
+            hint = "http://server-address:8787"
+            selectAll()
         }
-        val status = TextView(this).apply {
-            text = error
-            textSize = 16f
-            setTextColor(0xFFE3CCCCL.toInt())
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(8), dp(24), dp(4))
+            addView(input)
         }
-        val connect = Button(this).apply {
-            text = "Connect"
-            setTextColor(Color.BLACK)
-            setBackgroundTintList(android.content.res.ColorStateList.valueOf(Color.WHITE))
-            setOnClickListener {
+        val dialog = android.app.AlertDialog.Builder(this)
+            .setTitle("TV Server Connection")
+            .setMessage("Change this TV's saved server address and port.")
+            .setView(container)
+            .setNegativeButton("Cancel", null)
+            .setPositiveButton("Connect", null)
+            .create()
+        dialog.setOnShowListener {
+            dialog.getButton(android.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val entered = input.text.toString().trim().trimEnd('/')
-                if (!validOrigin(entered)) status.text = "Enter a valid http:// or https:// server address."
-                else {
-                    if (prefs.edit().putString("url", entered).commit()) {
-                        showServer(entered)
-                    } else {
-                        status.text = "Could not save server address. Check available device storage."
-                    }
+                if (!validOrigin(entered)) {
+                    input.error = "Enter http:// or https:// and a server address"
+                    return@setOnClickListener
                 }
+                if (!prefs.edit().putString("url", entered).commit()) {
+                    input.error = "Could not save this address"
+                    return@setOnClickListener
+                }
+                dialog.dismiss()
+                browser?.stopLoading()
+                browser?.destroy()
+                browser = null
+                loadingOverlay?.animate()?.cancel()
+                loadingOverlay = null
+                splashStartedAt = 0L
+                showServer(entered)
             }
         }
-        listOf(title, help, input, connect, status).forEach {
-            val p = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = dp(12) }
-            root.addView(it, p)
+        dialog.show()
+    }
+
+    private fun showFocusColorSettings() {
+        val names = arrayOf("Purple (default)", "Blue", "Teal", "Green", "Orange", "Pink", "Red", "White")
+        val colors = arrayOf("#8B5CF6", "#3B82F6", "#14B8A6", "#22C55E",
+            "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF")
+        val stored = prefs.getString("tv_focus_color", "#8B5CF6") ?: "#8B5CF6"
+        val selected = colors.indexOf(stored).coerceAtLeast(0)
+        android.app.AlertDialog.Builder(this)
+            .setTitle("TV Selection Color")
+            .setSingleChoiceItems(names, selected) { dialog, which ->
+                val color = colors[which]
+                prefs.edit().putString("tv_focus_color", color).apply()
+                browser?.evaluateJavascript(
+                    "document.documentElement.style.setProperty('--oew-tv-select-color','$color')", null
+                )
+                dialog.dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun waitForStartupContent(web: WebView, serial: Int, attempts: Int = 0) {
+        if (browser !== web || initialPageLoaded || loadingFailed || serial != pageLoadSerial)
+            return
+        // Wait for the first selected artwork as well as the shelf data.
+        // Never block indefinitely for titles that have no backdrop.
+        val artworkGraceElapsed =
+            android.os.SystemClock.uptimeMillis() - splashStartedAt >= 3500L
+        web.evaluateJavascript(
+            """(() => {
+                if(location.pathname!=='/')return document.readyState==='complete';
+                const ready=Boolean(window.__oewHomeReady ||
+                  (document.querySelector('#continue-watching .shelf-track') &&
+                   !document.querySelector('#status')?.textContent?.trim()));
+                if(!ready)return false;
+                const hasPosters=Boolean(document.querySelector('.shelf-track .tile-button'));
+                return !hasPosters || document.body.classList.contains('oew-tv-backdrop-active') ||
+                  $artworkGraceElapsed;
+            })()""".trimIndent()
+        ) { ready ->
+            if (browser !== web || serial != pageLoadSerial || initialPageLoaded || loadingFailed)
+                return@evaluateJavascript
+            if (ready == "true") finishLoading(web, serial)
+            else if (attempts < 100) {
+                web.postDelayed({ waitForStartupContent(web, serial, attempts + 1) }, 150L)
+            } else {
+                showLoadingFailure("Home did not finish loading. Retry or check Server settings.")
+            }
         }
-        // Allow access to the address and Connect button even on low-resolution
-        // TVs with overscan or large system font sizes.
-        val scroll = ScrollView(this).apply {
-            isFillViewport = true
-            setBackgroundColor(Color.BLACK)
-            addView(root)
-        }
-        setContentView(scroll)
-        connect.requestFocus()
     }
 
     private fun showServer(server: String) {
-        if (!validOrigin(server)) { showSetup("Invalid server URL"); return }
+        if (!validOrigin(server)) { showUnconfigured(); return }
         initialPageLoaded = false
+        splashStartedAt = 0L
         tvTextEditing = false
         origin = server.trimEnd('/')
         val view = WebView(this)
@@ -389,7 +414,13 @@ class MainActivity : ComponentActivity() {
                 if (sameOrigin(url) && browser === web &&
                     message == "oewtv:settings:server") {
                     result.confirm("ACK")
-                    web.post { if (browser === web && !isFinishing) showSetup() }
+                    web.post { if (browser === web && !isFinishing) showConnectionSettings() }
+                    return true
+                }
+                if (sameOrigin(url) && browser === web &&
+                    message == "oewtv:settings:color") {
+                    result.confirm("ACK")
+                    web.post { if (browser === web && !isFinishing) showFocusColorSettings() }
                     return true
                 }
                 if (sameOrigin(url) && browser === web &&
@@ -514,7 +545,7 @@ class MainActivity : ComponentActivity() {
                     if (!tvTextEditing)
                         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
                             .hideSoftInputFromWindow(web.windowToken, 0)
-                    web.postDelayed({ finishLoading(web, completedSerial) }, 110L)
+                    waitForStartupContent(web, completedSerial)
                     // Returning from the native player can precede the page's
                     // JavaScript readiness. Retry pending playback checkpoints
                     // after every successful same-origin page load as well.
@@ -649,9 +680,15 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun installRemoteNavigation(view: WebView) {
-        // These are TV-specific focus affordances; the page/layout itself stays
-        // 100% the live server version, including all future server updates.
+        // Keep the TV's chosen focus color across every WebView page load.
+        val selected = prefs.getString("tv_focus_color", "#8B5CF6") ?: "#8B5CF6"
+        val color = if (selected in setOf("#8B5CF6", "#3B82F6", "#14B8A6",
+                "#22C55E", "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF"))
+            selected else "#8B5CF6"
         view.evaluateJavascript(TV_REMOTE_SCRIPT, null)
+        view.evaluateJavascript(
+            "document.documentElement.style.setProperty('--oew-tv-select-color','$color')", null
+        )
     }
 
     /**
@@ -991,6 +1028,18 @@ class MainActivity : ComponentActivity() {
                     try{prompt('oewtv:settings:server','')}catch(_){}
                   });
                   grid.append(tile);
+                  const colors=document.createElement('button');
+                  colors.type='button';
+                  colors.id='oew-tv-selection-color';
+                  colors.className='settings-tile';
+                  colors.style.cssText='color:inherit;text-align:left;cursor:pointer;font:inherit';
+                  colors.innerHTML='<span class="settings-tile-icon" aria-hidden="true">◉</span>'+
+                    '<h2>TV Selection Color</h2>'+
+                    '<p>Choose the highlighted icon color. Purple is the default.</p>';
+                  colors.addEventListener('click',()=>{
+                    try{prompt('oewtv:settings:color','')}catch(_){}
+                  });
+                  grid.append(colors);
                 }
               }
               if (document.getElementById('oew-tv-remote-style')) return;
@@ -1479,14 +1528,14 @@ class MainActivity : ComponentActivity() {
                    Service-brand icons retain their original Radarr/Sonarr art. */
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
-                  color:#8B5CF6!important;background:transparent!important;
+                  color:var(--oew-tv-select-color,#8B5CF6)!important;background:transparent!important;
                   outline:0!important;box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible) svg,
                 body[data-page] :is(.willie-controls,.willie-toolbar)
                   button:is(:focus,:focus-visible){
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 /* The sidebar has no selected background, outline, side marker,
                    border or shadow. Only the focused/current icon changes color. */
@@ -1503,7 +1552,7 @@ class MainActivity : ComponentActivity() {
                   [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon,
                 body[data-page] .sidebar .nav-link[aria-current="page"]:not(
                   [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 /* Strong icon-only purple focus on all detail pages, including
                    dynamic movie/TV/season actions and navigation popovers. */
@@ -1517,7 +1566,7 @@ class MainActivity : ComponentActivity() {
                   .icon-only-control,.season-more-button,.season-rail-arrow,
                   .tv-trailer-launch,.catalog-tool-icon,.explore-icon-link)
                   :is(:focus,:focus-visible) {
-                  color:#8B5CF6!important;
+                  color:var(--oew-tv-select-color,#8B5CF6)!important;
                   background:transparent!important;
                   border-color:transparent!important;
                   outline:0!important;box-shadow:none!important
@@ -1531,7 +1580,7 @@ class MainActivity : ComponentActivity() {
                 body[data-page] :is(.media-icon-action,.watch-icon-control,
                   .icon-only-control,.season-more-button,.tv-trailer-launch,
                   .catalog-tool-icon,.explore-icon-link):is(:focus,:focus-visible)
-                  :is(svg,i,.fa) { color:#8B5CF6!important }
+                  :is(svg,i,.fa) { color:var(--oew-tv-select-color,#8B5CF6)!important }
                 body[data-page] [data-service-nav="radarr"] :is(svg,img,i),
                 body[data-page] [data-service-nav="sonarr"] :is(svg,img,i) {
                   filter:none!important
@@ -1546,12 +1595,12 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .sidebar .nav-link[aria-current="page"]
                   :is(.nav-icon svg path,.nav-icon svg circle,.nav-icon svg rect,
                       .nav-icon svg polygon,.nav-icon svg polyline,.nav-icon svg line){
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 body[data-page] .sidebar .nav-link[aria-current="page"]
                   :is(.nav-icon,.nav-icon svg,.nav-icon i,.nav-icon .fa-fallback,
                       .nav-icon .library-symbol,.library-custom-icon):not(img){
-                  color:#8B5CF6!important
+                  color:var(--oew-tv-select-color,#8B5CF6)!important
                 }
                 body[data-page] .sidebar
                   .nav-link:is([data-service-nav="radarr"],[data-service-nav="sonarr"],

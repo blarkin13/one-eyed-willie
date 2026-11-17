@@ -437,6 +437,7 @@ async function load({preserveFocus=false}={}){
   shelf('recent-tv',data.recent_tv,'No TV shows yet','');
   // Native TV navigation is installed after document load. Notify it when
   // dynamically populated posters are ready for initial focus and backdrop.
+  window.__oewHomeReady=true;
   document.dispatchEvent(new Event('willie:home-shelves-ready'));
   if(preserveFocus){
    for(const [id,x] of Object.entries(shelfPositions)){
