@@ -50,9 +50,13 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
  max-width:none;height:auto;transform:translate(-50%,-50%) scale(var(--masthead-scale,1));
  opacity:var(--masthead-opacity,.6);user-select:none;object-fit:contain}
 .library-heading{min-width:0;flex:0 1 auto}
-.library-header-title{display:flex;align-items:center;gap:16px}
-.library-header-title .library-header-icon{color:#beddf7;flex:none;display:inline-grid;place-items:center}
-.library-header-title .library-header-icon svg{width:clamp(31px,3.2vw,43px);height:clamp(31px,3.2vw,43px)}
+.library-header-title{display:flex;align-items:center;gap:20px}
+.library-header-title .library-header-icon{color:#beddf7;flex:0 0 76px;width:76px;height:76px;display:inline-grid;place-items:center}
+.library-header-title .library-header-icon svg,
+.library-header-title .library-header-icon img{
+ width:76px;height:76px;max-width:100%;max-height:100%;
+ object-fit:contain;background:transparent;display:block
+}
 #page-title[class*="library-font--"]{font-family:var(--lib-font,system-ui,sans-serif)!important;
  font-weight:var(--lib-weight,700)!important;letter-spacing:var(--lib-spacing,normal)!important;
  text-transform:var(--lib-transform,none);line-height:1.15;overflow-wrap:anywhere}
@@ -148,8 +152,10 @@ body[data-page="tv"] #library-masthead .trivia-answer{
  .library-head-top{flex-wrap:wrap;align-items:flex-start;gap:10px}
  .library-heading{flex:1 1 100%}
  .library-header-art{width:min(95%,500px)}
- .library-header-title{gap:10px}
- .library-header-title .library-header-icon svg{width:27px;height:27px}
+ .library-header-title{gap:12px}
+ .library-header-title .library-header-icon{width:60px;height:60px;flex-basis:60px}
+ .library-header-title .library-header-icon svg,
+ .library-header-title .library-header-icon img{width:60px;height:60px}
  /* Mobile can wrap the tools, but they still precede the trivia. */
  .library-head-actions{width:100%;justify-content:flex-start;gap:8px}
  .library-head-actions .search-box{flex:1 1 140px}
@@ -254,9 +260,9 @@ function applyLibraryAppearance(lib){
  if(lib?.icon_image_url||['film','tv','folder'].includes(iconKey)){
   const image=document.createElement('img');
   image.src=lib?.icon_image_url||'/assets/sidebar-icon-'+(type==='tv'?'tv':'movies')+'.png?v=1';
-  image.alt='';image.width=40;image.height=40;image.className='sidebar-icon-preview-image';
+  image.alt='';image.width=76;image.height=76;image.className='library-page-icon';
   icon.replaceChildren(image);
- }else if(libraryAppearance)icon.replaceChildren(libraryAppearance.createIcon(iconKey,40));
+ }else if(libraryAppearance)icon.replaceChildren(libraryAppearance.createIcon(iconKey,76));
  const title=$('page-title');
  title.className='library-font--'+(libraryAppearance?.fonts[fontKey]?fontKey:'default');
  const masthead=$('library-masthead'),art=$('library-header-art');
