@@ -69,6 +69,11 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertIn('getSharedPreferences("oew_tv_subtitles"', main)
         self.assertIn('getSharedPreferences("oew_tv_subtitles"', player)
         self.assertIn("applyDefaultSubtitlesForThisTv", player)
+        self.assertIn('id="tv-color-form"', page)
+        self.assertIn('id="tv-color-dialog"', page)
+        self.assertIn('/api/settings/tv-appearance', page)
+        self.assertIn("document.documentElement.style.setProperty('--oew-tv-select-color',chosen)", page)
+
 
     def test_tv_appearance_is_shared_with_native_and_web_players(self):
         main = (ROOT / "sidebar_settings.py").read_text()
