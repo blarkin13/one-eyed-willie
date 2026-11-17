@@ -223,7 +223,7 @@ body[data-page="tv"] #library-masthead .trivia-answer{
         </div>
       </div>
       <div class="section-heading"><h2 id="section-title">All Movies</h2><span id="results-count" class="count-label"></span></div>
-      <p id="status" class="status-line" role="status">Loading titles…</p>
+      <p id="status" class="status-line" role="status"></p>
        <p id="metadata-status" class="catalog-metadata-status" role="status"></p>
       <div id="items" aria-live="off"></div>
       <nav id="alpha-nav" class="alpha-nav" aria-label="Jump to letter" hidden></nav>
@@ -678,7 +678,7 @@ let catalogRevision=null;
 async function load({preserveFocus=false}={},quiet=false){
  const thisRequest=++requestId;
  loading=true;
- if(!quiet)$('status').textContent='Loading titles…';
+ if(!quiet)$('status').textContent='';
  const params=new URLSearchParams({kind:type,search:$('search').value.trim(),sort:$('sort').value});
  if(selectedGenre)params.set('genre',selectedGenre);
  if(Number.isInteger(selectedLibraryId)&&selectedLibraryId>0)params.set('library_id',String(selectedLibraryId));
