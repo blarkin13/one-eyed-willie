@@ -482,7 +482,9 @@ function addMoviePoster(cover,item,src,fromDetails=false){
  cover.querySelector('.poster-image')?.remove();
  const img=document.createElement('img');
  img.className='poster-image';img.alt=item.title+' poster';
- img.loading='lazy';img.decoding='async';
+ img.loading=cover.dataset.priorityPoster==='1'?'eager':'lazy';
+ if(cover.dataset.priorityPoster==='1')img.fetchPriority='high';
+ img.decoding='async';
  const full=src.startsWith('/api/artwork/thumb/')
   ?src.replace('/api/artwork/thumb/','/api/artwork/'):null;
  let triedFull=false;
@@ -496,9 +498,18 @@ function addMoviePoster(cover,item,src,fromDetails=false){
 async function fetchMoviePosters(){
  const jobs=moviePosterJobs.splice(0);
  if(!jobs.length)return;
- const batches=[];
- for(let i=0;i<jobs.length;i+=50)batches.push(jobs.slice(i,i+50));
+ const batches=[jobs.slice(0,12)];
+ for(let i=12;i<jobs.length;i+=50)batches.push(jobs.slice(i,i+50));
  let next=0;
+ async function workerFirstBatch(){
+  // The same worker logic handles the first batch, with remaining batches
+  // held back until it finishes.
+  const first=batches[0];
+  const remaining=batches.splice(1);
+  next=0;
+  await worker();
+  batches.push(...remaining);
+ }
  async function worker(){
   while(next<batches.length){
    const part=batches[next++];
@@ -524,6 +535,8 @@ async function fetchMoviePosters(){
    }
   }
  }
+// Resolve the visible first row before starting lower-priority batches.
+ await workerFirstBatch();
  await Promise.all([worker(),worker(),worker()]);
 }
 // Artwork requests are intentionally lazy and capped to avoid rate limiting.
@@ -556,12 +569,14 @@ function runPosterQueue(){
    if(!data.poster_url||!(data.poster_url.startsWith('/api/artwork/')))return;
    if(!card.isConnected)return;
    const img=document.createElement('img');img.className='poster-image';img.alt=item.title+' poster';
-   img.src=data.poster_url;img.loading='lazy';img.referrerPolicy='no-referrer';
+   img.loading=cover.dataset.priorityPoster==='1'?'eager':'lazy';
+   if(cover.dataset.priorityPoster==='1')img.fetchPriority='high';
+   img.src=data.poster_url;img.referrerPolicy='no-referrer';
    cover.appendChild(img);
   }).catch(()=>{}).finally(()=>{posterActive--;runPosterQueue()});
  }
 }
-function createCard(item){
+function createCard(item, index=0){
  const article=document.createElement('article');article.className='tile';
  const button=document.createElement('a');
  button.href=type==='movies'
@@ -572,6 +587,7 @@ function createCard(item){
   button.dataset.hoverLibraryId=String(item.library_id);button.dataset.hoverKey=item.key;
  let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
  const cover=document.createElement('div');cover.className='cover cover--'+(hash%6);
+ if(index<12)cover.dataset.priorityPoster='1';
  const top=document.createElement('div');top.className='cover-top';
  const kind=document.createElement('span');kind.className='media-type';kind.textContent=type==='movies'?'MOVIE':'SERIES';top.append(kind);
  const initial=document.createElement('div');initial.className='cover-initial';initial.setAttribute('aria-hidden','true');initial.textContent=item.title.slice(0,1).toUpperCase()||'W';
@@ -595,7 +611,10 @@ function createCard(item){
  article.append(button);
  if(item.poster_url?.startsWith('/api/artwork/')){
    addMoviePoster(cover,item,item.poster_url);
- }else if(type==='tv')observePoster(article,cover,item);
+ }else if(type==='tv'){
+   if(index<12){article._loadPoster=()=>{posterQueue.push({card:article,cover,item});runPosterQueue()};article._loadPoster();}
+   else observePoster(article,cover,item);
+ }
  else moviePosterJobs.push({cover,item});
  return article;
 }
@@ -671,8 +690,8 @@ async function load({preserveFocus=false}={},quiet=false){
   $('items').replaceChildren();
   moviePosterJobs.length=0;posterQueue.length=0;movieFallbackQueue.length=0;
   const fragment=document.createDocumentFragment();
-  for(const item of entries){
-    const card=createCard(item);
+  for(const [index,item] of entries.entries()){
+    const card=createCard(item,index);
     const letter=titleInitial(item.title);
     card.dataset.letter=letter;
     fragment.append(card);
