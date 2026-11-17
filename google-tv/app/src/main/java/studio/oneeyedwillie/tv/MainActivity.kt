@@ -1927,7 +1927,7 @@ class MainActivity : ComponentActivity() {
                 };
                 scrollAnimations.set(element,requestAnimationFrame(tick));
               };
-              const focusNode=node=>{
+              const focusNode=(node,{preserveVertical=false}={})=>{
                 if(!node)return false;
                 // The sidebar opens only when the remote deliberately moves
                 // focus into it; normal page-load autofocus cannot reveal it.
@@ -1984,10 +1984,19 @@ class MainActivity : ComponentActivity() {
                     if(document.body.dataset.page==='home' &&
                       shelf.matches('.shelf-track'))return true;
                   }
+                  const root=document.scrollingElement||document.documentElement;
+                  if(preserveVertical){
+                    // A left/right move within a library poster row must not
+                    // shift the page by a few pixels because focus scaling
+                    // changes the selected poster's bounding rectangle.
+                    const previous=scrollAnimations.get(root);
+                    if(previous)cancelAnimationFrame(previous);
+                    scrollAnimations.delete(root);
+                    return true;
+                  }
                   const delta=r.top<padding?r.top-padding:
                     r.bottom>innerHeight-padding?r.bottom-(innerHeight-padding):0;
-                  if(Math.abs(delta)>1)glideTo(document.scrollingElement||document.documentElement,'top',
-                      (document.scrollingElement||document.documentElement).scrollTop+delta);
+                  if(Math.abs(delta)>1)glideTo(root,'top',root.scrollTop+delta);
                 }
                 return true;
               };
@@ -2118,6 +2127,63 @@ class MainActivity : ComponentActivity() {
                 if(scrollRead(direction))readingScroll=true;
                 return true;
               };
+              const isLibraryGrid=()=>['/movies','/tv'].includes(location.pathname);
+              const libraryToolbar=()=>[...document.querySelectorAll(
+                '#library-masthead .library-head-actions input:not([hidden]),'+
+                '#library-masthead .library-head-actions button:not(:disabled),'+
+                '#library-masthead .library-head-actions a[href]'
+              )].filter(isVisible);
+              const libraryRowTop=node=>
+                node.closest('.tile')?.offsetTop ?? node.offsetTop;
+              const moveLibraryHorizontal=(active,direction)=>{
+                if(!isLibraryGrid() || !['left','right'].includes(direction) ||
+                   !active?.matches?.('#items .tile-button'))return false;
+                const rowTop=libraryRowTop(active);
+                const row=[...document.querySelectorAll('#items .tile-button')]
+                  .filter(isVisible).filter(node=>
+                    Math.abs(libraryRowTop(node)-rowTop)<3)
+                  .sort((a,b)=>rect(a).left-rect(b).left);
+                const index=row.indexOf(active);
+                if(index<0)return false;
+                const next=index+(direction==='right'?1:-1);
+                if(next>=0 && next<row.length)
+                  return focusNode(row[next],{preserveVertical:true});
+                if(direction==='left' && index===0){
+                  const menu=allMenu();
+                  return focusNode(menu.find(n=>
+                    n.getAttribute('aria-current')==='page')||menu[0]);
+                }
+                return true;
+              };
+              const moveLibraryToolbar=(active,direction)=>{
+                if(!isLibraryGrid())return false;
+                const toolbar=libraryToolbar();
+                if(!toolbar.length)return false;
+                if(direction==='up' && active?.matches?.('#items .tile-button')){
+                  const firstRowTop=Math.min(...[...document.querySelectorAll('#items .tile-button')]
+                    .filter(isVisible).map(libraryRowTop));
+                  if(Math.abs(libraryRowTop(active)-firstRowTop)>3)return false;
+                  const center=centerX(rect(active));
+                  const target=toolbar.slice().sort((a,b)=>
+                    Math.abs(centerX(rect(a))-center)-Math.abs(centerX(rect(b))-center))[0];
+                  readingScroll=false;
+                  target.focus({preventScroll:true});
+                  glideTo(document.scrollingElement||document.documentElement,'top',0);
+                  return true;
+                }
+                if(toolbar.includes(active) && direction==='down'){
+                  const cards=[...document.querySelectorAll('#items .tile-button')].filter(isVisible);
+                  if(!cards.length)return true;
+                  const rowTop=Math.min(...cards.map(libraryRowTop));
+                  const row=cards.filter(node=>Math.abs(libraryRowTop(node)-rowTop)<3);
+                  const center=centerX(rect(active));
+                  const target=row.sort((a,b)=>
+                    Math.abs(centerX(rect(a))-center)-Math.abs(centerX(rect(b))-center))[0];
+                  readingScroll=false;
+                  return focusNode(target);
+                }
+                return false;
+              };
               // Library grid rows should be moved by actual adjacent card
               // rows, not viewport animation geometry. Avoid competing
               // requestAnimationFrame loops that can scroll downward while
@@ -2185,6 +2251,8 @@ class MainActivity : ComponentActivity() {
                 }
                 const nodes=candidates();
                 if(!nodes.length)return false;
+                if(moveLibraryToolbar(active,direction))return true;
+                if(moveLibraryHorizontal(active,direction))return true;
                 if(moveLibraryGridRow(active,direction))return true;
                 // Intentional TV navigation: every episode tile leads DOWN to
                 // the current Play action, even when the tile is scrolled
