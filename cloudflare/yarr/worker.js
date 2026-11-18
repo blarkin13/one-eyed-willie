@@ -294,7 +294,6 @@ async function privateVPCHealth(req,env) {
 }
 
 
-const MEDIA_CACHE_HEADERS={'cache-control':'private, no-store','x-content-type-options':'nosniff'};
 async function ownedPrivateServer(req,env){
  const user=await currentUser(req,env);
  if(!user)return {error:json({error:'not_authenticated'},401)};
@@ -309,67 +308,6 @@ async function verifiedOrigin(env,server,signal){
  const obj=await r.json();
  if(obj.server_id!==server.server_identity)throw new Error('wrong_origin');
 }
-async function privateCatalog(req,env){
- const owned=await ownedPrivateServer(req,env);
- if(owned.error)return owned.error;
- const url=new URL(req.url);
- const kind=url.searchParams.get('kind');
- if(kind!=='movies'&&kind!=='tv')return json({error:'invalid_kind'},400);
- const offsetRaw=url.searchParams.get('offset')||'0';
- if(!/^\d{1,7}$/.test(offsetRaw))return json({error:'invalid_offset'},400);
- const offset=Number(offsetRaw);
- if(offset>1000000)return json({error:'invalid_offset'},400);
- const sort=url.searchParams.get('sort')||'title';
- if(!['title','recent','added','year','length','rating'].includes(sort))return json({error:'invalid_sort'},400);
- const search=url.searchParams.get('search')||'';
- if(search.length>100||/[\x00-\x1f]/.test(search))return json({error:'invalid_search'},400);
- const signal=AbortSignal.timeout(12000);
- try{
-  await verifiedOrigin(env,owned.server,signal);
-  const params=new URLSearchParams({kind,offset:String(offset),limit:'72',sort,search});
-  const r=await env.YARR_PRIVATE_API.fetch('http://one-eyed-willie:8787/api/catalog?'+params.toString(),{method:'GET',signal,headers:{accept:'application/json','accept-encoding':'identity'}});
-  if(!r.ok || !(r.headers.get('content-type')||'').includes('json'))return json({error:'library_unavailable'},502);
-  const length=Number(r.headers.get('content-length')||0);
-  if(length>1200000)return json({error:'library_response_too_large'},502);
-  const raw=await r.text();
-  if(raw.length>1200000)return json({error:'library_response_too_large'},502);
-  const data=JSON.parse(raw);
-  if(!Array.isArray(data.items))return json({error:'library_response_invalid'},502);
-  const items=data.items.slice(0,72).map(x=>{
-   const path=typeof x.poster_url==='string'?x.poster_url:'';
-   const match=/^\/api\/artwork\/(thumb\/)?([a-f0-9]{64})$/.exec(path);
-   return {kind,library_id:Number(x.library_id)||null,key:String(x.key||'').slice(0,200),title:String(x.title||'Untitled').slice(0,220),
-    year:Number.isInteger(x.year)?x.year:null,genres:Array.isArray(x.genres)?x.genres.filter(x=>typeof x==='string').slice(0,5):[],
-    rating:typeof x.rating==='number'?x.rating:null, runtime:typeof x.runtime==='number'?x.runtime:null,
-    seasons:Array.isArray(x.seasons)?x.seasons.length:0,watched:!!x.watched,partially_watched:!!x.partially_watched,
-    poster_url:match?'/api/private/artwork/'+(match[1]?'thumb/':'')+match[2]:null};
-  });
-  return json({kind,items,total:Math.max(0,Number(data.total)||items.length),offset,limit:72,server_name:owned.server.display_name,media_access:false});
- }catch(_){return json({error:'private_library_unavailable'},503);}
-}
-async function privateArtwork(req,env){
- const owned=await ownedPrivateServer(req,env);
- if(owned.error)return owned.error;
- const path=new URL(req.url).pathname;
- const match=/^\/api\/private\/artwork\/(thumb\/)?([a-f0-9]{64})$/.exec(path);
- if(!match)return json({error:'not_found'},404);
- const signal=AbortSignal.timeout(12000);
- try{
-  await verifiedOrigin(env,owned.server,signal);
-  const origin='http://one-eyed-willie:8787/api/artwork/'+(match[1]?'thumb/':'')+match[2];
-  const r=await env.YARR_PRIVATE_API.fetch(origin,{method:'GET',signal,headers:{accept:'image/avif,image/webp,image/jpeg,image/png','accept-encoding':'identity'}});
-  if(!r.ok)return new Response(null,{status:r.status===404?404:502,headers:MEDIA_CACHE_HEADERS});
-  const mime=(r.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
-  if(!['image/jpeg','image/png','image/webp'].includes(mime))return json({error:'invalid_artwork_type'},502);
-  const len=Number(r.headers.get('content-length')||0);
-  if(len>5*1024*1024)return json({error:'artwork_too_large'},502);
-  const bytes=await r.arrayBuffer();
-  if(bytes.byteLength>5*1024*1024)return json({error:'artwork_too_large'},502);
-  return new Response(bytes,{status:200,headers:{...MEDIA_CACHE_HEADERS,'content-type':mime,'content-length':String(bytes.byteLength)}});
- }catch(_){return json({error:'artwork_unavailable'},503);}
-}
-
-
 // Full One-Eyed Willie application pilot. Every request is authorized against the
 // Yarr session and the exact paired server; no arbitrary origins or host overrides.
 const ORIGIN_BASE='http://one-eyed-willie:8787';
@@ -409,7 +347,7 @@ async function proxyInstalledApp(req,env,originPath) {
  const controller=AbortSignal.timeout(20000);
  try {
   await verifiedOrigin(env,owned.server,controller);
-  const upstream=await env.YARR_PRIVATE_API.fetch(upstreamUrl,{method,headers,body:['GET','HEAD'].includes(method)?undefined:req.body,redirect:'manual',signal:controller});
+  const upstream=await env.YARR_PRIVATE_API.fetch(upstreamUrl,{method,headers,body:['GET','HEAD'].includes(method)?undefined:req.body,redirect:'manual'});
   if(upstream.status>=300&&upstream.status<400){
    const location=upstream.headers.get('location');
    if(!location)return new Response(null,{status:502});
@@ -449,20 +387,6 @@ function serversHTML(servers) {
  return pairing+'<section class="block"><p class="eyebrow">Your servers</p><h2>Connected servers</h2><p class="note">The server link is tied to your Google account. Media access requires a separate secure connection.</p>'+cards+'<p class="note"><a href="/app">Open Yarr app preview</a></p></section>';
 }
 
-const appCSS="\n:root{color-scheme:dark;background:#090b11;color:#f7f6fa;font-family:system-ui,-apple-system,sans-serif}\n*{box-sizing:border-box}body{margin:0;background:#090b11;min-height:100vh}a{color:inherit;text-decoration:none}\n.appnav{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:20px clamp(18px,4vw,64px);border-bottom:1px solid #ffffff16}\n.appbrand{font-size:23px;font-weight:900;letter-spacing:.08em}.navlinks{display:flex;gap:18px;color:#bebdcc;font-size:14px}\n.appmain{padding:34px clamp(18px,4vw,64px) 80px}\n.intro{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap}\n.eyebrow{text-transform:uppercase;color:#ab89f8;letter-spacing:.13em;font-size:12px;font-weight:700}\nh1{font-size:clamp(32px,5vw,56px);margin:10px 0 8px;letter-spacing:-.04em}p{color:#a9a8ba}\n.connection{font-size:13px;color:#c9bddf}\n.toolbar{margin:30px 0 24px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}\n.tab{border:0;border-bottom:2px solid transparent;background:transparent;color:#b5afc1;padding:12px 20px;font:600 16px system-ui;cursor:pointer}\n.tab.selected{border-color:#aa80f6;color:#fff}\ninput,select{background:#171824;color:#fff;border:1px solid #383547;border-radius:9px;padding:12px;font-size:14px}\ninput{min-width:180px;flex:1;max-width:330px}select{max-width:185px}\n#library-count{margin-left:auto;font-size:13px;color:#9a97a7}\n.media-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:26px 17px;align-items:start}\n.media-tile{background:none;border:0;padding:0;color:inherit;text-align:left;cursor:pointer;min-width:0;border-radius:9px}\n.media-tile:focus-visible{outline:3px solid #ad88f3;outline-offset:5px}\n.poster{aspect-ratio:2/3;background:#191c2b;display:block;border-radius:9px;overflow:hidden;border:1px solid #ffffff18;transition:transform .2s,box-shadow .2s}\n.media-tile:hover .poster,.media-tile:focus-visible .poster{transform:scale(1.035);box-shadow:0 10px 32px #0009}\n.poster img{width:100%;height:100%;object-fit:cover}.media-placeholder{display:grid;place-items:center;height:100%;font-size:64px;color:#7e638e}\n.media-title{display:block;margin-top:10px;font-weight:650;font-size:14px;line-height:1.35;overflow-wrap:anywhere}\n.media-meta{display:block;color:#a4a0b1;font-size:12px;margin-top:4px}\n#media-state{padding:20px 0;color:#a5a0b8;font-size:13px}\n#load-more{padding:11px 20px;border:1px solid #6c528c;border-radius:8px;background:#221d2c;color:white;cursor:pointer}\n#media-detail[hidden],#load-more[hidden]{display:none}\n#media-detail{position:fixed;inset:0;background:#070711db;z-index:10;display:grid;place-items:center;padding:20px}\n.detail-panel{background:#181724;border:1px solid #ffffff27;border-radius:17px;max-width:710px;width:100%;padding:26px;display:grid;grid-template-columns:180px 1fr;gap:24px}\n#detail-poster{aspect-ratio:2/3;background:#242038;border-radius:8px;overflow:hidden}\n#detail-poster img{width:100%;height:100%;object-fit:cover}\n#detail-close{background:#302b3e;border:0;color:white;border-radius:8px;padding:10px 18px;cursor:pointer}\n@media(max-width:600px){.toolbar{gap:9px}.tab{padding:9px 12px}.media-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:18px 10px}.detail-panel{grid-template-columns:95px 1fr;padding:14px}.navlinks{font-size:12px}}\n";
-const appClientJS="'use strict';\n(function(){\n const $=id=>document.getElementById(id);\n const grid=$('media-grid'),state=$('media-state'),tabs=[...document.querySelectorAll('[data-kind]')];\n const search=$('library-search'),sort=$('library-sort'),more=$('load-more'),detail=$('media-detail'),close=$('detail-close');\n let kind='movies', offset=0,total=0,busy=false,done=false,queryId=0,debounce;\n const esc=value=>String(value??'').replace(/[&<>\"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',\"'\":'&#39;'}[c]));\n function status(text){state.textContent=text;}\n function poster(item){return item.poster_url&&/^\\/api\\/private\\/artwork\\/(thumb\\/)?[a-f0-9]{64}$/.test(item.poster_url)?item.poster_url:'';}\n function card(item){\n  const node=document.createElement('button');node.type='button';node.className='media-tile';\n  const art=poster(item);\n  const image=art?'<img loading=\"lazy\" decoding=\"async\" alt=\"\" src=\"'+esc(art)+'\">':'<div class=\"media-placeholder\" aria-hidden=\"true\">◈</div>';\n  const extras=[item.year,item.rating!=null?'★ '+item.rating:'',item.kind==='tv'&&item.seasons?item.seasons+' seasons':''].filter(Boolean).join(' · ');\n  node.innerHTML='<span class=\"poster\">'+image+'</span><span class=\"media-title\">'+esc(item.title)+'</span><span class=\"media-meta\">'+esc(extras)+'</span>';\n  node.addEventListener('click',()=>showDetail(item));\n  return node;\n }\n function showDetail(item){\n  $('detail-title').textContent=item.title;\n  $('detail-meta').textContent=[item.year,item.rating!=null?'Rating '+item.rating:'',item.runtime?item.runtime+' minutes':'',item.kind==='tv'?item.seasons+' seasons':''].filter(Boolean).join(' · ');\n  $('detail-genres').textContent=item.genres.join(' · ')||'No genre information available';\n  $('detail-watched').textContent=item.watched?'Watched':item.partially_watched?'Partially watched':'Not watched';\n  const art=poster(item);\n  $('detail-poster').replaceChildren();\n  if(art){const img=new Image();img.src=art;img.alt=item.title+' poster';$('detail-poster').append(img);}\n  detail.hidden=false;\n  close.focus();\n }\n close.addEventListener('click',()=>{detail.hidden=true;});\n detail.addEventListener('click',e=>{if(e.target===detail)detail.hidden=true;});\n document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!detail.hidden){detail.hidden=true;}});\n async function load(){\n  if(busy||done)return;\n  busy=true;const current=queryId;more.hidden=true;\n  status(offset?'Loading more titles…':'Loading your '+(kind==='movies'?'movies':'TV shows')+'…');\n  const q=new URLSearchParams({kind,offset:String(offset),sort:sort.value,search:search.value.trim()});\n  try{\n   const response=await fetch('/api/private/catalog?'+q,{credentials:'same-origin',cache:'no-store'});\n   const payload=await response.json();\n   if(current!==queryId)return;\n   if(!response.ok)throw Error(payload.error==='not_authenticated'?'Session expired — sign in again.':payload.error==='server_not_found'?'No authorized server is connected.':'Your private library could not be reached.');\n   if(!Array.isArray(payload.items))throw Error('Invalid catalog response');\n   const frag=document.createDocumentFragment();\n   payload.items.forEach(item=>frag.append(card(item)));\n   grid.append(frag);offset+=payload.items.length;total=payload.total||0;\n   done=payload.items.length===0||offset>=total;\n   $('library-count').textContent=total.toLocaleString()+' '+(kind==='movies'?'movies':'TV shows');\n   status(total?offset+' of '+total+' titles':'No matching titles in this library.');\n   more.hidden=done;\n   if(!done&&grid.scrollHeight<window.innerHeight+500){busy=false;load();return;}\n  }catch(e){if(current===queryId){status(e.message||'Unable to load library');more.hidden=false;more.textContent='Try again';}}\n  finally{if(current===queryId)busy=false;}\n }\n function reset(next){\n  if(next)kind=next;\n  queryId++;offset=0;total=0;done=false;busy=false;grid.replaceChildren();detail.hidden=true;more.textContent='Load more';\n  tabs.forEach(t=>{const active=t.dataset.kind===kind;t.setAttribute('aria-selected',String(active));t.classList.toggle('selected',active);});\n  $('library-count').textContent='';\n  load();\n }\n tabs.forEach(tab=>tab.addEventListener('click',()=>reset(tab.dataset.kind)));\n more.addEventListener('click',load);\n sort.addEventListener('change',()=>reset());\n search.addEventListener('input',()=>{clearTimeout(debounce);debounce=setTimeout(()=>reset(),280);});\n if('IntersectionObserver' in window){\n  const observer=new IntersectionObserver(entries=>{if(entries[0].isIntersecting&&!busy&&!done)load();},{rootMargin:'700px'});\n  observer.observe($('library-sentinel'));\n }\n reset('movies');\n})();";
-function appHTML(user,servers) {
- const linked=servers.filter(s=>s.status==='paired'&&s.server_identity);
- const label=linked.length?escapeHTML(linked[0].display_name):'No paired server';
- return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr · Your Library</title><style>'+appCSS+'</style></head><body>'+
- '<header class="appnav"><a class="appbrand" href="/app">YARR.</a><nav class="navlinks"><a href="/account">Account</a><a href="/api/private/health">Connection test</a></nav></header>'+
- '<main class="appmain"><section class="intro"><div><div class="eyebrow">Your personal library</div><h1>Movies &amp; Television</h1><p>Browse the media on your own server.</p></div><div class="connection">Server: '+label+' · Private connection</div></section>'+
- '<div class="toolbar"><button class="tab selected" type="button" data-kind="movies" aria-selected="true">Movies</button><button class="tab" type="button" data-kind="tv" aria-selected="false">TV Shows</button><input id="library-search" aria-label="Search your library" placeholder="Search titles…" autocomplete="off"><select id="library-sort" aria-label="Sort library"><option value="title">Title</option><option value="recent">Recently added</option><option value="year">Year</option><option value="rating">Rating</option></select><span id="library-count"></span></div>'+
- '<div id="media-grid" class="media-grid"></div><p id="media-state" role="status">Connecting to your server…</p><button id="load-more" hidden>Load more</button><div id="library-sentinel" aria-hidden="true"></div>'+
- '<p style="margin-top:50px;font-size:13px">Read-only preview. Remote playback is not enabled yet.</p></main>'+
- '<div id="media-detail" hidden role="dialog" aria-modal="true" aria-label="Media details"><div class="detail-panel"><div id="detail-poster"></div><div><div class="eyebrow">From your library</div><h2 id="detail-title"></h2><p id="detail-meta"></p><p id="detail-genres"></p><p id="detail-watched"></p><p>Playback will be available after per-device authorization is finished.</p><button id="detail-close">Close</button></div></div></div>'+
- '<script src="/app-client.js" defer></script></body></html>';
-}
 function accountHTML(user,enabled,message='',servers=[]) {
  const title=user?'My Account':'Sign in to Yarr';
  const action=user?'<form method="post" action="/auth/logout"><button class="btn" type="submit">Sign out</button></form>':(enabled?'<a class="btn primary" href="/auth/google/start">Continue with Google</a>':'<p class="note">Google Sign-In is being configured. Account creation is not available yet.</p>');
@@ -477,7 +401,6 @@ export default { async fetch(req,env) {
    let database='unavailable';try{await env.ACCOUNTS.prepare('SELECT 1 AS ok').first();database='ready'}catch(_){}
    return json({service:'yarr',status:'staging',database,authentication:authReady(env)?'configured':'not_configured',media_proxy:false},database==='ready'?200:503);
   }
-  if(req.method==='GET'&&u.pathname==='/app-client.js')return new Response(appClientJS,{headers:{'content-type':'application/javascript; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'}});
   if(req.method==='GET'&&u.pathname==='/robots.txt')return new Response('User-agent: *\nDisallow: /\n',{headers:{'content-type':'text/plain; charset=utf-8'}});
   if(req.method==='GET'&&u.pathname==='/auth/google/start')return googleStart(env);
   if(req.method==='GET'&&u.pathname==='/auth/google/callback')return googleCallback(req,env);
@@ -497,8 +420,6 @@ export default { async fetch(req,env) {
   }
   if(req.method==='POST'&&u.pathname==='/api/connection/tunnel/bootstrap')return privateTunnelBootstrap(req,env);
   if(req.method==='GET'&&u.pathname==='/api/private/health')return privateVPCHealth(req,env);
-  if(req.method==='GET'&&u.pathname==='/api/private/catalog')return privateCatalog(req,env);
-  if(req.method==='GET'&&u.pathname.startsWith('/api/private/artwork/'))return privateArtwork(req,env);
   if(req.method==='GET'&&u.pathname==='/api/servers'){
    const user=await currentUser(req,env);
    if(!user)return json({error:'not_authenticated'},401);
