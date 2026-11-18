@@ -224,7 +224,7 @@ el('save-sidebar').onclick=async()=>{
 };
 el('reset-sidebar').onclick=()=>{
  if(!confirm('Restore sidebar order and visibility to defaults?'))return;
- const priorities=['home','movies','tv','connections'];
+ const priorities=['home','movies','tv','music','connections'];
  const originalPosition=new Map(sidebarItems.map((item,index)=>[item.id,index]));
  sidebarItems.sort((a,b)=>{
   const score=x=>x.id==='settings'?999:
