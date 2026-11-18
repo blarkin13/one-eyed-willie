@@ -138,7 +138,7 @@ def music_art(track_id: int):
                         break
                     if str(key) == "covr" and value:
                         data = bytes(value[0])
-                        mime = "image/png" if data.startswith(b"\\x89PNG") else "image/jpeg"
+                        mime = "image/png" if data.startswith(bytes([137,80,78,71])) else "image/jpeg"
                         break
     except (OSError, ValueError, TypeError, KeyError, AttributeError):
         pass
