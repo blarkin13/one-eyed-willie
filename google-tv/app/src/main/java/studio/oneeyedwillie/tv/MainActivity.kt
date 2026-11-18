@@ -1385,7 +1385,14 @@ class MainActivity : ComponentActivity() {
                   margin:0!important;
                   overflow-y:hidden!important;
                   min-height:0!important;
-                  scroll-padding-inline:28px!important
+                  scroll-padding-inline:40px!important
+                }
+                body[data-page="home"] .shelf-track .tile-button{
+                  scroll-margin-inline:40px!important
+                }
+                body[data-page="home"] .shelf-track>.tile:first-child
+                  .tile-button:is(:focus,:focus-visible) .cover{
+                  transform-origin:left center!important
                 }
                 body[data-page="home"] .workspace>.content{
                   padding-right:0!important
@@ -2193,8 +2200,13 @@ class MainActivity : ComponentActivity() {
                     // Reveal the target in its own horizontal row before moving
                     // the page. Hidden rail items still have valid DOM geometry.
                     const bounds=rect(shelf);
-                    const deltaX=r.left<bounds.left+16?r.left-bounds.left-16:
-                      r.right>bounds.right-16?r.right-bounds.right+16:0;
+                    // A focused TV poster grows 7% and needs extra room for its
+                    // rounded corners and purple focus ring. Keep that clearance
+                    // on BOTH sides as the horizontal rail scrolls.
+                    const edge=(document.body.dataset.page==='home' &&
+                      shelf.matches('.shelf-track'))?40:16;
+                    const deltaX=r.left<bounds.left+edge?r.left-bounds.left-edge:
+                      r.right>bounds.right-edge?r.right-bounds.right+edge:0;
                     if(Math.abs(deltaX)>1){
                       glideTo(shelf,'left',shelf.scrollLeft+deltaX);
                     }
