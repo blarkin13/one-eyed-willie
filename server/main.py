@@ -8,6 +8,7 @@ from server.catalog import catalog, start_background_scans
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.home import router as home_router
+from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
 from server.theme_music import router as theme_music_router
