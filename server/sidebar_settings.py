@@ -65,7 +65,11 @@ def _settings_table(conn):
 
 
 def _available(conn):
-    entries = [{"id": key, "name": name, "kind": "system"} for key, name in NAV]
+    # Standard library destinations exist only after a corresponding library
+    # has been configured. Keep Settings available for adding the first one.
+    kinds = {row["kind"] for row in conn.execute("SELECT DISTINCT kind FROM libraries")}
+    entries = [{"id": key, "name": name, "kind": "system"} for key, name in NAV
+               if key not in ("movies", "tv", "music") or key in kinds]
     for row in conn.execute("SELECT id,name,sidebar_hidden FROM libraries ORDER BY sort_order,id"):
         entries.append({"id": f'library:{row["id"]}', "name": row["name"], "kind": "library",
                         "sidebar_hidden": bool(row["sidebar_hidden"])})
