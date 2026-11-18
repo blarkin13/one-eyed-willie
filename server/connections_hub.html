@@ -3,43 +3,29 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Connections · One-Eyed Willie</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
-<link rel="stylesheet" href="/assets/ui.css?v=connections-hub-1">
+<link rel="stylesheet" href="/assets/ui.css?v=connections-hub-3">
 <script defer src="/assets/shell.js?v=connections-hub-1"></script>
 <style>
 .connections-hub{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:16px;margin-top:22px}
 .connections-hub .service-card{display:flex;flex-direction:column;gap:15px;padding:22px;min-height:168px;border-radius:16px;
- background:#142030;border:1px solid #32455a;color:#f6f7fa;text-align:left;font:inherit;cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
-.connections-hub .service-card:hover,.connections-hub .service-card:focus-visible{background:#203249;border-color:#a78bfa;outline:2px solid #a78bfa;outline-offset:2px;transform:translateY(-2px)}
+ background:#142030;border:1px solid #32455a;color:#f6f7fa;text-align:left;font:inherit;text-decoration:none}
+.connections-hub a.service-card{cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
+.connections-hub a.service-card:hover,.connections-hub a.service-card:focus-visible{background:#203249;border-color:#a78bfa;outline:2px solid #a78bfa;outline-offset:2px;transform:translateY(-2px)}
 .connections-hub .service-name{font-size:1.3rem;font-weight:700;display:flex;align-items:center;gap:12px}
 .connections-hub .service-description{color:#a9bdce;line-height:1.5}
 .connections-hub .service-state{margin-top:auto;color:#92d9b4;font-size:.9rem;font-weight:650}
 .connections-hub .integration-logo{width:35px;height:35px}
 .connection-empty{padding:25px 0;color:#b8c9dc}
-.connection-dialog{width:min(580px,calc(100vw - 24px));max-width:none;background:#111d2b;color:#f6f7fa;border:1px solid #48607b;border-radius:16px;padding:25px}
-.connection-dialog::backdrop{background:#020710cf}
-.connection-dialog h2{font-size:1.5rem;margin:0}
-.connection-dialog p{color:#b8c8da;line-height:1.6}
-.connection-dialog .dialog-top{display:flex;align-items:center;justify-content:space-between;gap:16px}
-.connection-dialog .dialog-close{background:transparent;color:#fff;border:0;font-size:1.7rem;cursor:pointer;padding:8px;min-width:44px;min-height:44px}
-.connection-dialog .dialog-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:24px}
-.connection-dialog .dialog-actions a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:10px 17px;text-decoration:none;border-radius:10px;background:#263a51;color:#fff;border:1px solid #526782}
-.connection-dialog .dialog-actions a:focus-visible{outline:2px solid #bdaaff;outline-offset:3px}
 </style></head>
 <body data-page="connectionshub"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
 <div class="page-head"><div><p class="eyebrow">Media management</p><h1>Connections</h1>
-<p>View your configured media service integrations. Only configured services appear. Select any card for connection details and available actions.</p></div>
+<p>View your configured media service integrations. Only configured services appear. Select a dashboard service to open it; API-only integrations display their status here.</p></div>
 <a class="secondary-button" href="/settings/connections">Manage connections</a></div>
 <div class="connections-hub" id="connected-services" aria-label="Connected services" aria-live="polite"></div>
 <p class="connection-empty" id="connections-message" role="status">Checking configured services…</p>
-<dialog class="connection-dialog" id="connection-details" aria-labelledby="connection-dialog-title">
- <div class="dialog-top"><h2 id="connection-dialog-title"></h2>
- <button class="dialog-close" type="button" id="connection-close" aria-label="Close details">×</button></div>
- <p id="connection-dialog-description"></p>
- <p id="connection-dialog-status" role="status"></p>
- <div class="dialog-actions" id="connection-dialog-actions"></div>
-</dialog>
+
 </main></div></div>
 <script>
 const entries=[
@@ -49,25 +35,6 @@ const entries=[
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.'},
  {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.'}
 ];
-const details=document.getElementById('connection-details');
-const closeDetails=document.getElementById('connection-close');
-closeDetails.onclick=()=>details.close();
-details.addEventListener('click',event=>{if(event.target===details)details.close();});
-function openDetails(service){
- document.getElementById('connection-dialog-title').textContent=service.title;
- document.getElementById('connection-dialog-description').textContent=service.description;
- document.getElementById('connection-dialog-status').textContent='Status: Configured (reachability not checked)';
- const actions=document.getElementById('connection-dialog-actions');
- actions.replaceChildren();
- if(service.dashboard){
-  const dashboard=document.createElement('a');dashboard.href=service.dashboard;
-  dashboard.textContent='Open '+service.title+' dashboard';actions.append(dashboard);
- }
- const settings=document.createElement('a');
- settings.href='/settings/connections'+service.config;
- settings.textContent='Manage connection';actions.append(settings);
- details.showModal();
-}
 async function status(url){
  const response=await fetch(url,{cache:'no-store'});
  if(!response.ok)throw Error('Unable to check connections');
@@ -89,9 +56,14 @@ async function showConnected(){
    sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
  for(const service of entries){
    if(!connected[service.id])continue;
-   const card=document.createElement('button');card.type='button';card.className='service-card';
-   card.setAttribute('aria-label',service.title+' connection details');
-   card.addEventListener('click',()=>openDetails(service));
+   const card=document.createElement(service.dashboard?'a':'article');
+   card.className='service-card';
+   if(service.dashboard){
+     card.href=service.dashboard;
+     card.setAttribute('aria-label','Open '+service.title+' dashboard');
+   }else{
+     card.classList.add('service-api-only');
+   }
    const heading=document.createElement('span');heading.className='service-name';
    if(service.image){
      const image=document.createElement('img');image.src=service.image;image.alt='';
@@ -101,7 +73,7 @@ async function showConnected(){
    const description=document.createElement('span');description.className='service-description';
    description.textContent=service.description;
    const state=document.createElement('span');state.className='service-state';
-   state.textContent='Configured · View details';
+   state.textContent=service.dashboard?'Configured · Open dashboard':'Configured · API integration';
    card.append(heading,description,state);root.append(card);
  }
  if(root.childElementCount && settled.every(value=>value.status==='fulfilled'))
