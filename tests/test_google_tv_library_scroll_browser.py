@@ -347,6 +347,81 @@ class LibraryScrollBrowserTests(unittest.TestCase):
                 self.assert_monotonic(up, "up")
                 self.assertEqual(up["finalY"], 0)
 
+    def refresh_with(self, page, change):
+        """Run the 15s live-refresh path against an altered catalog response."""
+        def handler(route):
+            response = route.fetch()
+            data = response.json()
+            change(data)
+            route.fulfill(status=200, content_type="application/json",
+                          body=json.dumps(data))
+        page.route("**/api/catalog/all*", handler)
+        try:
+            return page.evaluate("""async () => {
+              const tiles = [...document.querySelectorAll('#items .tile')];
+              tiles.forEach((tile, index) => { tile.__kept = index; });
+              const focus = document.activeElement;
+              const y = document.scrollingElement.scrollTop;
+              const started = performance.now();
+              await load({preserveFocus: true}, true);
+              const after = [...document.querySelectorAll('#items .tile')];
+              return {
+                elapsed: performance.now() - started,
+                count: after.length,
+                before: tiles.length,
+                sameNodes: after.filter((tile, i) => tile.__kept === i).length,
+                sameFocus: document.activeElement === focus,
+                key: document.activeElement?.dataset?.hoverKey,
+                dy: Math.abs(document.scrollingElement.scrollTop - y),
+                badge: !!after[7]?.querySelector('.watched-badge'),
+                meta: after[8]?.querySelector('.tile-meta')?.textContent,
+                poster: !!after[9]?.querySelector('.poster-image'),
+              };
+            }""")
+        finally:
+            page.unroute("**/api/catalog/all*")
+
+    def test_unchanged_order_refresh_patches_cards_without_rebuilding(self):
+        page = self.open_library()
+        self.hold(page, ["down"] * 30)
+
+        def change(data):
+            data["items"][7]["watched"] = True
+            data["items"][8]["rating"] = 9.1
+            data["items"][9]["poster_url"] = "/api/artwork/thumb/" + "a" * 64
+
+        result = self.refresh_with(page, change)
+        self.assertEqual(result["count"], MOVIES)
+        self.assertEqual(result["sameNodes"], MOVIES, "cards were rebuilt")
+        self.assertTrue(result["sameFocus"])
+        self.assertEqual(result["dy"], 0)
+        self.assertTrue(result["badge"], "watched badge was not applied")
+        self.assertIn("9.1", result["meta"])
+        self.assertTrue(result["poster"], "newly resolved poster was not applied")
+        # Navigation still works from the untouched selection.
+        moved = self.hold(page, ["down", "down"])
+        self.assertEqual(len({s["row"] for s in moved["steps"]}), 2)
+
+    def test_changed_list_still_rebuilds_and_keeps_deep_selection(self):
+        page = self.open_library()
+        self.hold(page, ["down"] * 30)
+
+        def change(data):
+            del data["items"][3]       # a title disappeared: order differs
+            data["total"] -= 1
+
+        result = self.refresh_with(page, change)
+        # A rebuild is progressive: everything up to the selection exists when
+        # load() returns and the remainder is appended afterwards.
+        self.assertGreater(result["count"], 30)
+        self.assertEqual(result["sameNodes"], 0, "list changed; must rebuild")
+        self.assertIsNotNone(result["key"], "selected poster was lost")
+        page.wait_for_function(
+            "document.querySelectorAll('#items .tile-button').length >= %d"
+            % (MOVIES - 1), timeout=30000)
+        self.assertLess(page.evaluate(
+            "document.scrollingElement.scrollTop"), 10 ** 6)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -5,6 +5,7 @@ from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
 from server.library import router, db
 from server.catalog import catalog, start_background_scans
+from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.home import router as home_router
@@ -114,6 +115,7 @@ def catalog_revision():
 
 @app.get("/api/catalog/all")
 def get_entire_catalog(
+    request: Request,
     kind: str | None = None,
     search: str = Query("", max_length=150),
     sort: str = Query("title"),
@@ -126,11 +128,15 @@ def get_entire_catalog(
         sort = "title"
     # Refresh metadata independently of poster generation; never block browsing.
     start_catalog_metadata_refresh()
-    return catalog(kind, search, limit=1_000_000, sort=sort, library_id=library_id, genre=genre)
+    # The full list is ~1 MB of JSON for a few thousand titles and the Movies
+    # page cannot draw its first row until it has been downloaded and parsed.
+    return compressed_json(request, catalog(
+        kind, search, limit=1_000_000, sort=sort, library_id=library_id, genre=genre))
 
 
 @app.get("/api/catalog")
 def get_catalog(
+    request: Request,
     kind: str | None = None,
     search: str = Query("", max_length=150),
     sort: str = Query("title"),
@@ -144,7 +150,8 @@ def get_catalog(
     if sort not in ("title", "recent", "added", "year", "length", "rating"):
         sort = "title"
     start_catalog_metadata_refresh()
-    return catalog(kind, search, limit=limit, offset=offset, sort=sort, library_id=library_id, genre=genre)
+    return compressed_json(request, catalog(
+        kind, search, limit=limit, offset=offset, sort=sort, library_id=library_id, genre=genre))
 
 @app.get("/")
 def home():

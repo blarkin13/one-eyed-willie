@@ -138,5 +138,47 @@ class PosterIndexTests(unittest.TestCase):
         self.assertTrue(artwork.warm_thumbnail(digest))
 
 
+class PosterBatchEndpointAndLoopTests(unittest.TestCase):
+    def test_movie_poster_batch_returns_grid_thumbnails_not_full_images(self):
+        from unittest.mock import MagicMock
+        from server import movies
+        digest = "b" * 64
+        details = {
+            (1, "movie a:2000"): {"poster_url": "/api/artwork/" + digest},
+            (1, "movie b:2001"): {"poster_url": None},
+            (1, "movie c:2002"): {"poster_url": "https://example.test/x.jpg"},
+        }
+        fake = lambda library_id, key, **kwargs: details[(library_id, key)]
+        batch = movies.PosterBatch(items=[
+            {"library_id": 1, "key": key} for _, key in details])
+        with patch.object(movies, "_snapshot", MagicMock()), \
+                patch.object(movies, "_details", side_effect=fake):
+            result = movies.movie_posters(batch)["items"]
+        urls = [entry["poster_url"] for entry in result]
+        self.assertEqual(urls, ["/api/artwork/thumb/" + digest, None,
+                                "https://example.test/x.jpg"])
+
+    def test_poster_loop_polls_quickly_while_work_remains_then_idles(self):
+        class FakeStop:
+            def __init__(self):
+                self.waits = []
+
+            def wait(self, seconds):
+                self.waits.append(seconds)
+                return False
+
+            def is_set(self):
+                return len(self.waits) >= 4
+
+        stop = FakeStop()
+        with patch.object(poster_index, "prepare_batch", side_effect=[24, 24, 0]):
+            poster_index.poster_loop(stop)
+        self.assertEqual(stop.waits[0], 30)                    # startup grace
+        self.assertEqual(stop.waits[1:], [poster_index.BUSY_WAIT_SECONDS] * 2
+                         + [poster_index.IDLE_WAIT_SECONDS])
+        self.assertLess(poster_index.BUSY_WAIT_SECONDS, 15)
+        self.assertGreaterEqual(poster_index.BATCH, 24)
+
+
 if __name__ == "__main__":
     unittest.main()
