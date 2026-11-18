@@ -127,10 +127,18 @@ document.addEventListener('DOMContentLoaded', () => {
       wrap.className='nav-icon nav-action-icon';
       wrap.setAttribute('aria-hidden','true');
       wrap.style.width=size+'px';wrap.style.height=size+'px';
-      const glyph=document.createElement('span');
-      glyph.className='adventure-glyph';
-      glyph.style.setProperty('--adventure-icon','url("/assets/themes/action-adventure/'+asset+'.svg")');
-      wrap.append(glyph);
+      // Real SVG image instead of a CSS mask: works with cached stylesheets,
+      // WebKit and the TV browser, and never leaves an empty icon on 404.
+      const image=document.createElement('img');
+      image.className='adventure-icon-image';
+      image.alt='';image.width=size;image.height=size;
+      image.style.cssText='display:block;width:100%;height:100%;object-fit:contain;max-width:100%;max-height:100%';
+      image.addEventListener('error',()=>{
+        const fallback=window.WillieCleanIcons.create(name,size);
+        wrap.replaceWith(fallback);
+      },{once:true});
+      image.src='/assets/themes/action-adventure/'+asset+'.svg?v=2';
+      wrap.append(image);
       return wrap;
     }
   };

@@ -126,9 +126,13 @@ function createThemeIcon(key,size=26){
      wrap.className='nav-icon nav-action-icon library-action-icon';
      wrap.style.width=size+'px';wrap.style.height=size+'px';
      wrap.setAttribute('aria-hidden','true');
-     const glyph=document.createElement('span');glyph.className='adventure-glyph';
-     glyph.style.setProperty('--adventure-icon','url("/assets/themes/action-adventure/'+asset+'.svg")');
-     wrap.append(glyph);
+     const image=document.createElement('img');
+     image.className='adventure-icon-image';image.alt='';
+     image.width=size;image.height=size;
+     image.style.cssText='display:block;width:100%;height:100%;object-fit:contain;max-width:100%;max-height:100%';
+     image.addEventListener('error',()=>wrap.replaceWith(createIcon(key,size)),{once:true});
+     image.src='/assets/themes/action-adventure/'+asset+'.svg?v=2';
+     wrap.append(image);
      return wrap;
    }
  }
