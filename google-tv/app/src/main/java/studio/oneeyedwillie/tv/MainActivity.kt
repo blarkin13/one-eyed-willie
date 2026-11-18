@@ -2515,16 +2515,33 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               const move=direction=>{
-                // Keep the D-pad inside visible dialogs and library Sort/Filter
-                // menus. Without the catalog menu here, DOWN would navigate
-                // the library behind the popup instead of its choices.
+                // Sort and Filter are toolbar controls, not ordinary library
+                // links. DOWN from a focused toggle must ENTER its menu; the
+                // old toolbar handler sent DOWN straight to the first poster.
+                // A live popup owns the remote's arrows until dismissed.
+                if(window.__willieCatalogRemoteNavigate?.(direction))return true;
+                const active=document.activeElement;
+                const catalogToggle=active?.matches?.('#sort-toggle,#genre-toggle');
+                if(catalogToggle && direction==='down'){
+                  const menu=document.getElementById(active.getAttribute('aria-controls'));
+                  if(menu?.hidden)active.click();
+                  const option=menu?.querySelector(
+                    '.catalog-tool-option[aria-checked="true"],.catalog-tool-option'
+                  );
+                  if(option)focusNode(option);
+                  return true;
+                }
+                // Also handle server versions without the dedicated catalog
+                // helper. Do not allow a popup to silently lose D-pad focus.
                 const menu=document.querySelector(
                   'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'
                 );
                 if(menu){
-                  const options=[...menu.querySelectorAll(
-                    'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
-                  )].filter(isVisible);
+                  const options=menu.matches('.catalog-tool-menu')
+                    ?[...menu.querySelectorAll('.catalog-tool-option:not(:disabled)')]
+                    :[...menu.querySelectorAll(
+                      'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
+                    )].filter(isVisible);
                   const index=options.indexOf(document.activeElement);
                   if(direction==='up'||direction==='down'){
                     if(!options.length)return true;
@@ -2533,11 +2550,8 @@ class MainActivity : ComponentActivity() {
                       Math.max(0,Math.min(options.length-1,index+step));
                     return focusNode(options[next]);
                   }
-                  // Left/Right must not move into posters underneath an open
-                  // Sort/Filter menu. OK activates the focused option.
                   return true;
                 }
-                const active=document.activeElement;
                 if(active?.matches?.('input[type="range"]') &&
                     (direction==='left'||direction==='right')){
                   const min=Number(active.min)||0,max=Number(active.max)||100;
