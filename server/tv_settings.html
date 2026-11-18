@@ -236,6 +236,24 @@ const ambientChoices={
  layer:[['foreground','Over interface'],['background','Behind interface']]
 };
 let ambientState={effect:'off',intensity:10,speed:'normal',layer:'foreground'};
+let ambientTouched=false,ambientSaveVersion=0,ambientSaveQueue=Promise.resolve();
+function saveAmbientOnTv(){
+ ambientTouched=true;
+ const values={...ambientState},version=++ambientSaveVersion;
+ message('Saving ambient effects…');
+ ambientSaveQueue=ambientSaveQueue.catch(()=>{}).then(async()=>{
+  const saved=await api('/api/settings/ambient',{
+   method:'PUT',body:JSON.stringify(values)
+  });
+  if(version===ambientSaveVersion){
+   window.WillieAmbient?.confirmed(saved);
+   message('Ambient effects saved for the server and other TVs.');
+  }
+ }).catch(error=>{
+  if(version===ambientSaveVersion)message('Could not save ambient effects: '+error.message);
+ });
+ return ambientSaveQueue;
+}
 function drawAmbientButtons(){
  for(const [field,choices] of Object.entries(ambientChoices)){
   const row=choices.find(pair=>pair[0]===ambientState[field])||choices[0];
@@ -251,25 +269,26 @@ for(const [field,choices] of Object.entries(ambientChoices)){
   const index=choices.findIndex(pair=>pair[0]===ambientState[field]);
   ambientState[field]=choices[(index+1)%choices.length][0];
   drawAmbientButtons();
+  saveAmbientOnTv();
  };
 }
 el('tv-ambient-intensity').oninput=()=>{
+ ambientTouched=true;
  ambientState.intensity=Number(el('tv-ambient-intensity').value);
  drawAmbientButtons();
 };
+el('tv-ambient-intensity').onchange=saveAmbientOnTv;
 api('/api/settings/ambient').then(data=>{
+ if(ambientTouched)return;
  ambientState={...ambientState,...data};drawAmbientButtons();
+ window.WillieAmbient?.confirmed(data);
 }).catch(error=>message('Could not load ambient effects: '+error.message));
-el('tv-ambient-form').onsubmit=async event=>{
+el('tv-ambient-form').onsubmit=event=>{
  event.preventDefault();
- try{
-  await api('/api/settings/ambient',{method:'PUT',body:JSON.stringify(ambientState)});
-  message('Ambient effects saved for the server and other TVs.');
- }catch(error){message('Could not save ambient effects: '+error.message)}
+ saveAmbientOnTv();
 };
 el('tv-ambient-off').onclick=()=>{
- ambientState.effect='off';drawAmbientButtons();
- el('tv-ambient-form').requestSubmit();
+ ambientState.effect='off';drawAmbientButtons();saveAmbientOnTv();
 };
 el('tv-server-connection').onclick=()=>prompt('oewtv:settings:server','');
 </script></body></html>
