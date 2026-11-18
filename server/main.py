@@ -3,6 +3,7 @@ import threading
 from pathlib import Path
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from server.static_text import TextFileResponse
 from server.library import router, db
 from server.catalog import catalog, start_background_scans
 from server.compression import compressed_json
@@ -181,26 +182,26 @@ def get_catalog(
 
 @app.get("/")
 def home():
-    return FileResponse(Path(__file__).with_name("dashboard.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("dashboard.html"), media_type="text/html")
 
 @app.get("/person")
 def person_page():
-    return FileResponse(Path(__file__).with_name("person.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("person.html"), media_type="text/html")
 
 @app.get("/credit")
 def credit_title_page():
-    return FileResponse(Path(__file__).with_name("credit_detail.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("credit_detail.html"), media_type="text/html")
 
 
 @app.get("/movie")
 def movie_page():
-    return FileResponse(Path(__file__).with_name("movie_detail.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("movie_detail.html"), media_type="text/html")
 
 
 @app.get("/movies")
 @app.get("/tv")
 def browse():
-    return FileResponse(Path(__file__).with_name("catalog.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("catalog.html"), media_type="text/html")
 
 # The Google TV WebView needs sidebar visibility established BEFORE the first
 # paint, rather than in a script injected after page load. Only requests from
@@ -290,7 +291,7 @@ body:is([data-page="movies"],[data-page="tv"]) .library-head + .section-heading 
 @app.get("/assets/ui.css")
 def ui_stylesheet(request: Request):
     if "OneEyedWillieTV/1" not in request.headers.get("user-agent", ""):
-        return FileResponse(Path(__file__).with_name("ui.css"), media_type="text/css",
+        return TextFileResponse(Path(__file__).with_name("ui.css"), media_type="text/css",
                             headers={"Vary": "User-Agent"})
     stylesheet = Path(__file__).with_name("ui.css").read_text(encoding="utf-8")
     return Response(stylesheet + "\n" + TV_RAIL_CSS, media_type="text/css",
@@ -365,53 +366,53 @@ def default_library_header_image(kind: str):
 
 @app.get("/assets/library-appearance.js")
 def library_appearance_js():
-    return FileResponse(Path(__file__).with_name("library_appearance.js"),
+    return TextFileResponse(Path(__file__).with_name("library_appearance.js"),
                         media_type="application/javascript")
 
 
 @app.get("/assets/media-context.js")
 def media_context_script():
-    return FileResponse(Path(__file__).with_name("media_context.js"),
+    return TextFileResponse(Path(__file__).with_name("media_context.js"),
                         media_type="text/javascript",
-                        headers={"Cache-Control": "no-store"})
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/assets/ambient.js")
 def ambient_script():
-    return FileResponse(Path(__file__).with_name("ambient.js"),
+    return TextFileResponse(Path(__file__).with_name("ambient.js"),
                         media_type="text/javascript",
-                        headers={"Cache-Control": "no-store"})
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/assets/shell.js")
 def ui_shell():
-    return FileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache"})
 
 @app.get("/assets/theme-music.js")
 def theme_music_script():
-    return FileResponse(Path(__file__).with_name("theme-music.js"), media_type="text/javascript",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("theme-music.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/assets/player.js")
 def player_script():
-    return FileResponse(Path(__file__).with_name("player.js"), media_type="text/javascript",
-                        headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
+    return TextFileResponse(Path(__file__).with_name("player.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/assets/vendor/hls-1.7.4.min.js")
 def hls_js_library():
     # Served locally so the player works on a LAN without internet access.
-    return FileResponse(Path(__file__).with_name("vendor") / "hls-1.7.4.min.js",
+    return TextFileResponse(Path(__file__).with_name("vendor") / "hls-1.7.4.min.js",
                         media_type="text/javascript",
                         headers={"Cache-Control": "public, max-age=31536000, immutable"})
 
 
 @app.get("/watch/{media_id}")
 def watch_page(media_id: int):
-    return FileResponse(Path(__file__).with_name("watch.html"), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("watch.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/settings")
@@ -420,25 +421,25 @@ def settings_home_page(request: Request):
     # on the full web Settings page and is never shown in the TV navigation.
     tv_client = "OneEyedWillieTV/1" in request.headers.get("user-agent", "")
     template = "tv_settings.html" if tv_client else "settings_hub.html"
-    return FileResponse(Path(__file__).with_name(template), media_type="text/html",
-                        headers={"Cache-Control": "no-store", "Vary": "User-Agent"})
+    return TextFileResponse(Path(__file__).with_name(template), media_type="text/html",
+                        headers={"Cache-Control": "no-cache", "Vary": "User-Agent"})
 
 
 @app.get("/settings/credits")
 def credits_settings_page():
-    return FileResponse(Path(__file__).with_name("credits.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("credits.html"), media_type="text/html")
 
 
 @app.get("/settings/appearance")
 def appearance_settings_page():
-    return FileResponse(Path(__file__).with_name("appearance_settings.html"), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("appearance_settings.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/settings/general")
 def general_settings_page():
-    return FileResponse(Path(__file__).with_name("general_settings.html"), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("general_settings.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/settings/playback")
@@ -449,35 +450,35 @@ def playback_settings_page():
 
 @app.get("/settings/libraries")
 def library_settings():
-    return FileResponse(Path(__file__).with_name("index.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("index.html"), media_type="text/html")
 
 @app.get("/settings/remote")
 def remote_settings_page():
-    return FileResponse(Path(__file__).with_name("remote_settings.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("remote_settings.html"), media_type="text/html")
 
 @app.get("/tv/show")
 @app.get("/tv/season")
 @app.get("/tv/episode")
 def tv_details_page():
-    return FileResponse(Path(__file__).with_name("tv_detail.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("tv_detail.html"), media_type="text/html")
 
 @app.get("/settings/metadata")
 def metadata_settings_page():
-    return FileResponse(Path(__file__).with_name("metadata_settings.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("metadata_settings.html"), media_type="text/html")
 
 @app.get("/explore")
 def explore_more_page():
-    return FileResponse(Path(__file__).with_name("explore.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("explore.html"), media_type="text/html")
 
 @app.get("/services")
 def download_services_page():
-    return FileResponse(Path(__file__).with_name("services.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("services.html"), media_type="text/html")
 
 
 @app.get("/radarr")
 @app.get("/sonarr")
 def manager_dashboard_page():
-    return FileResponse(Path(__file__).with_name("manager_dashboard.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("manager_dashboard.html"), media_type="text/html")
 
 
 @app.get("/sonarr/series/{series_id}")
@@ -485,21 +486,21 @@ def sonarr_series_page(series_id: int):
     if series_id <= 0:
         from fastapi import HTTPException
         raise HTTPException(404, "Series not found")
-    return FileResponse(Path(__file__).with_name("sonarr_series.html"), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("sonarr_series.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/sabnzbd")
 def sabnzbd_dashboard_page():
-    return FileResponse(Path(__file__).with_name("sab_dashboard.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("sab_dashboard.html"), media_type="text/html")
 
 
 @app.get("/settings/connections")
 def arr_connections_page():
-    return FileResponse(Path(__file__).with_name("arr_connections.html"), media_type="text/html")
+    return TextFileResponse(Path(__file__).with_name("arr_connections.html"), media_type="text/html")
 
 
 @app.get("/settings/maintenance")
 def maintenance_settings_page():
-    return FileResponse(Path(__file__).with_name("maintenance_settings.html"), media_type="text/html",
-                        headers={"Cache-Control": "no-store"})
+    return TextFileResponse(Path(__file__).with_name("maintenance_settings.html"), media_type="text/html",
+                        headers={"Cache-Control": "no-cache"})
