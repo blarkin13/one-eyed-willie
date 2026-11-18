@@ -5,6 +5,7 @@ Local folders and episodes remain authoritative; the provider only adds display 
 """
 import html
 import re
+import threading
 import time
 import urllib.error
 import urllib.parse
@@ -81,6 +82,41 @@ def _get(path, query=None):
         _FAILED_UNTIL[url] = time.monotonic() + FAILURE_TTL_SECONDS
         return None
 
+# Network requests must not run while holding the global metadata LOCK: it is
+# shared by every provider and by the SQLite cache helpers, so one slow or
+# timing-out TVmaze call used to stall every other metadata lookup. The LOCK now
+# only guards the short cache reads/writes; a per-key lock stops two requests
+# for the same show (the show page and its poster) from fetching it twice.
+_KEY_LOCKS = {}
+_KEY_LOCKS_GUARD = threading.Lock()
+_MAX_KEY_LOCKS = 4096
+
+
+def _key_lock(key):
+    with _KEY_LOCKS_GUARD:
+        if len(_KEY_LOCKS) > _MAX_KEY_LOCKS:
+            _KEY_LOCKS.clear()      # holders keep their lock object; only reuse is lost
+        return _KEY_LOCKS.setdefault(key, threading.Lock())
+
+
+def _cached_fetch(key, fetch, empty):
+    """Return the cached value, else run ``fetch() -> (value, cacheable)`` once."""
+    with LOCK:
+        cached = _cache_get(key)
+    if cached is not None:
+        return cached
+    with _key_lock(key):
+        with LOCK:
+            cached = _cache_get(key)      # a concurrent request may have filled it
+        if cached is not None:
+            return cached
+        value, cacheable = fetch()
+        if cacheable:
+            with LOCK:
+                _cache_put(key, value)
+        return value if value is not None else empty
+
+
 def _valid_year(first_aired, target):
     if not target or not first_aired:
         return True
@@ -91,13 +127,11 @@ def _valid_year(first_aired, target):
 
 def show_metadata(title, year=None):
     key = "tvmaze:show:v3:" + _simple(title) + ":" + str(year or "")
-    with LOCK:
-        cached = _cache_get(key)
-        if cached is not None:
-            return cached
+
+    def fetch():
         result = _get("/search/shows", {"q": title})
         if not isinstance(result, list):
-            return {}
+            return {}, False              # provider unreachable: do not cache
         matches = [
             entry["show"] for entry in result
             if isinstance(entry, dict) and isinstance(entry.get("show"), dict)
@@ -105,25 +139,41 @@ def show_metadata(title, year=None):
             and _valid_year(entry["show"].get("premiered"), year)
         ]
         if not matches:
-            _cache_put(key, {})
-            return {}
+            return {}, True               # a real "no match" is cached, as before
         show = matches[0]
-        show_id = show.get("id")
-        result = show_metadata_by_id(show_id, show=show)
-        if result:
-            _cache_put(key, result)
-        return result
+        found, complete = _show_by_id(show.get("id"), show=show)
+        # A show whose seasons request failed is returned for this request but
+        # not cached, so it does not stay season-less until the cache expires.
+        return found, bool(found) and complete
+
+    return _cached_fetch(key, fetch, {})
 
 def show_metadata_by_id(show_id, show=None):
-    """Fetch an explicit TVmaze show without fuzzy matching."""
+    """Fetch an explicit TVmaze show without fuzzy matching (cached)."""
     if not isinstance(show_id, int) or show_id <= 0:
         return {}
+    if show is not None:
+        return _show_by_id(show_id, show=show)[0]
+    return _cached_fetch("tvmaze:id:v1:" + str(show_id),
+                         lambda: _lookup_show(show_id), {})
+
+
+def _lookup_show(show_id):
+    found, complete = _show_by_id(show_id)
+    return found, bool(found) and complete
+
+
+def _show_by_id(show_id, show=None):
+    """Return ``(metadata, seasons_complete)`` for a TVmaze show id."""
+    if not isinstance(show_id, int) or show_id <= 0:
+        return {}, False
     if show is None:
         show = _get("/shows/" + str(show_id))
     if not isinstance(show, dict) or show.get("id") != show_id:
-        return {}
+        return {}, False
     raw_seasons = _get("/shows/" + str(show_id) + "/seasons")
-    if not isinstance(raw_seasons, list):
+    seasons_complete = isinstance(raw_seasons, list)
+    if not seasons_complete:
         raw_seasons = []
     seasons = [
         {
@@ -156,20 +206,18 @@ def show_metadata_by_id(show_id, show=None):
         "source_url": provider_url if isinstance(provider_url, str) and provider_url.startswith("https://www.tvmaze.com/shows/") else "https://www.tvmaze.com/",
     }
 
-    return result
+    return result, seasons_complete
 
 
 def season_metadata(show_id, number):
     if not isinstance(show_id, int) or not isinstance(number, int):
         return {}
     key = "tvmaze:season:" + str(show_id) + ":" + str(number)
-    with LOCK:
-        cached = _cache_get(key)
-        if cached is not None:
-            return cached
+
+    def fetch():
         episodes = _get("/shows/" + str(show_id) + "/episodes", {"specials": 1})
         if not isinstance(episodes, list):
-            return {}
+            return {}, False
         metadata_episodes = {
             str(ep["number"]): {
                 "title": ep.get("name") or "",
@@ -180,25 +228,25 @@ def season_metadata(show_id, number):
             } for ep in episodes
             if isinstance(ep, dict) and ep.get("season") == number and isinstance(ep.get("number"), int)
         }
-        data = {"name": "Season " + str(number), "overview": "", "poster_url": None,
-                "episodes": metadata_episodes}
-        _cache_put(key, data)
-        return data
+        return {"name": "Season " + str(number), "overview": "", "poster_url": None,
+                "episodes": metadata_episodes}, True
+
+    return _cached_fetch(key, fetch, {})
 
 def show_cast(show_id):
     """Public keyless TVmaze cast endpoint, cached to avoid repeated lookups."""
     if not isinstance(show_id, int) or show_id <= 0:
         return []
     key = "tvmaze:cast:" + str(show_id)
-    with LOCK:
-        cached = _cache_get(key)
-        if cached is not None:
-            return cached
+
+    def fetch():
         raw = _get("/shows/" + str(show_id) + "/cast")
         if not isinstance(raw, list):
-            return []
+            return [], False
         cast = []
         for entry in raw[:18]:
+            if not isinstance(entry, dict):
+                continue
             person = entry.get("person") or {}
             character = entry.get("character") or {}
             if not isinstance(person, dict) or not isinstance(character, dict):
@@ -209,5 +257,6 @@ def show_cast(show_id):
             cast.append({"tvmaze_id": person.get("id"), "name": name,
                          "character": str(character.get("name") or "")[:90],
                          "photo_url": image_url(person.get("image"), "medium")})
-        _cache_put(key, cast)
-        return cast
+        return cast, True
+
+    return _cached_fetch(key, fetch, [])

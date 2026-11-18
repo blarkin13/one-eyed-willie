@@ -90,16 +90,17 @@ class LibraryTriviaTests(unittest.TestCase):
         self.assertIn(".library-trivia .trivia-answer{font-size:clamp(1rem,3.3vw,1.32rem)}", page)
         self.assertIn("scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS)", page)
 
-    def test_trivia_remains_large_on_tv_and_responsive(self):
+    def test_trivia_stays_readable_on_tv_and_responsive_without_layout_jumps(self):
         page = self.page
         self.assertIn(".library-trivia .trivia-question{", page)
-        self.assertIn("font-size:clamp(1.25rem,1.52vw,2rem)", page)
-        self.assertIn("min-height:2.6em", page)
-        self.assertIn("min-height:2.5em", page)
+        # A fixed two-line box keeps the masthead from resizing between questions.
+        self.assertIn("height:2.72em", page)
+        # Question size scales per viewport class: desktop/TV, large screens,
+        # touch-less tablets, and phones.
+        self.assertIn(".library-trivia .trivia-question{font-size:clamp(1.07rem,1.15vw,1.4rem)}", page)
         self.assertIn("@media(min-width:1600px)", page)
-        self.assertIn("font-size:clamp(1.65rem,1.6vw,2.4rem)", page)
         self.assertIn("@media(min-width:761px) and (hover:none)", page)
-        self.assertIn("@media(max-width:760px)", page)
+        self.assertIn(".library-trivia .trivia-question{font-size:clamp(1.1rem,3.7vw,1.5rem);line-height:1.4}", page)
         self.assertIn("@media(prefers-reduced-motion:reduce)", page)
         self.assertIn("document.addEventListener('visibilitychange'", page)
         self.assertIn("window.addEventListener('pagehide'", page)

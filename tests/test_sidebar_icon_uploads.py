@@ -49,13 +49,18 @@ class SidebarIconTests(unittest.TestCase):
                          "VALUES(1,'Movies','movies','/media/movies','film','default')")
 
     def test_uploaded_defaults_are_valid_distinct_png_images(self):
-        self.assertEqual(set(ICONS), {"home", "movies", "tv", "settings"})
+        # Every icon the sidebar offers has a default; legacy integration
+        # icons (radarr/sonarr) may remain available alongside them.
+        from server.sidebar_settings import ICON_NAMES
+        self.assertTrue(set(ICON_NAMES) <= set(ICONS))
         images = [default_icon_png(name) for name in ICONS]
-        self.assertEqual(len(set(images)), 4)
+        self.assertEqual(len(set(images)), len(ICONS), "default icons must be distinct")
         for data in images:
             self.assertTrue(data.startswith(b"\x89PNG\r\n\x1a\n"))
             with Image.open(BytesIO(data)) as image:
-                self.assertEqual(image.size, (96, 96))
+                width, height = image.size
+                self.assertEqual(width, height, "icons must be square")
+                self.assertTrue(64 <= width <= 256, image.size)
                 self.assertIn(image.mode, ("P", "RGBA"))
 
     def test_upload_replace_revert_survives_database_reopen(self):

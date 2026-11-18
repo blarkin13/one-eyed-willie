@@ -38,7 +38,9 @@ class TvTextInputFocusTests(unittest.TestCase):
     def test_back_and_blur_restore_navigation_without_leaving_page(self):
         src = self.source
         self.assertIn("if (tvTextEditing) {\n                    finishTvTextEditing(web)", src)
-        self.assertIn("if (tvTextEditing) return super.dispatchKeyEvent(event)", src)
+        # While a field is being edited the page's OK/Enter handling stays out
+        # of the way so the on-screen keyboard receives them.
+        self.assertIn("if (web != null && !tvTextEditing &&", src)
         self.assertNotIn("if(!refocusing&&event.target===editingField)endEditing();", src)
         self.assertIn("Do NOT end editing on focusout", src)
         self.assertIn("if(editingField && event.target!==editingField", src)
@@ -51,8 +53,10 @@ class TvTextInputFocusTests(unittest.TestCase):
         src = self.source
         self.assertIn("const settleInitialFocus=()=>{", src)
         self.assertIn("firstPoster()", src)
-        self.assertIn("destination.focus({preventScroll:true})", src)
-        self.assertIn("if(!settleInitialFocus())", src)
+        self.assertIn("dest.focus({preventScroll:true})", src)
+        # Libraries settle on the first poster and Home on the first shelf.
+        self.assertIn("const dest=library?firstPoster():home?firstHome:", src)
+        self.assertIn("if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();", src)
 
     def test_library_search_leaves_text_mode_for_sidebar_and_posters(self):
         src = self.source
@@ -131,26 +135,20 @@ class TvTextInputFocusTests(unittest.TestCase):
         self.assertIn("event.target?.closest?.('#library-masthead .library-head-actions')", src)
         shell = (ROOT / "server" / "shell.js").read_text()
         self.assertIn("const onLibraryToolbar=target=>", shell)
-        self.assertIn("else if(!onLibraryToolbar(document.activeElement))select(null);", shell)
+        self.assertIn("!onLibraryToolbar(document.activeElement))select(null);", shell)
         catalog = (ROOT / "server" / "catalog.html").read_text()
-        self.assertIn('shell.js?v=library-backdrop-2', catalog)
+        # The shell script is cache-busted so the backdrop fix reaches the app.
+        self.assertRegex(catalog, r'shell\.js\?v=[\w.-]+')
 
-    def test_tv_prepares_next_page_without_exposing_unpopulated_content(self):
+    def test_tv_navigates_pages_directly_without_prepared_browser_or_stills(self):
         source = self.source
-        self.assertIn("private var preparedBrowser: WebView? = null", source)
-        self.assertIn("private fun prepareNavigation(web: WebView, destination: String)", source)
-        self.assertIn("frame.addView(candidate, frame.indexOfChild(web) + 1", source)
-        self.assertIn("candidate.alpha = 0.01f", source)
-        self.assertIn("const grid=document.getElementById('items')", source)
-        self.assertIn("window.__oewHomeReady===true", source)
-        self.assertIn("private fun revealPreparedBrowser(web: WebView)", source)
-        self.assertIn("web.animate().alpha(1f).setDuration(170L)", source)
-        self.assertIn("old.animate().alpha(0f).setDuration(170L)", source)
-        self.assertIn("if (preparedBrowser === web && sameOrigin(url.orEmpty()))", source)
-        self.assertIn("prepareNavigation(web, uri.toString())) return true", source)
-        self.assertNotIn("navigationStill", source)
-        self.assertNotIn("captureNavigationStill", source)
-        self.assertNotIn("revealPopulatedPage", source)
+        # Pages navigate directly (offscreen page preparation and navigation
+        # stills were removed when direct navigation was restored).
+        self.assertIn("override fun shouldOverrideUrlLoading", source)
+        for removed in ("preparedBrowser", "prepareNavigation",
+                        "revealPreparedBrowser", "navigationStill",
+                        "captureNavigationStill", "revealPopulatedPage"):
+            self.assertNotIn(removed, source)
 
     def test_library_title_icons_are_large_but_sidebar_icons_unchanged(self):
         catalog = (ROOT / "server" / "catalog.html").read_text()

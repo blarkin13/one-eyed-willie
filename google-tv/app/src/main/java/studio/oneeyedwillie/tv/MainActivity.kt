@@ -380,6 +380,17 @@ class MainActivity : ComponentActivity() {
         ++discoveryGeneration
         val input = EditText(this).apply {
             setSingleLine(true)
+            // A highlighted server-address field should not summon the IME;
+            // only an explicit OK/click on the field opens the keyboard.
+            showSoftInputOnFocus = false
+            setOnFocusChangeListener { _, focused ->
+                if (!focused) showSoftInputOnFocus = false
+            }
+            setOnClickListener {
+                showSoftInputOnFocus = true
+                (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
+                    .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
+            }
             inputType = android.text.InputType.TYPE_CLASS_TEXT or
                 android.text.InputType.TYPE_TEXT_VARIATION_URI
             setText(prefs.getString("url", "")?.orEmpty())
