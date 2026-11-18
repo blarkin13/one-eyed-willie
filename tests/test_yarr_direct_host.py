@@ -100,3 +100,71 @@ async def test_gateway_refuses_unauthenticated_offer_and_disabled_mode():
         with pytest.raises(HTTPException) as err:
             await gateway.offer(offer, x_yarr_direct_secret="incorrect")
         assert err.value.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_real_webrtc_range_transfer_over_datachannel():
+    """Local end-to-end WebRTC 206 Range transport of >1 MiB synthetic media."""
+    import asyncio
+    from aiortc import RTCPeerConnection, RTCSessionDescription
+
+    body = bytes(i % 251 for i in range(1024 * 1024 + 123))
+    received = bytearray()
+    response_headers = []
+    browser = RTCPeerConnection()
+    channel = browser.createDataChannel("yarr-media-v1:test")
+    complete = asyncio.get_running_loop().create_future()
+
+    @channel.on("open")
+    def opened():
+        channel.send(json.dumps({
+            "type": "get", "path": "/api/watch/42/stream",
+            "headers": {"range": "bytes=10-1048708"}
+        }))
+
+    @channel.on("message")
+    def message(value):
+        if complete.done():
+            return
+        if isinstance(value, bytes):
+            received.extend(value)
+        elif isinstance(value, str):
+            obj = json.loads(value)
+            if obj.get("type") == "headers":
+                response_headers.append(obj)
+            elif obj.get("type") == "done":
+                complete.set_result(True)
+            elif obj.get("type") == "error":
+                complete.set_exception(AssertionError(obj))
+
+    real_client = httpx.AsyncClient
+    def mock_client(**kwargs):
+        def respond(req):
+            assert req.headers["range"] == "bytes=10-1048708"
+            return httpx.Response(
+                206, content=body,
+                headers={
+                    "content-type": "video/mp4",
+                    "content-range": "bytes 10-1048708/3000000",
+                    "content-length": str(len(body))
+                })
+        return real_client(transport=httpx.MockTransport(respond), **kwargs)
+
+    try:
+        await browser.setLocalDescription(await browser.createOffer())
+        with (patch.object(peer, "authorized", lambda key: None),
+              patch.object(peer.httpx, "AsyncClient", side_effect=mock_client)):
+            answer = await peer.offer(
+                peer.PeerOffer(type="offer", sdp=browser.localDescription.sdp),
+                x_yarr_direct_secret="unit-test")
+            await browser.setRemoteDescription(
+                RTCSessionDescription(type=answer["type"], sdp=answer["sdp"]))
+            await asyncio.wait_for(complete, timeout=35)
+        assert response_headers[0]["status"] == 206
+        assert response_headers[0]["headers"]["content-range"] == "bytes 10-1048708/3000000"
+        assert bytes(received) == body
+    finally:
+        await browser.close()
+        for pc in tuple(peer.ACTIVE):
+            await pc.close()
+            peer.ACTIVE.discard(pc)
