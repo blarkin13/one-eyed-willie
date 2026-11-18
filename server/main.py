@@ -10,6 +10,7 @@ from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.yarr_pairing import router as yarr_pairing_router
 from server.yarr_pairing import heartbeat_loop as yarr_heartbeat_loop
+from server.yarr_pairing import automatic_tunnel_loop as yarr_automatic_tunnel_loop
 from server.home import router as home_router
 from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
@@ -68,9 +69,17 @@ async def lifespan(app: FastAPI):
         daemon=True, name="yarr-presence"
     )
     yarr_heartbeat_thread.start()
+    yarr_tunnel_stop = threading.Event()
+    yarr_tunnel_thread = threading.Thread(
+        target=yarr_automatic_tunnel_loop, args=(yarr_tunnel_stop,),
+        daemon=True, name="yarr-auto-tunnel"
+    )
+    yarr_tunnel_thread.start()
     try:
         yield
     finally:
+        yarr_tunnel_stop.set()
+        yarr_tunnel_thread.join(timeout=7)
         yarr_heartbeat_stop.set()
         yarr_heartbeat_thread.join(timeout=3)
         metadata_stop.set()
