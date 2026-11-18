@@ -115,8 +115,12 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconTheme=()=>localStorage.getItem(ICON_THEME_KEY)==='pirate'?'pirate':'clean';
   function defaultIcon(kind){
     const safe=['home','movies','tv','music','connections','settings'].includes(kind)?kind:'movies';
-    if(iconTheme()==='pirate')
+    if(iconTheme()==='pirate'){
+      // Music is new and has no legacy pirate PNG. Use the matching music
+      // glyph instead of requesting a nonexistent sidebar-icon-music.png.
+      if(safe==='music')return window.WillieCleanIcons.create('music',24);
       return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
+    }
     return window.WillieCleanIcons.create(safe,24);
   }
   document.documentElement.dataset.iconTheme=iconTheme();
