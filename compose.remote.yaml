@@ -13,6 +13,8 @@ services:
       OPENSUBTITLES_TOKEN: ${OPENSUBTITLES_TOKEN:-}
       MEDIA_ROOT: /media
       DATABASE_PATH: /data/library.sqlite3
+      # Forward only authenticated ICE diagnostic offers to the host-network sidecar.
+      YARR_ICE_PROBE_USE_HOST_NETWORK: "1"
     # Preserve existing home-network access; never forward 8787 on the router.
     ports:
       - "8787:8787"
@@ -26,6 +28,34 @@ services:
       - no-new-privileges:true
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8787/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+
+  # Synthetic-data WebRTC diagnostic only. Does NOT replace the media service,
+  # the paired Cloudflare tunnel, or the Caddy HTTPS gateway.
+  yarr-ice-diagnostic:
+    image: one-eyed-willie:local
+    container_name: yarr-ice-diagnostic
+    network_mode: host
+    restart: unless-stopped
+    user: "1000:1000"
+    command: ["uvicorn", "server.yarr_ice_host:app", "--host", "0.0.0.0", "--port", "18799"]
+    environment:
+      YARR_ICE_PROBE_MODE: host
+    volumes:
+      - /opt/one-eyed-willie/data:/data:ro
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt:
+      - no-new-privileges:true
+    depends_on:
+      one-eyed-willie:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:18799/health', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
