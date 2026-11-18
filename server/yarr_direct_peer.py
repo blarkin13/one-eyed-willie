@@ -10,6 +10,7 @@ import hmac
 import json
 import os
 import re
+import httpx
 from urllib.parse import urlsplit
 
 from fastapi import APIRouter, Header, HTTPException
@@ -105,7 +106,6 @@ async def serve_asgi_media(channel, path, req_headers=None):
     Yarr server bound at loopback 127.0.0.1:8787. Strict media-path and
     request-header allowlists are applied before any upstream call.
     """
-    import httpx
     parsed = normalize_path(path)
     req_headers = req_headers if isinstance(req_headers, dict) else {}
     headers = {}
