@@ -4,6 +4,7 @@ Sessions only accept validated indexed files. The session ID is random; FFmpeg
 writes to a bounded rolling directory under /data, and inactive jobs are killed.
 Video routes live under /api/stream to honor the existing Worker stream block.
 """
+import json
 import os
 import re
 import secrets
@@ -12,6 +13,7 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 from fastapi import APIRouter, HTTPException, Query
@@ -24,6 +26,7 @@ from .hardware import hardware_supported
 from . import usage
 
 router = APIRouter(prefix="/api/stream/hls")
+FFPROBE = "/usr/bin/ffprobe"
 FFMPEG = "/usr/bin/ffmpeg"
 ROOT = Path(os.environ.get("HLS_CACHE_DIR", "/data/hls"))
 ACTIVE = {}
@@ -91,13 +94,60 @@ class Session:
     start: float
     quality: str = DEFAULT_QUALITY
     viewing: str = ""
+    audio: int = 0
+
+
+CHANNEL_NAMES = {1: "Mono", 2: "Stereo", 6: "5.1", 8: "7.1"}
+LANGUAGE_NAMES = {"eng": "English", "spa": "Spanish", "fra": "French", "fre": "French",
+                  "deu": "German", "ger": "German", "ita": "Italian", "por": "Portuguese",
+                  "jpn": "Japanese", "kor": "Korean", "zho": "Chinese", "chi": "Chinese",
+                  "rus": "Russian", "hin": "Hindi", "ara": "Arabic", "nld": "Dutch",
+                  "dut": "Dutch", "swe": "Swedish", "pol": "Polish", "tur": "Turkish"}
+
+
+@lru_cache(maxsize=512)
+def _audio_tracks(path: str, size: int, mtime_ns: int):
+    try:
+        result = subprocess.run(
+            [FFPROBE, "-v", "error", "-select_streams", "a", "-show_entries",
+             "stream=codec_name,channels:stream_tags=language,title:stream_disposition=default",
+             "-of", "json", path],
+            capture_output=True, text=True, timeout=8, check=False)
+        streams = json.loads(result.stdout or "{}").get("streams") or [] if not result.returncode else []
+    except (OSError, ValueError, subprocess.TimeoutExpired):
+        return ()
+    tracks = []
+    for index, stream in enumerate(streams[:32]):
+        tags = stream.get("tags") or {}
+        code = str(tags.get("language") or "").lower()[:3]
+        language = LANGUAGE_NAMES.get(code) or (code.upper() if code and code != "und" else "")
+        channels = int(stream.get("channels") or 0)
+        title = str(tags.get("title") or "").strip()[:60]
+        parts = [language or f"Track {index + 1}"]
+        if title and title.lower() != language.lower():
+            parts.append(title)
+        parts.append(CHANNEL_NAMES.get(channels, f"{channels} ch" if channels else ""))
+        parts.append(str(stream.get("codec_name") or "").upper())
+        tracks.append({"id": index, "language": code if code != "und" else "",
+                       "label": " · ".join(part for part in parts if part),
+                       "default": bool((stream.get("disposition") or {}).get("default"))})
+    return tuple(tuple(sorted(track.items())) for track in tracks)
+
+
+def list_audio_tracks(file: Path):
+    """The audio streams of [file], in file order (ids are positions among audio streams)."""
+    try:
+        stat = file.stat()
+    except OSError:
+        return []
+    return [dict(track) for track in _audio_tracks(str(file), stat.st_size, stat.st_mtime_ns)]
 
 
 def hardware_available():
     return hardware_supported()
 
 
-def _command(file, directory, start, hardware=False, quality=DEFAULT_QUALITY):
+def _command(file, directory, start, hardware=False, quality=DEFAULT_QUALITY, audio=0):
     # Keep generated segments available for replay and seeking. The old
     # sliding playlist deleted segments while viewers were still watching.
     # Read slightly ahead of real-time without encoding the entire file at once.
@@ -107,7 +157,7 @@ def _command(file, directory, start, hardware=False, quality=DEFAULT_QUALITY):
         # encoding, so read well ahead of real time to make forward seeks cheap.
         return [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
                 "-readrate", "4", "-noaccurate_seek", "-ss", str(start), "-i", str(file),
-                "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy",
+                "-map", "0:v:0", "-map", f"0:a:{int(audio)}?", "-c:v", "copy",
                 "-c:a", "aac", "-ac", "2", "-b:a", "192k", "-ar", "48000",
                 "-f", "hls", "-hls_time", "4", "-hls_playlist_type", "event",
                 "-hls_list_size", "0", "-hls_flags", "temp_file+independent_segments",
@@ -121,7 +171,7 @@ def _command(file, directory, start, hardware=False, quality=DEFAULT_QUALITY):
         # decoding of every source causes needless fallback for unsupported inputs.
         args += ["-vaapi_device", "/dev/dri/renderD128"]
     args += ["-readrate", "1.5", "-ss", str(start), "-i", str(file),
-             "-map", "0:v:0", "-map", "0:a:0?"]
+             "-map", "0:v:0", "-map", f"0:a:{int(audio)}?"]
     if hardware:
         args += ["-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
                  f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload",
@@ -232,9 +282,15 @@ def _get_session(token):
 @router.post("/start/{media_id}")
 def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
               quality: str = Query(DEFAULT_QUALITY),
-              viewing: str = Query("", max_length=64)):
+              viewing: str = Query("", max_length=64),
+              audio: int = Query(0, ge=0, le=31)):
     quality = normalize_quality(quality)
     _, file = _item(media_id)
+    audio = audio if isinstance(audio, int) else 0     # direct calls skip FastAPI's defaults
+    if audio:
+        tracks = list_audio_tracks(file)
+        if audio >= len(tracks):
+            raise HTTPException(400, "That audio track does not exist in this video")
     if not os.path.isfile(FFMPEG):
         raise HTTPException(503, "Video transcoder is not installed")
     if quality == FULL:
@@ -258,7 +314,7 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
         directory.mkdir(mode=0o700)
         hardware = hardware_available() and quality != FULL
         try:
-            process = _spawn(_command(file, directory, start, hardware, quality), directory)
+            process = _spawn(_command(file, directory, start, hardware, quality, audio), directory)
         except OSError as exc:
             shutil.rmtree(directory, ignore_errors=True)
             raise HTTPException(503, "Unable to start transcoder") from exc
@@ -266,12 +322,12 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
         session = Session(token, directory, process, now, now, media_id,
                           "Original video (no re-encode)" if quality == FULL
                           else "Intel VAAPI encode" if hardware else "CPU",
-                          probe_duration(file), start, quality, usage.valid(viewing) or "")
+                          probe_duration(file), start, quality, usage.valid(viewing) or "", audio)
         ACTIVE[token] = session
         return {"session": token,
                 "playlist": f"/api/stream/hls/{token}/index.m3u8",
                 "engine": session.acceleration, "quality": quality,
-                "duration": session.duration, "start": start}
+                "duration": session.duration, "start": start, "audio": audio}
 
 
 @router.get("/qualities")
@@ -331,6 +387,13 @@ def data_estimates(media_id: int):
     }
 
 
+@router.get("/audio/{media_id}")
+def audio_tracks(media_id: int):
+    """Audio tracks of a title, so the viewer can choose a language."""
+    _, file = _item(media_id)
+    return {"tracks": list_audio_tracks(file)}
+
+
 @router.get("/usage/{viewing}")
 def viewing_usage(viewing: str):
     """Bytes the server has sent for one viewing (direct play + HLS)."""
@@ -352,7 +415,7 @@ def stream_status(token: str):
                     try:
                         session.process = _spawn(
                             _command(_item(session.media_id)[1], session.directory,
-                                     session.start, False, session.quality),
+                                     session.start, False, session.quality, session.audio),
                             session.directory,
                         )
                         session.acceleration = "CPU fallback"

@@ -18,6 +18,8 @@ import unittest
 import urllib.request
 from pathlib import Path
 
+from tests.test_hls_audio_tracks import pitch_hz
+
 ROOT = Path(__file__).resolve().parents[1]
 
 try:  # pragma: no cover - environment dependent
@@ -52,9 +54,13 @@ class FullQualityBrowserTests(unittest.TestCase):
         # 640x360 h264 + AC3 in MKV: neither the container nor the audio plays in a browser.
         subprocess.run(
             [FFMPEG, "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24",
-             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "40",
+             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+             "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-t", "40",
+             "-map", "0:v", "-map", "1:a", "-map", "2:a",
              "-c:v", "libx264", "-preset", "ultrafast", "-g", "48", "-pix_fmt", "yuv420p",
-             "-c:a", "ac3", "-ac", "2", str(folder / "Sample.Film.2001.mkv")], check=True)
+             "-c:a", "ac3", "-ac", "2",   # English (440 Hz) first, French (880 Hz) second
+             "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fre",
+             str(folder / "Sample.Film.2001.mkv")], check=True)
         data = base / "data"
         data.mkdir()
         env = dict(
@@ -135,6 +141,26 @@ class FullQualityBrowserTests(unittest.TestCase):
                 (!width || v.videoWidth === width) && (!engine || surface.dataset.engine === engine);
             }""", arg=[width, engine], timeout=timeout)
 
+    def test_choosing_the_second_audio_track_really_changes_the_sound(self):
+        page = self.open_player()
+        playlists = []
+        page.on("request", lambda r: playlists.append(r.url) if r.url.endswith("/index.m3u8") else None)
+        self.playing(page, width=640)
+        page.click("button[aria-label='Data use and quality']")
+        page.wait_for_selector(".willie-audio-row[data-audio='1']")
+        self.assertIn("English", page.text_content(".willie-audio-row[data-audio='0']"))
+        self.assertIn("French", page.text_content(".willie-audio-row[data-audio='1']"))
+        first = len(playlists)
+        page.click(".willie-audio-row[data-audio='1']")
+        for _ in range(100):            # the old stream is replaced by a new one
+            if len(playlists) > first:
+                break
+            page.wait_for_timeout(100)
+        self.assertGreater(len(playlists), first)
+        self.playing(page, width=640, engine="Original video (no re-encode)")
+        # Decode what the server is streaming now: it is the French (880 Hz) track.
+        self.assertAlmostEqual(pitch_hz(playlists[-1]), 880, delta=30)
+
     def test_best_available_plays_the_original_video_through_hls(self):
         page = self.open_player()
         self.playing(page, width=640, engine="Original video (no re-encode)")
@@ -159,11 +185,20 @@ class FullQualityBrowserTests(unittest.TestCase):
     def test_seeking_in_full_quality_keeps_playing(self):
         page = self.open_player()
         self.playing(page, width=640, engine="Original video (no re-encode)")
-        # Far beyond what has been produced so far: forces a new session at that point.
-        page.evaluate("document.querySelector('.willie-player video').currentTime = 25")
+        # Use the seek bar like a viewer: jump to 70% of the 40 s film (28 s), far
+        # beyond what has been produced so far, which starts a new session there.
+        # The bar reports the true position in the film, not the position within a
+        # stream that began part-way through.
+        page.evaluate(
+            """() => { const bar = document.querySelector('.willie-timeline input');
+                       bar.value = '700';
+                       bar.dispatchEvent(new Event('input', {bubbles: true}));
+                       bar.dispatchEvent(new Event('change', {bubbles: true})); }""")
         page.wait_for_function(
             """() => { const v = document.querySelector('.willie-player video');
-                       return v && v.currentTime > 25 && !v.paused && v.readyState >= 3; }""", timeout=45000)
+                       const bar = document.querySelector('.willie-timeline input');
+                       return v && Number(bar.value) > 715 && !v.paused && v.readyState >= 3; }""",
+            timeout=45000)
 
 
 if __name__ == "__main__":
