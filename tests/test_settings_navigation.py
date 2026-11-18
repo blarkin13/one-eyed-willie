@@ -103,8 +103,10 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertNotIn("sonarr:'Sonarr'", appearance)
         for name in ("manager_dashboard.html", "sab_dashboard.html"):
             page = (ROOT / name).read_text()
-            self.assertIn('href="/radarr"', page)
-            self.assertIn('href="/sonarr"', page)
+            self.assertNotIn('class="service-switcher"', page)
+            self.assertNotIn('id="tab-radarr"', page)
+            self.assertNotIn('id="tab-sonarr"', page)
+            self.assertNotIn('id="tab-sabnzbd"', page)
 
     def test_playback_is_only_configured_in_general(self):
         from server.main import playback_settings_page
