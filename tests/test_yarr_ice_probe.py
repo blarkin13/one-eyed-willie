@@ -33,6 +33,10 @@ class DiagnosticSecurityTests(unittest.TestCase):
         self.assertEqual(len(probe.sample(1024, probe.FRAME_BYTES)), probe.FRAME_BYTES)
 
 
+    def test_sidecar_mode_reports_provenance(self):
+        with patch.dict(probe.os.environ, {"YARR_ICE_PROBE_MODE": "host"}):
+            self.assertEqual(probe.os.environ["YARR_ICE_PROBE_MODE"], "host")
+
 class DiagnosticRoundTripTests(unittest.IsolatedAsyncioTestCase):
     async def test_real_local_dtls_channel_round_trip(self):
         from aiortc import RTCPeerConnection, RTCSessionDescription
@@ -69,6 +73,7 @@ class DiagnosticRoundTripTests(unittest.IsolatedAsyncioTestCase):
                 RTCSessionDescription(sdp=answer["sdp"], type=answer["type"]))
             await asyncio.wait_for(future, timeout=35)
             self.assertEqual(announced, [probe.SAMPLE_BYTES])
+            self.assertEqual(answer.get("diagnostic_origin"), "docker-bridge")
             self.assertEqual(b"".join(chunks), probe.sample(0, probe.SAMPLE_BYTES))
         finally:
             await initiator.close()
