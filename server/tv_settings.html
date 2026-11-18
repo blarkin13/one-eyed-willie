@@ -43,6 +43,18 @@
 <div id="tv-language-options" class="tv-language-options"></div>
 <button type="button" class="secondary-button" id="tv-language-cancel">Cancel</button>
 </dialog>
+
+<div class="settings-two-col" id="tv-caption-style">
+  <div><label for="tv-subtitle-background">Subtitle background</label>
+  <button type="button" class="secondary-button" id="tv-subtitle-background">None (transparent)</button></div>
+  <div><label for="tv-subtitle-size">Text size</label>
+  <button type="button" class="secondary-button" id="tv-subtitle-size">Normal</button></div>
+  <div><label for="tv-subtitle-color">Text color</label>
+  <button type="button" class="secondary-button" id="tv-subtitle-color">White</button></div>
+  <div><label for="tv-subtitle-outline">Text outline</label>
+  <button type="button" class="secondary-button" id="tv-subtitle-outline">On</button></div>
+</div>
+<p class="settings-muted">Choose None to remove the black boxes behind captions. Text outline helps preserve readability without a background.</p>
 <p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
 </form></div></section>
@@ -138,17 +150,48 @@ langButton.onclick=()=>{
 };
 el('tv-language-cancel').onclick=()=>langDialog.close();
 langDialog.addEventListener('close',()=>langButton.focus({preventScroll:true}));
+const captionStyleChoices={
+ background:[['none','None (transparent)'],['25','25% black'],['50','50% black'],['75','75% black'],['100','Solid black']],
+ size:[['small','Small'],['normal','Normal'],['large','Large']],
+ color:[['white','White'],['yellow','Yellow']],
+ outline:[['true','On'],['false','Off']]
+};
+const captionStyle={background:'none',size:'normal',color:'white',outline:'true'};
+function updateCaptionButton(key){
+ const choices=captionStyleChoices[key],current=choices.find(pair=>pair[0]===captionStyle[key])||choices[0];
+ captionStyle[key]=current[0];
+ const button=el('tv-subtitle-'+key);
+ button.textContent=current[1];
+ button.setAttribute('aria-label',key+' '+current[1]+'. Press OK to change');
+}
+for(const key of Object.keys(captionStyleChoices)){
+ const button=el('tv-subtitle-'+key);
+ button.onclick=()=>{
+  const choices=captionStyleChoices[key];
+  const index=choices.findIndex(pair=>pair[0]===captionStyle[key]);
+  captionStyle[key]=choices[(index+1)%choices.length][0];
+  updateCaptionButton(key);
+ };
+ updateCaptionButton(key);
+}
 try{
  const saved=JSON.parse(devicePrompt('get'));
  el('tv-subtitles-on').checked=!!saved.enabled;
  const valid=['en','es','fr','de','it','pt','ja','ko'];
  chooseLanguage(valid.includes(saved.language)?saved.language:'en');
+ for(const key of Object.keys(captionStyle)){
+  captionStyle[key]=key==='outline'?String(saved.outline!==false):
+    String(saved[key]??captionStyle[key]);
+  updateCaptionButton(key);
+ }
 }catch(error){message(error.message)}
 el('tv-subtitle-form').onsubmit=event=>{
  event.preventDefault();
  try{
   const settings=JSON.stringify({enabled:el('tv-subtitles-on').checked,
-   language:el('tv-subtitle-language').value});
+   language:el('tv-subtitle-language').value,
+   background:captionStyle.background,size:captionStyle.size,
+   color:captionStyle.color,outline:captionStyle.outline==='true'});
   if(devicePrompt('set',settings)!=='ACK')throw Error('Could not save subtitle preferences');
   message('Subtitle preferences saved on this TV only.');
  }catch(error){message(error.message)}
