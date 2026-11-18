@@ -130,7 +130,7 @@ async function yarrCheck(){
   }else if(result.status==='paired'){
    yarrStatus.textContent='Account paired. Refresh the connection to activate online status reporting.';
    yarrStart.textContent='Refresh secure connection';
-   yarrStart.hidden=false;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
+   yarrStart.hidden=false;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);yarrTimer=null;
   }else if(result.status==='pending'){
    yarrStatus.textContent='Pairing pending. Enter this code in your Yarr account ('+Math.ceil((result.expires_in||0)/60)+' min remaining).';
    if(result.code){yarrCode.textContent=result.code;yarrCode.hidden=false;}
@@ -142,7 +142,7 @@ async function yarrCheck(){
    if(!yarrTimer)yarrTimer=setInterval(yarrCheck,5000);
   }else{
    yarrStatus.textContent='Not connected. Use Connect to Yarr to create a pairing code.';
-   yarrStart.hidden=false;yarrClaim.hidden=true;yarrCode.hidden=true;clearInterval(yarrTimer);
+   yarrStart.hidden=false;yarrClaim.hidden=true;yarrCode.hidden=true;clearInterval(yarrTimer);yarrTimer=null;
   }
  }catch(e){yarrStatus.textContent=e.message||'Unable to reach Yarr pairing service';}
 }
@@ -151,6 +151,7 @@ yarrStart.addEventListener('click',async()=>{
  try{
   const r=await fetch('/api/yarr/pair/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
   const d=await r.json();
+  if(r.status===409){await yarrCheck();return;}
   if(!r.ok)throw Error(d.detail||'Unable to start pairing');
   yarrCode.textContent=d.code;yarrCode.hidden=false;
   yarrClaim.href=d.claim_url;yarrClaim.hidden=false;
