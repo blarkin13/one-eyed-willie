@@ -259,10 +259,15 @@ document.addEventListener('DOMContentLoaded', () => {
     const configured = new Set(libraries.map(item=>item.kind));
     for(const kind of ['movies','tv','music']){
       const link=nav.querySelector('a[data-nav-id="'+kind+'"]');
-      if(link && configured.has(kind)){
-        link.hidden=false;
-        link.classList.remove('sidebar-hidden');
+      if(!link)continue;
+      if(!configured.has(kind)){
+        // Never reorder an unavailable standard library after Settings.
+        // Remove it from the DOM rather than relying on hidden CSS alone.
+        link.remove();
+        continue;
       }
+      link.hidden=false;
+      link.classList.remove('sidebar-hidden');
     }
     const selected=new URLSearchParams(location.search).get('library_id');
     for(const library of libraries){
