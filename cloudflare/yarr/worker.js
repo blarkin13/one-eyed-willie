@@ -334,6 +334,12 @@ async function proxyInstalledApp(req,env,originPath) {
  // The origin host is a compile-time constant. Browser controls only path/query.
  const path=originPath||source.pathname;
  if(!path.startsWith('/')||path.startsWith('//')||path.includes('\\'))return json({error:'invalid_path'},400);
+ // When the direct mode is enabled, fail closed instead of silently
+ // relaying video gigabytes through the Cloudflare Worker.
+ if(env.YARR_DIRECT_ENABLED==='1'&&method==='GET'&&
+    (/^\\/api\\/watch\\/[1-9][0-9]*\\/stream$/.test(path)||
+     /^\\/api\\/stream\\/hls\\/[a-f0-9]{32}\\/(?:index\\.m3u8|init\\.mp4|segment_[0-9]{6}\\.(?:ts|m4s))$/.test(path)))
+    return json({error:'media_requires_direct_peer'},503);
  const upstreamUrl=ORIGIN_BASE+path+source.search;
  const headers=new Headers();
  for(const [key,value] of req.headers){
@@ -384,6 +390,17 @@ async function proxyInstalledApp(req,env,originPath) {
    responseHeaders.delete('content-encoding');
    responseHeaders.set('cache-control','private, no-store');
    return new Response(fixed,{status:200,headers:responseHeaders});
+  }
+  // Explicit opt-in only; regular installed apps are unaffected.
+  if(env.YARR_DIRECT_ENABLED==='1'&&method==='GET'&&upstream.ok&&mime==='text/html'){
+   const source=await upstream.text();
+   if(source.length>650000)return json({error:'html_too_large_for_direct_client'},502);
+   const tag='<script src="/assets/yarr-direct-client.js" defer></script>';
+   const wrapped=source.includes('</body>')?source.replace('</body>',tag+'</body>'):source+tag;
+   responseHeaders.delete('content-length');
+   responseHeaders.delete('content-encoding');
+   responseHeaders.set('cache-control','private, no-store');
+   return new Response(wrapped,{status:200,headers:responseHeaders});
   }
   // Keep video, HLS, images and HTTP Range responses streamed, not buffered.
   return new Response(method==='HEAD'||[204,205,304].includes(upstream.status)?null:upstream.body,{status:upstream.status,headers:responseHeaders});
