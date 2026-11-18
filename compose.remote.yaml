@@ -17,6 +17,8 @@ services:
       YARR_ICE_PROBE_USE_HOST_NETWORK: "1"
       # Off by default: never route real media over experimental WebRTC implicitly.
       YARR_DIRECT_PEER_ENABLED: ${YARR_DIRECT_PEER_ENABLED:-0}
+      # Temporary, account-gated direct MP4 test; regular playback remains off.
+      YARR_DIRECT_TEST_ENABLED: ${YARR_DIRECT_TEST_ENABLED:-1}
     # Preserve existing home-network access; never forward 8787 on the router.
     ports:
       - "8787:8787"
@@ -48,6 +50,8 @@ services:
     environment:
       YARR_ICE_PROBE_MODE: host
       YARR_DIRECT_PEER_ENABLED: ${YARR_DIRECT_PEER_ENABLED:-0}
+      # Temporary, account-gated direct MP4 test; regular playback remains off.
+      YARR_DIRECT_TEST_ENABLED: ${YARR_DIRECT_TEST_ENABLED:-1}
     volumes:
       - /opt/one-eyed-willie/data:/data:ro
     read_only: true
