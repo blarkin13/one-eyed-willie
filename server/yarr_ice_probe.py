@@ -156,7 +156,10 @@ async def offer(body: Offer, x_yarr_ice_key: str | None = Header(default=None)):
         task = asyncio.create_task(expire())
         task.add_done_callback(lambda _: tasks.discard(task))
         tasks.add(task)
-        return {"type": connection.localDescription.type, "sdp": connection.localDescription.sdp}
+        return {"type": connection.localDescription.type, "sdp": connection.localDescription.sdp,
+                "diagnostic_origin": ("host-network-sidecar"
+                                      if os.environ.get("YARR_ICE_PROBE_MODE") == "host"
+                                      else "docker-bridge")}
     except Exception:
         await cleanup()
         raise HTTPException(400, "ICE negotiation failed")
