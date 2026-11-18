@@ -36,8 +36,26 @@ For testing across computers, use an authenticated HTTPS development ingress and
 explicit firewall policy. Do not publish this test port or remove the token gate.
 Browsers generally require a secure context for their WebCrypto integrity check.
 
-The browser currently uses a public STUN resolver for ICE discovery, not a TURN
-media relay; direct connectivity can fail behind restrictive NAT/firewalls.
+Both the browser and the Python peer now use a public STUN resolver for ICE discovery,
+not a TURN media relay; direct connectivity can still fail behind restrictive NAT/firewalls.
+
+## Off-LAN validation checklist (not yet completed)
+
+1. Run the isolated probe on a controlled development host (not a production server),
+   with a temporary high-entropy token, and expose **only HTTPS signaling** through a
+   restricted, authenticated development ingress. Do not expose port 8799 publicly.
+2. Connect a different test device using a different internet connection (e.g.,
+   cellular with Wi-Fi off) and visit that development HTTPS origin's `/probe` page.
+3. Execute the 1 MiB integrity test and capture the selected ICE candidate pair,
+   transfer time, failures, and relevant sanitized logs. Never share the token.
+4. Verify the selected path with packet or ICE diagnostics and check Cloudflare
+   traffic independently. A `host`/`srflx` candidate alone does not prove that
+   Cloudflare was bypassed on every hop, and HTTPS signaling may still use it.
+5. Repeat with different NAT/firewall configurations, including a known restrictive
+   network. Document direct-connection failures without automatically relaying video.
+
+**Important:** No off-LAN connection has been verified by this change. Installing
+STUN discovery alone does not create a publicly reachable server or a TURN fallback.
 Do not interpret a successful same-machine test as proof of remote connectivity.
 
 ## Security / known gaps
