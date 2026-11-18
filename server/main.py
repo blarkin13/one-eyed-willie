@@ -245,8 +245,17 @@ body[data-page="home"] .shelf-track {
   margin:0!important;
   overflow-y:hidden!important;
   min-height:0!important;
-  scroll-padding-inline:28px!important;
+  scroll-padding-inline:40px!important;
   scroll-snap-type:none!important;
+}
+/* Preserve the full rounded corners and focus ring when TV focus grows
+   a poster, without moving the unfocused posters. */
+body[data-page="home"] .shelf-track .tile-button{
+  scroll-margin-inline:40px!important;
+}
+body[data-page="home"] .shelf-track>.tile:first-child
+  .tile-button:is(:focus,:focus-visible) .cover{
+  transform-origin:left center!important;
 }
 body[data-page="home"] .shelf {
   margin-top:13px!important;min-height:0!important;
