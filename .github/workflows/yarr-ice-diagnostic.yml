@@ -35,11 +35,14 @@ jobs:
           node - <<'NODE'
           const fs = require('fs'), vm = require('vm');
           const source = fs.readFileSync('cloudflare/yarr/worker.js', 'utf8');
-          const match = source.match(/const YARR_TEST_PAGE=("(?:\\.|[^"\\])*");/);
-          if (!match) throw Error('Diagnostic page missing');
-          const html = JSON.parse(match[1]);
-          const script = html.match(/<script>([\\s\\S]*?)<\\/script>/);
-          if (!script) throw Error('Diagnostic browser script missing');
-          new vm.Script(script[1]);
+          const prefix = 'const YARR_TEST_PAGE=';
+          const start = source.indexOf(prefix) + prefix.length;
+          const end = source.indexOf(';\\nasync function yarrWifiOffer', start);
+          if (start < prefix.length || end < 0) throw Error('Diagnostic page missing');
+          const html = JSON.parse(source.slice(start, end));
+          const jsStart = html.indexOf('<script>') + 8;
+          const jsEnd = html.indexOf('</script>', jsStart);
+          if (jsStart < 8 || jsEnd < 0) throw Error('Diagnostic browser script missing');
+          new vm.Script(html.slice(jsStart, jsEnd));
           console.log('Yarr diagnostic Worker and embedded browser script parse correctly');
           NODE
