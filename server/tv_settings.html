@@ -8,6 +8,7 @@
 /* Compact TV settings: settings-only layout; normal player/library focus is unchanged. */
 .tv-playback-settings{max-width:870px;padding-bottom:58px}
 .tv-playback-settings .page-head{margin-bottom:14px}
+.tv-playback-settings #tv-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
 .tv-playback-settings .page-head h1{font-size:clamp(1.55rem,3vw,2.05rem);line-height:1.1}
 .tv-playback-settings .settings-section{margin:0 0 13px}
 .tv-playback-settings .settings-section h2{font-size:1.04rem;letter-spacing:.01em;
@@ -102,10 +103,10 @@ html body[data-page="settings"] .tv-playback-settings
 <p id="tv-status" class="message" role="status" aria-live="polite"></p>
 <div id="tv-save-toast" class="tv-save-toast" role="status" aria-live="polite" hidden></div>
 <section class="settings-section" aria-labelledby="tv-subtitles-heading">
-<h2 id="tv-subtitles-heading">Subtitles on this TV</h2>
+<h2 id="tv-subtitles-heading">Subtitles</h2>
 <div class="settings-card"><form id="tv-subtitle-form">
 <label class="setting-toggle"><input type="checkbox" id="tv-subtitles-on">
- Automatically show subtitles when playing media</label>
+ Auto-show subtitles</label>
 <div class="tv-inline-setting"><label for="tv-language-button">Language</label>
 <input type="hidden" id="tv-subtitle-language" value="en">
 <button type="button" class="secondary-button" id="tv-language-button" aria-haspopup="dialog" aria-controls="tv-language-dialog">English</button></div>
@@ -128,7 +129,7 @@ html body[data-page="settings"] .tv-playback-settings
 <p class="tv-save-status" id="tv-subtitle-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
-<h2 id="tv-color-heading">Selection color</h2>
+<h2 id="tv-color-heading">Highlight color</h2>
 <div class="settings-card">
 <form id="tv-color-form">
 <div class="tv-inline-setting"><label for="tv-color-button">Focus color · shared with all TVs</label>
@@ -144,12 +145,12 @@ html body[data-page="settings"] .tv-playback-settings
 </div></section>
 <section class="settings-section" aria-labelledby="tv-shared-heading"><h2 id="tv-shared-heading">Playback</h2>
 <div class="settings-card"><form id="tv-playback-form">
-<label class="setting-toggle"><input id="tv-auto-next" type="checkbox"> Automatically play the next TV episode</label>
-<label class="setting-toggle"><input id="tv-show-theme" type="checkbox"> Play local TV show theme music</label>
-<label class="setting-toggle"><input id="tv-movie-theme" type="checkbox"> Play local movie theme music</label>
-<label class="setting-toggle"><input id="tv-loop-theme" type="checkbox"> Loop theme music</label>
-<label class="setting-toggle"><input id="tv-fade-theme" type="checkbox"> Fade theme music in and out</label>
-<div class="tv-volume-row"><label for="tv-theme-volume">Theme music volume: <output id="tv-theme-volume-label">25%</output></label>
+<label class="setting-toggle"><input id="tv-auto-next" type="checkbox"> Auto-play next episode</label>
+<label class="setting-toggle"><input id="tv-show-theme" type="checkbox"> TV show themes</label>
+<label class="setting-toggle"><input id="tv-movie-theme" type="checkbox"> Movie themes</label>
+<label class="setting-toggle"><input id="tv-loop-theme" type="checkbox"> Loop themes</label>
+<label class="setting-toggle"><input id="tv-fade-theme" type="checkbox"> Fade themes in/out</label>
+<div class="tv-volume-row"><label for="tv-theme-volume">Theme volume: <output id="tv-theme-volume-label">25%</output></label>
 <input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25"></div>
 <p class="tv-save-status" id="tv-playback-status" role="status" aria-live="polite"></p>
 </form></div></section>
@@ -171,7 +172,7 @@ html body[data-page="settings"] .tv-playback-settings
 <div class="form-actions"><button type="button" id="tv-ambient-off" class="secondary-button">Turn off effects</button></div>
 <p class="tv-save-status" id="tv-ambient-status" role="status" aria-live="polite"></p>
 </form></div></section>
-<section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Server connection</h2>
+<section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Connection</h2>
 <div class="settings-card">
 <button type="button" id="tv-server-connection" class="secondary-button">Change server connection</button>
 </div></section>
