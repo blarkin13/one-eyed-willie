@@ -102,13 +102,84 @@ async function googleCallback(req,env) {
   return new Response(null,{status:303,headers});
  }catch(_){return redirect('/account?login=failed',{'set-cookie':cleared});}
 }
-function accountHTML(user,enabled,message='') {
+
+function isPrivateIPv4(host) {
+ const parts=host.split('.');
+ if(parts.length!==4||parts.some(p=>!/^(0|[1-9][0-9]{0,2})$/.test(p)||Number(p)>255))return false;
+ const [a,b]=parts.map(Number);
+ return a===10||(a===172&&b>=16&&b<=31)||(a===192&&b===168);
+}
+function localAddress(input) {
+ const value=String(input||'').trim();
+ if(!value)return '';
+ if(value.length>260)throw Error('Local address is too long');
+ let url;try{url=new URL(value);}catch(_){throw Error('Enter a local URL including http:// or https://');}
+ if(!['http:','https:'].includes(url.protocol)||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw Error('Local address must be a direct server URL without a path or credentials');
+ const host=url.hostname.toLowerCase();
+ if(!(isPrivateIPv4(host)||/^[a-z0-9][a-z0-9.-]{0,180}\.local$/.test(host)))throw Error('Use a private network IP or .local hostname for the local address');
+ if(url.port&&(!/^[0-9]+$/.test(url.port)||Number(url.port)<1||Number(url.port)>65535))throw Error('Invalid local port');
+ return url.origin;
+}
+function remoteAddress(input) {
+ const value=String(input||'').trim();
+ if(!value)return '';
+ if(value.length>260)throw Error('Remote address is too long');
+ let url;try{url=new URL(value);}catch(_){throw Error('Enter a valid remote HTTPS URL');}
+ if(url.protocol!=='https:'||url.username||url.password||url.search||url.hash||url.pathname!=='/'||url.port)throw Error('Remote address must use HTTPS on port 443, without a path or credentials');
+ const host=url.hostname.toLowerCase();
+ if(host==='localhost'||host.endsWith('.local')||host.endsWith('.internal')||host.endsWith('.localhost')||host.includes(':')||isPrivateIPv4(host))throw Error('Enter a public HTTPS hostname');
+ if(!/^[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?$/.test(host)||!host.includes('.')||host.split('.').some(s=>!s||s.startsWith('-')||s.endsWith('-')))throw Error('Enter a valid public hostname');
+ const p=host.split('.');
+ if(p.length===4&&p.every(x=>/^[0-9]+$/.test(x))){ const a=Number(p[0]),b=Number(p[1]);if(a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127)||(a===192&&b===0)||(a===198&&b>=18&&b<=19))throw Error('Enter a public HTTPS hostname'); }
+ return url.origin;
+}
+async function listServers(env,userId) {
+ const result=await env.ACCOUNTS.prepare('SELECT id,display_name,local_url,public_url,status,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC').bind(userId).all();
+ return result.results||[];
+}
+async function serverMutation(req,env,user) {
+ if(!user)return json({error:'not_authenticated'},401);
+ if(req.headers.get('origin')!==SITE || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
+ if(req.method!=='POST')return json({error:'method_not_allowed'},405);
+ const type=req.headers.get('content-type')||'';
+ if(!type.startsWith('application/x-www-form-urlencoded'))return json({error:'invalid_content_type'},415);
+ const body=await req.text();
+ if(body.length>2500)return json({error:'request_too_large'},413);
+ const data=new URLSearchParams(body),action=data.get('action');
+ if(action==='create'){
+  const name=String(data.get('name')||'').trim();
+  if(!name||name.length>80)return redirect('/account?server=invalid');
+  let local,remote;
+  try{local=localAddress(data.get('local_url'));remote=remoteAddress(data.get('public_url'));}
+  catch(_){return redirect('/account?server=invalid_address');}
+  if(!local&&!remote)return redirect('/account?server=missing_address');
+  const count=await env.ACCOUNTS.prepare('SELECT COUNT(*) AS n FROM servers WHERE owner_user_id=?').bind(user.id).first();
+  if(Number(count?.n||0)>=5)return redirect('/account?server=limit');
+  await env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,local_url,public_url,status) VALUES(?,?,?,?,?,'pending')").bind(crypto.randomUUID(),user.id,name,local||null,remote||null).run();
+  return redirect('/account?server=created');
+ }
+ if(action==='delete'){
+  const id=String(data.get('id')||'');
+  if(!/^[a-f0-9-]{36}$/.test(id))return redirect('/account?server=invalid');
+  await env.ACCOUNTS.prepare('DELETE FROM servers WHERE id=? AND owner_user_id=?').bind(id,user.id).run();
+  return redirect('/account?server=deleted');
+ }
+ return redirect('/account?server=invalid');
+}
+function serversHTML(servers) {
+ const summary='<section class="block"><p class="eyebrow">Your servers</p><h2>Server connections</h2><p class="note">Save your server addresses here. Registering an address does <strong>not</strong> verify ownership, open remote access, or expose the media library. Secure pairing is coming next.</p>';
+ const cards=servers.length?servers.map(s=>'<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Not verified</span></div><p class="note">Local: '+escapeHTML(s.local_url||'Not supplied')+'</p><p class="note">Remote: '+escapeHTML(s.public_url||'Not supplied')+'</p><form method="post" action="/account/servers" onsubmit="return confirm(&quot;Remove this registered server?&quot;)"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove registration</button></form></article>').join(''):'<div class="server"><p class="note">No servers registered yet.</p></div>';
+ const form='<h3>Register a server</h3><form method="post" action="/account/servers" class="serverform"><input type="hidden" name="action" value="create"><label>Server name<input required maxlength="80" name="name" placeholder="Living Room Server"></label><label>Local server address<input maxlength="260" name="local_url" type="text" placeholder="http://192.168.1.100:8787"></label><label>External HTTPS address<input maxlength="260" name="public_url" type="text" placeholder="https://your-server.example.com"></label><p class="note">Provide at least one address. Local addresses are for your own network. External addresses must use HTTPS. No connection test is performed yet.</p><button class="btn" type="submit">Save server</button></form></section>';
+ return summary+cards+form;
+}
+
+function accountHTML(user,enabled,message='',servers=[]) {
  const title=user?'My Account':'Sign in to Yarr';
  const action=user?'<form method="post" action="/auth/logout"><button class="btn" type="submit">Sign out</button></form>':(enabled?'<a class="btn primary" href="/auth/google/start">Continue with Google</a>':'<p class="note">Google Sign-In is being configured. Account creation is not available yet.</p>');
- const details=user?'<div class="card"><h3>'+escapeHTML(user.display_name||'Your account')+'</h3><p>'+escapeHTML(user.email)+'</p><p class="note">Your account is ready. Server pairing and device registration are the next development stage.</p></div>':'<p class="lead">Sign in to manage your personal Yarr server and devices. Each account keeps its own servers separate.</p>';
+ const details=user?'<div class="card"><h3>'+escapeHTML(user.display_name||'Your account')+'</h3><p>'+escapeHTML(user.email)+'</p><p class="note">Manage registered servers below. Only you can see your server entries.</p></div>'+serversHTML(servers):'<p class="lead">Sign in to manage your personal Yarr server and devices. Each account keeps its own servers separate.</p>';
  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>'+title+' — Yarr</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/" class="link">Home</a></nav><main class="hero"><p class="eyebrow">Personal media account</p><h1>'+title+'</h1>'+details+(message?'<p class="note">'+escapeHTML(message)+'</p>':'')+'<div class="actions">'+action+'</div></main><footer class="note">Yarr development preview · No media streaming through the account Worker</footer></div></body></html>';
 }
-const accountCSS = ':root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0b1019;color:#f6f3ed}*{box-sizing:border-box}.wrap{max-width:800px;margin:auto;padding:0 28px}.nav{display:flex;justify-content:space-between;align-items:center;padding:28px 0;border-bottom:1px solid #ffffff25}.brand{font-size:24px;font-weight:900;text-decoration:none;color:#fff}.link{color:#cfc1f9}.hero{padding:72px 0 90px}.hero h1{font-size:clamp(40px,7vw,66px);letter-spacing:-.05em}.lead{font-size:19px;line-height:1.6;color:#c3c6d2}.eyebrow{color:#b69cfa;letter-spacing:.16em;font-weight:700;font-size:12px;text-transform:uppercase}.note{color:#aaaebc;font-size:14px;line-height:1.65}.card{padding:24px;border:1px solid #ffffff28;border-radius:14px}.card p{color:#c4c6cf}.actions{margin-top:25px}.btn{display:inline-block;border:1px solid #8d6be5;border-radius:10px;background:#8d6be5;padding:14px 22px;color:#101019;text-decoration:none;font-weight:700;cursor:pointer}';
+const accountCSS = ':root{color-scheme:dark;font-family:system-ui,sans-serif;background:#0b1019;color:#f6f3ed}*{box-sizing:border-box}.wrap{max-width:800px;margin:auto;padding:0 28px}.nav{display:flex;justify-content:space-between;align-items:center;padding:28px 0;border-bottom:1px solid #ffffff25}.brand{font-size:24px;font-weight:900;text-decoration:none;color:#fff}.link{color:#cfc1f9}.hero{padding:72px 0 90px}.hero h1{font-size:clamp(40px,7vw,66px);letter-spacing:-.05em}.lead{font-size:19px;line-height:1.6;color:#c3c6d2}.eyebrow{color:#b69cfa;letter-spacing:.16em;font-weight:700;font-size:12px;text-transform:uppercase}.note{color:#aaaebc;font-size:14px;line-height:1.65}.card{padding:24px;border:1px solid #ffffff28;border-radius:14px}.card p{color:#c4c6cf}.actions{margin-top:25px}.btn{display:inline-block;border:1px solid #8d6be5;border-radius:10px;background:#8d6be5;padding:14px 22px;color:#101019;text-decoration:none;font-weight:700;cursor:pointer}.block{margin:40px 0 60px}.block h2{font-size:30px}.server{border:1px solid #ffffff25;border-radius:13px;padding:20px;margin:16px 0}.server h3{margin:0}.serverhead{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.tag{color:#ddcba2;background:#413522;padding:5px 9px;border-radius:7px;font-size:12px}.serverform{display:grid;gap:16px;margin-top:22px}.serverform label{font-size:14px;color:#ddd;display:grid;gap:7px}.serverform input{border:1px solid #525468;border-radius:8px;padding:14px;background:#151d2e;color:white;font:inherit;width:100%}.smallbtn{border:1px solid #7b7182;background:transparent;color:#d9d0e3;padding:9px 13px;border-radius:8px;cursor:pointer}';
 export default { async fetch(req,env) {
  const u=new URL(req.url);
  try {
@@ -125,6 +196,14 @@ export default { async fetch(req,env) {
    if(token)await env.ACCOUNTS.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(token)).run();
    return redirect('/account',{'set-cookie':cookie('__Host-yarr_session','',0)});
   }
+  if(req.method==='POST'&&u.pathname==='/account/servers') {
+   return serverMutation(req,env,await currentUser(req,env));
+  }
+  if(req.method==='GET'&&u.pathname==='/api/servers'){
+   const user=await currentUser(req,env);
+   if(!user)return json({error:'not_authenticated'},401);
+   return json({servers:await listServers(env,user.id),verified_access:false});
+  }
   if(req.method==='GET'&&u.pathname==='/api/me') {
    const user=await currentUser(req,env);
    if(!user)return json({authenticated:false},401);
@@ -133,7 +212,10 @@ export default { async fetch(req,env) {
   if(req.method==='GET'&&u.pathname==='/account') {
    const user=await currentUser(req,env);
    const message=u.searchParams.get('login')?'Sign-in was not completed. Please try again.':'';
-   return html(accountHTML(user,authReady(env),message));
+   const statuses={created:'Server registration saved. It is not verified or connected yet.',deleted:'Server registration removed.',invalid:'Check the server name and try again.',invalid_address:'Address rejected. Use a private local server URL and/or a public HTTPS hostname.',missing_address:'Enter at least one server address.',limit:'You can register up to five servers during this stage.'};
+   const message2=message||statuses[u.searchParams.get('server')]||'';
+   const servers=user?await listServers(env,user.id):[];
+   return html(accountHTML(user,authReady(env),message2,servers));
   }
   if(u.pathname.startsWith('/api/')||u.pathname.startsWith('/auth/'))return json({error:'not_available',message:'Server pairing and account management are not enabled.'},503);
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
