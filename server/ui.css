@@ -893,3 +893,23 @@ html body[data-page] .sidebar .nav-link[data-service-nav="sonarr"]:is(:focus,:fo
 #art-preview-icon img.sidebar-icon-preview-image{
   display:block;object-fit:contain;max-width:100%;background:transparent;
 }
+
+/* Thin artwork-only navigation focus: no frame around titles or details.
+   Placed last to override legacy borderless focus resets. */
+html body[data-page] :is(.tile-button,.detail-trigger):is(:focus,:focus-visible) .cover,
+html body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster,
+html body[data-page] .explore-card .detail-trigger:is(:focus,:focus-visible) .cover{
+  outline:0!important;
+  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+}
+html body[data-page] .season-episode-tile:is(:focus,:focus-visible){
+  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+  outline-offset:2px!important;
+  box-shadow:none!important;
+}
+/* Keep the selected episode marked without a large border when its
+   remote focus is on Play or Resume. */
+html body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+  border-color:var(--oew-tv-select-color,#8B5CF6)!important;
+  box-shadow:none!important;
+}
