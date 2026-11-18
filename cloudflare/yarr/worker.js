@@ -308,6 +308,8 @@ async function verifiedOrigin(env,server,signal){
  const obj=await r.json();
  if(obj.server_id!==server.server_identity)throw new Error('wrong_origin');
 }
+// This single-server pilot currently streams media through the Yarr Worker;
+// production multi-tenant playback needs a separate authorized data plane.
 // Full One-Eyed Willie application pilot. Every request is authorized against the
 // Yarr session and the exact paired server; no arbitrary origins or host overrides.
 const ORIGIN_BASE='http://one-eyed-willie:8787';
@@ -353,7 +355,7 @@ async function proxyInstalledApp(req,env,originPath) {
    if(!location)return new Response(null,{status:502});
    const target=new URL(location,upstreamUrl);
    if(target.origin!==ORIGIN_BASE)return json({error:'external_redirect_blocked'},502);
-   return redirect(target.pathname+target.search+target.hash);
+   return new Response(null,{status:upstream.status,headers:{location:target.pathname+target.search+target.hash,'cache-control':'private, no-store'}});
   }
   const responseHeaders=new Headers();
   for(const [key,value] of upstream.headers){
