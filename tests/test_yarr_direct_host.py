@@ -24,6 +24,7 @@ class MemoryChannel:
 
 def test_media_path_allowlist_rejects_ssrf_and_control_api():
     assert peer.normalize_path("/api/watch/42/stream?viewing=123").path == "/api/watch/42/stream"
+    assert peer.normalize_path("/api/watch/42/transcode?start=100").path == "/api/watch/42/transcode"
     assert peer.normalize_path("/api/stream/hls/" + "a" * 32 + "/segment_000002.ts").path.endswith(".ts")
     for path in ("https://attacker.example/", "//evil.example/media", "/api/admin",
                  "/api/yarr/direct/offer", "/api/watch/42/../../etc/passwd",
