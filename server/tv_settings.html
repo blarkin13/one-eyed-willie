@@ -19,7 +19,67 @@
  background:#1b2b40;color:#f4f4f8;border:1px solid #455b77;border-radius:8px;
  font:inherit;text-align:left;min-height:48px}
 .tv-playback-settings .tv-language-options button[aria-pressed="true"]{
- border-color:#b5c9e4;font-weight:750}
+ border-color:var(--oew-tv-select-color,#8B5CF6);font-weight:750}
+/* A TV remote needs a visible selection surface, not a tiny brightness change.
+   This settings-only override intentionally wins over the global TV rule
+   that removes borders and outlines from movie/player controls. */
+.tv-playback-settings{max-width:800px;padding-bottom:115px}
+.tv-playback-settings .settings-two-col{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.tv-playback-settings .settings-card{padding:20px 24px;margin-bottom:18px}
+.tv-playback-settings .settings-card .setting-toggle{
+ padding:13px 16px;border-radius:12px;border:2px solid transparent;
+ background:#142337;min-height:60px;margin:9px 0;font-size:1rem}
+.tv-playback-settings .settings-card .setting-toggle input[type="checkbox"]{
+ width:24px;height:24px;accent-color:var(--oew-tv-select-color,#8B5CF6)}
+.tv-playback-settings :is(.settings-card button,.settings-card input[type="range"]){
+ min-height:54px}
+.tv-playback-settings .settings-card button.secondary-button:not(.tv-dialog-option){
+ display:block;max-width:100%;min-width:240px;text-align:left}
+.tv-playback-settings .form-actions{display:flex;flex-wrap:wrap;gap:10px}
+.tv-playback-settings .settings-two-col>div{min-width:0}
+.tv-playback-settings .settings-two-col button{width:100%}
+html body[data-page="settings"] .tv-playback-settings
+ :is(button,input[type="range"],input[type="checkbox"]):is(:focus,:focus-visible){
+ color:#fff!important;filter:none!important;transform:none!important;
+ outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important;
+ outline-offset:3px!important;
+ box-shadow:0 0 0 5px #020914!important;
+ border-color:var(--oew-tv-select-color,#8B5CF6)!important;
+ background-color:#243a55!important;
+ position:relative;z-index:3}
+html body[data-page="settings"] .tv-playback-settings
+ .setting-toggle:focus-within{
+ outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important;
+ outline-offset:1px!important;background:#263c57!important;
+ color:#fff!important}
+html body[data-page="settings"] .tv-playback-settings
+ .setting-toggle input:is(:focus,:focus-visible){
+ outline:0!important;box-shadow:none!important;background:transparent!important}
+html body[data-page="settings"] .tv-playback-settings
+ .tv-language-options button[aria-pressed="true"]:not(:focus):not(:focus-visible){
+ color:#e9e4ff;border-color:var(--oew-tv-select-color,#8B5CF6)}
+.tv-save-status{min-height:1.35em;margin:11px 0 0!important;
+ color:#b8dfc6!important;font-size:.88rem;font-weight:600}
+.tv-save-status[data-state="error"]{color:#ffc0b7!important}
+.tv-remote-help{position:fixed;bottom:14px;left:92px;right:24px;
+ max-width:790px;z-index:120;pointer-events:none;padding:12px 16px;
+ border-radius:12px;background:#07111beF;border:1px solid #455c78;
+ box-shadow:0 8px 32px #0008;color:#f4f6fa;font-size:1rem;
+ display:flex;align-items:center;gap:12px}
+.tv-remote-help strong{color:var(--oew-tv-select-color,#c4a9ff);font-weight:800}
+.tv-save-toast{position:fixed;bottom:80px;right:24px;max-width:min(480px,85vw);
+ padding:14px 20px;border-radius:12px;z-index:230;
+ border:2px solid var(--oew-tv-select-color,#8B5CF6);
+ background:#0b1c2cf2;box-shadow:0 10px 40px #000b;
+ color:#f5faf9;font-size:1rem;font-weight:700;pointer-events:none}
+.tv-save-toast[data-state="error"]{border-color:#f87171}
+.tv-save-toast[hidden],.tv-remote-help[hidden]{display:none!important}
+@media(max-width:600px){.tv-remote-help{left:14px;right:14px}
+ .tv-save-toast{bottom:92px;left:14px;right:14px}
+ .tv-playback-settings .settings-card{padding:16px}}
+@media(prefers-reduced-motion:no-preference){
+ .tv-playback-settings :is(button,.setting-toggle){
+ transition:background-color .16s ease,border-color .16s ease,outline-color .16s ease}}
 </style>
 <script defer src="/assets/ambient.js?v=1"></script>
 </head><body data-page="settings"><div class="app-shell">
@@ -27,9 +87,13 @@
 <div class="workspace"><main class="content tv-playback-settings">
 <div class="page-head"><div><p class="eyebrow">This TV</p>
 <h1>Playback Settings</h1>
-<p>Subtitle preferences apply only to this television. Shared playback preferences are stored on the server.</p>
+<p>Use Up / Down to move between settings and OK to change. Changes save automatically; a confirmation appears when saved.</p>
 </div></div>
 <p id="tv-status" class="message" role="status" aria-live="polite"></p>
+<div id="tv-save-toast" class="tv-save-toast" role="status" aria-live="polite" hidden></div>
+<div id="tv-remote-help" class="tv-remote-help" aria-live="off">
+ <strong>REMOTE</strong><span id="tv-focused-control">Use Up / Down to move between settings · OK to change</span>
+</div>
 <section class="settings-section" aria-labelledby="tv-subtitles-heading">
 <h2 id="tv-subtitles-heading">Subtitles on this TV</h2>
 <div class="settings-card"><form id="tv-subtitle-form">
@@ -57,6 +121,7 @@
 <p class="settings-muted">Choose None to remove the black boxes behind captions. Text outline helps preserve readability without a background.</p>
 <p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
+<p class="tv-save-status" id="tv-subtitle-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
 <h2 id="tv-color-heading">Selection color</h2>
@@ -73,6 +138,7 @@
 </dialog>
 <p class="settings-muted">This color is saved on the server and shared with other TVs. Subtitle preferences remain specific to this TV.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save selection color</button></div>
+<p class="tv-save-status" id="tv-color-status" role="status" aria-live="polite"></p>
 </form>
 </div></section>
 <section class="settings-section" aria-labelledby="tv-shared-heading"><h2 id="tv-shared-heading">Playback</h2>
@@ -86,6 +152,7 @@
 <input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25">
 <p class="settings-muted">These playback options are shared with the server and other TVs.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save shared playback settings</button></div>
+<p class="tv-save-status" id="tv-playback-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-ambient-heading">
 <h2 id="tv-ambient-heading">Ambient effects</h2>
@@ -101,6 +168,7 @@
 <button type="button" class="secondary-button" id="tv-ambient-layer">Over interface</button>
 <div class="form-actions"><button type="submit" class="primary-button">Save ambient effects</button>
 <button type="button" id="tv-ambient-off" class="secondary-button">Turn off</button></div>
+<p class="tv-save-status" id="tv-ambient-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Server connection</h2>
 <div class="settings-card"><p class="settings-muted">Change the IP address or port saved on this television. Other TVs and the server are unaffected.</p>
