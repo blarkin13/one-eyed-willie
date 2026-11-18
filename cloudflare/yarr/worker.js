@@ -654,7 +654,7 @@ export default { async fetch(req,env) {
    return html(accountHTML(user,authReady(env),message2,servers));
   }
   if(req.method==='GET'||req.method==='HEAD') {
-   if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\\nAllow: /\\nDisallow: /app\\nDisallow: /account\\nDisallow: /api/\\nDisallow: /auth/\\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
+   if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
    if(u.pathname==='/sitemap.xml')return new Response(req.method==='HEAD'?null:'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+PUBLIC_URLS.map(p=>'<url><loc>'+PUBLIC_SITE+p+'</loc></url>').join('')+'</urlset>',{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=3600'}});
    const info=infoPage(u.pathname);
    if(info)return new Response(req.method==='HEAD'?null:info,{headers:{...HTML_HEADERS,'cache-control':'public, max-age=300'}});
