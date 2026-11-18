@@ -349,6 +349,7 @@ async function proxyInstalledApp(req,env,originPath) {
  // When enabled, never proxy movie bytes through the Cloudflare Worker.
  if(env.YARR_DIRECT_ENABLED==='1'&&method==='GET'&&
     (/^\/api\/watch\/[1-9][0-9]*\/stream$/.test(path)||
+     /^\/api\/watch\/[1-9][0-9]*\/transcode$/.test(path)||
      /^\/api\/stream\/hls\/[a-f0-9]{32}\/(?:index\.m3u8|init\.mp4|segment_[0-9]{6}\.(?:ts|m4s))$/.test(path)))
    return json({error:'media_requires_direct_peer'},503);
  const upstreamUrl=ORIGIN_BASE+path+source.search;
