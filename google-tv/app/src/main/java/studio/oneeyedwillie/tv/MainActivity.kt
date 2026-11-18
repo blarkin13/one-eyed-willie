@@ -1261,7 +1261,7 @@ class MainActivity : ComponentActivity() {
                 if(p==='/tv/season')return '/tv/show?'+new URLSearchParams({
                   library_id:q.get('library_id')||'',key:q.get('key')||''}).toString();
                 if(p==='/tv/show')return libraryParent('/tv');
-                if(['/movies','/tv','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
+                if(['/movies','/tv','/music','/radarr','/sonarr','/sabnzbd','/services'].includes(p)||
                    p.startsWith('/sonarr/'))return '/';
                 if(p.startsWith('/settings/'))return '/settings';
                 if(p==='/settings')return '/';
