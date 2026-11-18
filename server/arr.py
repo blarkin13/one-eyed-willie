@@ -299,7 +299,8 @@ def discovery_detail(name: str, tmdb_id: int = Query(0, ge=0), title: str = Quer
             return {"available": False, "message": "No matching detailed metadata found."}
         tmdb_id = candidates[0].get("id") or 0
     data = metadata._call(category + "/" + str(tmdb_id),
-                          query={"language": "en-US", "append_to_response": "videos,credits,reviews"})
+                          query={"language": "en-US", "include_image_language": "en,null",
+                                 "append_to_response": "videos,credits,reviews,images"})
     if not isinstance(data, dict) or not data.get("id"):
         return {"available": False, "message": "Detailed metadata is currently unavailable."}
     videos = (data.get("videos") or {}).get("results") or []
@@ -322,6 +323,7 @@ def discovery_detail(name: str, tmdb_id: int = Query(0, ge=0), title: str = Quer
         "overview": str(data.get("overview") or "")[:2000],
         "tagline": str(data.get("tagline") or "")[:250],
         "poster_url": metadata.image_url(data.get("poster_path")),
+        "logo_url": register_remote(metadata.logo_image_url(data.get("images"))),
         "backdrop_url": metadata.image_url(data.get("backdrop_path"), "w1280"),
         "rating": data.get("vote_average"), "vote_count": data.get("vote_count"),
         "genres": [g.get("name") for g in data.get("genres", []) if isinstance(g, dict) and g.get("name")],
