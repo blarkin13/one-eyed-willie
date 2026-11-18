@@ -3,8 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Library Settings · One-Eyed Willie</title>
-<link rel="stylesheet" href="/assets/ui.css?v=header-1">
-<script src="/assets/library-appearance.js?v=appearance-1"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=fa-lib-2">
+<script src="/assets/library-appearance.js?v=fa-lib-2"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
 </head><body data-page="libraries">
 <div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
@@ -113,6 +113,7 @@ function defaultSidebarIcon(){
 let stagedIcon=null,revertIcon=false,iconObjectUrl=null,currentIconUrl='';
 function sidebarPreviewIcon(size=35){
  const key=byId('library-icon').value;
+ if(appearance.iconTheme()==='clean')return appearance.createThemeIcon(key,size);
  if(iconObjectUrl||currentIconUrl||['film','tv','folder'].includes(key)){
   const image=document.createElement('img');
   image.src=iconObjectUrl||currentIconUrl||defaultSidebarIcon();
@@ -174,7 +175,7 @@ function renderIcons(){
   if(query&&!([label,group,id].join(' ').toLocaleLowerCase().includes(query)))continue;
   const b=document.createElement('button');b.type='button';b.className='library-icon-card';
   b.dataset.icon=id;b.setAttribute('aria-pressed',String(id===byId('library-icon').value));
-  b.setAttribute('aria-label',label+' icon');b.append(appearance.createIcon(id,28));
+  b.setAttribute('aria-label',label+' icon');b.append(appearance.createThemeIcon(id,28));
   const text=document.createElement('span');text.textContent=label;b.append(text);
   b.onclick=()=>chooseIcon(id);root.append(b);count++;
  }
@@ -307,7 +308,8 @@ async function load(){
    iconImage.src=lib.icon_image_url||('/assets/sidebar-icon-'+(lib.kind==='tv'?'tv':'movies')+'.png?v=1');
    iconImage.className='sidebar-icon-preview-image';iconImage.width=30;iconImage.height=30;
    iconImage.alt='';
-   if(lib.icon_image_url||['folder','film','tv'].includes(lib.icon))logo.append(iconImage);
+   if(appearance.iconTheme()==='clean')logo.append(appearance.createThemeIcon(lib.icon,27));
+   else if(lib.icon_image_url||['folder','film','tv'].includes(lib.icon))logo.append(iconImage);
    else logo.append(appearance.createIcon(lib.icon,27));
    const details=document.createElement('div');details.className='library-settings-details';
    const title=document.createElement('h3');title.textContent=lib.name;
