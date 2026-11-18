@@ -149,13 +149,10 @@ async function serverMutation(req,env,user) {
  if(action==='create'){
   const name=String(data.get('name')||'').trim();
   if(!name||name.length>80)return redirect('/account?server=invalid');
-  let local,remote;
-  try{local=localAddress(data.get('local_url'));remote=remoteAddress(data.get('public_url'));}
-  catch(_){return redirect('/account?server=invalid_address');}
-  if(!local&&!remote)return redirect('/account?server=missing_address');
+  // Server addresses are not collected during normal onboarding; ownership pairing comes later.
   const count=await env.ACCOUNTS.prepare('SELECT COUNT(*) AS n FROM servers WHERE owner_user_id=?').bind(user.id).first();
   if(Number(count?.n||0)>=5)return redirect('/account?server=limit');
-  await env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,local_url,public_url,status) VALUES(?,?,?,?,?,'pending')").bind(crypto.randomUUID(),user.id,name,local||null,remote||null).run();
+  await env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,local_url,public_url,status) VALUES(?,?,?,?,?,'pending')").bind(crypto.randomUUID(),user.id,name,null,null).run();
   return redirect('/account?server=created');
  }
  if(action==='delete'){
@@ -167,10 +164,14 @@ async function serverMutation(req,env,user) {
  return redirect('/account?server=invalid');
 }
 function serversHTML(servers) {
- const summary='<section class="block"><p class="eyebrow">Your servers</p><h2>Server connections</h2><p class="note">Save your server addresses here. Registering an address does <strong>not</strong> verify ownership, open remote access, or expose the media library. Secure pairing is coming next.</p>';
- const cards=servers.length?servers.map(s=>'<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Not verified</span></div><p class="note">Local: '+escapeHTML(s.local_url||'Not supplied')+'</p><p class="note">Remote: '+escapeHTML(s.public_url||'Not supplied')+'</p><form method="post" action="/account/servers" onsubmit="return confirm(&quot;Remove this registered server?&quot;)"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove registration</button></form></article>').join(''):'<div class="server"><p class="note">No servers registered yet.</p></div>';
- const form='<h3>Register a server</h3><form method="post" action="/account/servers" class="serverform"><input type="hidden" name="action" value="create"><label>Server name<input required maxlength="80" name="name" placeholder="Living Room Server"></label><label>Local server address<input maxlength="260" name="local_url" type="text" placeholder="http://192.168.1.100:8787"></label><label>External HTTPS address<input maxlength="260" name="public_url" type="text" placeholder="https://your-server.example.com"></label><p class="note">Provide at least one address. Local addresses are for your own network. External addresses must use HTTPS. No connection test is performed yet.</p><button class="btn" type="submit">Save server</button></form></section>';
+ const summary='<section class="block"><p class="eyebrow">Your servers</p><h2>Connect your server</h2><p class="note">Give your server a name. Yarr will provide a secure pairing process in a future update. No IP addresses or external URLs are required here.</p>';
+ const cards=servers.length?servers.map(s=>'<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Awaiting pairing</span></div><p class="note">This server is not connected yet. Its media cannot be viewed until ownership is verified.</p><form method="post" action="/account/servers"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove registration</button></form></article>').join(''):'<div class="server"><p class="note">No servers registered yet.</p></div>';
+ const form='<h3>Register a server</h3><form method="post" action="/account/servers" class="serverform"><input type="hidden" name="action" value="create"><label>Server name<input required maxlength="80" name="name" placeholder="My Yarr Server"></label><p class="note">Registration does not open any network ports or connect to media. Automatic secure pairing will be added next.</p><button class="btn" type="submit">Save server</button></form><p class="note"><a href="/app">Open Yarr app preview</a></p></section>';
  return summary+cards+form;
+}
+function appHTML(user,servers) {
+ const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Pairing required</span></div><p class="note">Media remains on your home server. Connection is not enabled yet.</p></div>').join(''):'<div class="server"><p class="note">No server connected. Register a server name in your account to prepare for pairing.</p></div>';
+ return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr App Preview</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/account" class="link">Account settings</a></nav><main class="hero"><p class="eyebrow">Your personal media space</p><h1>Welcome, '+escapeHTML(user.display_name||'aboard')+'</h1><p class="lead">Your Yarr app is linked to your Google account. Your personal libraries will appear here once your home server is securely paired.</p><p class="eyebrow">Your servers</p>'+items+'<div class="actions"><a class="btn" href="/account">Manage servers</a></div></main><footer class="note">App preview only. No media is exposed or streamed by this Worker.</footer></div></body></html>';
 }
 
 function accountHTML(user,enabled,message='',servers=[]) {
@@ -209,10 +210,15 @@ export default { async fetch(req,env) {
    if(!user)return json({authenticated:false},401);
    return json({authenticated:true,user});
   }
+  if(req.method==='GET'&&u.pathname==='/app') {
+   const user=await currentUser(req,env);
+   if(!user)return redirect('/account');
+   return html(appHTML(user,await listServers(env,user.id)));
+  }
   if(req.method==='GET'&&u.pathname==='/account') {
    const user=await currentUser(req,env);
    const message=u.searchParams.get('login')?'Sign-in was not completed. Please try again.':'';
-   const statuses={created:'Server registration saved. It is not verified or connected yet.',deleted:'Server registration removed.',invalid:'Check the server name and try again.',invalid_address:'Address rejected. Use a private local server URL and/or a public HTTPS hostname.',missing_address:'Enter at least one server address.',limit:'You can register up to five servers during this stage.'};
+   const statuses={created:'Server registered. Secure pairing is the next step.',deleted:'Server registration removed.',invalid:'Check the server name and try again.',limit:'You can register up to five servers during this stage.'};
    const message2=message||statuses[u.searchParams.get('server')]||'';
    const servers=user?await listServers(env,user.id):[];
    return html(accountHTML(user,authReady(env),message2,servers));
@@ -221,7 +227,7 @@ export default { async fetch(req,env) {
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
   if(u.pathname==='/'||u.pathname==='/index.html') {
    const user=await currentUser(req,env);
-   const cta=user?'<a class="btn primary" href="/account">My Account</a>':authReady(env)?'<a class="btn primary" href="/auth/google/start">Sign in with Google</a>':'<a class="btn primary" href="/account">Account setup</a>';
+   const cta=user?'<a class="btn primary" href="/app">Open App</a><a class="btn" href="/account">My Account</a>':authReady(env)?'<a class="btn primary" href="/auth/google/start">Sign in with Google</a>':'<a class="btn primary" href="/account">Account setup</a>';
    const rendered=page.replace('<a class="btn primary" href="#setup">See how it works</a>',cta+'<a class="btn" href="#setup">See how it works</a>')
      .replace('Server download & sign-in are coming.','Server downloads are coming.')
      .replace('Public downloads, Google Sign-In, and account-based pairing are not available yet.','Public downloads and account-based server pairing are not available yet.');
