@@ -117,3 +117,13 @@ A common `app-yarr.larki-brian.workers.dev` login does not itself make a private
 - Verify owner-scoped status becomes online after the next heartbeat; offline after it stops for 150 seconds.
 - Negative tests: other account attempting claim, incorrect/expired codes, multiple owners, token replay after rotation, forged heartbeat, revoked/removed server and cross-origin form posts.
 - Verify restart persistence and outage behavior. GitHub CI execution/installed server verification are outstanding.
+
+## Workers VPC private health pilot (2026-11-18)
+
+Cloudflare created a dedicated remote-managed Tunnel named `yarr-gazorpazorp-vpc` and a Workers VPC HTTP Service named `yarr-gazorpazorp-api` routed to the Docker hostname `one-eyed-willie` on port 8787. Neither has a public hostname.
+
+The `yarr` Worker has the `YARR_PRIVATE_API` VPC Service binding and `YARR_PRIVATE_SERVER_ID` owner-check variable. Authenticated `GET /api/private/health` verifies that the logged-in account owns the pinned, paired server **before** fetching the fixed path `/health` over Workers VPC. All user-provided URLs, paths and other server destinations are ignored. Returned health information is sanitized; no video or media metadata is relayed.
+
+This is a **single-server test** and must not be presented as a scalable multi-customer network design. The Cloudflare Tunnel is not connected until the local connector is run with its private token; the token must never be copied into GitHub or chat. Local Docker opt-in code and installation details: `compose.yarr-vpc.yaml`, `deploy/setup-yarr-vpc.sh`, `deploy/yarr-vpc-test.md` on `main`.
+
+The Workers VPC binding must be preserved during every subsequent Worker deployment. Do not use a general-purpose VPC Network binding or proxy arbitrary private paths. A scalable, per-customer security model, origin authentication, and revocation are mandatory before media access is implemented.
