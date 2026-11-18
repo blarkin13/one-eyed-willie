@@ -26,6 +26,20 @@ document.addEventListener('DOMContentLoaded', () => {
     sonarr:'<path d="M3 12c3-6 6 6 9 0s6-6 9 0M3 17c3-6 6 6 9 0s6-6 9 0M3 7c3-6 6 6 9 0s6-6 9 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
     sabnzbd:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
   };
+  // Shared SVG source for the Appearance preview and application navigation.
+  window.WillieCleanIcons={
+    names:{home:'home',movies:'film',tv:'tv',sabnzbd:'sabnzbd',settings:'settings'},
+    create(name,size=30){
+      const key=this.names[name]||name;
+      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      svg.setAttribute('viewBox','0 0 24 24');
+      svg.setAttribute('width',String(size));svg.setAttribute('height',String(size));
+      svg.setAttribute('fill','none');svg.setAttribute('aria-hidden','true');
+      svg.style.color='#f7f7f7';
+      svg.innerHTML=paths[key]||paths.settings;
+      return svg;
+    }
+  };
   function glyph(fa,svg){
     const icon=document.createElement('span');icon.className='nav-icon';icon.setAttribute('aria-hidden','true');
     const font=document.createElement('i');font.className='fa-solid '+fa;
@@ -53,15 +67,11 @@ document.addEventListener('DOMContentLoaded', () => {
   function defaultIcon(kind){
     const safe=['home','movies','tv','sabnzbd','settings'].includes(kind)?kind:'movies';
     if(iconTheme()==='pirate')return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v3');
-    const key={movies:'film',sabnzbd:'sabnzbd'}[safe]||safe;
     const wrapper=document.createElement('span');
     wrapper.className='nav-icon nav-clean-icon';
     wrapper.setAttribute('aria-hidden','true');
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('viewBox','0 0 24 24');
-    svg.setAttribute('width','30');svg.setAttribute('height','30');
-    svg.setAttribute('fill','none');svg.classList.add('fa-fallback');
-    svg.innerHTML=paths[key];wrapper.append(svg);
+    const svg=window.WillieCleanIcons.create(safe,30);
+    svg.classList.add('fa-fallback');wrapper.append(svg);
     return wrapper;
   }
   document.documentElement.dataset.iconTheme=iconTheme();
@@ -106,19 +116,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
-  // Refresh all default icons from server-side overrides; the response
-  // includes cache-busting revisions so new artwork appears without relaunch.
-  function updateSystemIcon(name,url){
-    const target=nav.querySelector('a[data-nav-id="'+name+'"]');
-    const image=target?.querySelector('.nav-icon img');
-    if(image&&iconTheme()==='pirate'&&url&&url.startsWith('/assets/sidebar-icon-'))image.src=url;
+  // Uploaded replacements win in both themes; removing one restores the active theme.
+  function updateSystemIcon(name,url,custom=false){
+    const link=nav.querySelector('a[data-nav-id="'+name+'"]');
+    if(!link)return;
+    const existing=link.querySelector('.nav-icon');
+    if(!existing)return;
+    const next=custom?coloredIcon(url):defaultIcon(name);
+    existing.replaceWith(next);
   }
-  if(iconTheme()==='pirate')fetch('/api/settings/sidebar/icons',{cache:'no-store'}).then(r=>r.ok?r.json():null)
-    .then(data=>data?.icons?.forEach(icon=>updateSystemIcon(icon.name,icon.url)))
-    .catch(()=>{});
+  fetch('/api/settings/sidebar/icons',{cache:'no-store'}).then(r=>r.ok?r.json():null)
+    .then(data=>data?.icons?.forEach(icon=>{
+      if(icon.custom)updateSystemIcon(icon.name,icon.url,true);
+    })).catch(()=>{});
   document.addEventListener('willie:sidebar-icon-updated',event=>{
-    if(event.detail?.name&&event.detail?.url)
-      updateSystemIcon(event.detail.name,event.detail.url);
+    const detail=event.detail;
+    if(detail?.name)updateSystemIcon(detail.name,detail.url,Boolean(detail.custom));
   });
   // The gear is the only Settings destination in the sidebar.
   // General, Library, Metadata and Connections live on /settings only.
