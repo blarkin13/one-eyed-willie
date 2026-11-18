@@ -156,6 +156,22 @@ class TvHomeFitTests(unittest.TestCase):
         page.wait_for_timeout(300)
         return page.evaluate(MEASURE), page
 
+    def test_tv_poster_grid_columns_do_not_overlap(self):
+        for width, height in ((960, 540), (1280, 720), (1920, 1080)):
+            with self.subTest(viewport=(width, height)):
+                m, page = self.measure(width, height)
+                boxes = page.evaluate("""() => [...document.querySelectorAll(
+                    '#continue-watching .shelf-track .tile')]
+                    .slice(0, 6).map(tile => {
+                        const b = tile.getBoundingClientRect();
+                        return {left:b.left,right:b.right,width:b.width};
+                    })""")
+                self.assertEqual(len(boxes), 6)
+                for left, right in zip(boxes, boxes[1:]):
+                    self.assertLessEqual(left["right"], right["left"] + 1,
+                                         (width, height, boxes))
+                self.assertGreater(min(x["width"] for x in boxes), 30)
+
     def test_first_row_of_posters_is_fully_on_screen(self):
         for width, height in ((960, 540), (1280, 720), (1920, 1080), (1024, 576), (1366, 768)):
             with self.subTest(viewport="%dx%d" % (width, height)):
@@ -217,7 +233,7 @@ class TvHomeFitTests(unittest.TestCase):
         after = page.evaluate(MEASURE)
         self.assertLessEqual(after["lowestText"], after["innerHeight"], after)
 
-    def test_desktop_shelves_are_aligned_and_stay_compact(self):
+    def test_desktop_home_has_fullscreen_shelves_and_aligned_posters(self):
         context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         self.addCleanup(context.close)
         page = context.new_page()
@@ -235,9 +251,26 @@ class TvHomeFitTests(unittest.TestCase):
         self.assertEqual(len(rects), 5)
         self.assertLess(max(r["top"] for r in rects)-min(r["top"] for r in rects), 2, rects)
         self.assertTrue(all(130 <= r["width"] <= 170 for r in rects), rects)
-        # Desktop hover must not insert a second feature header and shift shelves.
+        # Each section is its own screen, in order; the following shelf stays
+        # below the viewport until the viewer scrolls vertically.
+        shelves = page.evaluate("""() => [...document.querySelectorAll('.content > .shelf')]
+            .map(node => ({top:node.getBoundingClientRect().top + scrollY,
+                           height:node.getBoundingClientRect().height}))""")
+        self.assertEqual(len(shelves), 3)
+        self.assertTrue(all(row["height"] >= 899 for row in shelves), shelves)
+        self.assertGreaterEqual(shelves[1]["top"], shelves[0]["top"] + shelves[0]["height"] - 2)
+        self.assertGreaterEqual(shelves[2]["top"], shelves[1]["top"] + shelves[1]["height"] - 2)
+        # Every shelf gets its own steady-size details header from first paint.
+        self.assertEqual(page.locator(".shelf > .home-feature").count(), 3)
         page.locator("#recent-movies .tile-button").first.hover()
-        self.assertEqual(page.locator(".shelf > .home-feature").count(), 1)
+        self.assertEqual(page.locator(".shelf > .home-feature").count(), 3)
+        # The rail extends to the right side of the screen, rather than
+        # terminating before the viewport's edge.
+        right = page.evaluate("""() => {
+            const b = document.querySelector('#continue-watching .shelf-track').getBoundingClientRect();
+            return b.right;
+        }""")
+        self.assertGreaterEqual(right, 1438)
         # Browser must not force TV remote focus on a poster on initial load.
         self.assertFalse(page.evaluate("document.activeElement?.matches?.('.shelf-track .tile-button') || false"))
 
