@@ -145,6 +145,28 @@ function homeDetails(item){
  if(homeDetailsCache.size>90)homeDetailsCache.delete(homeDetailsCache.keys().next().value);
  return request;
 }
+/* TV only: the first shelf's posters must be fully on screen. The hero takes
+   whatever height is left above them (never more than its normal size), and
+   its text is clamped to fit. Measured, not guessed, because poster size
+   depends on the TV's reported viewport. */
+const HOME_TV=/OneEyedWillieTV/.test(navigator.userAgent);
+const HOME_FEATURE_MIN=150,HOME_FEATURE_MAX=350,HOME_BOTTOM_GAP=10;
+function fitHomeFeature(){
+ if(!HOME_TV)return;
+ const feature=document.querySelector('.shelf > .home-feature');
+ const shelf=feature?.parentElement;
+ const heading=shelf?.querySelector(':scope > .section-heading');
+ const track=shelf?.querySelector(':scope .shelf-track');
+ if(!feature||!heading||!track||track.getBoundingClientRect().height<=0)return;
+ const style=getComputedStyle(feature);
+ const margin=parseFloat(style.marginBottom)||0;
+ const below=track.getBoundingClientRect().bottom-heading.getBoundingClientRect().top;
+ const top=feature.getBoundingClientRect().top+window.scrollY;
+ const room=window.innerHeight-HOME_BOTTOM_GAP-top-margin-below;
+ const height=Math.max(HOME_FEATURE_MIN,Math.min(HOME_FEATURE_MAX,Math.floor(room)));
+ if(feature.style.height!==height+'px')feature.style.height=height+'px';
+}
+window.addEventListener('resize',fitHomeFeature);
 function makeHomeFeature(shelf){
  let feature=shelf.querySelector(':scope > .home-feature');
  if(feature)return feature;
@@ -548,6 +570,7 @@ function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  for(const item of items)track.appendChild(tile(item,watching));target.appendChild(track);
  const first=track.querySelector('.tile-button');
  if(first?._homeItem)updateHomeFeature(first,first._homeItem);
+ fitHomeFeature();
 }
 let homeRevision=null,homeProgressRevision=null,homeRequestId=0,homePollTimer=null,homePollRunning=false;
 async function load({preserveFocus=false}={}){
