@@ -130,7 +130,13 @@ class PlayerActivity : ComponentActivity() {
         }
     }
     private val handler = Handler(Looper.getMainLooper())
+    // Playback-critical work (open, HLS start/stop, progress saves) runs here in
+    // order. It must never queue behind anything slow.
     private val network = Executors.newSingleThreadExecutor()
+    // Everything that can wait or hang (selection colour, next episode,
+    // subtitle lists and the 45 s OpenSubtitles search) runs here instead, so
+    // a slow answer cannot delay the first frame or a seek's HLS restart.
+    private val lookups = Executors.newSingleThreadExecutor()
     // Keep an on-device checkpoint until the server confirms it. This also
     // preserves resume when a separate POST connection fails while streaming.
     private val progressStore by lazy {
@@ -297,7 +303,7 @@ class PlayerActivity : ComponentActivity() {
     private fun loadPlayerAppearance() {
         // Native playback is a separate Activity from the WebView and must
         // load the server-owned selection color independently.
-        network.execute {
+        lookups.execute {
             try {
                 val settings = request("/api/settings/tv-appearance")
                 val hex = settings.optString("selection_color", "#8B5CF6")
@@ -965,7 +971,7 @@ class PlayerActivity : ComponentActivity() {
         val preferred = local.getString("language", "en") ?: "en"
         if (subtitleLanguages.none { it.second == preferred }) return
         captionLanguage = preferred
-        network.execute {
+        lookups.execute {
             try {
                 val tracks = request("/api/stream/subtitles/$mediaId").optJSONArray("tracks")
                     ?: return@execute
@@ -1010,7 +1016,7 @@ class PlayerActivity : ComponentActivity() {
     /** Existing tracks plus the same OpenSubtitles workflow as server/player.js. */
     private fun showCaptions() {
         showChrome()
-        network.execute {
+        lookups.execute {
             try {
                 val tracks = request("/api/stream/subtitles/$mediaId").optJSONArray("tracks")
                 val labels = mutableListOf("Off")
@@ -1056,7 +1062,7 @@ class PlayerActivity : ComponentActivity() {
     private fun searchOpenSubtitles(language: String) {
         if (shuttingDown || subtitleLanguages.none { it.second == language }) return
         showMessage("Searching OpenSubtitles…")
-        network.execute {
+        lookups.execute {
             try {
                 val query = java.net.URLEncoder.encode(language, "UTF-8")
                 val results = request("/api/stream/subtitles/$mediaId/search?language=$query")
@@ -1107,7 +1113,7 @@ class PlayerActivity : ComponentActivity() {
     private fun downloadSubtitle(fileId: Int, language: String) {
         if (fileId <= 0 || subtitleLanguages.none { it.second == language } || shuttingDown) return
         showMessage("Downloading subtitle…")
-        network.execute {
+        lookups.execute {
             try {
                 val query = java.net.URLEncoder.encode(language, "UTF-8")
                 val result = request(
@@ -1156,7 +1162,7 @@ class PlayerActivity : ComponentActivity() {
     private fun loadNextEpisode() {
         if (nextLookupInFlight || shuttingDown) return
         nextLookupInFlight = true
-        network.execute {
+        lookups.execute {
             // Read independently: a failed settings call must not throw away
             // the next episode, and late responses must still trigger autoplay.
             val enabled = try {
@@ -1691,6 +1697,7 @@ class PlayerActivity : ComponentActivity() {
             }
         }
         network.shutdown()
+        lookups.shutdown()
         super.onDestroy()
     }
 }
