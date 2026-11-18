@@ -127,7 +127,8 @@ class UsageCountingTests(unittest.TestCase):
         session = hls.Session(token, directory, None, now, now, 1, "CPU", 60.0, 0.0,
                               hls.DEFAULT_QUALITY, "abcdef123456")
         with patch.dict(hls.ACTIVE, {token: session}), \
-                patch.object(hls, "_purge"):
+                patch.object(hls, "_purge"), \
+                patch.object(hls, "ROOT", self.root):   # CI cannot write /data
             self.client.get(f"/api/stream/hls/{token}/segment_000000.ts")
             self.client.get(f"/api/stream/hls/{token}/index.m3u8")
         self.assertEqual(usage.total("abcdef123456"), 5000 + len("#EXTM3U\n"))
