@@ -217,6 +217,30 @@ class TvHomeFitTests(unittest.TestCase):
         after = page.evaluate(MEASURE)
         self.assertLessEqual(after["lowestText"], after["innerHeight"], after)
 
+    def test_desktop_shelves_are_aligned_and_stay_compact(self):
+        context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        self.addCleanup(context.close)
+        page = context.new_page()
+        page.route("**/api/home", lambda r: r.fulfill(json=HOME))
+        page.route("**/api/home/revision", lambda r: r.fulfill(json={"revision": 1}))
+        page.route("**/api/movies/details*", lambda r: r.fulfill(json=DETAILS))
+        page.route("**/api/tv/show*", lambda r: r.fulfill(json=DETAILS))
+        page.goto("http://127.0.0.1:%d/" % self.port)
+        page.wait_for_selector("#continue-watching .shelf-track .tile")
+        rects = page.evaluate("""() => [...document.querySelectorAll('#continue-watching .shelf-track .tile')]
+            .slice(0, 5).map(tile => {
+                const r = tile.getBoundingClientRect();
+                return {top:r.top,width:r.width};
+            })""")
+        self.assertEqual(len(rects), 5)
+        self.assertLess(max(r["top"] for r in rects)-min(r["top"] for r in rects), 2, rects)
+        self.assertTrue(all(130 <= r["width"] <= 170 for r in rects), rects)
+        # Desktop hover must not insert a second feature header and shift shelves.
+        page.locator("#recent-movies .tile-button").first.hover()
+        self.assertEqual(page.locator(".shelf > .home-feature").count(), 1)
+        # Browser must not force TV remote focus on a poster on initial load.
+        self.assertFalse(page.evaluate("document.activeElement?.matches?.('.shelf-track .tile-button') || false"))
+
     def test_desktop_browsers_keep_their_normal_hero(self):
         context = self.browser.new_context(viewport={"width": 1440, "height": 900})
         self.addCleanup(context.close)
