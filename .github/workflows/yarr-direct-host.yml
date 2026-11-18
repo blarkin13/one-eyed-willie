@@ -9,6 +9,8 @@ on:
       - "requirements.txt"
       - "tests/test_yarr_direct_host.py"
       - ".github/workflows/yarr-direct-host.yml"
+  push:
+    branches: ["feature/yarr-direct-media-host-transport"]
   workflow_dispatch:
 permissions:
   contents: read
