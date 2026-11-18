@@ -27,7 +27,10 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.upstream.DefaultLoadErrorHandlingPolicy
 import androidx.media3.ui.PlayerView
 import androidx.media3.ui.CaptionStyleCompat
 import org.json.JSONArray
@@ -63,6 +66,14 @@ class PlayerActivity : ComponentActivity() {
     private var shuttingDown = false
     private var visibleForPlayback = false
     private var fallbackStarted = false
+    // Playback quality (see Quality). "auto" plays the original when this TV can
+    // decode it; the other choices always transcode at that size.
+    @Volatile private var quality = Quality.AUTO
+    @Volatile private var directCapable = false
+    @Volatile private var directUrl = ""
+    // Automatic recovery from transient errors; reset after steady playback.
+    private var recoveryAttempts = 0
+    private var lastRecoveryAt = 0L
     private lateinit var message: TextView
     private lateinit var playerView: PlayerView
     private lateinit var chrome: LinearLayout
@@ -215,13 +226,22 @@ class PlayerActivity : ComponentActivity() {
         timeline.requestFocus()
         loadPlayerAppearance()
         thumbnailPreview.start()
-        player = ExoPlayer.Builder(this).build().also { exo ->
+        // Longer timeouts and more retries than the defaults: a busy Wi-Fi link
+        // should cost a pause, not a failed playback.
+        val http = DefaultHttpDataSource.Factory()
+            .setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).setAllowCrossProtocolRedirects(true)
+        val sources = DefaultMediaSourceFactory(http)
+            .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
+        player = ExoPlayer.Builder(this).setMediaSourceFactory(sources).build().also { exo ->
             playerView.player = exo
             exo.addListener(object : Player.Listener {
                 override fun onPlaybackStateChanged(state: Int) {
                     updatePlaybackScreenAwake()
                     if (state == Player.STATE_READY) {
                         message.visibility = View.GONE
+                        // Healthy again: forget earlier hiccups once it has held for a while.
+                        if (android.os.SystemClock.uptimeMillis() - lastRecoveryAt > 30_000L)
+                            recoveryAttempts = 0
                         scheduleHide()
                     } else if (state == Player.STATE_ENDED) {
                         completed = true
@@ -236,14 +256,7 @@ class PlayerActivity : ComponentActivity() {
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     updatePlaybackScreenAwake()
-                    if (!hlsMode && !fallbackStarted) {
-                        fallbackStarted = true
-                        val position = (exo.currentPosition / 1000.0).coerceAtLeast(0.0)
-                        showMessage("Direct play unavailable. Preparing compatible stream…")
-                        startHls(position)
-                    } else {
-                        showMessage("Playback failed: ${error.errorCodeName}. Check server transcoding and codecs.")
-                    }
+                    handlePlayerError(error)
                 }
             })
         }
@@ -596,17 +609,112 @@ class PlayerActivity : ComponentActivity() {
     private fun showPlaybackMenu() {
         val labels = arrayOf(
             if (completed) "Mark as unwatched" else "Mark as watched",
+            "Quality: " + Quality.label(quality),
             "Playback details",
             "Play from beginning"
         )
         showPlayerMenu("Playback options", labels.toList(), onSelect = { choice ->
             when (choice) {
                 0 -> toggleWatched()
-                1 -> showDiagnostics()
-                2 -> seekTo(0.0)
+                1 -> showQualityMenu()
+                2 -> showDiagnostics()
+                3 -> seekTo(0.0)
             }
             showChrome()
         })
+    }
+
+    private fun showQualityMenu() {
+        val options = Quality.options
+        showPlayerMenu("Playback quality", options.map { it.label },
+            selected = options.indexOfFirst { it.id == quality }.coerceAtLeast(0),
+            onSelect = { which ->
+                applyQuality(options[which].id)
+                showChrome()
+            })
+    }
+
+    /** Remember the choice for this TV and switch the current playback to it. */
+    private fun applyQuality(id: String) {
+        val chosen = Quality.normalize(id)
+        if (chosen == quality) return
+        quality = chosen
+        progressStore.edit().putString("quality:$server", chosen).apply()
+        switchSource(seek.pendingTarget() ?: currentPosition())
+    }
+
+    /**
+     * Re-opens the video at [position] for the current quality choice: the
+     * original file when allowed and playable, otherwise a transcode.
+     */
+    private fun switchSource(position: Double) {
+        if (shuttingDown) return
+        if (Quality.allowsDirect(quality) && directCapable && directUrl.isNotBlank()) {
+            val previous = session
+            session = null
+            hlsStarts.next()            // abandon any HLS start still in flight
+            hlsMode = false
+            hlsOffset = 0.0
+            showMessage("Switching to original quality…")
+            player?.setMediaItem(MediaItem.fromUri(resolveUrl(directUrl)))
+            player?.prepare()
+            player?.seekTo((position * 1000).toLong())
+            player?.playWhenReady = true
+            if (selectedCaption != null) applyCaption()
+            previous?.let {
+                network.execute {
+                    try { request("/api/stream/hls/$it", "DELETE") } catch (_: Exception) {}
+                }
+            }
+        } else {
+            showMessage("Switching to " + Quality.transcodeParam(quality) + "…")
+            restartHls(position, SeekTracker.NO_GENERATION)
+        }
+    }
+
+    /**
+     * Recovers from a playback error when that is likely to help: a dropped
+     * connection retries the same source, an expired transcoding session starts
+     * a new one at the current position, and a file this TV cannot decode falls
+     * back to a transcode. Attempts are bounded; the final failure says what to try.
+     */
+    private fun handlePlayerError(error: PlaybackException) {
+        if (shuttingDown) return
+        val position = currentPosition()
+        val action = PlaybackRecovery.decide(error.errorCode, hlsMode, recoveryAttempts, fallbackStarted)
+        NavTrace.log { "PLAYER_ERROR code=${error.errorCodeName} hls=$hlsMode attempts=$recoveryAttempts action=$action" }
+        Log.w("OneEyedWillie", "Player error ${error.errorCodeName} (hls=$hlsMode): ${error.message}")
+        when (action) {
+            RecoveryAction.RETRY_SAME_SOURCE -> {
+                val attempt = ++recoveryAttempts
+                lastRecoveryAt = android.os.SystemClock.uptimeMillis()
+                showMessage("Connection problem. Retrying ($attempt/${PlaybackRecovery.MAX_ATTEMPTS})…")
+                handler.postDelayed({
+                    val exo = player
+                    if (!shuttingDown && exo != null && !hlsMode) {
+                        exo.prepare()
+                        exo.seekTo((position * 1000).toLong())
+                        exo.playWhenReady = true
+                    }
+                }, PlaybackRecovery.backoffMs(attempt))
+            }
+            RecoveryAction.RESTART_HLS -> {
+                val attempt = ++recoveryAttempts
+                lastRecoveryAt = android.os.SystemClock.uptimeMillis()
+                showMessage("Reconnecting stream ($attempt/${PlaybackRecovery.MAX_ATTEMPTS})…")
+                handler.postDelayed({
+                    if (!shuttingDown) restartHls(position, SeekTracker.NO_GENERATION)
+                }, if (attempt == 1) 0L else PlaybackRecovery.backoffMs(attempt - 1))
+            }
+            RecoveryAction.FALLBACK_TO_HLS -> {
+                fallbackStarted = true
+                showMessage("Direct play unavailable. Preparing compatible stream…")
+                startHls(position)
+            }
+            RecoveryAction.GIVE_UP ->
+                showMessage("Playback failed (${error.errorCodeName}). " +
+                    "Press Back to retry, or pick a lower quality in More options.")
+        }
     }
 
     private fun showScrubAt(position: Double) {
@@ -746,6 +854,7 @@ class PlayerActivity : ComponentActivity() {
     private fun showDiagnostics() {
         val p=player
         val messageText = "Playback: "+(if(hlsMode)"HLS transcoding" else "Direct play")+
+            "\nQuality: "+Quality.label(quality)+
             "\nState: "+(p?.playbackState ?: -1)+
             "\nPosition: "+fmt(currentPosition())+
             "\nServer: "+server+
@@ -1267,6 +1376,7 @@ class PlayerActivity : ComponentActivity() {
     private fun openMedia() {
         network.execute {
             try {
+                quality = Quality.normalize(progressStore.getString("quality:$server", null))
                 val info = request("/api/watch/$mediaId/status")
                 val restart = intent.getBooleanExtra("restart", false)
                 if (restart) progressStore.edit().remove(progressKey()).apply()
@@ -1285,7 +1395,9 @@ class PlayerActivity : ComponentActivity() {
                     canDirectPlay(actual, info.optString("extension", ""))
                     else mode == "direct"
                 val streamUrl = info.optString("stream_url", "")
-                if (direct && streamUrl.isNotBlank()) {
+                directCapable = direct && streamUrl.isNotBlank()
+                directUrl = streamUrl
+                if (directCapable && Quality.allowsDirect(quality)) {
                     handler.post {
                         if (!shuttingDown) {
                             hlsMode = false
@@ -1305,6 +1417,21 @@ class PlayerActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    /** Starts a transcoding session, retrying brief network failures (not HTTP refusals). */
+    private fun createHlsSession(start: Double): JSONObject {
+        var failure: java.io.IOException? = null
+        for (attempt in 0 until 3) {
+            try {
+                return request("/api/stream/hls/start/$mediaId?start=$start" +
+                    "&quality=${Quality.transcodeParam(quality)}", "POST")
+            } catch (error: java.io.IOException) {
+                failure = error
+                Thread.sleep(800L * (attempt + 1))
+            }
+        }
+        throw failure ?: IllegalStateException("Could not reach the server")
     }
 
     private fun startHls(position: Double) {
@@ -1336,7 +1463,7 @@ class PlayerActivity : ComponentActivity() {
         try {
             val start = position.coerceAtLeast(0.0)
             handler.post { if (!superseded()) showMessage("Preparing compatible HLS stream…") }
-            val created = request("/api/stream/hls/start/$mediaId?start=$start", "POST")
+            val created = createHlsSession(start)
             val token = created.getString("session")
             createdToken = token
             if (superseded()) { discard(token); return }

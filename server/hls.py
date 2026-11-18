@@ -27,11 +27,32 @@ ROOT = Path(os.environ.get("HLS_CACHE_DIR", "/data/hls"))
 ACTIVE = {}
 LOCK = threading.RLock()
 MAX_SESSIONS = 2
+# A session nobody has touched for this long may be reclaimed when a new
+# player needs a slot (abandoned by a crashed app, or paused for a long time).
+RECLAIM_IDLE_SECONDS = 90
 IDLE_SECONDS = 30 * 60
 SESSION_SECONDS = 8 * 60 * 60
 MIN_FREE_BYTES = 512 * 1024 * 1024
 TOKEN = re.compile(r"^[a-f0-9]{32}$")
 SEGMENT = re.compile(r"^segment_[0-9]{6}\.ts$")
+
+
+# Output presets. 720p is the long-standing default and keeps its exact settings.
+# width/height bound the picture (letterboxed to that frame); crf drives CPU
+# quality; the three bitrates are VAAPI target/max/buffer in kbit/s and the
+# CPU path's cap/buffer.
+QUALITIES = {
+    "1080p": {"width": 1920, "height": 1080, "crf": 23, "target": 6000, "maxrate": 8000, "bufsize": 12000},
+    "720p": {"width": 1280, "height": 720, "crf": 26, "target": 2500, "maxrate": 3200, "bufsize": 5000},
+    "480p": {"width": 854, "height": 480, "crf": 28, "target": 1200, "maxrate": 1600, "bufsize": 2500},
+    "360p": {"width": 640, "height": 360, "crf": 30, "target": 700, "maxrate": 900, "bufsize": 1500},
+}
+DEFAULT_QUALITY = "720p"
+
+
+def normalize_quality(value):
+    """Unknown or missing values fall back to the default instead of failing."""
+    return value if isinstance(value, str) and value in QUALITIES else DEFAULT_QUALITY
 
 
 @dataclass
@@ -45,16 +66,19 @@ class Session:
     acceleration: str
     duration: float
     start: float
+    quality: str = DEFAULT_QUALITY
 
 
 def hardware_available():
     return hardware_supported()
 
 
-def _command(file, directory, start, hardware=False):
+def _command(file, directory, start, hardware=False, quality=DEFAULT_QUALITY):
     # Keep generated segments available for replay and seeking. The old
     # sliding playlist deleted segments while viewers were still watching.
     # Read slightly ahead of real-time without encoding the entire file at once.
+    preset = QUALITIES[normalize_quality(quality)]
+    width, height = preset["width"], preset["height"]
     args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error"]
     if hardware:
         # Decode in software, upload frames for GPU encoding. Forcing VAAPI
@@ -63,16 +87,17 @@ def _command(file, directory, start, hardware=False):
     args += ["-readrate", "1.5", "-ss", str(start), "-i", str(file),
              "-map", "0:v:0", "-map", "0:a:0?"]
     if hardware:
-        args += ["-vf", "scale=1280:720:force_original_aspect_ratio=decrease,"
-                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload",
+        args += ["-vf", f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,format=nv12,hwupload",
                  "-c:v", "h264_vaapi",
-                 "-b:v", "2500k", "-maxrate", "3200k", "-bufsize", "5000k"]
+                 "-b:v", f"{preset['target']}k", "-maxrate", f"{preset['maxrate']}k",
+                 "-bufsize", f"{preset['bufsize']}k"]
     else:
-        args += ["-vf", "scale=w=1280:h=720:force_original_aspect_ratio=decrease,"
-                 "pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+        args += ["-vf", f"scale=w={width}:h={height}:force_original_aspect_ratio=decrease,"
+                 f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2",
                  "-c:v", "libx264", "-preset", "veryfast", "-threads", "2",
-                 "-pix_fmt", "yuv420p", "-crf", "26",
-                 "-maxrate", "3200k", "-bufsize", "5000k"]
+                 "-pix_fmt", "yuv420p", "-crf", str(preset["crf"]),
+                 "-maxrate", f"{preset['maxrate']}k", "-bufsize", f"{preset['bufsize']}k"]
     args += ["-c:a", "aac", "-ac", "2", "-b:a", "128k", "-ar", "48000",
              "-force_key_frames", "expr:gte(t,n_forced*4)",
              "-sc_threshold", "0", "-f", "hls", "-hls_time", "4",
@@ -81,6 +106,39 @@ def _command(file, directory, start, hardware=False):
              "-hls_segment_filename", str(directory / "segment_%06d.ts"),
              str(directory / "index.m3u8")]
     return args
+
+
+LOG_NAME = "ffmpeg.log"
+
+
+def _spawn(command, directory):
+    """Start FFmpeg, keeping its error output so failures can be explained."""
+    with open(directory / LOG_NAME, "ab") as log:
+        return subprocess.Popen(
+            command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+            stderr=log, close_fds=True,
+        )
+
+
+def _log_tail(directory, limit=240):
+    """Last meaningful FFmpeg error line, trimmed; never raises."""
+    try:
+        lines = (directory / LOG_NAME).read_text(errors="replace").strip().splitlines()
+    except OSError:
+        return ""
+    return lines[-1][-limit:] if lines else ""
+
+
+def _reclaim_idle_session(now=None):
+    """Free one slot by stopping the longest-idle session, if it is stale."""
+    now = now or time.monotonic()
+    stale = [(s.last_access, key) for key, s in ACTIVE.items()
+             if now - s.last_access > RECLAIM_IDLE_SECONDS]
+    if not stale:
+        return False
+    _, key = min(stale)
+    _terminate(ACTIVE.pop(key))
+    return True
 
 
 def _terminate(session):
@@ -132,7 +190,9 @@ def _get_session(token):
 
 
 @router.post("/start/{media_id}")
-def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000)):
+def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
+              quality: str = Query(DEFAULT_QUALITY)):
+    quality = normalize_quality(quality)
     _, file = _item(media_id)
     if not os.path.isfile(FFMPEG):
         raise HTTPException(503, "Video transcoder is not installed")
@@ -145,29 +205,34 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000)):
         raise HTTPException(507, "Not enough free disk space for transcoding")
     with LOCK:
         _purge()
-        if len(ACTIVE) >= MAX_SESSIONS:
-            raise HTTPException(429, "Two streams are already active")
+        if len(ACTIVE) >= MAX_SESSIONS and not _reclaim_idle_session():
+            raise HTTPException(429, "Two streams are already in use by other players. "
+                                     "Stop one of them and try again.")
         token = secrets.token_hex(16)
         directory = ROOT / token
         directory.mkdir(mode=0o700)
         hardware = hardware_available()
         try:
-            command = _command(file, directory, start, hardware)
-            process = subprocess.Popen(
-                command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL, close_fds=True,
-            )
+            process = _spawn(_command(file, directory, start, hardware, quality), directory)
         except OSError as exc:
             shutil.rmtree(directory, ignore_errors=True)
             raise HTTPException(503, "Unable to start transcoder") from exc
         now = time.monotonic()
         session = Session(token, directory, process, now, now, media_id,
-                          "Intel VAAPI encode" if hardware else "CPU", probe_duration(file), start)
+                          "Intel VAAPI encode" if hardware else "CPU", probe_duration(file), start,
+                          quality)
         ACTIVE[token] = session
         return {"session": token,
                 "playlist": f"/api/stream/hls/{token}/index.m3u8",
-                "engine": session.acceleration,
+                "engine": session.acceleration, "quality": quality,
                 "duration": session.duration, "start": start}
+
+
+@router.get("/qualities")
+def list_qualities():
+    return {"default": DEFAULT_QUALITY,
+            "qualities": [{"id": key, "height": value["height"],
+                           "max_kbps": value["maxrate"]} for key, value in QUALITIES.items()]}
 
 
 @router.get("/{token}/status")
@@ -181,21 +246,25 @@ def stream_status(token: str):
             with LOCK:
                 if ACTIVE.get(token) is session:
                     try:
-                        session.process = subprocess.Popen(
+                        session.process = _spawn(
                             _command(_item(session.media_id)[1], session.directory,
-                                     session.start, False),
-                            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                            stderr=subprocess.DEVNULL, close_fds=True,
+                                     session.start, False, session.quality),
+                            session.directory,
                         )
                         session.acceleration = "CPU fallback"
                         code = None
                     except OSError:
                         pass
         if code is not None:
-            raise HTTPException(422, "Transcoder could not decode this video")
+            reason = _log_tail(session.directory)
+            raise HTTPException(422, "Transcoder could not decode this video"
+                                + (f": {reason}" if reason else ""))
     if code is not None and code != 0:
-        raise HTTPException(422, "Transcoder stopped unexpectedly")
+        reason = _log_tail(session.directory)
+        raise HTTPException(422, "Transcoder stopped unexpectedly"
+                            + (f": {reason}" if reason else ""))
     return {"ready": playlist.is_file(), "engine": session.acceleration,
+            "quality": session.quality,
             "playlist": f"/api/stream/hls/{token}/index.m3u8",
             "duration": session.duration, "start": session.start}
 

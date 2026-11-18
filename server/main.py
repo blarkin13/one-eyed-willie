@@ -374,6 +374,14 @@ def player_script():
                         headers={"Cache-Control": "no-store, max-age=0", "Pragma": "no-cache"})
 
 
+@app.get("/assets/vendor/hls-1.7.4.min.js")
+def hls_js_library():
+    # Served locally so the player works on a LAN without internet access.
+    return FileResponse(Path(__file__).with_name("vendor") / "hls-1.7.4.min.js",
+                        media_type="text/javascript",
+                        headers={"Cache-Control": "public, max-age=31536000, immutable"})
+
+
 @app.get("/watch/{media_id}")
 def watch_page(media_id: int):
     return FileResponse(Path(__file__).with_name("watch.html"), media_type="text/html",

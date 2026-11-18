@@ -8,6 +8,14 @@
   let monitor=null;
   let chromeTimer=null, seekTimer=null, stallTimer=null;
   let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
+  // Playback quality: 'auto' plays the original when the browser can, otherwise
+  // transcodes at the default size; the others always transcode at that size.
+  const QUALITIES=[['auto','Auto (original when possible)'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p']];
+  function savedQuality(){
+    try{const value=localStorage.getItem('willie:quality');return QUALITIES.some(q=>q[0]===value)?value:'auto'}
+    catch(_){return 'auto'}
+  }
+  let quality=savedQuality(), directRetries=0, hlsRecover={network:0,media:0}, hlsRecoverAt=0;
   function revealChrome(){
     if(!current)return;
     current.classList.remove('willie-chrome-hidden');
@@ -246,16 +254,23 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       document.dispatchEvent(new CustomEvent('willie:watch-updated'));
     });
   }
+  function injectScript(src){
+    return new Promise((resolve,reject)=>{
+      const script=document.createElement('script');
+      script.src=src;script.async=true;
+      script.onload=()=>window.Hls?resolve(window.Hls):reject(Error('HLS support unavailable'));
+      script.onerror=()=>{script.remove();reject(Error('HLS script failed to load'))};
+      document.head.append(script);
+    });
+  }
+  /* Prefer the copy served by this server so playback works without internet
+   * access; the public CDN is only a fallback. A failure is not cached. */
   async function loadHlsLibrary(){
     if(window.Hls)return window.Hls;
     if(!window.__willieHlsPromise){
-      window.__willieHlsPromise=new Promise((resolve,reject)=>{
-        const script=document.createElement('script');
-        script.src='https://cdn.jsdelivr.net/npm/hls.js@1.7.4/dist/hls.min.js';
-        script.async=true;script.onload=()=>window.Hls?resolve(window.Hls):reject(Error('HLS support unavailable'));
-        script.onerror=()=>reject(Error('HLS player could not load. Check your internet connection.'));
-        document.head.append(script);
-      });
+      window.__willieHlsPromise=injectScript('/assets/vendor/hls-1.7.4.min.js')
+        .catch(()=>injectScript('https://cdn.jsdelivr.net/npm/hls.js@1.7.4/dist/hls.min.js'))
+        .catch(()=>{window.__willieHlsPromise=null;throw Error('HLS player could not load. Check the server and your connection.')});
     }
     return window.__willieHlsPromise;
   }
@@ -268,12 +283,13 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     await saveProgress(true);
     started=false;
     destroyStream();video.pause();video.removeAttribute('src');video.load();
-    offset=seek;playbackMode='hls';
+    offset=seek;playbackMode='hls';hlsRecover={network:0,media:0};
     syncCaptions();
     message('Preparing compatible HLS stream…');
     try{
       const result=await requestJson('/api/stream/hls/start/'+mediaId+
-        '?start='+encodeURIComponent(seek),{method:'POST'});
+        '?start='+encodeURIComponent(seek)+
+        '&quality='+encodeURIComponent(quality==='auto'?'720p':quality),{method:'POST'});
       if(current!==surface)return;
       session=result.session;
       status.duration_seconds=status.duration_seconds||result.duration;
@@ -299,10 +315,18 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         if(!Hls.isSupported())throw Error('This browser does not support HLS playback.');
         hls=new Hls({lowLatencyMode:false,maxBufferLength:30,liveSyncDurationCount:3,startPosition:0});
         hls.on(Hls.Events.ERROR,(_event,data)=>{
-          if(data.fatal){
-            message('Recovering HLS stream: '+(data.details||data.type));
-            recoveryHandler?.();
+          if(!data.fatal)return;
+          hlsRecoverAt=Date.now();
+          // Recover in place first: a dropped request or a bad segment should not
+          // throw away the transcode. An expired session (404) cannot be resumed.
+          if(data.type===Hls.ErrorTypes.NETWORK_ERROR&&data.response?.code!==404&&hlsRecover.network<3){
+            hlsRecover.network++;message('Connection hiccup. Retrying…');hls.startLoad();return;
           }
+          if(data.type===Hls.ErrorTypes.MEDIA_ERROR&&hlsRecover.media<2){
+            hlsRecover.media++;message('Recovering playback…');hls.recoverMediaError();return;
+          }
+          message('Recovering HLS stream: '+(data.details||data.type));
+          recoveryHandler?.();
         });
         hls.loadSource(url);
         hls.attachMedia(video);
@@ -311,6 +335,24 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       video.play().then(()=>message('')).catch(()=>message('Press Play to start the video.'));
     }catch(error){if(current===surface)message(error.message)}
     finally{switching=false}
+  }
+  /* Switch from a transcode back to the original file at [position]. */
+  async function playDirect(position){
+    if(!current||switching||!status)return;
+    switching=true;
+    try{
+      const surface=current,video=surface.querySelector('video');
+      await saveProgress(true);
+      started=false;destroyStream();video.pause();
+      playbackMode='direct';offset=0;directRetries=0;surface.dataset.engine='Browser';
+      syncCaptions();message('Switching to original quality…');
+      video.addEventListener('loadedmetadata',()=>{
+        if(current===surface&&Number.isFinite(video.duration)&&position>1&&position<video.duration-4)
+          video.currentTime=position;
+      },{once:true});
+      video.src=status.stream_url;
+      video.play().then(()=>message('')).catch(()=>message('Press Play to start.'));
+    }finally{switching=false}
   }
   const icons={
     back:'<path d="m15 18-6-6 6-6"/><path d="M9 12h12"/>',
@@ -322,6 +364,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
     info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6m0-10h.01"/>',
     next:'<path d="m5 5 11 7-11 7z"/><path d="M19 5v14"/>',
+    quality:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
     autoplay:'<path d="m5 5 11 7-11 7z"/><path d="M19 5v14"/><path d="M4 2h16"/>'
   };
   function setIcon(button,icon,label){
@@ -474,8 +517,34 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       }catch(error){results.textContent=error.message;}
       finally{searchLink.disabled=false;}
     };
+    const qualityButton=document.createElement('button');setIcon(qualityButton,'quality','Playback quality');
+    qualityButton.setAttribute('aria-expanded','false');
+    const qualityMenu=document.createElement('div');qualityMenu.className='willie-subtitle-menu';qualityMenu.hidden=true;
+    const qualitySelect=document.createElement('select');qualitySelect.className='willie-subtitle-select';
+    qualitySelect.setAttribute('aria-label','Playback quality');
+    for(const [value,label] of QUALITIES){
+      const option=document.createElement('option');option.value=value;option.textContent=label;qualitySelect.append(option);
+    }
+    qualitySelect.value=quality;
+    qualityMenu.append(qualitySelect);
+    qualityButton.onclick=()=>{
+      qualityMenu.hidden=!qualityMenu.hidden;subtitleMenu.hidden=true;
+      subtitles.setAttribute('aria-expanded','false');
+      qualityButton.setAttribute('aria-expanded',String(!qualityMenu.hidden));
+      if(!qualityMenu.hidden)qualitySelect.focus();
+    };
+    qualitySelect.onchange=()=>{
+      quality=qualitySelect.value;
+      try{localStorage.setItem('willie:quality',quality)}catch(_){}
+      qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');
+      if(!status)return;
+      const at=playerPosition(video);
+      if(quality==='auto'&&browserCanDirect(video,status))playDirect(at);
+      else playHls(at);
+      revealChrome();concealChromeSoon();
+    };
     subtitleMenu.append(cc,language,searchLink,results);
-    subtitles.onclick=()=>{subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
+    subtitles.onclick=()=>{qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
     const playPause=document.createElement('button');setIcon(playPause,'pause','Pause');
     playPause.onclick=()=>video.paused?video.play().catch(()=>{}):video.pause();
     let nextEpisode=null;
@@ -494,7 +563,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       if(autoPlayNext&&nextEpisode&&current===surface)launchNext();
     }
     const diagnostics=document.createElement('button');setIcon(diagnostics,'info','Playback diagnostics');
-    diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':'HLS transcoding')+
+    diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':'HLS transcoding ('+(quality==='auto'?'720p':quality)+')')+
       ' · Server: '+(surface.dataset.engine||'Not reported')+
       ' · Video: '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+
       ' · Client GPU decoding depends on browser, device and codec.');
@@ -503,8 +572,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const toolbar=document.createElement('div');toolbar.className='willie-toolbar';
     const left=document.createElement('div');left.className='willie-group';
     const right=document.createElement('div');right.className='willie-group';
-    left.append(playPause,backward,forward);right.append(next,subtitles,watch,diagnostics);
-    toolbar.append(left,right);bottom.append(toolbar,subtitleMenu);
+    left.append(playPause,backward,forward);right.append(next,subtitles,qualityButton,watch,diagnostics);
+    toolbar.append(left,right);bottom.append(toolbar,subtitleMenu,qualityMenu);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
     const timeline=document.createElement('div');timeline.className='willie-timeline';
     const elapsed=document.createElement('span');elapsed.textContent='0:00:00';
@@ -607,6 +676,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     },500);
     video.addEventListener('playing',()=>{
       started=true;clearTimeout(stallTimer);stallTimer=null;
+      if(Date.now()-hlsRecoverAt>30000)hlsRecover={network:0,media:0};
+      if(Date.now()-hlsRecoverAt>30000)directRetries=0;
       setIcon(playPause,'pause','Pause');message('');concealChromeSoon();
     });
     video.addEventListener('waiting',()=>{
@@ -626,9 +697,38 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       });
       showNextCountdown();
     });
+    /* True when the original file can be fetched right now. */
+    async function originalReachable(){
+      const abort=new AbortController(),timer=setTimeout(()=>abort.abort(),4000);
+      try{
+        const response=await fetch(status.stream_url,{method:'HEAD',cache:'no-store',signal:abort.signal});
+        return response.ok;
+      }catch(_){return false}
+      finally{clearTimeout(timer)}
+    }
     video.addEventListener('error',()=>{
-      if(playbackMode==='direct')playHls(playerPosition(video));
-      else recoverStream();
+      if(playbackMode==='direct'){
+        const at=playerPosition(video),code=video.error?.code;
+        if(directRetries>=2||!status?.stream_url){playHls(at);return}
+        const attempt=++directRetries;hlsRecoverAt=Date.now();
+        // A dropped connection is not an unplayable file. Browsers report an
+        // early network failure as "format not supported", so ask the server:
+        // if the file cannot be fetched, retry it; if it can be (and the error
+        // was not a mid-stream network error), the browser cannot decode it.
+        originalReachable().then(reachable=>{
+          if(current!==surface||playbackMode!=='direct')return;
+          if(reachable&&code!==2){playHls(at);return}
+          message('Connection hiccup. Retrying…');
+          setTimeout(()=>{
+            if(current!==surface||playbackMode!=='direct')return;
+            video.addEventListener('loadedmetadata',()=>{
+              if(Number.isFinite(video.duration)&&at>1&&at<video.duration-4)video.currentTime=at;
+            },{once:true});
+            video.src=status.stream_url;
+            video.play().catch(()=>{});
+          },1000*attempt);
+        });
+      }else recoverStream();
     });
     message('Opening video…');
     requestJson('/api/watch/'+id+'/status').then(data=>{
@@ -649,7 +749,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         if(video.ended)showNextCountdown();
       }).catch(()=>{next.hidden=true});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
-      if(browserCanDirect(video,data)){
+      if(quality==='auto'&&browserCanDirect(video,data)){
         playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
         if(resume>5)video.addEventListener('loadedmetadata',()=>{
           if(Number.isFinite(video.duration)&&resume<video.duration-4)video.currentTime=resume;
