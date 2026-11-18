@@ -36,3 +36,12 @@ CREATE TABLE IF NOT EXISTS sessions (
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id);
+
+-- Ephemeral OAuth transactions prevent cross-site login CSRF and enforce one-time callbacks.
+CREATE TABLE IF NOT EXISTS oauth_flows (
+  state_hash TEXT PRIMARY KEY,
+  nonce TEXT NOT NULL,
+  verifier TEXT NOT NULL,
+  expires_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS oauth_flows_expiry_idx ON oauth_flows(expires_at);
