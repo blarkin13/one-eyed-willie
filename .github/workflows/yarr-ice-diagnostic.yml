@@ -46,3 +46,5 @@ jobs:
           new vm.Script(html.slice(jsStart, jsEnd));
           console.log('Yarr diagnostic Worker and embedded browser script parse correctly');
           NODE
+      - name: Build production container with WebRTC dependency
+        run: docker build -t yarr-ice-diagnostic:ci .
