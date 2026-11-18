@@ -1381,8 +1381,8 @@ class MainActivity : ComponentActivity() {
                   align-items:start!important;align-content:start!important;
                   gap:14px!important;
                   padding:11px 11px 9px!important;
-                  width:calc(100% + 11px)!important;
-                  margin:0 0 0 -11px!important;
+                  width:calc(100% + 3px)!important;
+                  margin:0 0 0 -3px!important;
                   overflow-y:hidden!important;
                   min-height:0!important;
                   scroll-padding-inline:11px!important
