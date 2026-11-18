@@ -24,7 +24,7 @@ except ImportError:
 
 router = APIRouter(prefix="/api/yarr/direct")
 ACTIVE = set()
-MAX_PEERS = 3
+MAX_PEERS = 1  # Dedicated UDP 3478; shared fixed socket cannot host concurrent sessions
 MAX_CHANNELS = 8
 CHUNK_BYTES = 16 * 1024
 HIGH_WATER = 256 * 1024
