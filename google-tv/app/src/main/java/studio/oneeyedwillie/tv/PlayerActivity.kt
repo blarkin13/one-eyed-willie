@@ -599,16 +599,14 @@ class PlayerActivity : ComponentActivity() {
             "Playback details",
             "Play from beginning"
         )
-        AlertDialog.Builder(this).setTitle("Playback options")
-            .setItems(labels) { _, choice ->
-                when (choice) {
-                    0 -> toggleWatched()
-                    1 -> showDiagnostics()
-                    2 -> seekTo(0.0)
-                }
-                showChrome()
+        showPlayerMenu("Playback options", labels.toList(), onSelect = { choice ->
+            when (choice) {
+                0 -> toggleWatched()
+                1 -> showDiagnostics()
+                2 -> seekTo(0.0)
             }
-            .setNegativeButton("Close", null).show()
+            showChrome()
+        })
     }
 
     private fun showScrubAt(position: Double) {
@@ -752,8 +750,7 @@ class PlayerActivity : ComponentActivity() {
             "\nPosition: "+fmt(currentPosition())+
             "\nServer: "+server+
             "\nSession: "+(if(session!=null)"Active" else "None")
-        AlertDialog.Builder(this).setTitle("Playback diagnostics")
-            .setMessage(messageText).setPositiveButton("Close",null).show()
+        showPlayerMenu("Playback diagnostics", description = messageText)
     }
 
     private fun toggleWatched() {
@@ -893,11 +890,9 @@ class PlayerActivity : ComponentActivity() {
                 labels.add("Search OpenSubtitles…")
                 handler.post {
                     if (shuttingDown) return@post
-                    AlertDialog.Builder(this).setTitle("Closed Captions")
-                        .setSingleChoiceItems(
-                            labels.toTypedArray(), ids.indexOf(selectedCaption).coerceAtLeast(0)
-                        ) { dialog, index ->
-                            dialog.dismiss()
+                    showPlayerMenu("Closed Captions", labels,
+                        selected = ids.indexOf(selectedCaption).coerceAtLeast(0),
+                        onSelect = { index ->
                             if (index == labels.lastIndex) {
                                 chooseSubtitleLanguage()
                             } else {
@@ -905,8 +900,7 @@ class PlayerActivity : ComponentActivity() {
                                 applyCaption()
                                 showChrome()
                             }
-                        }
-                        .setNegativeButton("Cancel", null).show()
+                        })
                 }
             } catch (error: Exception) {
                 handler.post { if (!shuttingDown) showMessage("Subtitles unavailable: ${error.message}") }
@@ -916,11 +910,10 @@ class PlayerActivity : ComponentActivity() {
 
     private fun chooseSubtitleLanguage() {
         showChrome()
-        AlertDialog.Builder(this).setTitle("Search subtitle language")
-            .setItems(subtitleLanguages.map { it.first }.toTypedArray()) { _, index ->
+        showPlayerMenu("Search subtitle language",
+            subtitleLanguages.map { it.first }, onSelect = { index ->
                 searchOpenSubtitles(subtitleLanguages[index].second)
-            }
-            .setNegativeButton("Cancel", null).show()
+            })
     }
 
     private fun searchOpenSubtitles(language: String) {
@@ -960,14 +953,13 @@ class PlayerActivity : ComponentActivity() {
                         showMessage("No downloadable subtitle matches found.")
                         return@post
                     }
-                    AlertDialog.Builder(this).setTitle("OpenSubtitles results")
-                        .setItems(names.toTypedArray()) { _, selected ->
+                    showPlayerMenu("OpenSubtitles results", names,
+                        secondaryLabel = "Change language",
+                        secondaryAction = { chooseSubtitleLanguage() },
+                        onSelect = { selected ->
                             val (id, lang) = options[selected]
                             downloadSubtitle(id, lang)
-                        }
-                        .setNegativeButton("Cancel", null)
-                        .setNeutralButton("Change language") { _, _ -> chooseSubtitleLanguage() }
-                        .show()
+                        })
                 }
             } catch (error: Exception) {
                 handler.post { if (!shuttingDown) showMessage("Subtitle search failed: ${error.message}") }
