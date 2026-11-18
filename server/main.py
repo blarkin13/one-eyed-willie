@@ -471,6 +471,25 @@ def player_script():
                         headers={"Cache-Control": "no-cache"})
 
 
+@app.get("/_yarr_direct_sw.js")
+def yarr_direct_service_worker():
+    # This asset does not activate the service worker by itself.
+    return TextFileResponse(
+        Path(__file__).with_name("yarr_direct_sw.js"),
+        media_type="text/javascript",
+        headers={"Cache-Control": "no-store", "Service-Worker-Allowed": "/"},
+    )
+
+
+@app.get("/assets/yarr-direct-client.js")
+def yarr_direct_browser_client():
+    return TextFileResponse(
+        Path(__file__).with_name("yarr_direct_client.js"),
+        media_type="text/javascript",
+        headers={"Cache-Control": "no-store"},
+    )
+
+
 @app.get("/assets/vendor/hls-1.7.4.min.js")
 def hls_js_library():
     # Served locally so the player works on a LAN without internet access.
