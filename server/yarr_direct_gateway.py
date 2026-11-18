@@ -18,7 +18,8 @@ HOST_OFFER = "http://host.docker.internal:18799/api/yarr/direct/offer"
 
 @router.post("/offer")
 async def offer(data: PeerOffer, x_yarr_direct_secret: str | None = Header(default=None)):
-    if os.environ.get("YARR_DIRECT_PEER_ENABLED") != "1":
+    if (os.environ.get("YARR_DIRECT_PEER_ENABLED") != "1"
+            and os.environ.get("YARR_DIRECT_TEST_ENABLED") != "1"):
         raise HTTPException(404, "Direct media disabled")
     expected = shared_secret()
     if not expected:
