@@ -1,14 +1,59 @@
 """Measured data use: bytes the server sends for one viewing are counted."""
+import asyncio
+import json
 import tempfile
 import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+from urllib.parse import urlsplit
 
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 from server import hls, playback, usage
+
+
+class Response:
+    def __init__(self, status, body):
+        self.status_code, self.content = status, body
+
+    def json(self):
+        return json.loads(self.content)
+
+
+class Client:
+    """Minimal ASGI client (the real TestClient needs httpx, which CI lacks)."""
+
+    def __init__(self, app):
+        self.app = app
+
+    def request(self, method, url, headers=None):
+        parts = urlsplit(url)
+        scope = {"type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1", "method": method,
+                 "scheme": "http", "path": parts.path, "raw_path": parts.path.encode(),
+                 "query_string": parts.query.encode(), "root_path": "",
+                 "headers": [(k.lower().encode(), v.encode()) for k, v in (headers or {}).items()],
+                 "client": ("127.0.0.1", 1), "server": ("testserver", 80)}
+        sent = []
+
+        async def run():
+            async def receive():
+                return {"type": "http.request", "body": b"", "more_body": False}
+
+            async def send(message):
+                sent.append(message)
+            await self.app(scope, receive, send)
+
+        asyncio.run(run())
+        status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+        body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+        return Response(status, body)
+
+    def get(self, url, headers=None):
+        return self.request("GET", url, headers)
+
+    def head(self, url):
+        return self.request("HEAD", url)
 
 
 class UsageCountingTests(unittest.TestCase):
@@ -22,7 +67,7 @@ class UsageCountingTests(unittest.TestCase):
         app = FastAPI()
         app.include_router(playback.router)
         app.include_router(hls.router)
-        self.client = TestClient(app)
+        self.client = Client(app)
         patcher = patch.object(playback, "_item", return_value=({"id": 1}, self.movie))
         patcher.start()
         self.addCleanup(patcher.stop)
