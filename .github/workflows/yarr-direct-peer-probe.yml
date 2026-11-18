@@ -4,6 +4,7 @@ on:
   pull_request:
     paths:
       - 'tools/direct_peer_probe.py'
+      - 'tools/test_browser_peer.py'
       - 'tools/direct_peer_probe.html'
       - 'tools/requirements-direct-probe.txt'
       - 'tests/test_direct_peer_probe.py'
@@ -13,6 +14,7 @@ on:
       - 'feature/yarr-direct-peer-probe'
     paths:
       - 'tools/direct_peer_probe.py'
+      - 'tools/test_browser_peer.py'
       - 'tools/direct_peer_probe.html'
       - 'tools/requirements-direct-probe.txt'
       - 'tests/test_direct_peer_probe.py'
@@ -35,8 +37,11 @@ jobs:
       - name: Install optional prototype test dependencies
         run: |
           python -m pip install -r requirements.txt -r tools/requirements-direct-probe.txt
-          python -m pip install pytest httpx
+          python -m pip install pytest httpx playwright
+          python -m playwright install --with-deps chromium
       - name: Check code compiles
-        run: python -m compileall -q tools/direct_peer_probe.py tests/test_direct_peer_probe.py
+        run: python -m compileall -q tools/direct_peer_probe.py tests/test_direct_peer_probe.py tools/test_browser_peer.py
       - name: Run safety and encrypted local 1 MiB transfer tests
         run: python -m pytest -q tests/test_direct_peer_probe.py
+      - name: Verify real Chromium WebRTC negotiation and 1 MiB data integrity
+        run: python tools/test_browser_peer.py
