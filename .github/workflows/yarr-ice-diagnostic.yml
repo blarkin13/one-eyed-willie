@@ -3,6 +3,7 @@ on:
   pull_request:
     paths:
       - "compose.yaml"
+      - "compose.remote.yaml"
       - "server/yarr_ice_host.py"
       - "cloudflare/yarr/worker.js"
       - "server/yarr_ice_probe.py"
@@ -63,6 +64,24 @@ jobs:
           assert all('/media' not in str(v) for v in host.get('volumes', [])), 'No media mounts'
           assert primary['environment']['YARR_ICE_PROBE_USE_HOST_NETWORK'] == '1'
           print('Primary Yarr network preserved; diagnostic has isolated host ICE networking')
+          PY
+          WILLIE_HOSTNAME=yarr-test.example WILLIE_USERNAME=test WILLIE_PASSWORD_HASH=test \
+            docker compose -f compose.remote.yaml config --format json > /tmp/yarr-remote-compose-check.json
+          python - <<'PY'
+          import json
+          local=json.load(open('/tmp/yarr-compose-check.json'))['services']
+          remote=json.load(open('/tmp/yarr-remote-compose-check.json'))['services']
+          for group in (local,remote):
+              main=group['one-eyed-willie']
+              probe=group['yarr-ice-diagnostic']
+              assert main.get('network_mode') != 'host'
+              assert main['environment']['YARR_ICE_PROBE_USE_HOST_NETWORK'] == '1'
+              assert probe['network_mode'] == 'host'
+              assert probe.get('read_only') is True
+              assert probe['environment']['YARR_ICE_PROBE_MODE'] == 'host'
+              assert all('/media' not in str(v) for v in probe.get('volumes', []))
+          assert remote['https']['ports'], 'Retain remote Caddy listener'
+          print('Both deployment modes include same diagnostic, retain existing bridge and HTTPS service')
           PY
       - name: Build production container with WebRTC dependency
         run: docker build -t yarr-ice-diagnostic:ci .
