@@ -30,7 +30,7 @@
 <button class="library-editor-close" type="button" id="close-library" aria-label="Close editor">×</button></header>
 <div class="library-editor-fields">
 <div><label for="library-name">Library name</label><input id="library-name" type="text" maxlength="80" required placeholder="e.g. Movies, Kids, Documentaries"></div>
-<div><label for="library-kind">Library type</label><select id="library-kind"><option value="movies">Movies</option><option value="tv">TV Shows</option></select></div>
+<div><label for="library-kind">Library type</label><select id="library-kind"><option value="movies">Movies</option><option value="tv">TV Shows</option><option value="music">Music</option></select></div>
 </div>
 <section class="library-appearance-section" aria-labelledby="library-appearance-heading">
 <div class="library-section-heading"><h3 id="library-appearance-heading">Sidebar appearance</h3><p>Choose an icon and a typeface. Changes are shown in the live preview.</p></div>
@@ -138,7 +138,7 @@ function updatePreview(){
  byId('library-preview-icon').replaceChildren(sidebarPreviewIcon(35));
  const title=byId('library-preview-name');
  title.className='library-preview-name '+fontClass(font);title.textContent=name;
- byId('library-preview-kind').textContent=(byId('library-kind').value==='tv'?'TV Shows':'Movies')+' library';
+ byId('library-preview-kind').textContent=({tv:'TV Shows',movies:'Movies',music:'Music'}[byId('library-kind').value]||'Movies')+' library';
  const hidden=!byId('library-visible').checked;
  byId('library-preview-row').classList.toggle('is-hidden',hidden);
  byId('library-preview-state').textContent=hidden?'Hidden from sidebar':'Visible in sidebar';
@@ -213,7 +213,7 @@ byId('icon-file').addEventListener('change',event=>{
 byId('icon-reset').addEventListener('click',()=>{
  releaseIconPreview();stagedIcon=null;revertIcon=true;currentIconUrl='';
  byId('icon-file').value='';
- byId('library-icon').value=byId('library-kind').value==='tv'?'tv':'film';
+ byId('library-icon').value=byId('library-kind').value==='music'?'music':byId('library-kind').value==='music'?'music':byId('library-kind').value==='tv'?'tv':'film';
  byId('icon-upload-status').textContent='Default icon selected — save to apply.';
  renderIcons();updatePreview();
 });
@@ -224,7 +224,7 @@ byId('library-visible').addEventListener('change',updatePreview);
 
 let stagedHeader=null, revertHeader=false, headerObjectUrl=null, currentHeaderUrl='';
 function defaultHeader(){
- return '/assets/library-header-'+byId('library-kind').value+'.png';
+ return '/assets/library-header-'+(byId('library-kind').value==='music'?'movies':byId('library-kind').value)+'.png';
 }
 function releaseHeaderPreview(){
  if(headerObjectUrl){URL.revokeObjectURL(headerObjectUrl);headerObjectUrl=null;}
@@ -315,7 +315,7 @@ async function load(){
    const title=document.createElement('h3');title.textContent=lib.name;
    const caption=document.createElement('p');caption.className='settings-muted';
    const folderCount=Array.isArray(lib.folders)?lib.folders.length:1;
-   caption.textContent=(lib.kind==='tv'?'TV Shows':'Movies')+' · '+
+   caption.textContent=({tv:'TV Shows',movies:'Movies',music:'Music'}[lib.kind]||'Movies')+' · '+
     lib.media_count+' files · '+folderCount+' folder'+(folderCount!==1?'s':'')+
     ' · Sidebar: '+(lib.sidebar_hidden?'Hidden':'Visible')+
     ' · Font: '+(fonts[lib.font]?.[0]||'Default');
@@ -389,6 +389,13 @@ function openEdit(lib){
  byId('library-editor').showModal();
  byId('library-name').focus();
 }
+byId('library-kind').addEventListener('change',()=>{
+ if(editing!==null)return;
+ const kind=byId('library-kind').value;
+ byId('library-icon').value=kind==='music'?'music':kind==='tv'?'tv':'film';
+ byId('library-name').value=kind==='music'?'Music':kind==='tv'?'TV Shows':'Movies';
+ refreshAppearance();
+});
 byId('create-library').onclick=openAdd;
 byId('close-library').onclick=()=>byId('library-editor').close();
 byId('library-editor').addEventListener('click',event=>{
@@ -399,7 +406,7 @@ byId('cancel-library').onclick=()=>byId('library-editor').close();
 byId('library-kind').onchange=()=>{
  if(editing!==null)return;
  byId('library-name').value=byId('library-kind').value==='movies'?'Movies':'TV Shows';
- byId('library-icon').value=byId('library-kind').value==='movies'?'film':'tv';
+ byId('library-icon').value=byId('library-kind').value==='music'?'music':byId('library-kind').value==='movies'?'film':'tv';
  resetIconControls();refreshAppearance();
  if(!stagedHeader){currentHeaderUrl=defaultHeader();updateHeaderPreview();}
 };
