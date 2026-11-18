@@ -2,6 +2,8 @@ name: Yarr remote network diagnostic
 on:
   pull_request:
     paths:
+      - "compose.yaml"
+      - "server/yarr_ice_host.py"
       - "cloudflare/yarr/worker.js"
       - "server/yarr_ice_probe.py"
       - "server/main.py"
@@ -46,5 +48,21 @@ jobs:
           new vm.Script(html.slice(jsStart, jsEnd));
           console.log('Yarr diagnostic Worker and embedded browser script parse correctly');
           NODE
+      - name: Validate primary service and host-network diagnostic compose configuration
+        run: |
+          docker compose -f compose.yaml config --quiet
+          docker compose -f compose.yaml config --format json > /tmp/yarr-compose-check.json
+          python - <<'PY'
+          import json
+          doc=json.load(open('/tmp/yarr-compose-check.json'))
+          primary=doc['services']['one-eyed-willie']
+          host=doc['services']['yarr-ice-diagnostic']
+          assert primary.get('network_mode') != 'host', 'Must preserve existing server tunnel network'
+          assert host['network_mode'] == 'host', 'Diagnostic must bypass Docker bridge NAT'
+          assert host.get('read_only') is True
+          assert all('/media' not in str(v) for v in host.get('volumes', [])), 'No media mounts'
+          assert primary['environment']['YARR_ICE_PROBE_USE_HOST_NETWORK'] == '1'
+          print('Primary Yarr network preserved; diagnostic has isolated host ICE networking')
+          PY
       - name: Build production container with WebRTC dependency
         run: docker build -t yarr-ice-diagnostic:ci .
