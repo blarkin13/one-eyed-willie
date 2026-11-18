@@ -194,10 +194,15 @@ class PlayerActivity : ComponentActivity() {
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
 
         title = intent.getStringExtra("title")?.takeIf { it.isNotBlank() } ?: "Now Playing"
-        val surface = FrameLayout(this)
+        // Letterbox/pillarbox bands are whatever sits behind the video. The stock
+        // Material theme's window background is dark grey, so paint every layer black.
+        window.setBackgroundDrawable(ColorDrawable(Color.BLACK))
+        val surface = FrameLayout(this).apply { setBackgroundColor(Color.BLACK) }
         playerView = PlayerView(this).apply {
             layoutParams = FrameLayout.LayoutParams(-1, -1)
             useController = false
+            setBackgroundColor(Color.BLACK)
+            setShutterBackgroundColor(Color.BLACK)
         }
         surface.addView(playerView)
         applySubtitleAppearance()
