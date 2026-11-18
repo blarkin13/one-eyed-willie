@@ -68,9 +68,188 @@
 </div>
 </section>
 
+<section class="settings-section" aria-labelledby="yarr-account-heading">
+<h2 id="yarr-account-heading">Yarr Account</h2>
+<p>Link this server securely to your Yarr account. No public IP address or manual HTTPS URL is required for account pairing.</p>
+<div class="settings-card">
+  <section class="form-card" aria-labelledby="yarr-pair-heading" style="max-width:none;margin-bottom:20px">
+  <h2 id="yarr-pair-heading">Connect to Yarr</h2>
+  <p>Link this installed media server to your Yarr Google account. You won't need to enter IP addresses. Pairing alone does not enable remote playback.</p>
+  <div id="yarr-pair-status" role="status" aria-live="polite">Checking Yarr connection…</div>
+  <p id="yarr-code" style="font:700 1.6rem ui-monospace,monospace;letter-spacing:.07em;user-select:all" hidden></p>
+  <div class="form-actions">
+    <button id="yarr-start" class="primary-button" type="button">Connect to Yarr</button>
+    <a id="yarr-claim" href="https://yarr.larki-brian.workers.dev/account" target="_blank" rel="noopener noreferrer" hidden>Open Yarr Account</a>
+  </div>
+  <small>The pairing code expires after ten minutes. Keep it private. This is an opt-in connection; your existing local libraries and playback remain unchanged.</small>
+</section>
+<div class="remote-columns">
+   <div>
+    <form id="settings-form" class="form-card">
+     <h2>Connection details</h2>
+     <p>Your connection settings stay on this server.</p>
+     <label for="public-ip">Home public IP address</label>
+     <input id="public-ip" type="text" inputmode="decimal" maxlength="45" placeholder="Your router's public IPv4" autocomplete="off" spellcheck="false">
+     <small>Your ISP may change this address. Changing it here does not automatically reconfigure your router or Worker.</small>
+     <label for="public-url">Remote web address</label>
+     <input id="public-url" type="url" maxlength="300" placeholder="https://one-eyed-willie.example.workers.dev" spellcheck="false">
+     <small>This is the public browser address; the secure origin still needs HTTPS and authentication.</small>
+     <div class="form-actions"><button id="save" type="submit" class="primary-button">Save settings</button><span id="message" role="status"></span></div>
+    </form>
+    <div class="form-card">
+     <h2>Connection endpoints</h2>
+     <div class="detail-grid">
+      <div><div class="field-label">Home network</div><div class="detail-value">NUC · port 8787</div></div>
+      <div><div class="field-label">HTTPS origin</div><div class="detail-value" id="origin">Enter public IP</div></div>
+     </div>
+     <p>For Android TV, the eventual client will try the local address first and use a secure remote connection when away from home.</p>
+    </div>
+   </div>
+   <div>
+    <div class="form-card">
+     <h2>Test your connection</h2>
+     <p>Open your remote address on another network, such as your phone with Wi-Fi turned off.</p>
+     <a class="primary-button" id="open-remote" href="#" target="_blank" rel="noopener noreferrer" hidden>Open remote site</a>
+     <p id="test-note" class="muted">Save a remote URL to enable this link.</p>
+    </div>
+    <div class="form-card">
+     <h2>Network setup</h2>
+     <ol class="note-list">
+      <li>Google Wifi forwards TCP 443 to the NUC's HTTPS proxy.</li>
+      <li>A strong password protects remote browser access.</li>
+      <li>Never forward port 8787 publicly.</li>
+      <li>Video playback and Android TV pairing are separate upcoming features.</li>
+     </ol>
+     <p>Changing IP addresses here doesn't automatically alter Cloudflare or HTTPS certificates.</p>
+    </div>
+   </div>
+  </div>
+ </main>
+</div></div>
+<script>
+
+const yarrStatus=document.getElementById('yarr-pair-status');
+const yarrStart=document.getElementById('yarr-start');
+const yarrCode=document.getElementById('yarr-code');
+const yarrClaim=document.getElementById('yarr-claim');
+let yarrTimer;
+async function yarrCheck(){
+ try{
+  const r=await fetch('/api/yarr/pair/status',{cache:'no-store'});
+  const result=await r.json();
+  if(!r.ok)throw Error(result.detail||'Unable to check Yarr pairing');
+  if(result.status==='paired'){
+   yarrStatus.textContent='Connected to your Yarr account. Remote access is not yet enabled.';
+   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
+  }else if(result.status==='pending'){
+   yarrStatus.textContent='Pairing pending. Enter the code in your Yarr account.';
+   yarrClaim.hidden=false;
+  }else{
+   yarrStatus.textContent='Not connected. Use Connect to Yarr to create a pairing code.';
+   yarrStart.hidden=false;yarrClaim.hidden=true;yarrCode.hidden=true;clearInterval(yarrTimer);
+  }
+ }catch(e){yarrStatus.textContent=e.message||'Unable to reach Yarr pairing service';}
+}
+yarrStart.addEventListener('click',async()=>{
+ yarrStart.disabled=true;yarrStatus.textContent='Creating secure pairing code…';
+ try{
+  const r=await fetch('/api/yarr/pair/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  const d=await r.json();
+  if(!r.ok)throw Error(d.detail||'Unable to start pairing');
+  yarrCode.textContent=d.code;yarrCode.hidden=false;
+  yarrClaim.href=d.claim_url;yarrClaim.hidden=false;
+  yarrStatus.textContent='Enter this code at Yarr Account within ten minutes.';
+  clearInterval(yarrTimer);yarrTimer=setInterval(yarrCheck,5000);
+ }catch(e){yarrStatus.textContent=e.message||'Unable to start pairing';}
+ finally{yarrStart.disabled=false;}
+});
+yarrCheck();
+const yarrStatus=document.getElementById('yarr-pair-status');
+const yarrStart=document.getElementById('yarr-start');
+const yarrCode=document.getElementById('yarr-code');
+const yarrClaim=document.getElementById('yarr-claim');
+let yarrTimer;
+async function yarrCheck(){
+ try{
+  const r=await fetch('/api/yarr/pair/status',{cache:'no-store'});
+  const result=await r.json();
+  if(!r.ok)throw Error(result.detail||'Unable to check Yarr pairing');
+  if(result.status==='paired'){
+   yarrStatus.textContent='Connected to your Yarr account. Remote access is not yet enabled.';
+   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
+  }else if(result.status==='pending'){
+   yarrStatus.textContent='Pairing pending. Enter the code in your Yarr account.';
+   yarrClaim.hidden=false;
+  }else{
+   yarrStatus.textContent='Not connected. Use Connect to Yarr to create a pairing code.';
+   yarrStart.hidden=false;yarrClaim.hidden=true;yarrCode.hidden=true;clearInterval(yarrTimer);
+  }
+ }catch(e){yarrStatus.textContent=e.message||'Unable to reach Yarr pairing service';}
+}
+yarrStart.addEventListener('click',async()=>{
+ yarrStart.disabled=true;yarrStatus.textContent='Creating secure pairing code…';
+ try{
+  const r=await fetch('/api/yarr/pair/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  const d=await r.json();
+  if(!r.ok)throw Error(d.detail||'Unable to start pairing');
+  yarrCode.textContent=d.code;yarrCode.hidden=false;
+  yarrClaim.href=d.claim_url;yarrClaim.hidden=false;
+  yarrStatus.textContent='Enter this code at Yarr Account within ten minutes.';
+  clearInterval(yarrTimer);yarrTimer=setInterval(yarrCheck,5000);
+ }catch(e){yarrStatus.textContent=e.message||'Unable to start pairing';}
+ finally{yarrStart.disabled=false;}
+});
+yarrCheck();
+
+const el=id=>document.getElementById(id);
+const ip=el('public-ip'),url=el('public-url');
+function origin(){
+ const s=ip.value.trim();
+ el('origin').textContent=/^(?:\d{1,3}\.){3}\d{1,3}$/.test(s)?s.replaceAll('.','-')+'.sslip.io':'Enter public IP';
+}
+function message(value,error=false){el('message').textContent=value;el('message').className=error?'error':''}
+function remoteLink(value){
+ const link=el('open-remote');
+ try{
+  const parsed=new URL(value);
+  if(parsed.protocol==='https:'){link.href=parsed.href;link.hidden=false;el('test-note').textContent='This opens a new browser tab. A successful sign-in confirms access.';return;}
+ }catch(_){}
+ link.hidden=true;link.removeAttribute('href');el('test-note').textContent='Save a valid HTTPS remote address to enable this link.';
+}
+function connectionText(data){
+ try{
+  const saved=new URL(data.public_url);
+  if(saved.host===location.host){el('connection-status').textContent='Connected through the configured remote address in this browser';return;}
+ }catch(_){}
+ el('connection-status').textContent='Settings saved locally. To check external access, use the remote site link on another network.';
+}
+async function load(){
+ try{
+  const r=await fetch('/api/remote/settings',{cache:'no-store'});
+  if(!r.ok)throw Error('Unable to load remote settings');
+  const d=await r.json();ip.value=d.public_ip||'';url.value=d.public_url||'';
+  origin();remoteLink(d.public_url);connectionText(d);
+ }catch(e){message(e.message,true);el('connection-status').textContent='Unable to verify saved settings';}
+}
+el('settings-form').addEventListener('submit',async event=>{
+ event.preventDefault();el('save').disabled=true;message('Saving…');
+ try{
+  const r=await fetch('/api/remote/settings',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({public_ip:ip.value,public_url:url.value})});
+  if(!r.ok){const d=await r.json().catch(()=>({}));throw Error(typeof d.detail==='string'?d.detail:'Unable to save settings');}
+  const d=await r.json();ip.value=d.public_ip;url.value=d.public_url;
+  origin();remoteLink(d.public_url);connectionText(d);message('Saved on this server.');
+ }catch(e){message(e.message,true)}
+ finally{el('save').disabled=false}
+});
+ip.addEventListener('input',origin);
+load();
+</script></body></html
+</div>
+</section>
+
 <section class="settings-section" aria-labelledby="remote-heading">
-<h2 id="remote-heading">Remote access</h2>
-<p>Configure the connection details shown to your clients. Saving an address does not configure your router, tunnel, or firewall.</p>
+<h2 id="remote-heading">Advanced · Manual remote access</h2>
+<p>Optional legacy network configuration. Yarr account pairing above does not use these fields. Configure the connection details shown to your clients. Saving an address does not configure your router, tunnel, or firewall.</p>
 <div class="settings-card">
 <form id="remote-form">
 <div class="settings-two-col">
