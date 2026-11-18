@@ -12,10 +12,25 @@ jobs:
       - name: Install test dependencies
         run: python -m pip install -r requirements.txt
       - name: Install FFmpeg
-        # The transcoding tests run the real encoder (the server expects /usr/bin/ffmpeg).
+        # Real transcoding tests require both binaries at their server paths.
+        # Bound package manager operations so CI cannot hang indefinitely.
+        timeout-minutes: 5
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          if [ ! -x /usr/bin/ffmpeg ]; then sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; fi
-          /usr/bin/ffmpeg -version | head -1
+          set -euo pipefail
+          if [ ! -x /usr/bin/ffmpeg ] || [ ! -x /usr/bin/ffprobe ]; then
+            echo "FFmpeg tools are missing; installing using bounded apt operations."
+            sudo timeout --signal=TERM --kill-after=5s 100s apt-get \
+              -o Acquire::Retries=1 -o Acquire::http::Timeout=20 \
+              -o Acquire::https::Timeout=20 update -qq
+            sudo timeout --signal=TERM --kill-after=5s 100s apt-get \
+              install -y -qq --no-install-recommends ffmpeg
+          fi
+          test -x /usr/bin/ffmpeg
+          test -x /usr/bin/ffprobe
+          timeout 15s /usr/bin/ffmpeg -version | head -1
+          timeout 15s /usr/bin/ffprobe -version | head -1
       - name: Install browser test dependencies
         # The Google TV navigation tests drive the runner's preinstalled Chrome.
         run: python -m pip install playwright
