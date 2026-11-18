@@ -223,6 +223,95 @@ class LibraryScrollBrowserTests(unittest.TestCase):
         self.assertLessEqual(
             worst, 1, "viewport moved %.0fpx against the %s direction" % (worst, direction))
 
+    def open_tv_settings(self):
+        """Open TV-only Settings with the native subtitle bridge mocked."""
+        context = self.browser.new_context(
+            viewport={"width": 960, "height": 540}, user_agent=TV_UA)
+        self.addCleanup(context.close)
+        context.add_init_script("""window.prompt = (message, payload) => {
+          if(message==='oewtv:subtitles:get')return JSON.stringify({
+            enabled:false,language:'en',background:'none',
+            size:'normal',color:'white',outline:true
+          });
+          if(message==='oewtv:subtitles:set'){
+            window.__lastTvSubtitleSave=JSON.parse(payload);
+            return 'ACK';
+          }
+          return null;
+        };""")
+        page = context.new_page()
+        page.goto(self.origin + "/settings", wait_until="load")
+        page.wait_for_function(
+            "() => document.querySelector('.tv-playback-settings') !== null")
+        page.evaluate(self.script)
+        page.wait_for_function("typeof window.__willieTvMove==='function'")
+        page.wait_for_function("sharedPlayback!==null", timeout=10000)
+        return page
+
+    def test_tv_settings_uses_linear_remote_focus_and_clear_focus_ring(self):
+        page = self.open_tv_settings()
+        page.wait_for_function(
+            "document.activeElement?.id==='tv-subtitles-on'", timeout=10000)
+        expected = [
+            "tv-language-button",
+            "tv-subtitle-background",
+            "tv-subtitle-size",
+            "tv-subtitle-color",
+            "tv-subtitle-outline",
+        ]
+        for control in expected:
+            page.evaluate("window.__willieTvMove('down')")
+            self.assertEqual(page.evaluate("document.activeElement?.id"), control)
+            style = page.evaluate("""() => {
+              const node=document.activeElement,s=getComputedStyle(node);
+              return {width:s.outlineWidth,style:s.outlineStyle,
+                help:document.getElementById('tv-focused-control').textContent};
+            }""")
+            self.assertEqual(style["style"], "solid")
+            self.assertGreaterEqual(float(style["width"].replace("px","")),2)
+            self.assertTrue(style["help"])
+        page.evaluate("window.__willieTvMove('up')")
+        self.assertEqual(page.evaluate("document.activeElement?.id"),"tv-subtitle-color")
+
+    def test_tv_settings_auto_saves_and_confirms_while_scrolled(self):
+        page = self.open_tv_settings()
+        # Native prompt/ACK bridge verifies on-device subtitles saved without
+        # needing the old Save button at the bottom of the section.
+        page.evaluate("document.getElementById('tv-subtitles-on').focus()")
+        page.evaluate("window.__willieTvSelect()")
+        self.assertTrue(page.evaluate("window.__lastTvSubtitleSave?.enabled"))
+        self.assertTrue(page.evaluate(
+            "document.getElementById('tv-subtitle-status').textContent.includes('saved')"))
+
+        # Playback auto-save persists to the real isolated test server.
+        before = call(self.origin+"/api/settings/playback")["auto_play_next"]
+        page.evaluate("document.getElementById('tv-auto-next').focus()")
+        page.evaluate("window.__willieTvSelect()")
+        page.wait_for_function("""() =>
+          document.getElementById('tv-playback-status').textContent.includes('saved')""")
+        self.assertEqual(call(self.origin+"/api/settings/playback")["auto_play_next"],
+                         not before)
+        self.assertTrue(page.evaluate(
+            "!document.getElementById('tv-save-toast').hidden"))
+        self.assertEqual(page.evaluate("document.activeElement?.id"),"tv-auto-next")
+        self.assertIn("OK to toggle",page.evaluate(
+            "document.getElementById('tv-focused-control').textContent"))
+
+        # Color choices also save without an extra trip to a separate button,
+        # and a dialog keeps remote focus inside until the selection is made.
+        page.evaluate("document.getElementById('tv-color-button').focus()")
+        page.evaluate("window.__willieTvSelect()")
+        self.assertTrue(page.evaluate(
+            "document.getElementById('tv-color-dialog').open"))
+        page.evaluate("window.__willieTvMove('down')")
+        color = page.evaluate("document.activeElement?.dataset.color")
+        page.evaluate("window.__willieTvSelect()")
+        page.wait_for_function("""() =>
+          document.getElementById('tv-color-status').textContent.includes('saved')""")
+        self.assertEqual(call(self.origin+"/api/settings/tv-appearance")["selection_color"],
+                         color)
+        self.assertEqual(page.evaluate("document.activeElement?.id"),"tv-color-button")
+
     def test_hold_down_through_twenty_rows_without_backward_jumps(self):
         for cpu in (1, 6):
             with self.subTest(cpu=cpu):

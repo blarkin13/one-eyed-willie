@@ -19,7 +19,67 @@
  background:#1b2b40;color:#f4f4f8;border:1px solid #455b77;border-radius:8px;
  font:inherit;text-align:left;min-height:48px}
 .tv-playback-settings .tv-language-options button[aria-pressed="true"]{
- border-color:#b5c9e4;font-weight:750}
+ border-color:var(--oew-tv-select-color,#8B5CF6);font-weight:750}
+/* A TV remote needs a visible selection surface, not a tiny brightness change.
+   This settings-only override intentionally wins over the global TV rule
+   that removes borders and outlines from movie/player controls. */
+.tv-playback-settings{max-width:800px;padding-bottom:115px}
+.tv-playback-settings .settings-two-col{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
+.tv-playback-settings .settings-card{padding:20px 24px;margin-bottom:18px}
+.tv-playback-settings .settings-card .setting-toggle{
+ padding:13px 16px;border-radius:12px;border:2px solid transparent;
+ background:#142337;min-height:60px;margin:9px 0;font-size:1rem}
+.tv-playback-settings .settings-card .setting-toggle input[type="checkbox"]{
+ width:24px;height:24px;accent-color:var(--oew-tv-select-color,#8B5CF6)}
+.tv-playback-settings :is(.settings-card button,.settings-card input[type="range"]){
+ min-height:54px}
+.tv-playback-settings .settings-card button.secondary-button:not(.tv-dialog-option){
+ display:block;max-width:100%;min-width:240px;text-align:left}
+.tv-playback-settings .form-actions{display:flex;flex-wrap:wrap;gap:10px}
+.tv-playback-settings .settings-two-col>div{min-width:0}
+.tv-playback-settings .settings-two-col button{width:100%}
+html body[data-page="settings"] .tv-playback-settings
+ :is(button,input[type="range"],input[type="checkbox"]):is(:focus,:focus-visible){
+ color:#fff!important;filter:none!important;transform:none!important;
+ outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important;
+ outline-offset:3px!important;
+ box-shadow:0 0 0 5px #020914!important;
+ border-color:var(--oew-tv-select-color,#8B5CF6)!important;
+ background-color:#243a55!important;
+ position:relative;z-index:3}
+html body[data-page="settings"] .tv-playback-settings
+ .setting-toggle:focus-within{
+ outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important;
+ outline-offset:1px!important;background:#263c57!important;
+ color:#fff!important}
+html body[data-page="settings"] .tv-playback-settings
+ .setting-toggle input:is(:focus,:focus-visible){
+ outline:0!important;box-shadow:none!important;background:transparent!important}
+html body[data-page="settings"] .tv-playback-settings
+ .tv-language-options button[aria-pressed="true"]:not(:focus):not(:focus-visible){
+ color:#e9e4ff;border-color:var(--oew-tv-select-color,#8B5CF6)}
+.tv-save-status{min-height:1.35em;margin:11px 0 0!important;
+ color:#b8dfc6!important;font-size:.88rem;font-weight:600}
+.tv-save-status[data-state="error"]{color:#ffc0b7!important}
+.tv-remote-help{position:fixed;bottom:14px;left:92px;right:24px;
+ max-width:790px;z-index:120;pointer-events:none;padding:12px 16px;
+ border-radius:12px;background:#07111beF;border:1px solid #455c78;
+ box-shadow:0 8px 32px #0008;color:#f4f6fa;font-size:1rem;
+ display:flex;align-items:center;gap:12px}
+.tv-remote-help strong{color:var(--oew-tv-select-color,#c4a9ff);font-weight:800}
+.tv-save-toast{position:fixed;bottom:80px;right:24px;max-width:min(480px,85vw);
+ padding:14px 20px;border-radius:12px;z-index:230;
+ border:2px solid var(--oew-tv-select-color,#8B5CF6);
+ background:#0b1c2cf2;box-shadow:0 10px 40px #000b;
+ color:#f5faf9;font-size:1rem;font-weight:700;pointer-events:none}
+.tv-save-toast[data-state="error"]{border-color:#f87171}
+.tv-save-toast[hidden],.tv-remote-help[hidden]{display:none!important}
+@media(max-width:600px){.tv-remote-help{left:14px;right:14px}
+ .tv-save-toast{bottom:92px;left:14px;right:14px}
+ .tv-playback-settings .settings-card{padding:16px}}
+@media(prefers-reduced-motion:no-preference){
+ .tv-playback-settings :is(button,.setting-toggle){
+ transition:background-color .16s ease,border-color .16s ease,outline-color .16s ease}}
 </style>
 <script defer src="/assets/ambient.js?v=1"></script>
 </head><body data-page="settings"><div class="app-shell">
@@ -27,9 +87,13 @@
 <div class="workspace"><main class="content tv-playback-settings">
 <div class="page-head"><div><p class="eyebrow">This TV</p>
 <h1>Playback Settings</h1>
-<p>Subtitle preferences apply only to this television. Shared playback preferences are stored on the server.</p>
+<p>Use Up / Down to move between settings and OK to change. Changes save automatically; a confirmation appears when saved.</p>
 </div></div>
 <p id="tv-status" class="message" role="status" aria-live="polite"></p>
+<div id="tv-save-toast" class="tv-save-toast" role="status" aria-live="polite" hidden></div>
+<div id="tv-remote-help" class="tv-remote-help" aria-live="off">
+ <strong>REMOTE</strong><span id="tv-focused-control">Use Up / Down to move between settings · OK to change</span>
+</div>
 <section class="settings-section" aria-labelledby="tv-subtitles-heading">
 <h2 id="tv-subtitles-heading">Subtitles on this TV</h2>
 <div class="settings-card"><form id="tv-subtitle-form">
@@ -57,6 +121,7 @@
 <p class="settings-muted">Choose None to remove the black boxes behind captions. Text outline helps preserve readability without a background.</p>
 <p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
+<p class="tv-save-status" id="tv-subtitle-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
 <h2 id="tv-color-heading">Selection color</h2>
@@ -73,6 +138,7 @@
 </dialog>
 <p class="settings-muted">This color is saved on the server and shared with other TVs. Subtitle preferences remain specific to this TV.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save selection color</button></div>
+<p class="tv-save-status" id="tv-color-status" role="status" aria-live="polite"></p>
 </form>
 </div></section>
 <section class="settings-section" aria-labelledby="tv-shared-heading"><h2 id="tv-shared-heading">Playback</h2>
@@ -86,6 +152,7 @@
 <input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25">
 <p class="settings-muted">These playback options are shared with the server and other TVs.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save shared playback settings</button></div>
+<p class="tv-save-status" id="tv-playback-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-ambient-heading">
 <h2 id="tv-ambient-heading">Ambient effects</h2>
@@ -101,6 +168,7 @@
 <button type="button" class="secondary-button" id="tv-ambient-layer">Over interface</button>
 <div class="form-actions"><button type="submit" class="primary-button">Save ambient effects</button>
 <button type="button" id="tv-ambient-off" class="secondary-button">Turn off</button></div>
+<p class="tv-save-status" id="tv-ambient-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Server connection</h2>
 <div class="settings-card"><p class="settings-muted">Change the IP address or port saved on this television. Other TVs and the server are unaffected.</p>
@@ -109,7 +177,34 @@
 </main></div></div>
 <script>
 const el=id=>document.getElementById(id);
-const message=text=>{el('tv-status').textContent=text};
+let tvToastTimer=null;
+function message(text,section='',state=''){
+ const status=el('tv-status');
+ status.textContent=text;
+ const kind=state||(/could not|unavailable|failed|unable|error/i.test(text)?'error':
+   /saving|loading/i.test(text)?'saving':'success');
+ const local=section?el('tv-'+section+'-status'):null;
+ if(local){local.textContent=text;local.dataset.state=kind;}
+ const toast=el('tv-save-toast');
+ toast.textContent=(kind==='success'?'✓  ':'')+text;
+ toast.dataset.state=kind;
+ toast.hidden=false;
+ clearTimeout(tvToastTimer);
+ // Failures stay readable longer; the latest status also remains in its card.
+ tvToastTimer=setTimeout(()=>{toast.hidden=true},kind==='error'?8500:4500);
+}
+document.addEventListener('focusin',event=>{
+ const control=event.target;
+ if(!control?.matches?.('button,input:not([type="hidden"]),select')||
+    !control.closest('.tv-playback-settings'))return;
+ const label=control.closest('label')?.textContent?.trim()||
+  (control.id?document.querySelector('label[for="'+control.id+'"]')?.textContent?.trim():'')||
+  control.textContent?.trim()||control.getAttribute('aria-label')||'Setting';
+ const action=control.matches('input[type="range"]')?'Left / Right to adjust':
+  control.matches('input[type="checkbox"]')?'OK to toggle':
+  'OK to select';
+ el('tv-focused-control').textContent=label.replace(/\s+/g,' ').slice(0,110)+' · '+action;
+});
 async function api(path,options={}){
  const r=await fetch(path,{cache:'no-store',...options,
   headers:{'Content-Type':'application/json',...(options.headers||{})}});
@@ -140,6 +235,7 @@ for(const [code,label] of tvLanguages){
  option.addEventListener('click',()=>{
   chooseLanguage(code);
   langDialog.close();
+  saveSubtitleOnTv();
  });
  el('tv-language-options').append(option);
 }
@@ -171,6 +267,7 @@ for(const key of Object.keys(captionStyleChoices)){
   const index=choices.findIndex(pair=>pair[0]===captionStyle[key]);
   captionStyle[key]=choices[(index+1)%choices.length][0];
   updateCaptionButton(key);
+  saveSubtitleOnTv();
  };
  updateCaptionButton(key);
 }
@@ -185,16 +282,19 @@ try{
   updateCaptionButton(key);
  }
 }catch(error){message(error.message)}
-el('tv-subtitle-form').onsubmit=event=>{
- event.preventDefault();
+function saveSubtitleOnTv(){
  try{
   const settings=JSON.stringify({enabled:el('tv-subtitles-on').checked,
    language:el('tv-subtitle-language').value,
    background:captionStyle.background,size:captionStyle.size,
    color:captionStyle.color,outline:captionStyle.outline==='true'});
   if(devicePrompt('set',settings)!=='ACK')throw Error('Could not save subtitle preferences');
-  message('Subtitle preferences saved on this TV only.');
- }catch(error){message(error.message)}
+  message('Subtitles saved on this TV.','subtitle');
+ }catch(error){message('Could not save subtitles: '+error.message,'subtitle','error')}
+}
+el('tv-subtitles-on').addEventListener('change',saveSubtitleOnTv);
+el('tv-subtitle-form').onsubmit=event=>{
+ event.preventDefault();saveSubtitleOnTv();
 };
 el('tv-theme-volume').oninput=()=>{
  el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
@@ -223,7 +323,9 @@ for(const [code,name] of tvColors){
  swatch.style.backgroundColor=code;
  const title=document.createElement('span');title.textContent=name;
  option.append(swatch,title);
- option.addEventListener('click',()=>{chooseColor(code);colorDialog.close()});
+ option.addEventListener('click',()=>{
+  chooseColor(code);colorDialog.close();void saveSelectionColor();
+ });
  el('tv-color-options').append(option);
 }
 colorButton.onclick=()=>{
@@ -236,16 +338,19 @@ colorDialog.addEventListener('close',()=>colorButton.focus({preventScroll:true})
 api('/api/settings/tv-appearance').then(data=>{
  chooseColor(data.selection_color);
 }).catch(error=>message('Could not load selection color: '+error.message));
-el('tv-color-form').onsubmit=async event=>{
- event.preventDefault();
+async function saveSelectionColor(){
+ const chosen=el('tv-selected-color').value;
+ message('Saving selection color…','color','saving');
  try{
-  const chosen=el('tv-selected-color').value;
   await api('/api/settings/tv-appearance',{
    method:'PUT',body:JSON.stringify({selection_color:chosen})
   });
   document.documentElement.style.setProperty('--oew-tv-select-color',chosen);
-  message('Selection color saved. Player controls use it when playback opens.');
- }catch(error){message('Could not save selection color: '+error.message)}
+  message('Selection color saved for all TVs.','color');
+ }catch(error){message('Could not save selection color: '+error.message,'color','error')}
+}
+el('tv-color-form').onsubmit=event=>{
+ event.preventDefault();void saveSelectionColor();
 };
 let sharedPlayback=null;
 api('/api/settings/playback').then(data=>{
@@ -258,20 +363,42 @@ api('/api/settings/playback').then(data=>{
  el('tv-theme-volume').value=Number.isFinite(data.theme_volume)?data.theme_volume:25;
  el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
 }).catch(error=>message(error.message));
-el('tv-playback-form').onsubmit=async event=>{
- event.preventDefault();
- if(!sharedPlayback){message('Playback settings are not available');return}
- try{
-  await api('/api/settings/playback',{method:'PUT',body:JSON.stringify({
-   auto_play_next:el('tv-auto-next').checked,
-   tv_theme_music:el('tv-show-theme').checked,
-   movie_theme_music:el('tv-movie-theme').checked,
-   theme_loop:el('tv-loop-theme').checked,
-   theme_fade:el('tv-fade-theme').checked,
-   theme_volume:Number(el('tv-theme-volume').value)
-  })});
-  message('Shared playback settings saved.');
- }catch(error){message(error.message)}
+let playbackSaveQueue=Promise.resolve(),playbackSaveVersion=0;
+function saveSharedPlayback(){
+ if(!sharedPlayback){
+  message('Playback settings are not available yet.','playback','error');
+  return Promise.resolve();
+ }
+ const values={
+  auto_play_next:el('tv-auto-next').checked,
+  tv_theme_music:el('tv-show-theme').checked,
+  movie_theme_music:el('tv-movie-theme').checked,
+  theme_loop:el('tv-loop-theme').checked,
+  theme_fade:el('tv-fade-theme').checked,
+  theme_volume:Number(el('tv-theme-volume').value)
+ },version=++playbackSaveVersion;
+ message('Saving playback settings…','playback','saving');
+ // Serialize rapid remote changes to prevent older writes from winning.
+ playbackSaveQueue=playbackSaveQueue.catch(()=>{}).then(async()=>{
+  const saved=await api('/api/settings/playback',{
+   method:'PUT',body:JSON.stringify(values)
+  });
+  if(version===playbackSaveVersion){
+   sharedPlayback=saved;
+   message('Playback settings saved for all TVs.','playback');
+  }
+ }).catch(error=>{
+  if(version===playbackSaveVersion)
+   message('Could not save playback settings: '+error.message,'playback','error');
+ });
+ return playbackSaveQueue;
+}
+for(const id of ['tv-auto-next','tv-show-theme','tv-movie-theme','tv-loop-theme','tv-fade-theme']){
+ el(id).addEventListener('change',()=>{void saveSharedPlayback()});
+}
+el('tv-theme-volume').addEventListener('change',()=>{void saveSharedPlayback()});
+el('tv-playback-form').onsubmit=event=>{
+ event.preventDefault();void saveSharedPlayback();
 };
 const ambientChoices={
  effect:[['off','Off (default)'],['snow','Snow'],['rain','Rain'],['leaves','Falling leaves'],['fireflies','Fireflies']],
@@ -283,17 +410,18 @@ let ambientTouched=false,ambientSaveVersion=0,ambientSaveQueue=Promise.resolve()
 function saveAmbientOnTv(){
  ambientTouched=true;
  const values={...ambientState},version=++ambientSaveVersion;
- message('Saving ambient effects…');
+ message('Saving ambient effects…','ambient','saving');
  ambientSaveQueue=ambientSaveQueue.catch(()=>{}).then(async()=>{
   const saved=await api('/api/settings/ambient',{
    method:'PUT',body:JSON.stringify(values)
   });
   if(version===ambientSaveVersion){
    window.WillieAmbient?.confirmed(saved);
-   message('Ambient effects saved for the server and other TVs.');
+   message('Ambient effects saved for all TVs.','ambient');
   }
  }).catch(error=>{
-  if(version===ambientSaveVersion)message('Could not save ambient effects: '+error.message);
+  if(version===ambientSaveVersion)
+   message('Could not save ambient effects: '+error.message,'ambient','error');
  });
  return ambientSaveQueue;
 }
