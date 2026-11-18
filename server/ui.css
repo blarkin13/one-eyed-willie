@@ -922,13 +922,29 @@ body[data-page="home"] .workspace>.content{
   max-width:none;
   padding-right:0;
 }
-body[data-page="home"] .shelf{
-  box-sizing:border-box;
-  margin-top:0;
-  min-height:100dvh;
+body[data-page="home"] .workspace>.content{
   padding-top:0;
-  padding-bottom:clamp(24px,5vh,56px);
+  padding-bottom:0;
 }
+body[data-page="home"] .shelf{
+  display:flex;
+  flex-direction:column;
+  box-sizing:border-box;
+  margin:0;
+  height:100dvh;
+  min-height:100dvh;
+  max-height:100dvh;
+  padding:clamp(14px,2.5vh,28px) 0 clamp(10px,1.8vh,20px);
+  overflow:hidden;
+}
+body[data-page="home"] .home-feature{
+  flex:1 1 auto;
+  height:auto;
+  min-height:0;
+  max-height:none;
+}
+body[data-page="home"] .shelf .section-heading{flex:none}
+body[data-page="home"] .shelf-track{flex:0 0 auto;min-height:0}
 body[data-page="home"] .shelf .section-heading{
   padding-right:clamp(22px,3.2vw,44px);
 }
@@ -949,7 +965,7 @@ body[data-page="home"] .shelf-track>.tile{
   align-self:flex-start;
 }
 @media(max-width:700px){
- body[data-page="home"] .shelf{min-height:100dvh;margin-top:0;padding-bottom:110px}
+ body[data-page="home"] .shelf{height:100dvh;min-height:100dvh;max-height:100dvh;margin:0;padding-bottom:clamp(14px,2vh,24px)}
  body[data-page="home"] .shelf-track>.tile{
    flex-basis:clamp(124px,34vw,156px);
    width:clamp(124px,34vw,156px);
