@@ -539,6 +539,7 @@ def movie_details(
 
 @router.post("/posters")
 def movie_posters(batch: PosterBatch):
+    from .artwork import thumbnail_url
     snapshot = _snapshot()
     entries = []
     for item in batch.items:
@@ -547,7 +548,10 @@ def movie_posters(batch: PosterBatch):
             entries.append({
                 "library_id": item.library_id,
                 "key": item.key,
-                "poster_url": data["poster_url"],
+                # Grid-sized thumbnail, like indexed posters. The full image
+                # (a local or Radarr poster can be several MB) is only needed
+                # on the detail page; the client falls back to it on error.
+                "poster_url": thumbnail_url(data["poster_url"]),
             })
         except HTTPException:
             continue

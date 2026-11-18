@@ -589,6 +589,48 @@ function runPosterQueue(){
   }).catch(()=>{}).finally(()=>{posterActive--;runPosterQueue()});
  }
 }
+function cardIdOf(item){
+ return [type==='movies'?'movies':'tv',String(item.library_id),item.key].join('|');
+}
+function tileMetaText(item){
+ const details=[];
+ if(item.year)details.push(String(item.year));
+ if(item.kind==='tv')details.push(item.seasons.length+' season'+(item.seasons.length===1?'':'s'));
+ if(Number.isFinite(item.runtime)&&item.runtime>0)details.push(item.runtime+' min');
+ if(typeof item.rating==='number')details.push('★ '+item.rating.toFixed(1));
+ return details.join(' · ');
+}
+function createWatchedBadge(){
+   const flag=document.createElement('span');flag.className='watched-badge';
+   flag.setAttribute('aria-label','Watched');flag.title='Watched';
+   flag.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>';
+   return flag;
+}
+// A live refresh whose title order is unchanged (the usual case: watched
+// state, ratings or a newly resolved poster changed) updates the existing
+// cards instead of rebuilding thousands of nodes. Rebuilding froze the TV for
+// ~1s, threw away every decoded poster <img> and re-requested them. Returns
+// false when the list differs so the caller falls back to a full rebuild.
+function patchCardsInPlace(entries){
+ const cards=$('items').children;
+ if(cards.length!==entries.length)return false;
+ for(let index=0;index<entries.length;index++){
+  if(cards[index].dataset.cardId!==cardIdOf(entries[index]))return false;
+ }
+ for(let index=0;index<entries.length;index++){
+  const item=entries[index],card=cards[index];
+  const meta=card.querySelector('.tile-meta');
+  const text=tileMetaText(item);
+  if(meta&&meta.textContent!==text)meta.textContent=text;
+  const badge=card.querySelector('.watched-badge');
+  if(item.watched&&!badge)card.prepend(createWatchedBadge());
+  else if(!item.watched&&badge)badge.remove();
+  const cover=card.querySelector('.cover');
+  if(cover&&!cover.querySelector('.poster-image')&&item.poster_url?.startsWith('/api/artwork/'))
+   addMoviePoster(cover,item,item.poster_url);
+ }
+ return true;
+}
 function createCard(item, index=0){
  const article=document.createElement('article');article.className='tile';
  const button=document.createElement('a');
@@ -608,19 +650,10 @@ function createCard(item, index=0){
  cover.append(top,initial,coverTitle);
  const title=document.createElement('h3');title.textContent=item.title;title.title=item.title;
  const meta=document.createElement('div');meta.className='tile-meta';
- const details=[];
-  if(item.year)details.push(String(item.year));
-  if(item.kind==='tv')details.push(item.seasons.length+' season'+(item.seasons.length===1?'':'s'));
-  if(Number.isFinite(item.runtime)&&item.runtime>0)details.push(item.runtime+' min');
-  if(typeof item.rating==='number')details.push('★ '+item.rating.toFixed(1));
-  meta.textContent=details.join(' · ');
+ meta.textContent=tileMetaText(item);
  button.append(cover,title,meta);
- if(item.watched){
-   const flag=document.createElement('span');flag.className='watched-badge';
-   flag.setAttribute('aria-label','Watched');flag.title='Watched';
-   flag.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="5" r="3"/><path d="M12 22V8M5 12H2a10 10 0 0 0 20 0h-3"/></svg>';
-   article.append(flag);
- }
+ if(item.watched)article.append(createWatchedBadge());
+ article.dataset.cardId=cardIdOf(item);
  article.append(button);
  if(item.poster_url?.startsWith('/api/artwork/')){
    addMoviePoster(cover,item,item.poster_url);
@@ -711,8 +744,13 @@ async function load({preserveFocus=false}={},quiet=false){
     previouslyFocused.dataset.hoverKey
   ].join('|'):null;
   const previousScroll=(document.scrollingElement||document.documentElement).scrollTop;
-  const cardId=item=>[type==='movies'?'movies':'tv',String(item.library_id),item.key].join('|');
-  const focusIndex=focusId?entries.findIndex(item=>cardId(item)===focusId):-1;
+  // Same titles in the same order: patch the visible cards and keep the DOM,
+  // focus, scroll position and already-decoded posters exactly as they are.
+  if(preserveFocus&&patchCardsInPlace(entries)){
+    $('results-count').textContent=total.toLocaleString()+' titles';
+    return;
+  }
+  const focusIndex=focusId?entries.findIndex(item=>cardIdOf(item)===focusId):-1;
   // Build the replacement grid off-DOM and swap it in one step. The old code
   // emptied #items first, so the document collapsed, the browser clamped
   // scrollTop (to a few hundred px), and the focused poster was only restored

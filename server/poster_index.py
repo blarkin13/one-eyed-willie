@@ -14,8 +14,14 @@ from .library import db
 
 log = logging.getLogger(__name__)
 LOCK = threading.Lock()
-BATCH = 12
+BATCH = 24
 RETRY_SECONDS = 3600
+# While titles are still waiting to be indexed, come back quickly; once the
+# library is fully indexed fall back to a slow idle poll. The previous 12 titles
+# per 15s left a few-thousand-title library partly unindexed for over an hour,
+# and every unindexed poster is resolved on demand when it scrolls into view.
+BUSY_WAIT_SECONDS = 6
+IDLE_WAIT_SECONDS = 180
 
 
 def _table(conn):
@@ -268,4 +274,4 @@ def poster_loop(stop):
         except Exception:
             log.exception("Background poster indexing failed")
             completed = 0
-        stop.wait(15 if completed else 180)
+        stop.wait(BUSY_WAIT_SECONDS if completed else IDLE_WAIT_SECONDS)

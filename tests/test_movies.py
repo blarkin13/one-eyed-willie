@@ -74,7 +74,9 @@ class MovieMetadataTests(unittest.TestCase):
             ))
         self.assertEqual(movie["overview"], "A linguist encounters visitors.")
         self.assertTrue(movie["poster_url"].startswith("/api/artwork/"))
-        self.assertEqual(posters["items"][0]["poster_url"], movie["poster_url"])
+        # The grid receives the same image as the detail page, as a thumbnail.
+        self.assertEqual(posters["items"][0]["poster_url"],
+                         movie["poster_url"].replace("/api/artwork/", "/api/artwork/thumb/", 1))
 
     def test_missing_or_ambiguous_year_not_mismatched(self):
         records = [{"title": "Arrival", "year": 2005}, {"title": "Arrival", "year": 2016}]
