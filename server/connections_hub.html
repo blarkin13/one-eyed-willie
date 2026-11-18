@@ -3,7 +3,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Connections · One-Eyed Willie</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
-<link rel="stylesheet" href="/assets/ui.css?v=connections-hub-3">
+<link rel="stylesheet" href="/assets/ui.css?v=connections-hub-lidarr-4">
 <script defer src="/assets/shell.js?v=connections-hub-1"></script>
 <style>
 .connections-hub{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:16px;margin-top:22px}
@@ -31,6 +31,7 @@
 const entries=[
  {id:'radarr',title:'Radarr',dashboard:'/radarr',config:'#connections',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
  {id:'sonarr',title:'Sonarr',dashboard:'/sonarr',config:'#connections',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
+ {id:'lidarr',title:'Lidarr',config:'#connections',description:'Manage music artists and albums through Lidarr.'},
  {id:'sabnzbd',title:'SABnzbd',dashboard:'/sabnzbd',config:'#sab-heading',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.'},
  {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.'}
@@ -43,7 +44,7 @@ async function status(url){
 async function showConnected(){
  const root=document.getElementById('connected-services');
  const message=document.getElementById('connections-message');
- const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings'];
+ const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection'];
  const settled=await Promise.allSettled(urls.map(status));
  if(settled.some(value=>value.status==='rejected')){
    message.textContent='Some connection statuses could not be checked. Try refreshing.';
@@ -52,8 +53,9 @@ async function showConnected(){
  const sab=settled[1].status==='fulfilled'?settled[1].value:{};
  const plex=settled[2].status==='fulfilled'?settled[2].value:{};
  const subs=settled[3].status==='fulfilled'?settled[3].value:{};
+ const lidarr=settled[4].status==='fulfilled'?settled[4].value:{};
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
-   sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
+   lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
  for(const service of entries){
    if(!connected[service.id])continue;
    const card=document.createElement(service.dashboard?'a':'article');
@@ -68,6 +70,11 @@ async function showConnected(){
    if(service.image){
      const image=document.createElement('img');image.src=service.image;image.alt='';
      image.className='integration-logo';heading.append(image);
+   }
+   if(service.id==='lidarr'){
+     const icon=document.createElement('i');icon.className='fa-solid fa-music';
+     icon.style.cssText='font-size:1.8rem;color:#d8e2f2';icon.setAttribute('aria-hidden','true');
+     heading.append(icon);
    }
    heading.append(document.createTextNode(service.title));
    const description=document.createElement('span');description.className='service-description';
