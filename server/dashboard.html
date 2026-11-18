@@ -355,6 +355,17 @@ function tile(item, watching=false){
   }
   if(watching&&item.media_id){
     link.dataset.continueMediaId=String(item.media_id);
+    link.addEventListener('click',()=>{
+      // A normal select opens details; remember the exact poster and shelf
+      // position so Back returns to the same Continue Watching selection.
+      try{
+        sessionStorage.setItem('oew-continue-return',JSON.stringify({
+          href:link.getAttribute('href'),
+          x:link.closest('.shelf-track')?.scrollLeft||0,
+          y:window.scrollY
+        }));
+      }catch(_){}
+    });
     link.addEventListener('contextmenu',event=>{
       event.preventDefault();openContinueMenu(link,event.clientX,event.clientY);
     });
@@ -553,6 +564,23 @@ async function load({preserveFocus=false}={}){
   shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
   shelf('recent-movies',data.recent_movies,'No movies yet','');
   shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  if(!preserveFocus){
+    try{
+      const previous=JSON.parse(sessionStorage.getItem('oew-continue-return')||'null');
+      if(previous?.href){
+        const target=[...byId('continue-watching').querySelectorAll('.tile-button')]
+          .find(card=>card.getAttribute('href')===previous.href);
+        if(target){
+          const track=byId('continue-watching').querySelector('.shelf-track');
+          if(track)track.scrollLeft=Number(previous.x)||0;
+          target.focus({preventScroll:true});
+          window.scrollTo({top:Number(previous.y)||0,behavior:'instant'});
+          window.__willieHomeReturnFocusReady=true;
+        }
+        sessionStorage.removeItem('oew-continue-return');
+      }
+    }catch(_){sessionStorage.removeItem('oew-continue-return');}
+  }
   // Native TV navigation is installed after document load. Notify it when
   // dynamically populated posters are ready for initial focus and backdrop.
   window.__oewHomeReady=true;
