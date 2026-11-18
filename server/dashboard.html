@@ -251,7 +251,7 @@ function updateHomeFeature(link,item){
 }
 function selectHomePoster(event){
  const link=event.target?.closest?.('body[data-page="home"] .shelf-track .tile-button');
- if(link?._homeItem)updateHomeFeature(link,link._homeItem);
+ if(link?._homeItem && (HOME_TV || link.closest('#continue-watching')))updateHomeFeature(link,link._homeItem);
 }
 document.addEventListener('focusin',selectHomePoster,true);
 document.addEventListener('pointerover',selectHomePoster,{passive:true});
