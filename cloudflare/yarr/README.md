@@ -46,3 +46,15 @@ Once correctly configured, the public landing page reveals Google Sign-In and `/
 ## Validation
 
 Cloudflare accepted the Worker deployment and binding. Actual Google OAuth sign-in has **not** been tested because Google client ID/secret are not configured. Browser-level live smoke checks remain outstanding.
+
+## Step 3 — server registration (deployed 2026-11-18)
+
+- Google Client ID and encrypted Client Secret are configured on the Worker; the user reported successful sign-in.
+- Signed-in account dashboard accepts a server display name and optional private LAN URL and/or public HTTPS origin.
+- The database now has an optional `servers.local_url` column (ALTER TABLE migration applied). Current `schema.sql` includes it.
+- Account-owned `GET /api/servers` lists only that user's registrations.
+- POST `/account/servers` supports create/remove using same-origin checks and owner-scoped SQL; limit 5 registrations per account.
+- Registered server URLs are *inert account settings*. They are never fetched or proxied. Status remains `pending` until secure server ownership pairing is built.
+- The account Worker still cannot view or stream media; the original Docker server and legacy Worker are untouched.
+- Cloudflare confirmed Google credentials and D1 binding remained attached after deployment.
+- A full end-to-end browser CRUD and two-user isolation test is still needed before public release.
