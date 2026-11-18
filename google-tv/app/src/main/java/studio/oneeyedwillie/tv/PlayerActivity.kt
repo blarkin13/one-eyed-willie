@@ -493,9 +493,9 @@ class PlayerActivity : ComponentActivity() {
         return root
     }
 
-    /** Consistent dark-glass, D-pad-first options menus over the video.
-     * Uses our own focusable rows rather than Android's system-gray dialogs;
-     * the highlight always matches the user's selection-color setting.
+    /** TV-native playback and captions panels with predictable remote focus.
+     * Always draw our own full dialog surface instead of an Android list dialog.
+     * Focus is a single purple edge marker, not a large colored box.
      */
     private fun showPlayerMenu(
         heading: String,
@@ -509,62 +509,93 @@ class PlayerActivity : ComponentActivity() {
         lateinit var dialog: AlertDialog
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(20), dp(18), dp(20), dp(16))
+            setPadding(dp(24), dp(21), dp(24), dp(16))
             background = GradientDrawable().apply {
-                cornerRadius = dp(17).toFloat()
-                setColor(0xEF0A111D.toInt())
-                setStroke(dp(1), 0x8068798D.toInt())
+                cornerRadius = dp(22).toFloat()
+                setColor(0xF20A101B.toInt())
+                setStroke(dp(1), 0x66485970)
             }
         }
         panel.addView(TextView(this).apply {
-            text = heading
-            textSize = 22f
-            setTextColor(0xFFF6F2EB.toInt())
+            text = if (heading.contains("Caption", true) ||
+                heading.contains("subtitle", true)) "SUBTITLES" else "PLAYER"
+            textSize = 11f
+            letterSpacing = 0.17f
+            setTextColor(selectedColor)
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dp(7), 0, dp(7), dp(11))
+            setPadding(dp(3), 0, 0, dp(5))
+        })
+        panel.addView(TextView(this).apply {
+            text = heading
+            textSize = 24f
+            setTextColor(0xFFF7F7FA.toInt())
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(3), 0, 0, dp(13))
         })
         if (!description.isNullOrBlank()) {
             panel.addView(TextView(this).apply {
                 text = description
                 textSize = 15f
-                setTextColor(0xFFC9D6E6.toInt())
+                setTextColor(0xFFC9D3E0.toInt())
                 setLineSpacing(dp(3).toFloat(), 1f)
-                setPadding(dp(8), dp(4), dp(8), dp(14))
+                setPadding(dp(3), 0, dp(3), dp(12))
             })
         }
-        fun row(label: String, chosen: Boolean = false, action: () -> Unit): TextView =
-            TextView(this).apply {
-                text = (if (chosen) "✓  " else "") + label
+        panel.addView(View(this).apply {
+            setBackgroundColor(0x334B5B70)
+        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
+        fun row(label: String, chosen: Boolean = false, action: () -> Unit): LinearLayout {
+            val line = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                isFocusable = true
+                isFocusableInTouchMode = true
+                isClickable = true
+                minHeight = dp(53)
+                contentDescription = label + if (chosen) ", selected" else ""
+            }
+            val marker = View(this)
+            line.addView(marker, LinearLayout.LayoutParams(dp(3), dp(24)).apply {
+                marginEnd = dp(12)
+            })
+            val title = TextView(this).apply {
+                text = label
                 textSize = 16f
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 gravity = Gravity.CENTER_VERTICAL
-                minHeight = dp(49)
-                setPadding(dp(13), dp(7), dp(13), dp(7))
-                isClickable = true
-                isFocusable = true
-                isFocusableInTouchMode = true
-                contentDescription = label + if (chosen) ", selected" else ""
-                fun updateLook(focused: Boolean) {
-                    setTextColor(if (focused || chosen) selectedColor else 0xFFF0F2F5.toInt())
-                    background = GradientDrawable().apply {
-                        cornerRadius = dp(9).toFloat()
-                        setColor(if (focused)
-                            Color.argb(50, Color.red(selectedColor), Color.green(selectedColor),
-                                Color.blue(selectedColor))
-                            else Color.TRANSPARENT)
-                        if (focused) setStroke(dp(1), selectedColor)
-                    }
-                }
-                updateLook(false)
-                setOnFocusChangeListener { _, focused -> updateLook(focused) }
-                setOnClickListener { dialog.dismiss(); action() }
             }
-
-        val optionViews = mutableListOf<TextView>()
+            line.addView(title, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+            if (chosen) {
+                line.addView(TextView(this).apply {
+                    text = "✓"
+                    textSize = 19f
+                    setTextColor(selectedColor)
+                    gravity = Gravity.CENTER
+                    contentDescription = "Selected"
+                }, LinearLayout.LayoutParams(dp(38), dp(45)))
+            }
+            fun updateLook(focused: Boolean) {
+                title.setTextColor(if (focused) selectedColor else 0xFFE7ECF5.toInt())
+                marker.background = GradientDrawable().apply {
+                    cornerRadius = dp(3).toFloat()
+                    setColor(if (focused) selectedColor else Color.TRANSPARENT)
+                }
+                line.background = GradientDrawable().apply {
+                    cornerRadius = dp(8).toFloat()
+                    setColor(if (focused) 0x33222D43 else Color.TRANSPARENT)
+                }
+            }
+            updateLook(false)
+            line.setOnFocusChangeListener { _, focused -> updateLook(focused) }
+            line.setOnClickListener { dialog.dismiss(); action() }
+            return line
+        }
+        val optionViews = mutableListOf<LinearLayout>()
         if (options.isNotEmpty()) {
             val menu = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
+                setPadding(0, dp(9), 0, dp(4))
             }
             options.forEachIndexed { index, title ->
                 row(title, chosen = index == selected) { onSelect(index) }.let {
@@ -575,38 +606,39 @@ class PlayerActivity : ComponentActivity() {
             }
             val scroll = ScrollView(this).apply {
                 isFillViewport = false
-                isVerticalScrollBarEnabled = options.size > 5
+                isVerticalScrollBarEnabled = options.size > 6
                 overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                 addView(menu)
             }
-            val allowedHeight = minOf(dp(405),
-                (resources.displayMetrics.heightPixels * 0.58f).toInt())
+            val allowedHeight = minOf(dp(410),
+                (resources.displayMetrics.heightPixels * 0.57f).toInt())
             panel.addView(scroll, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                minOf(allowedHeight, options.size * dp(58))))
+                minOf(allowedHeight, options.size * dp(57) + dp(13))))
         }
         val footer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            setPadding(0, dp(9), 0, 0)
+            setPadding(0, dp(8), 0, 0)
         }
         if (secondaryLabel != null && secondaryAction != null) {
             footer.addView(row(secondaryLabel) { secondaryAction() },
                 LinearLayout.LayoutParams(0, dp(48), 1f))
         }
         val close = row("Close") {}
-        footer.addView(close, LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)))
+        footer.addView(close, LinearLayout.LayoutParams(dp(112), dp(48)))
         panel.addView(footer)
         dialog = AlertDialog.Builder(this).setView(panel).create()
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            setDimAmount(0.46f)
-            setLayout(minOf(dp(580), resources.displayMetrics.widthPixels - dp(48)),
+            setDimAmount(0.61f)
+            setLayout(minOf(dp(550), resources.displayMetrics.widthPixels - dp(48)),
                 ViewGroup.LayoutParams.WRAP_CONTENT)
         }
+        // Every popup starts with an explicitly focused choice (not the
+        // underlying player or a hidden system-dialog button).
         optionViews.getOrNull(selected.takeIf { it in optionViews.indices } ?: 0)
             ?.requestFocus() ?: close.requestFocus()
     }
