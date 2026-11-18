@@ -106,7 +106,9 @@ async def offer(body: Offer, x_yarr_ice_key: str | None = Header(default=None)):
             raise HTTPException(503, "Host-network diagnostic unavailable")
     if RTCPeerConnection is None:
         raise HTTPException(503, "WebRTC engine not available")
-    if len(PEERS) >= MAX_PEERS:
+    # A fixed socket can serve only one diagnostic ICE session at a time.
+    max_peers = 1 if os.environ.get("YARR_ICE_PROBE_MODE") == "host" else MAX_PEERS
+    if len(PEERS) >= max_peers:
         raise HTTPException(429, "Diagnostic is busy")
     connection = RTCPeerConnection(configuration=RTCConfiguration(
         iceServers=[RTCIceServer(urls="stun:stun.l.google.com:19302")]))
