@@ -419,6 +419,7 @@ byId('library-form').onsubmit=async event=>{
   header_scale:Number(byId('art-scale').value),
   header_opacity:Number(byId('art-opacity').value)};
  if(working)return;working=true;byId('library-save').disabled=true;
+ const creating=editing===null;
  try{
   let id=editing;
   if(id===null){
@@ -455,6 +456,7 @@ byId('library-form').onsubmit=async event=>{
   const updated=libraries.find(library=>library.id===id);
   if(updated)document.dispatchEvent(new CustomEvent('willie:library-icon-updated',{detail:updated}));
   await loadOverview();
+  if(creating)location.reload(); // Rebuild navigation for newly available library kinds.
  }catch(error){byId('editor-message').textContent=error.message}
  finally{working=false;byId('library-save').disabled=false}
 };
@@ -520,6 +522,7 @@ async function removeLibrary(lib){
  try{await api('/api/libraries/'+lib.id,{method:'DELETE'});
   notify('Library removed. Original media files remain untouched.');
   await load();await loadOverview();
+  location.reload(); // Removed library types disappear from the sidebar immediately.
  }catch(error){notify(error.message,true)}
 }
 async function loadOverview(){
