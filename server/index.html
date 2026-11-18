@@ -18,7 +18,7 @@
 <h2 id="overview-title">Library overview</h2>
 <div class="stats" aria-label="Library totals">
 <div class="stat"><strong id="overview-movies">—</strong><span>Movies</span></div>
-<div class="stat"><strong id="overview-tv">—</strong><span>TV Shows</span></div>
+<div class="stat"><strong id="overview-tv">—</strong><span>TV Shows</span></div><div class="stat"><strong id="overview-music">—</strong><span>Music tracks</span></div>
 </div></section>
 <section class="settings-card"><h2>Media safety</h2>
 <p>The original media drive is read-only. Adding folders or scanning only updates the library index. Removing a folder removes its entries from the index after the next scan; the video files stay on disk.</p></section>
@@ -224,7 +224,7 @@ byId('library-visible').addEventListener('change',updatePreview);
 
 let stagedHeader=null, revertHeader=false, headerObjectUrl=null, currentHeaderUrl='';
 function defaultHeader(){
- return '/assets/library-header-'+(byId('library-kind').value==='music'?'movies':byId('library-kind').value)+'.png';
+ return '/assets/library-header-'+byId('library-kind').value+'.png';
 }
 function releaseHeaderPreview(){
  if(headerObjectUrl){URL.revokeObjectURL(headerObjectUrl);headerObjectUrl=null;}
@@ -297,7 +297,7 @@ async function load(){
   const target=byId('library-list');target.replaceChildren();
   if(!libraries.length){
    const empty=document.createElement('p');empty.className='settings-card settings-muted';
-   empty.textContent='No libraries configured. Add a Movies or TV Shows library to get started.';
+   empty.textContent='No libraries configured. Add a Movies, TV Shows, or Music library to get started.';
    target.append(empty);return;
   }
   for(const lib of libraries){
@@ -516,7 +516,7 @@ async function removeFolder(lib,folder){
  }catch(error){notify(error.message,true)}
 }
 async function removeLibrary(lib){
- if(!confirm('Remove '+lib.name+' from One-Eyed Willie? Video files will not be deleted; saved playback progress for this library will be removed.'))return;
+ if(!confirm('Remove '+lib.name+' from One-Eyed Willie? Original media files will not be deleted; saved playback progress for this library will be removed.'))return;
  try{await api('/api/libraries/'+lib.id,{method:'DELETE'});
   notify('Library removed. Original media files remain untouched.');
   await load();await loadOverview();
@@ -527,9 +527,12 @@ async function loadOverview(){
   const data=await api('/api/home');
   byId('overview-movies').textContent=Number(data.totals?.movies||0).toLocaleString();
   byId('overview-tv').textContent=Number(data.totals?.tv||0).toLocaleString();
+  const configured=await api('/api/libraries');
+  byId('overview-music').textContent=configured.filter(l=>l.kind==='music').reduce((count,l)=>count+l.media_count,0).toLocaleString();
  }catch(error){
   byId('overview-movies').textContent='—';
   byId('overview-tv').textContent='—';
+  byId('overview-music').textContent='—';
  }
 }
 load();loadOverview();
