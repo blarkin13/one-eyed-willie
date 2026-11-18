@@ -109,8 +109,10 @@ def warm_media_profiles(stop):
                 _table(conn)
                 rows = conn.execute("""
                     SELECT m.path FROM media m
+                    JOIN libraries l ON l.id=m.library_id
                     LEFT JOIN media_playback_profiles p ON p.path=m.path
-                    WHERE p.path IS NULL OR p.size!=m.size OR p.mtime_ns!=m.mtime_ns
+                    WHERE l.kind IN ('movies','tv')
+                      AND (p.path IS NULL OR p.size!=m.size OR p.mtime_ns!=m.mtime_ns)
                     ORDER BY m.added_at DESC LIMIT 20
                 """).fetchall()
             if not rows:
