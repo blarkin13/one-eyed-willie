@@ -5,103 +5,111 @@
 <link rel="stylesheet" href="/assets/ui.css?v=tv-playback-1">
 <script defer src="/assets/shell.js?v=tv-playback-1"></script>
 <style>
-.tv-playback-settings{max-width:920px}
-.tv-playback-settings .settings-card{margin-bottom:22px}
-.tv-playback-settings .setting-toggle{display:flex;align-items:center;gap:14px;min-height:52px}
-.tv-playback-settings select{min-height:48px;padding:10px 14px;border-radius:8px;
- background:#142131;border:1px solid #53677f;color:#f2f4f9;max-width:420px;width:100%}
-.tv-playback-settings .form-actions{margin-top:18px}
-.tv-playback-settings dialog{background:#0f1b29;color:#f3f4f8;border:1px solid #526a85;
- border-radius:13px;padding:22px;max-height:85vh;overflow:auto;width:min(460px,92vw)}
-.tv-playback-settings dialog::backdrop{background:#000c}
-.tv-playback-settings .tv-language-options{display:grid;gap:9px;margin:16px 0}
-.tv-playback-settings .tv-language-options button{padding:12px 18px;
- background:#1b2b40;color:#f4f4f8;border:1px solid #455b77;border-radius:8px;
- font:inherit;text-align:left;min-height:48px}
-.tv-playback-settings .tv-language-options button[aria-pressed="true"]{
- border-color:var(--oew-tv-select-color,#8B5CF6);font-weight:750}
-/* A TV remote needs a visible selection surface, not a tiny brightness change.
-   This settings-only override intentionally wins over the global TV rule
-   that removes borders and outlines from movie/player controls. */
-.tv-playback-settings{max-width:800px;padding-bottom:115px}
-.tv-playback-settings .settings-two-col{display:grid;grid-template-columns:minmax(0,1fr);gap:12px}
-.tv-playback-settings .settings-card{padding:20px 24px;margin-bottom:18px}
-.tv-playback-settings .settings-card .setting-toggle{
- padding:13px 16px;border-radius:12px;border:2px solid transparent;
- background:#142337;min-height:60px;margin:9px 0;font-size:1rem}
+/* Compact TV settings: settings-only layout; normal player/library focus is unchanged. */
+.tv-playback-settings{max-width:870px;padding-bottom:58px}
+.tv-playback-settings .page-head{margin-bottom:14px}
+.tv-playback-settings #tv-status{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}
+.tv-playback-settings .page-head h1{font-size:clamp(1.55rem,3vw,2.05rem);line-height:1.1}
+.tv-playback-settings .settings-section{margin:0 0 13px}
+.tv-playback-settings .settings-section h2{font-size:1.04rem;letter-spacing:.01em;
+ margin:0 0 7px;color:#ecf2fa}
+.tv-playback-settings .settings-card{margin:0;max-width:none;padding:13px 16px;
+ border:1px solid #2c4259;border-radius:13px;
+ background:linear-gradient(125deg,#142131f2,#101b2af2);
+ box-shadow:0 5px 20px #0002}
+.tv-playback-settings .settings-card p{font-size:.79rem;line-height:1.35;margin:5px 0 9px}
+.tv-playback-settings .settings-card label:not(.setting-toggle){
+ display:block;font-size:.78rem;color:#b8c8da;margin:0 0 4px;font-weight:600}
+.tv-playback-settings .settings-card .setting-toggle{display:flex;align-items:center;
+ gap:10px;padding:8px 12px;min-height:43px;border:1px solid transparent;
+ background:#18283a;border-radius:8px;margin:0 0 6px;
+ font-size:.88rem;color:#ebf0f5}
 .tv-playback-settings .settings-card .setting-toggle input[type="checkbox"]{
- width:24px;height:24px;accent-color:var(--oew-tv-select-color,#8B5CF6)}
-.tv-playback-settings :is(.settings-card button,.settings-card input[type="range"]){
- min-height:54px}
-.tv-playback-settings .settings-card button.secondary-button:not(.tv-dialog-option){
- display:block;max-width:100%;min-width:240px;text-align:left}
-.tv-playback-settings .form-actions{display:flex;flex-wrap:wrap;gap:10px}
-.tv-playback-settings .settings-two-col>div{min-width:0}
+ width:19px;height:19px;flex:none;accent-color:var(--oew-tv-select-color,#8B5CF6)}
+.tv-playback-settings .settings-two-col{display:grid;
+ grid-template-columns:minmax(0,1fr);gap:5px;margin:5px 0}
+.tv-playback-settings .settings-two-col>div{display:grid;align-items:center;
+ grid-template-columns:minmax(0,1fr) minmax(180px,42%);gap:12px;min-width:0}
+.tv-playback-settings .settings-two-col>div label{margin:0!important}
+.tv-playback-settings .tv-inline-setting{display:grid;align-items:center;
+ grid-template-columns:minmax(0,1fr) minmax(180px,42%);gap:12px;margin:6px 0}
+.tv-playback-settings .tv-inline-setting label{margin:0!important}
+.tv-playback-settings .settings-card button.secondary-button,
+.tv-playback-settings .settings-card button.primary-button{
+ min-height:39px;min-width:0;max-width:100%;padding:7px 12px;
+ border-radius:8px;text-align:left;font-size:.87rem;
+ color:#ecf2f9;background:#1a2a3d;border:1px solid #3d536b}
 .tv-playback-settings .settings-two-col button{width:100%}
+.tv-playback-settings input[type="range"]{min-height:35px;width:100%;accent-color:var(--oew-tv-select-color,#8B5CF6)}
+.tv-playback-settings .tv-volume-row{display:grid;align-items:center;
+ grid-template-columns:minmax(0,1fr) minmax(180px,42%);gap:12px;margin:8px 0}
+.tv-playback-settings .tv-volume-row label{margin:0!important}
+.tv-playback-settings .form-actions{margin:7px 0 0;display:flex;flex-wrap:wrap;gap:8px}
+.tv-playback-settings .settings-card .form-actions button{min-width:110px}
+.tv-playback-settings .tv-save-status{margin:5px 0 0!important;
+ color:#b3dec7!important;font-size:.76rem;line-height:1.25;font-weight:600}
+.tv-playback-settings .tv-save-status:empty{display:none}
+.tv-playback-settings .tv-save-status[data-state="error"]{color:#ffc0b7!important}
+.tv-playback-settings dialog{background:#101d2bf7;color:#f2f5fa;
+ border:1px solid #53657e;border-radius:13px;
+ box-shadow:0 22px 70px #000b;padding:18px;
+ max-height:82vh;overflow:auto;width:min(440px,90vw)}
+.tv-playback-settings dialog::backdrop{background:#000b}
+.tv-playback-settings .tv-language-options{display:grid;gap:5px;margin:11px 0}
+.tv-playback-settings .tv-language-options button{
+ min-height:42px;padding:8px 13px;border-radius:8px;text-align:left;
+ color:#ecf2fa;background:#1b2b3e;border:1px solid #354b64}
+.tv-playback-settings .tv-language-options button[aria-pressed="true"]{
+ border-color:var(--oew-tv-select-color,#8B5CF6);font-weight:700}
 html body[data-page="settings"] .tv-playback-settings
  :is(button,input[type="range"],input[type="checkbox"]):is(:focus,:focus-visible){
  color:#fff!important;filter:none!important;transform:none!important;
  outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important;
- outline-offset:3px!important;
- box-shadow:0 0 0 5px #020914!important;
+ outline-offset:2px!important;box-shadow:0 0 0 3px #07101c!important;
  border-color:var(--oew-tv-select-color,#8B5CF6)!important;
- background-color:#243a55!important;
- position:relative;z-index:3}
-html body[data-page="settings"] .tv-playback-settings
- .setting-toggle:focus-within{
+ background-color:#263d58!important;position:relative;z-index:3}
+html body[data-page="settings"] .tv-playback-settings .setting-toggle:focus-within{
  outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important;
- outline-offset:1px!important;background:#263c57!important;
- color:#fff!important}
+ outline-offset:1px!important;background:#263c57!important;color:#fff!important}
 html body[data-page="settings"] .tv-playback-settings
  .setting-toggle input:is(:focus,:focus-visible){
  outline:0!important;box-shadow:none!important;background:transparent!important}
-html body[data-page="settings"] .tv-playback-settings
- .tv-language-options button[aria-pressed="true"]:not(:focus):not(:focus-visible){
- color:#e9e4ff;border-color:var(--oew-tv-select-color,#8B5CF6)}
-.tv-save-status{min-height:1.35em;margin:11px 0 0!important;
- color:#b8dfc6!important;font-size:.88rem;font-weight:600}
-.tv-save-status[data-state="error"]{color:#ffc0b7!important}
-.tv-remote-help{position:fixed;bottom:14px;left:92px;right:24px;
- max-width:790px;z-index:120;pointer-events:none;padding:12px 16px;
- border-radius:12px;background:#07111beF;border:1px solid #455c78;
- box-shadow:0 8px 32px #0008;color:#f4f6fa;font-size:1rem;
- display:flex;align-items:center;gap:12px}
-.tv-remote-help strong{color:var(--oew-tv-select-color,#c4a9ff);font-weight:800}
-.tv-save-toast{position:fixed;bottom:80px;right:24px;max-width:min(480px,85vw);
- padding:14px 20px;border-radius:12px;z-index:230;
- border:2px solid var(--oew-tv-select-color,#8B5CF6);
- background:#0b1c2cf2;box-shadow:0 10px 40px #000b;
- color:#f5faf9;font-size:1rem;font-weight:700;pointer-events:none}
+.tv-save-toast{position:fixed;bottom:18px;right:20px;z-index:230;
+ max-width:min(440px,85vw);pointer-events:none;
+ padding:10px 15px;border-radius:10px;
+ border:1px solid var(--oew-tv-select-color,#8B5CF6);
+ background:#0a1828f5;box-shadow:0 9px 25px #0009;
+ color:#f4faf8;font-size:.88rem;font-weight:650}
 .tv-save-toast[data-state="error"]{border-color:#f87171}
-.tv-save-toast[hidden],.tv-remote-help[hidden]{display:none!important}
-@media(max-width:600px){.tv-remote-help{left:14px;right:14px}
- .tv-save-toast{bottom:92px;left:14px;right:14px}
- .tv-playback-settings .settings-card{padding:16px}}
+.tv-save-toast[hidden]{display:none!important}
+@media(max-width:680px){
+ .tv-playback-settings .settings-card{padding:11px}
+ .tv-playback-settings .settings-two-col>div,
+ .tv-playback-settings .tv-inline-setting,.tv-playback-settings .tv-volume-row{
+ grid-template-columns:minmax(0,1fr);gap:4px}
+ .tv-playback-settings .settings-card button.secondary-button{width:100%}
+}
 @media(prefers-reduced-motion:no-preference){
  .tv-playback-settings :is(button,.setting-toggle){
- transition:background-color .16s ease,border-color .16s ease,outline-color .16s ease}}
+ transition:background-color .15s ease,border-color .15s ease,outline-color .15s ease}}
 </style>
 <script defer src="/assets/ambient.js?v=1"></script>
 </head><body data-page="settings"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content tv-playback-settings">
-<div class="page-head"><div><p class="eyebrow">This TV</p>
-<h1>Playback Settings</h1>
-<p>Use Up / Down to move between settings and OK to change. Changes save automatically; a confirmation appears when saved.</p>
+<div class="page-head"><div>
+<h1>Settings</h1>
 </div></div>
 <p id="tv-status" class="message" role="status" aria-live="polite"></p>
 <div id="tv-save-toast" class="tv-save-toast" role="status" aria-live="polite" hidden></div>
-<div id="tv-remote-help" class="tv-remote-help" aria-live="off">
- <strong>REMOTE</strong><span id="tv-focused-control">Use Up / Down to move between settings · OK to change</span>
-</div>
 <section class="settings-section" aria-labelledby="tv-subtitles-heading">
-<h2 id="tv-subtitles-heading">Subtitles on this TV</h2>
+<h2 id="tv-subtitles-heading">Subtitles</h2>
 <div class="settings-card"><form id="tv-subtitle-form">
 <label class="setting-toggle"><input type="checkbox" id="tv-subtitles-on">
- Automatically show subtitles when playing media</label>
-<label for="tv-subtitle-language">Preferred subtitle language</label>
+ Auto-show subtitles</label>
+<div class="tv-inline-setting"><label for="tv-language-button">Language</label>
 <input type="hidden" id="tv-subtitle-language" value="en">
-<button type="button" class="secondary-button" id="tv-language-button" aria-haspopup="dialog" aria-controls="tv-language-dialog">English</button>
+<button type="button" class="secondary-button" id="tv-language-button" aria-haspopup="dialog" aria-controls="tv-language-dialog">English</button></div>
 <dialog id="tv-language-dialog" aria-labelledby="tv-language-heading">
 <h2 id="tv-language-heading">Preferred subtitle language</h2>
 <div id="tv-language-options" class="tv-language-options"></div>
@@ -118,61 +126,55 @@ html body[data-page="settings"] .tv-playback-settings
   <div><label for="tv-subtitle-outline">Text outline</label>
   <button type="button" class="secondary-button" id="tv-subtitle-outline">On</button></div>
 </div>
-<p class="settings-muted">Choose None to remove the black boxes behind captions. Text outline helps preserve readability without a background.</p>
-<p class="settings-muted">The player chooses an available subtitle track in your language. If none is available, playback continues without subtitles. Use the player’s Subtitles button to choose a different track or search OpenSubtitles.</p>
-<div class="form-actions"><button type="submit" class="primary-button">Save subtitles for this TV</button></div>
 <p class="tv-save-status" id="tv-subtitle-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
-<h2 id="tv-color-heading">Selection color</h2>
+<h2 id="tv-color-heading">Highlight color</h2>
 <div class="settings-card">
-<p>Choose the highlight color for selected icons, navigation, and player controls.</p>
 <form id="tv-color-form">
-<label for="tv-color-button">Highlight color</label>
+<div class="tv-inline-setting"><label for="tv-color-button">Focus color · shared with all TVs</label>
 <input type="hidden" id="tv-selected-color" value="#8B5CF6">
-<button type="button" id="tv-color-button" class="secondary-button" aria-haspopup="dialog" aria-controls="tv-color-dialog">Purple (default)</button>
+<button type="button" id="tv-color-button" class="secondary-button" aria-haspopup="dialog" aria-controls="tv-color-dialog">Purple (default)</button></div>
 <dialog id="tv-color-dialog" aria-labelledby="tv-color-dialog-heading">
 <h2 id="tv-color-dialog-heading">Select a color</h2>
 <div id="tv-color-options" class="tv-language-options"></div>
 <button type="button" id="tv-color-cancel" class="secondary-button">Cancel</button>
 </dialog>
-<p class="settings-muted">This color is saved on the server and shared with other TVs. Subtitle preferences remain specific to this TV.</p>
-<div class="form-actions"><button type="submit" class="primary-button">Save selection color</button></div>
 <p class="tv-save-status" id="tv-color-status" role="status" aria-live="polite"></p>
 </form>
 </div></section>
 <section class="settings-section" aria-labelledby="tv-shared-heading"><h2 id="tv-shared-heading">Playback</h2>
 <div class="settings-card"><form id="tv-playback-form">
-<label class="setting-toggle"><input id="tv-auto-next" type="checkbox"> Automatically play the next TV episode</label>
-<label class="setting-toggle"><input id="tv-show-theme" type="checkbox"> Play local TV show theme music</label>
-<label class="setting-toggle"><input id="tv-movie-theme" type="checkbox"> Play local movie theme music</label>
-<label class="setting-toggle"><input id="tv-loop-theme" type="checkbox"> Loop theme music</label>
-<label class="setting-toggle"><input id="tv-fade-theme" type="checkbox"> Fade theme music in and out</label>
-<label for="tv-theme-volume">Theme music volume: <output id="tv-theme-volume-label">25%</output></label>
-<input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25">
-<p class="settings-muted">These playback options are shared with the server and other TVs.</p>
-<div class="form-actions"><button type="submit" class="primary-button">Save shared playback settings</button></div>
+<label class="setting-toggle"><input id="tv-auto-next" type="checkbox"> Auto-play next episode</label>
+<label class="setting-toggle"><input id="tv-show-theme" type="checkbox"> TV show themes</label>
+<label class="setting-toggle"><input id="tv-movie-theme" type="checkbox"> Movie themes</label>
+<label class="setting-toggle"><input id="tv-loop-theme" type="checkbox"> Loop themes</label>
+<label class="setting-toggle"><input id="tv-fade-theme" type="checkbox"> Fade themes in/out</label>
+<div class="tv-volume-row"><label for="tv-theme-volume">Theme volume: <output id="tv-theme-volume-label">25%</output></label>
+<input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25"></div>
 <p class="tv-save-status" id="tv-playback-status" role="status" aria-live="polite"></p>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-ambient-heading">
 <h2 id="tv-ambient-heading">Ambient effects</h2>
 <div class="settings-card"><form id="tv-ambient-form">
-<p class="settings-muted">Optional snow, rain, leaves or fireflies while browsing. Never shown during video playback. Settings are shared with the server and all TVs.</p>
-<label for="tv-ambient-effect">Effect</label>
-<button type="button" class="secondary-button" id="tv-ambient-effect">Off (default)</button>
-<label for="tv-ambient-intensity">Intensity: <output id="tv-ambient-intensity-label">10%</output></label>
-<input id="tv-ambient-intensity" type="range" min="10" max="100" step="5" value="10">
-<label for="tv-ambient-speed">Speed</label>
-<button type="button" class="secondary-button" id="tv-ambient-speed">Normal</button>
-<label for="tv-ambient-layer">Position</label>
-<button type="button" class="secondary-button" id="tv-ambient-layer">Over interface</button>
-<div class="form-actions"><button type="submit" class="primary-button">Save ambient effects</button>
-<button type="button" id="tv-ambient-off" class="secondary-button">Turn off</button></div>
+<div class="settings-two-col">
+ <div><label for="tv-ambient-effect">Effect</label>
+ <button type="button" class="secondary-button" id="tv-ambient-effect">Off (default)</button></div>
+</div>
+<div class="tv-volume-row"><label for="tv-ambient-intensity">Intensity: <output id="tv-ambient-intensity-label">10%</output></label>
+<input id="tv-ambient-intensity" type="range" min="10" max="100" step="5" value="10"></div>
+<div class="settings-two-col">
+ <div><label for="tv-ambient-speed">Speed</label>
+ <button type="button" class="secondary-button" id="tv-ambient-speed">Normal</button></div>
+ <div><label for="tv-ambient-layer">Position</label>
+ <button type="button" class="secondary-button" id="tv-ambient-layer">Over interface</button></div>
+</div>
+<div class="form-actions"><button type="button" id="tv-ambient-off" class="secondary-button">Turn off effects</button></div>
 <p class="tv-save-status" id="tv-ambient-status" role="status" aria-live="polite"></p>
 </form></div></section>
-<section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Server connection</h2>
-<div class="settings-card"><p class="settings-muted">Change the IP address or port saved on this television. Other TVs and the server are unaffected.</p>
-<button type="button" id="tv-server-connection" class="secondary-button">Change this TV's server</button>
+<section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Connection</h2>
+<div class="settings-card">
+<button type="button" id="tv-server-connection" class="secondary-button">Change server connection</button>
 </div></section>
 </main></div></div>
 <script>
@@ -193,18 +195,6 @@ function message(text,section='',state=''){
  // Failures stay readable longer; the latest status also remains in its card.
  tvToastTimer=setTimeout(()=>{toast.hidden=true},kind==='error'?8500:4500);
 }
-document.addEventListener('focusin',event=>{
- const control=event.target;
- if(!control?.matches?.('button,input:not([type="hidden"]),select')||
-    !control.closest('.tv-playback-settings'))return;
- const label=control.closest('label')?.textContent?.trim()||
-  (control.id?document.querySelector('label[for="'+control.id+'"]')?.textContent?.trim():'')||
-  control.textContent?.trim()||control.getAttribute('aria-label')||'Setting';
- const action=control.matches('input[type="range"]')?'Left / Right to adjust':
-  control.matches('input[type="checkbox"]')?'OK to toggle':
-  'OK to select';
- el('tv-focused-control').textContent=label.replace(/\s+/g,' ').slice(0,110)+' · '+action;
-});
 async function api(path,options={}){
  const r=await fetch(path,{cache:'no-store',...options,
   headers:{'Content-Type':'application/json',...(options.headers||{})}});

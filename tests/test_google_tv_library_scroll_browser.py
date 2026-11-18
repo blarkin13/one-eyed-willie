@@ -265,11 +265,12 @@ class LibraryScrollBrowserTests(unittest.TestCase):
             style = page.evaluate("""() => {
               const node=document.activeElement,s=getComputedStyle(node);
               return {width:s.outlineWidth,style:s.outlineStyle,
-                help:document.getElementById('tv-focused-control').textContent};
+                compact:!document.getElementById('tv-remote-help')&&
+                getComputedStyle(document.querySelector('.tv-playback-settings .settings-card')).paddingTop==='13px'};
             }""")
             self.assertEqual(style["style"], "solid")
             self.assertGreaterEqual(float(style["width"].replace("px","")),2)
-            self.assertTrue(style["help"])
+            self.assertTrue(style["compact"])
         page.evaluate("window.__willieTvMove('up')")
         self.assertEqual(page.evaluate("document.activeElement?.id"),"tv-subtitle-color")
 
@@ -294,8 +295,8 @@ class LibraryScrollBrowserTests(unittest.TestCase):
         self.assertTrue(page.evaluate(
             "!document.getElementById('tv-save-toast').hidden"))
         self.assertEqual(page.evaluate("document.activeElement?.id"),"tv-auto-next")
-        self.assertIn("OK to toggle",page.evaluate(
-            "document.getElementById('tv-focused-control').textContent"))
+        self.assertIsNone(page.evaluate(
+            "document.getElementById('tv-focused-control')"))
 
         # Color choices also save without an extra trip to a separate button,
         # and a dialog keeps remote focus inside until the selection is made.
