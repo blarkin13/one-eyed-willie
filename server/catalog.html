@@ -3,8 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Browse</title>
-<link rel="stylesheet" href="/assets/ui.css?v=header-1">
-<script src="/assets/library-appearance.js?v=header-1"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=fa-lib-2">
+<script src="/assets/library-appearance.js?v=fa-lib-2"></script>
 <script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script>
 <script defer src="/assets/player.js?v=continue-next-1"></script>
@@ -265,7 +265,10 @@ function applyLibraryAppearance(lib){
  const iconKey=lib?.icon|| (type==='tv'?'tv':'film');
  const fontKey=lib?.font||'default';
  const icon=$('library-title-icon');
- if(lib?.icon_image_url||['film','tv','folder'].includes(iconKey)){
+ if(libraryAppearance?.iconTheme()==='clean'){
+  // Clean must be consistent on the library page as well as the sidebar.
+  icon.replaceChildren(libraryAppearance.createThemeIcon(iconKey,60));
+ }else if(lib?.icon_image_url||['film','tv','folder'].includes(iconKey)){
   const image=document.createElement('img');
   image.src=lib?.icon_image_url||'/assets/sidebar-icon-'+(type==='tv'?'tv':'movies')+'.png?v=1';
   image.alt='';image.width=76;image.height=76;image.className='library-page-icon';
