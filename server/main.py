@@ -546,7 +546,8 @@ def connections_hub_page():
 
 @app.get("/services")
 def download_services_page():
-    return TextFileResponse(Path(__file__).with_name("services.html"), media_type="text/html")
+    # Preserve old bookmarks without showing disconnected services.
+    return RedirectResponse("/connections", status_code=307)
 
 
 @app.get("/radarr")
