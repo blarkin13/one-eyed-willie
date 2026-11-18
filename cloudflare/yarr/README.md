@@ -152,3 +152,25 @@ The frontend automatically loads additional catalog pages as the user scrolls. C
 **Pilot limitation:** `YARR_PRIVATE_SERVER_ID` and `YARR_PRIVATE_API` currently target only the test Gazorpazorp installation; this is not dynamically provisioned for other customers yet. The previous `/api/private/health` test remains available.
 
 This is a **library metadata and artwork preview only**, not remote playback. Before launch, implement scalable multi-tenant VPC routing, signed per-origin API authorization, an origin-facing revocation workflow, per-device/session controls, video transport and range/HLS/subtitle support.
+
+## Complete hosted One-Eyed Willie app pilot (2026-11-18)
+
+The standalone hosted Movies/TV catalog viewer was removed from Yarr. The existing self-hosted frontend is now the only application UI. No duplication of local movie, TV, settings, or playback templates is intended.
+
+**Authenticated routing:** `/app`, `/` (for signed-in users), `/movies`, `/tv`, `/watch/{id}`, `/assets/*`, application `/api/*` endpoints and the other original application paths now flow to the paired `one-eyed-willie:8787` through the private `YARR_PRIVATE_API` service. For signed-out visitors, `/` remains Yarr's marketing landing page. Yarr's `/account`, Google sign-in/logout, and account/pairing/connection endpoints remain separately handled by Yarr. `/api/private/*` old preview APIs remain unavailable.
+
+**Authorization and isolation:** Before *every* proxied request, the Worker validates the Yarr session, checks in D1 that the signed-in user owns the configured paired server, and checks the tunneled server identity against the paired installation. Destination host is fixed (no arbitrary URL proxy); browser cookies and authorization headers are not forwarded to the NUC. State-changing requests require same-origin browser evidence, and origin/referrer are reset to the local server only *after* session and ownership checks.
+
+**Streaming support:** Proxy forwards GET, HEAD, POST, PUT, PATCH and DELETE, restricts request size by declared Content-Length (with Cloudflare's platform request-size limit as a second safeguard), allows video Range/If-Range, and streams response bodies without buffering. It forwards media, playlist and HLS segment content-type/length/range headers where appropriate, strips upstream cookies and forwarding headers, blocks off-origin redirects and shared caching. This is a **single-server staging bridge**: in this pilot media bytes travel *through* the account Worker. That is **not** the desired production data-plane architecture. Before customer launch replace this with separately authenticated and authorized server-to-client media transport, check Cloudflare plan/usage limits and billing, and implement scale-safe multi-tenant routing.
+
+**Test checklist requiring a signed-in browser:**
+- `/app` displays the actual local Home page, not the temporary hosted viewer.
+- Home → Movies → TV Shows → show → season → episode and browser Back all work.
+- Posters, backdrops, CSS, icons, video player assets and API calls load under the Yarr host, without CORS errors.
+- Direct-play video responds with 206 + Content-Range for byte-range requests. HLS manifests and segments stream. Verify seek, subtitles, pause/resume, Continue Watching and watched/unwatched actions.
+- Remote Settings and other mutations work only while signed in; an unsigned visitor receives a redirect for pages or 401 for APIs. Cross-origin mutations must fail 403.
+- Sign-out invalidates the online session; attempts to view pages and streams afterwards must fail.
+- Other Yarr accounts cannot view the bound server; the current pilot is deliberately pinned to Gazorpazorp.
+- Check latency, bandwidth, Worker billing and any Cloudflare service restrictions before putting real media traffic through the staging Worker regularly.
+
+**Deployment:** Latest Worker code was published to the existing `yarr` service while retaining Google OAuth, D1, VPC and tunnel secrets. No local NUC update is required because this reuses all existing local page and media endpoints. The full live signed-in browser checks have not yet been completed.
