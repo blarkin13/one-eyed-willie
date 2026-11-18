@@ -204,15 +204,38 @@ def movie_page():
     return TextFileResponse(Path(__file__).with_name("movie_detail.html"), media_type="text/html")
 
 
+def _require_configured_library(kind: str, library_id: int | None = None):
+    from fastapi import HTTPException
+    with db() as connection:
+        if library_id is None:
+            exists = connection.execute(
+                "SELECT 1 FROM libraries WHERE kind=? LIMIT 1", (kind,)
+            ).fetchone()
+        else:
+            exists = connection.execute(
+                "SELECT 1 FROM libraries WHERE kind=? AND id=? LIMIT 1",
+                (kind, library_id)
+            ).fetchone()
+    if not exists:
+        raise HTTPException(status_code=404, detail="Library not configured")
+
+
 @app.get("/music")
-def music_page():
+def music_page(library_id: int | None = Query(None, ge=1)):
+    _require_configured_library("music", library_id)
     return TextFileResponse(Path(__file__).with_name("music.html"), media_type="text/html",
                             headers={"Cache-Control":"no-cache"})
 
 
 @app.get("/movies")
+def movies_page(library_id: int | None = Query(None, ge=1)):
+    _require_configured_library("movies", library_id)
+    return TextFileResponse(Path(__file__).with_name("catalog.html"), media_type="text/html")
+
+
 @app.get("/tv")
-def browse():
+def tv_page(library_id: int | None = Query(None, ge=1)):
+    _require_configured_library("tv", library_id)
     return TextFileResponse(Path(__file__).with_name("catalog.html"), media_type="text/html")
 
 # The Google TV WebView needs sidebar visibility established BEFORE the first
