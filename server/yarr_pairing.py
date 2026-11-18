@@ -129,7 +129,12 @@ def pairing_status():
                    "poll_secret": poll_secret,
                    "paired_at": int(time.time())})
             return {"status": "paired"}
-        return {"status": "pending", "expires_in": max(0, int(current["expires_at"] - time.time()))}
+        code = current.get("code", "")
+        grouped_code = "-".join(code[i:i + 4] for i in range(0, len(code), 4)) if len(code) == 16 else None
+        return {"status": "pending",
+                "code": grouped_code,
+                "claim_url": ACCOUNT_URL + "/account",
+                "expires_in": max(0, int(current["expires_at"] - time.time()))}
 
 
 def report_heartbeat():
