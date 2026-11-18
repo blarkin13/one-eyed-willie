@@ -2522,7 +2522,7 @@ class MainActivity : ComponentActivity() {
                 // from its toolbar toggle must go BACK to the poster grid.
                 // Never reopen the menu just because the viewer presses DOWN.
                 if(window.__willieCatalogRemoteNavigate?.(direction))return true;
-                const active=document.activeElement;
+                let active=document.activeElement;
                 const menu=document.querySelector(
                   'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'
                 );
@@ -2544,6 +2544,7 @@ class MainActivity : ComponentActivity() {
                       );
                       toggle?.setAttribute('aria-expanded','false');
                       toggle?.focus({preventScroll:true});
+                      active=document.activeElement;
                       // Continue to library toolbar handling below.
                     }else{
                       const next=index<0?(step>0?0:options.length-1):
