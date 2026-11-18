@@ -131,7 +131,7 @@ async def serve_asgi_media(channel, path, req_headers=None):
             channel.send(json.dumps({"type": "headers",
                                      "status": response.status_code,
                                      "headers": allowed}))
-            async for body in response.aiter_bytes(CHUNK_BYTES):
+            async for body in response.aiter_raw(CHUNK_BYTES):
                 await drain(channel)
                 channel.send(body)
             await drain(channel)
