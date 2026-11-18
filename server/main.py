@@ -9,6 +9,7 @@ from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.yarr_pairing import router as yarr_pairing_router
+from server.yarr_pairing import heartbeat_loop as yarr_heartbeat_loop
 from server.home import router as home_router
 from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
@@ -61,9 +62,17 @@ async def lifespan(app: FastAPI):
         target=catalog_metadata_refresh_loop, args=(metadata_stop,),
         daemon=True, name="catalog-metadata-background")
     metadata_thread.start()
+    yarr_heartbeat_stop = threading.Event()
+    yarr_heartbeat_thread = threading.Thread(
+        target=yarr_heartbeat_loop, args=(yarr_heartbeat_stop,),
+        daemon=True, name="yarr-presence"
+    )
+    yarr_heartbeat_thread.start()
     try:
         yield
     finally:
+        yarr_heartbeat_stop.set()
+        yarr_heartbeat_thread.join(timeout=3)
         metadata_stop.set()
         metadata_thread.join(timeout=3)
         posters_stop.set()
