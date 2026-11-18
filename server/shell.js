@@ -27,18 +27,30 @@ document.addEventListener('DOMContentLoaded', () => {
     connections:'<path d="M8 3v6m8-6v6M5 9h14v3a7 7 0 0 1-6 6v3h-2v-3a7 7 0 0 1-6-6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     sabnzbd:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
   };
-  // Shared SVG source for the Appearance preview and application navigation.
+  // Font Awesome Free is the Clean theme's default icon set.
+  // A local SVG fallback keeps navigation usable if the font CDN is unavailable.
   window.WillieCleanIcons={
-    names:{home:'home',movies:'film',tv:'tv',connections:'connections',sabnzbd:'sabnzbd',settings:'settings'},
+    names:{
+      home:['fa-house','home'],movies:['fa-film','film'],tv:['fa-tv','tv'],
+      connections:['fa-plug','connections'],sabnzbd:['fa-download','sabnzbd'],
+      settings:['fa-gear','settings']
+    },
     create(name,size=30){
-      const key=this.names[name]||name;
-      const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-      svg.setAttribute('viewBox','0 0 24 24');
-      svg.setAttribute('width',String(size));svg.setAttribute('height',String(size));
-      svg.setAttribute('fill','none');svg.setAttribute('aria-hidden','true');
-      svg.style.color='#f7f7f7';
-      svg.innerHTML=paths[key]||paths.settings;
-      return svg;
+      const [fa,key]=this.names[name]||this.names.settings;
+      const wrap=document.createElement('span');
+      wrap.className='nav-icon nav-clean-icon';
+      wrap.setAttribute('aria-hidden','true');
+      wrap.style.fontSize=size+'px';
+      const font=document.createElement('i');
+      font.className='fa-solid '+fa;
+      const fallback=document.createElementNS('http://www.w3.org/2000/svg','svg');
+      fallback.setAttribute('viewBox','0 0 24 24');
+      fallback.classList.add('fa-fallback');
+      fallback.setAttribute('width',String(size));
+      fallback.setAttribute('height',String(size));
+      fallback.innerHTML=paths[key]||paths.settings;
+      wrap.append(font,fallback);
+      return wrap;
     }
   };
   function glyph(fa,svg){
@@ -67,13 +79,9 @@ document.addEventListener('DOMContentLoaded', () => {
   const iconTheme=()=>localStorage.getItem(ICON_THEME_KEY)==='pirate'?'pirate':'clean';
   function defaultIcon(kind){
     const safe=['home','movies','tv','connections','settings'].includes(kind)?kind:'movies';
-    if(iconTheme()==='pirate')return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
-    const wrapper=document.createElement('span');
-    wrapper.className='nav-icon nav-clean-icon';
-    wrapper.setAttribute('aria-hidden','true');
-    const svg=window.WillieCleanIcons.create(safe,30);
-    svg.classList.add('fa-fallback');wrapper.append(svg);
-    return wrapper;
+    if(iconTheme()==='pirate')
+      return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
+    return window.WillieCleanIcons.create(safe,30);
   }
   document.documentElement.dataset.iconTheme=iconTheme();
   // Logo anchors the upper-left corner on desktop and mobile.
