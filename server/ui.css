@@ -1020,3 +1020,22 @@ body[data-page="home"] .shelf-track>.tile{
  .home-feature-title.has-title-logo>.media-title-logo{max-height:65px}
  .season-show-name.has-title-logo>.media-title-logo{max-height:64px}
 }
+
+
+/* Home carousel edge focus: a centered scale expands the first artwork beyond
+   the scrollport's left clipping edge. Keep a gutter for focus shadows and
+   enlarge the first poster toward the carousel instead of outside it.
+   More-specific than the Android TV injected focus rules, while leaving the
+   selected scale, remote navigation and all other posters unchanged. */
+body[data-page="home"] .shelf-track{
+  padding-inline:10px;
+  /* Browser focus scrolling must respect the room reserved for the ring. */
+  scroll-padding-inline:12px;
+}
+body[data-page="home"] .shelf-track .tile-button{
+  scroll-margin-inline:12px;
+}
+html body[data-page="home"] .shelf-track > .tile:first-child
+  .tile-button:is(:focus,:focus-visible) .cover{
+  transform-origin:left center!important;
+}
