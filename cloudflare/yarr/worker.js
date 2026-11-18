@@ -293,6 +293,82 @@ async function privateVPCHealth(req,env) {
  }catch(_){return json({connected:false,reason:'tunnel_offline_or_unreachable'},503);}
 }
 
+
+const MEDIA_CACHE_HEADERS={'cache-control':'private, no-store','x-content-type-options':'nosniff'};
+async function ownedPrivateServer(req,env){
+ const user=await currentUser(req,env);
+ if(!user)return {error:json({error:'not_authenticated'},401)};
+ if(!env.YARR_PRIVATE_API||!env.YARR_PRIVATE_SERVER_ID)return {error:json({error:'private_connection_unavailable'},503)};
+ const server=await env.ACCOUNTS.prepare("SELECT id,server_identity,display_name FROM servers WHERE id=? AND owner_user_id=? AND status='paired' AND server_identity IS NOT NULL").bind(env.YARR_PRIVATE_SERVER_ID,user.id).first();
+ if(!server)return {error:json({error:'server_not_found'},404)};
+ return {server};
+}
+async function verifiedOrigin(env,server,signal){
+ const r=await env.YARR_PRIVATE_API.fetch('http://one-eyed-willie:8787/api/server/info',{method:'GET',signal,headers:{accept:'application/json', 'accept-encoding':'identity'}});
+ if(!r.ok || !(r.headers.get('content-type')||'').includes('json'))throw new Error('origin_identity_unavailable');
+ const obj=await r.json();
+ if(obj.server_id!==server.server_identity)throw new Error('wrong_origin');
+}
+async function privateCatalog(req,env){
+ const owned=await ownedPrivateServer(req,env);
+ if(owned.error)return owned.error;
+ const url=new URL(req.url);
+ const kind=url.searchParams.get('kind');
+ if(kind!=='movies'&&kind!=='tv')return json({error:'invalid_kind'},400);
+ const offsetRaw=url.searchParams.get('offset')||'0';
+ if(!/^\d{1,7}$/.test(offsetRaw))return json({error:'invalid_offset'},400);
+ const offset=Number(offsetRaw);
+ if(offset>1000000)return json({error:'invalid_offset'},400);
+ const sort=url.searchParams.get('sort')||'title';
+ if(!['title','recent','added','year','length','rating'].includes(sort))return json({error:'invalid_sort'},400);
+ const search=url.searchParams.get('search')||'';
+ if(search.length>100||/[\x00-\x1f]/.test(search))return json({error:'invalid_search'},400);
+ const signal=AbortSignal.timeout(12000);
+ try{
+  await verifiedOrigin(env,owned.server,signal);
+  const params=new URLSearchParams({kind,offset:String(offset),limit:'72',sort,search});
+  const r=await env.YARR_PRIVATE_API.fetch('http://one-eyed-willie:8787/api/catalog?'+params.toString(),{method:'GET',signal,headers:{accept:'application/json','accept-encoding':'identity'}});
+  if(!r.ok || !(r.headers.get('content-type')||'').includes('json'))return json({error:'library_unavailable'},502);
+  const length=Number(r.headers.get('content-length')||0);
+  if(length>1200000)return json({error:'library_response_too_large'},502);
+  const raw=await r.text();
+  if(raw.length>1200000)return json({error:'library_response_too_large'},502);
+  const data=JSON.parse(raw);
+  if(!Array.isArray(data.items))return json({error:'library_response_invalid'},502);
+  const items=data.items.slice(0,72).map(x=>{
+   const path=typeof x.poster_url==='string'?x.poster_url:'';
+   const match=/^\/api\/artwork\/(thumb\/)?([a-f0-9]{64})$/.exec(path);
+   return {kind,library_id:Number(x.library_id)||null,key:String(x.key||'').slice(0,200),title:String(x.title||'Untitled').slice(0,220),
+    year:Number.isInteger(x.year)?x.year:null,genres:Array.isArray(x.genres)?x.genres.filter(x=>typeof x==='string').slice(0,5):[],
+    rating:typeof x.rating==='number'?x.rating:null, runtime:typeof x.runtime==='number'?x.runtime:null,
+    seasons:Array.isArray(x.seasons)?x.seasons.length:0,watched:!!x.watched,partially_watched:!!x.partially_watched,
+    poster_url:match?'/api/private/artwork/'+(match[1]?'thumb/':'')+match[2]:null};
+  });
+  return json({kind,items,total:Math.max(0,Number(data.total)||items.length),offset,limit:72,server_name:owned.server.display_name,media_access:false});
+ }catch(_){return json({error:'private_library_unavailable'},503);}
+}
+async function privateArtwork(req,env){
+ const owned=await ownedPrivateServer(req,env);
+ if(owned.error)return owned.error;
+ const path=new URL(req.url).pathname;
+ const match=/^\/api\/private\/artwork\/(thumb\/)?([a-f0-9]{64})$/.exec(path);
+ if(!match)return json({error:'not_found'},404);
+ const signal=AbortSignal.timeout(12000);
+ try{
+  await verifiedOrigin(env,owned.server,signal);
+  const origin='http://one-eyed-willie:8787/api/artwork/'+(match[1]?'thumb/':'')+match[2];
+  const r=await env.YARR_PRIVATE_API.fetch(origin,{method:'GET',signal,headers:{accept:'image/avif,image/webp,image/jpeg,image/png','accept-encoding':'identity'}});
+  if(!r.ok)return new Response(null,{status:r.status===404?404:502,headers:MEDIA_CACHE_HEADERS});
+  const mime=(r.headers.get('content-type')||'').split(';')[0].trim().toLowerCase();
+  if(!['image/jpeg','image/png','image/webp'].includes(mime))return json({error:'invalid_artwork_type'},502);
+  const len=Number(r.headers.get('content-length')||0);
+  if(len>5*1024*1024)return json({error:'artwork_too_large'},502);
+  const bytes=await r.arrayBuffer();
+  if(bytes.byteLength>5*1024*1024)return json({error:'artwork_too_large'},502);
+  return new Response(bytes,{status:200,headers:{...MEDIA_CACHE_HEADERS,'content-type':mime,'content-length':String(bytes.byteLength)}});
+ }catch(_){return json({error:'artwork_unavailable'},503);}
+}
+
 function serversHTML(servers) {
  const paired=servers.some(s=>s.status==='paired'&&s.server_identity);
  const pairing='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
@@ -345,6 +421,8 @@ export default { async fetch(req,env) {
   }
   if(req.method==='POST'&&u.pathname==='/api/connection/tunnel/bootstrap')return privateTunnelBootstrap(req,env);
   if(req.method==='GET'&&u.pathname==='/api/private/health')return privateVPCHealth(req,env);
+  if(req.method==='GET'&&u.pathname==='/api/private/catalog')return privateCatalog(req,env);
+  if(req.method==='GET'&&u.pathname.startsWith('/api/private/artwork/'))return privateArtwork(req,env);
   if(req.method==='GET'&&u.pathname==='/api/servers'){
    const user=await currentUser(req,env);
    if(!user)return json({error:'not_authenticated'},401);
