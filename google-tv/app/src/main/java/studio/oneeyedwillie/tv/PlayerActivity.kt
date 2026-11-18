@@ -27,6 +27,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.ui.PlayerView
+import androidx.media3.ui.CaptionStyleCompat
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -183,6 +184,7 @@ class PlayerActivity : ComponentActivity() {
             useController = false
         }
         surface.addView(playerView)
+        applySubtitleAppearance()
         chrome = createControls()
         surface.addView(chrome, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
@@ -665,6 +667,40 @@ class PlayerActivity : ComponentActivity() {
         "Japanese" to "ja", "Korean" to "ko"
     )
 
+    /** Respect TV-specific subtitle display settings, independent of the chosen track.
+     * Embedded cue background/style is disabled so the chosen opacity wins.
+     */
+    private fun applySubtitleAppearance() {
+        if (!::playerView.isInitialized) return
+        val prefs = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
+        val backgroundAlpha = when (prefs.getString("background", "none")) {
+            "25" -> 0x40
+            "50" -> 0x80
+            "75" -> 0xBF
+            "100" -> 0xFF
+            else -> 0x00
+        }
+        val background = (backgroundAlpha shl 24)
+        val foreground = if (prefs.getString("color", "white") == "yellow")
+            Color.YELLOW else Color.WHITE
+        val textSize = when (prefs.getString("size", "normal")) {
+            "small" -> 0.042f
+            "large" -> 0.068f
+            else -> 0.0533f
+        }
+        playerView.subtitleView?.apply {
+            setApplyEmbeddedStyles(false)
+            setStyle(CaptionStyleCompat(
+                foreground, background, Color.TRANSPARENT,
+                if (prefs.getBoolean("outline", true))
+                    CaptionStyleCompat.EDGE_TYPE_OUTLINE
+                else CaptionStyleCompat.EDGE_TYPE_NONE,
+                Color.BLACK, android.graphics.Typeface.DEFAULT
+            ))
+            setFractionalTextSize(textSize)
+        }
+    }
+
     /** Subtitle choices are stored in this TV's app data, never on the server. */
     private fun applyDefaultSubtitlesForThisTv() {
         val local = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
@@ -945,6 +981,15 @@ class PlayerActivity : ComponentActivity() {
                 return true
             }
         }
+        // The paired key-up must not activate a newly revealed control after
+        // DOWN paused or resumed the video.
+        if (direction == KeyEvent.KEYCODE_DPAD_CENTER ||
+            direction == KeyEvent.KEYCODE_ENTER) {
+            val focused = currentFocus
+            if (event.action == KeyEvent.ACTION_UP &&
+                (focused == null || focused === timeline || focused === playerView))
+                return true
+        }
         if (isDpad && event.action == KeyEvent.ACTION_UP) {
             if (lastRemoteDirection == direction) lastRemoteDirection = -1
             return true
@@ -960,13 +1005,19 @@ class PlayerActivity : ComponentActivity() {
                     return true
                 }
                 KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    // OK on the timeline toggles play/pause (the bar itself is
-                    // not clickable).
-                    if (chrome.visibility == View.VISIBLE && currentFocus === timeline) {
+                    // Select toggles playback whenever the video is showing
+                    // without an actionable control selected. A visible, focused
+                    // toolbar button still responds to OK normally.
+                    val focused = currentFocus
+                    val controlsHidden = chrome.visibility != View.VISIBLE
+                    val videoSelected = focused == null || focused === timeline ||
+                        focused === playerView
+                    if (controlsHidden || videoSelected) {
                         if (event.repeatCount == 0) {
                             val active = player
                             if (active?.isPlaying == true) active.pause() else active?.play()
                             showChrome()
+                            refreshControls()
                         }
                         return true
                     }
