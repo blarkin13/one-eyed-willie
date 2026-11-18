@@ -10,6 +10,9 @@
   let settings = {...defaults}, canvas=null, ctx=null, frame=0;
   let particles=[], width=0, height=0, last=0, running=false, stopped=false;
   let previousTime=0;
+  // Carry the most recently confirmed preference across a page navigation,
+  // while still loading the server as the source of truth for other devices.
+  const cacheKey='willie:ambient:confirmed';
   const speedMap={slow:.55,normal:1,fast:1.65};
   const rand=(min,max)=>min+Math.random()*(max-min);
   const suppress=()=>document.hidden||reduced.matches||!!document.fullscreenElement||
@@ -111,7 +114,11 @@
     if(!canvas)return;
     const show=settings.effect!=='off'&&!suppress();
     canvas.hidden=!show;
-    canvas.style.zIndex=settings.layer==='background'?'0':'700';
+    // An explicit display rule avoids WebView CSS rules overriding [hidden].
+    canvas.style.display=show?'block':'none';
+    // z-index 0 was underneath full-screen media backdrops on library pages.
+    // Background means below menus and chrome, but above page artwork.
+    canvas.style.zIndex=settings.layer==='background'?'35':'700';
     if(show&&!running){
       running=true;last=performance.now();previousTime=0;
       frame=requestAnimationFrame(loop);
@@ -128,8 +135,12 @@
   async function load(){
     try{
       const response=await fetch('/api/settings/ambient',{cache:'no-store'});
-      if(response.ok)update(await response.json());
-    }catch(_){/* Off by default; network failures must not affect navigation. */}
+      if(response.ok){
+        const saved=normalize(await response.json());
+        update(saved);
+        try{sessionStorage.setItem(cacheKey,JSON.stringify(saved))}catch(_){}
+      }
+    }catch(_){/* Keep the last confirmed preference if temporarily offline. */}
   }
   function init(){
     if(!document.body||canvas)return;
@@ -139,6 +150,7 @@
     canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;'+
       'contain:strict;z-index:700';
     canvas.hidden=true;
+    canvas.style.display='none';
     document.body.append(canvas);
     size();
     window.addEventListener('resize',size,{passive:true});
@@ -152,10 +164,19 @@
       stopped=true;running=false;cancelAnimationFrame(frame);
       observer.disconnect();
     },{once:true});
+    try{
+      const confirmed=JSON.parse(sessionStorage.getItem(cacheKey)||'null');
+      if(confirmed)update(confirmed);
+    }catch(_){}
     load();
   }
   window.WillieAmbient={
     preview:next=>update({...settings,...next}),
+    confirmed:next=>{
+      const value=normalize(next);
+      update(value);
+      try{sessionStorage.setItem(cacheKey,JSON.stringify(value))}catch(_){}
+    },
     refresh:load,
     current:()=>({...settings})
   };
