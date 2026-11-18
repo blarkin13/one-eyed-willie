@@ -551,7 +551,7 @@ class PlayerActivity : ComponentActivity() {
                 isFocusable = true
                 isFocusableInTouchMode = true
                 isClickable = true
-                minHeight = dp(53)
+                minimumHeight = dp(53)
                 contentDescription = label + if (chosen) ", selected" else ""
             }
             val marker = View(this)
