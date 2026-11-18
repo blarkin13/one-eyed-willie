@@ -45,6 +45,24 @@ class AmbientSettingsTests(unittest.TestCase):
             conn.execute("INSERT INTO app_settings VALUES('ambient_effect','broken')")
         self.assertEqual(get_ambient()["effect"],"off")
 
+    def test_saved_setting_survives_separate_get_requests(self):
+        save_ambient(AmbientPreferences(effect="rain", intensity=85,
+                                        speed="fast", layer="foreground"))
+        self.assertEqual(get_ambient()["effect"], "rain")
+        self.assertEqual(get_ambient()["intensity"], 85)
+
+    def test_choice_changes_autosave_on_web_and_tv(self):
+        root=Path(__file__).resolve().parents[1]/"server"
+        web=(root/"appearance_settings.html").read_text()
+        tv=(root/"tv_settings.html").read_text()
+        ambient=(root/"ambient.js").read_text()
+        self.assertIn("control.addEventListener('change',saveAmbient)", web)
+        self.assertIn("saveAmbientOnTv();", tv)
+        self.assertIn("tv-ambient-intensity').onchange=saveAmbientOnTv", tv)
+        self.assertIn("sessionStorage.setItem(cacheKey", ambient)
+        self.assertIn("canvas.style.display=show?'block':'none'", ambient)
+        self.assertIn("settings.layer==='background'?'35':'700'", ambient)
+
     def test_static_script_in_every_browsing_page(self):
         root=Path(__file__).resolve().parents[1]/"server"
         for name in ("dashboard.html","catalog.html","movie_detail.html",
