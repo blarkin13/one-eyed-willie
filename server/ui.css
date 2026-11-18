@@ -982,3 +982,13 @@ body[data-page="home"] .shelf-track>.tile{
  .library-header-title .library-header-icon .library-fa-icon>i{font-size:48px}
  .library-header-title .library-header-icon .library-fa-icon>.library-fa-fallback{width:48px;height:48px}
 }
+
+/* Stronger legacy library SVG selectors must not reveal Font Awesome fallbacks. */
+.fontawesome-ready .library-settings-icon .library-fa-icon>svg.library-fa-fallback,
+.fontawesome-ready #library-editor .library-icon-card .library-fa-icon>svg.library-fa-fallback,
+.fontawesome-ready #library-editor .library-fa-icon>svg.library-fa-fallback,
+.fontawesome-ready .library-fa-icon>svg.library-fa-fallback{display:none!important}
+.library-settings-icon .library-fa-icon>i,
+#library-editor .library-fa-icon>i{display:none}
+.fontawesome-ready .library-settings-icon .library-fa-icon>i,
+.fontawesome-ready #library-editor .library-fa-icon>i{display:inline-block!important}
