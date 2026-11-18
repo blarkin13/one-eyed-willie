@@ -30,12 +30,12 @@
 </div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
 <h2 id="tv-color-heading">TV selection color</h2>
-<p>Choose the highlight color used by Google TV remotes. Purple is the default. This preference is stored on the server and shared by TVs connected to it.</p>
+<p>Choose the highlight color used by Google TV remotes. Crimson red is the default. This preference is stored on the server and shared by TVs connected to it.</p>
 <div class="settings-card">
 <form id="tv-appearance-form">
 <label for="tv-selection-color">Selected icon and focus color</label>
 <select id="tv-selection-color" name="tv-selection-color">
-<option value="#8B5CF6">Purple (default)</option>
+<option value="#A61E1E">Crimson red (default)</option><option value="#8B5CF6">Purple</option>
 <option value="#3B82F6">Blue</option>
 <option value="#14B8A6">Teal</option>
 <option value="#22C55E">Green</option>
@@ -121,7 +121,7 @@ function notice(message,error=false){
 }
 async function loadTvAppearance(){
  const pref=await api('/api/settings/tv-appearance');
- el('tv-selection-color').value=pref.selection_color||'#8B5CF6';
+ el('tv-selection-color').value=pref.selection_color||'#A61E1E';
 }
 el('tv-appearance-form').onsubmit=async event=>{
  event.preventDefault();
