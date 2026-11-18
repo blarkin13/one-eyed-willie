@@ -3,7 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · TV Shows</title>
-<link rel="stylesheet" href="/assets/ui.css?v=appearance-1"><script defer src="/assets/shell.js?v=appearance-1"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<script src="/assets/media-title-logo.js?v=1"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script><script defer src="/assets/player.js?v=continue-next-1"></script><script defer src="/assets/theme-music.js?v=5"></script>
 <style>
 body[data-page=tv] .tv-extras{padding:10px 0 28px}
@@ -333,6 +334,20 @@ body.tv-season-mode #loading:empty{display:none}
 .season-episode-tile.is-selected:is(:focus,:focus-visible){
   transform:scale(1.075)!important;outline:0!important;box-shadow:none!important
 }
+
+/* Phone-only TV show detail: eliminate the reserved header/loading gap.
+   Do not change the fixed-height season cinema or Google TV layout. */
+#loading:empty{display:none}
+@media(max-width:700px){
+  body[data-page="tv"]:not(.tv-season-mode) .workspace>.content{
+    padding-top:34px!important;
+  }
+  body[data-page="tv"]:not(.tv-season-mode) .tv-show-hero{
+    margin-top:0!important;
+    padding-top:8px!important;
+    padding-bottom:12px!important;
+  }
+}
 </style><script defer src="/assets/ambient.js?v=1"></script>
 </head><body data-page="tv">
 <div class="app-shell">
@@ -560,11 +575,14 @@ function seriesDescriptionDialog(title,overview){
  dialog.addEventListener('click',event=>{if(event.target===dialog)dialog.close()});
  dialog.showModal();close.focus();
 }
-function hero(title,overview,art,backdrop,year,subtitle){
+function hero(title,overview,art,backdrop,year,subtitle,logoUrl){
  const head=el('section','media-hero tv-show-hero');
  if(backdrop)head.appendChild(image(backdrop,'hero-backdrop',''));
  const artNode=poster(art,title+' poster');
- const info=el('div','hero-info');info.append(el('p','eyebrow',subtitle||'TV SERIES'),el('h1','',title));
+ const info=el('div','hero-info');
+ const name=el('h1','',title);
+ YarMediaTitleLogo.set(name,title,logoUrl);
+ info.append(el('p','eyebrow',subtitle||'TV SERIES'),name);
  if(year)info.appendChild(el('p','muted',String(year)));
  const summary=el('div','series-overview-wrap');
  const description=el('p','series-overview',overview||'No description available for this title yet.');
@@ -777,7 +795,7 @@ async function renderShow(){
  const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
  document.title=data.title+' · One-Eyed Willie';
  state.show_title=data.title;
- const showHero=hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES');
+ const showHero=hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES',data.logo_url);
  showHero.append(seriesControls(data));
  view.append(showHero);
  const heading=el('div','section-heading');heading.append(el('h2','','Seasons'),el('span','',data.seasons.length+' available'));
@@ -885,6 +903,7 @@ async function renderSeason(){
   const tabsRail=setupSeasonRail(tabs,'seasons');cinema.append(tabsRail.shell);
   const copy=el('div','season-hero-copy');
   const showName=el('h1','season-show-name',data.show.title);
+  YarMediaTitleLogo.set(showName,data.show.title,data.show.logo_url);
   const epTitle=el('h2','season-episode-title');
   const epMeta=el('div','season-episode-meta');
   const epOverview=el('p','season-episode-summary');

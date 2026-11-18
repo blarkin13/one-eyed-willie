@@ -106,6 +106,23 @@ def image_url(path, size="w342"):
     return None
 
 
+def logo_image_url(images):
+    """Choose an English or language-neutral transparent TMDB title logo."""
+    logos = images.get("logos", []) if isinstance(images, dict) else []
+    eligible = [entry for entry in logos if isinstance(entry, dict)
+                and entry.get("iso_639_1") in ("en", None)
+                and image_url(entry.get("file_path"), "w500")]
+    if not eligible:
+        return None
+    best = max(eligible, key=lambda entry: (
+        entry.get("iso_639_1") == "en",
+        entry.get("vote_count") or 0,
+        entry.get("vote_average") or 0,
+        entry.get("width") or 0,
+    ))
+    return image_url(best["file_path"], "w500")
+
+
 def _simple(value):
     return VALID_TITLE.sub("", (value or "").casefold())
 
@@ -114,7 +131,7 @@ def show_metadata(title, year=None):
     """Only exact-normalized title matches, avoiding incorrect posters for similar shows."""
     if not token_status():
         return {}
-    key = "tv:v4:" + _simple(title) + ":" + str(year or "")
+    key = "tv:v5:" + _simple(title) + ":" + str(year or "")
     with LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -147,7 +164,8 @@ def show_metadata_by_id(tmdb_id, fallback=None):
     if not token_status() or not isinstance(tmdb_id, int) or tmdb_id <= 0:
         return {}
     details = _call("tv/" + str(tmdb_id), query={
-        "language": "en-US", "append_to_response": "videos,credits,reviews,content_ratings,external_ids"
+        "language": "en-US", "include_image_language": "en,null",
+        "append_to_response": "videos,credits,reviews,content_ratings,external_ids,images"
     })
     if not isinstance(details, dict):
         details = fallback
@@ -202,6 +220,7 @@ def show_metadata_by_id(tmdb_id, fallback=None):
         "title": details.get("name") or str(tmdb_id),
         "overview": details.get("overview") or "",
         "poster_url": image_url(details.get("poster_path")),
+        "logo_url": logo_image_url(details.get("images")),
         "backdrop_url": image_url(details.get("backdrop_path"), "w780"),
         "seasons": seasons,
         "source": "TMDB",

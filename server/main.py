@@ -400,6 +400,12 @@ def ui_stylesheet(request: Request):
     return Response(stylesheet + "\n" + TV_RAIL_CSS, media_type="text/css",
                     headers={"Cache-Control": "no-store", "Vary": "User-Agent"})
 
+@app.get("/assets/media-title-logo.js")
+def media_title_logo_script():
+    return FileResponse(Path(__file__).with_name("media_title_logo.js"), media_type="text/javascript",
+                        headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.get("/assets/brand/{brand}.svg")
 def integration_brand_svg(brand: str):
     # Serve only the locally bundled official integration logos.

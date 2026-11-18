@@ -3,7 +3,8 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>One-Eyed Willie · Explore More</title>
-<link rel="stylesheet" href="/assets/ui.css?v=appearance-1"><script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<script src="/assets/media-title-logo.js?v=1"></script><script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
 <style>
 .explore-search{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:25px 0 20px}
 .explore-search .search-box{flex:1;min-width:220px}.explore-search .search-box input{width:100%}
@@ -230,7 +231,9 @@ async function showDetail(item,isDiscovery){
  const poster=detailImage(data.poster_url||item.poster_url,'explore-poster',title+' poster');
  hero.append(poster||node('div','explore-poster'));
  const info=node('div','explore-info');
- info.append(node('p','eyebrow',provider==='radarr'?'MOVIE':'TV SERIES'),node('h1','',title));
+ const heading=node('h1','',title);
+ YarMediaTitleLogo.set(heading,title,data.logo_url);
+ info.append(node('p','eyebrow',provider==='radarr'?'MOVIE':'TV SERIES'),heading);
  const meta=node('div','explore-meta');
  addFact(meta,data.release_date||item.release_date||item.year);
  const score=Number(data.rating??item.rating);

@@ -190,7 +190,7 @@ def localize(value):
     if isinstance(value, dict):
         result = {}
         for key, item in value.items():
-            if key in ("poster_url", "backdrop_url", "still_url"):
+            if key in ("poster_url", "backdrop_url", "still_url", "logo_url"):
                 result[key] = register_remote(item) if item else None
             else:
                 result[key] = localize(item)

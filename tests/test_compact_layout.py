@@ -56,6 +56,21 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("info.tmdb_rating", page)
         self.assertIn("info.genres", page)
 
+    def test_phone_home_shelves_do_not_force_full_screen_and_hide_posters(self):
+        home = (SERVER / "dashboard.html").read_text()
+        self.assertIn('body[data-page="home"] .shelf{', home)
+        self.assertIn('height:auto;min-height:0;max-height:none;overflow:visible;', home)
+        self.assertIn('body[data-page="home"] .home-feature{', home)
+        self.assertIn('flex:0 0 auto;min-height:0;height:auto;max-height:none;', home)
+        self.assertIn("String(item.subtitle).trim()!==String(year||'').trim()", home)
+
+    def test_mobile_show_details_do_not_reserve_loading_space(self):
+        show = (SERVER / "tv_detail.html").read_text()
+        self.assertIn("#loading:empty{display:none}", show)
+        self.assertIn('body[data-page="tv"]:not(.tv-season-mode) .workspace>.content', show)
+        self.assertIn('padding-top:34px!important;', show)
+        self.assertIn('body[data-page="tv"]:not(.tv-season-mode) .tv-show-hero', show)
+
     def test_home_details_use_global_backdrop_and_fixed_layout_to_prevent_jumps(self):
         page = (SERVER / "dashboard.html").read_text()
         self.assertIn("const serial=++state.serial", page)

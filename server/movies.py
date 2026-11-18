@@ -362,17 +362,18 @@ def _movie_extras(radarr):
     tmdb_id = radarr.get("tmdb_id")
     if not isinstance(tmdb_id, int) or tmdb_id <= 0:
         return {}
-    from .metadata import token_status, _call, _cache_get, _cache_put, image_url, LOCK as META_LOCK
+    from .metadata import token_status, _call, _cache_get, _cache_put, image_url, logo_image_url, LOCK as META_LOCK
     if not token_status():
         return {}
-    key = "movie-extras:v4:" + str(tmdb_id)
+    key = "movie-extras:v5:" + str(tmdb_id)
     with META_LOCK:
         cached = _cache_get(key)
         if cached is not None:
             return cached
         details = _call("movie/" + str(tmdb_id),
                         query={"language": "en-US",
-                               "append_to_response": "credits,reviews,videos"})
+                               "include_image_language": "en,null",
+                               "append_to_response": "credits,reviews,videos,images"})
         if details is None:
             return {}
         credits = details.get("credits") or {}
@@ -405,6 +406,7 @@ def _movie_extras(radarr):
             "overview": str((details or {}).get("overview") or "")[:1200],
             "poster_url": register_remote(image_url(details.get("poster_path"), "w500")),
             "backdrop_url": register_remote(image_url(details.get("backdrop_path"), "w1280")),
+            "logo_url": register_remote(logo_image_url(details.get("images"))),
             "cast": cast, "reviews": user_reviews,
             "tagline": str((details or {}).get("tagline") or "")[:250],
             "release_date": (details or {}).get("release_date"),
