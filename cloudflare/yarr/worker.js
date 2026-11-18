@@ -323,7 +323,7 @@ export default { async fetch(req,env) {
   if(req.method==='GET'&&u.pathname==='/api/servers'){
    const user=await currentUser(req,env);
    if(!user)return json({error:'not_authenticated'},401);
-   return json({servers:await listServers(env,user.id),verified_access:false});
+   return json({servers:(await listServers(env,user.id)).map(s=>({id:s.id,display_name:s.display_name,status:s.status,paired:s.status==='paired'&&!!s.server_identity,online:!!s.online,last_seen_at:s.last_seen_at,credential_ready:!!s.connection_secret_hash,created_at:s.created_at})),verified_access:false});
   }
   if(req.method==='GET'&&u.pathname==='/api/me') {
    const user=await currentUser(req,env);
