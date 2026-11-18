@@ -91,8 +91,8 @@ def start_pairing(request: Request):
     _same_origin(request)
     with LOCK:
         previous = _read()
-        if previous.get("status") == "paired":
-            raise HTTPException(409, "Server is already linked to a Yarr account")
+        if previous.get("status") == "paired" and previous.get("poll_secret"):
+            raise HTTPException(409, "Server is already linked and its connection credential is active")
         code = "".join(secrets.choice(ALPHABET) for _ in range(16))
         secret = secrets.token_urlsafe(32)
         _cloud("/api/pairing/start", data={
@@ -114,7 +114,8 @@ def pairing_status():
         if not current:
             return {"status": "not_started"}
         if current.get("status") == "paired":
-            return {"status": "paired"}
+            return {"status": "paired", "connection_ready": bool(current.get("poll_secret")),
+                    "last_heartbeat": current.get("last_heartbeat") }
         if int(current.get("expires_at") or 0) <= time.time():
             _save({"server_id": get_server_id(), "status": "expired"})
             return {"status": "expired"}
@@ -125,6 +126,34 @@ def pairing_status():
         if cloud.get("status") == "paired" and cloud.get("server_id"):
             _save({"server_id": get_server_id(), "status": "paired",
                    "account_server_id": cloud["server_id"],
+                   "poll_secret": poll_secret,
                    "paired_at": int(time.time())})
             return {"status": "paired"}
         return {"status": "pending", "expires_in": max(0, int(current["expires_at"] - time.time()))}
+
+
+def report_heartbeat():
+    """Send only a signed-in server presence signal; never send media or LAN details."""
+    with LOCK:
+        record = _read()
+        if record.get("status") != "paired" or not record.get("poll_secret"):
+            return False
+        secret = record["poll_secret"]
+    _cloud("/api/connection/heartbeat", data={}, secret=secret)
+    with LOCK:
+        current = _read()
+        if current.get("status") == "paired" and current.get("poll_secret") == secret:
+            current["last_heartbeat"] = int(time.time())
+            _save(current)
+    return True
+
+
+def heartbeat_loop(stop):
+    # Each instance is optional: unpaired servers perform no cloud network requests.
+    while not stop.is_set():
+        try:
+            report_heartbeat()
+        except Exception:
+            # Loss of connectivity must never affect local media playback.
+            pass
+        stop.wait(60)
