@@ -124,9 +124,13 @@ async function yarrCheck(){
   const r=await fetch('/api/yarr/pair/status',{cache:'no-store'});
   const result=await r.json();
   if(!r.ok)throw Error(result.detail||'Unable to check Yarr pairing');
-  if(result.status==='paired'){
-   yarrStatus.textContent='Connected to your Yarr account. Remote access is not yet enabled.';
+  if(result.status==='paired'&&result.connection_ready){
+   yarrStatus.textContent='Account paired. Secure online status is enabled; remote playback is not yet available.';
    yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
+  }else if(result.status==='paired'){
+   yarrStatus.textContent='Account paired. Refresh the connection to activate online status reporting.';
+   yarrStart.textContent='Refresh secure connection';
+   yarrStart.hidden=false;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
   }else if(result.status==='pending'){
    yarrStatus.textContent='Pairing pending. Enter the code in your Yarr account.';
    yarrClaim.hidden=false;
