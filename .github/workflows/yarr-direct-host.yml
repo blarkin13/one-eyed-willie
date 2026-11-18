@@ -1,0 +1,60 @@
+name: Yarr host-network direct media pilot
+on:
+  pull_request:
+    paths:
+      - "server/yarr_direct_peer.py"
+      - "server/yarr_direct_gateway.py"
+      - "server/yarr_ice_host.py"
+      - "server/main.py"
+      - "server/yarr_direct_client.js"
+      - "server/yarr_direct_sw.js"
+      - "cloudflare/yarr/worker.js"
+      - "compose.yaml"
+      - "compose.remote.yaml"
+      - "requirements.txt"
+      - "tests/test_yarr_direct_host.py"
+      - ".github/workflows/yarr-direct-host.yml"
+  push:
+    branches: ["feature/yarr-direct-media-host-transport"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  media-transport:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt pytest pytest-asyncio
+      - name: Compile Python transport and gateway
+        run: python -m compileall -q server/yarr_direct_peer.py server/yarr_direct_gateway.py server/yarr_ice_host.py server/main.py tests/test_yarr_direct_host.py
+      - name: Validate credential gates, media allowlist, and HTTP 206 byte integrity
+        run: python -m pytest -q tests/test_yarr_direct_host.py tests/test_yarr_ice_probe.py
+      - name: Check Worker, client and service-worker JavaScript
+        run: |
+          node --input-type=module --check < cloudflare/yarr/worker.js
+          node --check server/yarr_direct_client.js
+          node --check server/yarr_direct_sw.js
+      - name: Verify direct mode off by default and original bridge preserved
+        run: |
+          docker compose -f compose.yaml config --format json >/tmp/local-compose.json
+          WILLIE_HOSTNAME=example.test WILLIE_USERNAME=test WILLIE_PASSWORD_HASH=test docker compose -f compose.remote.yaml config --format json >/tmp/remote-compose.json
+          python - <<'PY'
+          import json
+          for f in ('/tmp/local-compose.json','/tmp/remote-compose.json'):
+              services=json.load(open(f))['services']
+              primary=services['one-eyed-willie']
+              sidecar=services['yarr-ice-diagnostic']
+              assert primary['environment']['YARR_DIRECT_PEER_ENABLED']=='0'
+              assert sidecar['environment']['YARR_DIRECT_PEER_ENABLED']=='0'
+              assert sidecar['network_mode']=='host'
+              assert not any('/media' in str(m) for m in sidecar.get('volumes', []))
+          print('Direct video pilot disabled; original playback and diagnostics retained')
+          PY
+      - name: Build production container with pilot media modules
+        run: docker build -t yarr-direct-host:ci .
