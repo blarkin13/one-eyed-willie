@@ -100,7 +100,7 @@ def _delete_manager(name, resource, record_id, query=None):
         raise HTTPException(409, f"Connect {name.title()} in Settings → Connections")
     # The resource is a hardcoded choice, never a client-supplied URL/path.
     if (name, resource) not in {
-        ("radarr", "movie"), ("sonarr", "series"), ("sonarr", "episodefile")
+        ("radarr", "movie"), ("radarr", "moviefile"), ("sonarr", "series"), ("sonarr", "episodefile")
     } or not isinstance(record_id, int) or record_id <= 0:
         raise HTTPException(422, "Invalid manager deletion target")
     endpoint = f"/api/{arr._version(name, settings)}/{resource}/{record_id}"
