@@ -16,7 +16,7 @@ class ConnectionsPageTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.html = PAGE.read_text(encoding="utf-8")
-        match = re.search(r"<script>([\\s\\S]*?)</script>", cls.html)
+        match = re.search(r"<script>(.*?)</script>", cls.html, re.DOTALL)
         assert match, "Connections page must include its initialization script"
         cls.script = match.group(1)
 
