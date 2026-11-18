@@ -381,6 +381,42 @@ class LibraryScrollBrowserTests(unittest.TestCase):
                 self.assertTrue(page.evaluate(
                     "name => document.getElementById(name+'-menu').hidden", name))
 
+    def test_sort_same_count_rebuilds_cached_poster_grid_navigation(self):
+        """Changing sort replaces posters without changing their count.
+
+        The TV row cache must stop referencing the removed poster elements;
+        this is why Filter (new count) worked while Sort (same count) did not.
+        """
+        page = self.open_library()
+        page.evaluate("window.__willieTvMove('down')")  # prime row cache
+        original_count = page.evaluate("document.querySelectorAll('#items .tile-button').length")
+        for value in ("added", "length", "rating", "title"):
+            with self.subTest(sort=value):
+                page.evaluate("""value => {
+                    document.getElementById('sort-toggle').focus({preventScroll:true});
+                    document.getElementById('sort-toggle').click();
+                    const option=[...document.querySelectorAll('#sort-menu .catalog-tool-option')]
+                      .find(x => x.dataset.menuValue === value);
+                    if(!option)throw Error('Missing sort '+value);
+                    option.focus({preventScroll:true});
+                    window.__willieTvSelect();
+                }""", value)
+                page.wait_for_function("!loading", timeout=30000)
+                page.wait_for_function(
+                    "document.querySelectorAll('#items .tile-button').length >= %d"
+                    % original_count, timeout=30000)
+                self.assertEqual(page.evaluate("document.querySelectorAll('#items .tile-button').length"),
+                                 original_count)
+                self.assertEqual(page.evaluate("document.activeElement?.id"), "sort-toggle")
+                page.evaluate("window.__willieTvMove('down')")
+                self.assertTrue(page.evaluate(
+                    "document.activeElement?.matches?.('#items .tile-button')"),
+                    "Down after sorting %s should focus a real poster" % value)
+                self.assertTrue(page.evaluate("document.activeElement?.isConnected"))
+                # Prime the row cache again so the next same-count replacement
+                # must invalidate it, rather than using an unpopulated cache.
+                page.evaluate("window.__willieTvMove('down')")
+
     def test_filter_last_option_down_exits_to_posters(self):
         page = self.open_library()
         page.evaluate("""() => {
