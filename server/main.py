@@ -434,7 +434,7 @@ def sidebar_default_icon(name: str):
 @app.get("/assets/library-header-{kind}.png")
 def default_library_header_image(kind: str):
     from server.library_header_art import default_png
-    if kind not in ("movies", "tv"):
+    if kind not in ("movies", "tv", "music"):
         from fastapi import HTTPException
         raise HTTPException(404, "No default header for this library type")
     return Response(content=default_png(kind), media_type="image/png",
