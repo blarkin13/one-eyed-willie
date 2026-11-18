@@ -2362,7 +2362,14 @@ class MainActivity : ComponentActivity() {
                   rows[rows.length-1].push(card);
                 }
                 libraryLayoutCache={grid,count:grid.children.length,
-                  width:grid.clientWidth,rows,info};
+                  width:grid.clientWidth,
+                  // Sorting can REPLACE every poster while leaving the count
+                  // and width unchanged. Remember actual tile identities so
+                  // the cached row model never points to detached elements.
+                  firstTile:grid.firstElementChild,
+                  lastTile:grid.lastElementChild,
+                  middleTile:grid.children[Math.floor(grid.children.length/2)]||null,
+                  rows,info};
                 return libraryLayoutCache;
               };
               const libraryLayout=known=>{
@@ -2371,6 +2378,10 @@ class MainActivity : ComponentActivity() {
                 if(cache&&cache.grid===grid&&grid&&
                    cache.count===grid.children.length&&
                    cache.width===grid.clientWidth&&
+                   cache.firstTile===grid.firstElementChild&&
+                   cache.lastTile===grid.lastElementChild&&
+                   cache.middleTile===(grid.children[Math.floor(grid.children.length/2)]||null)&&
+                   (!cache.rows[0]?.[0]||cache.rows[0][0].isConnected)&&
                    (!known||cache.info.has(known)))return cache;
                 return buildLibraryLayout();
               };
