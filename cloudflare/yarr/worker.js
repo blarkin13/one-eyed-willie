@@ -134,7 +134,7 @@ function remoteAddress(input) {
  return url.origin;
 }
 async function listServers(env,userId) {
- const result=await env.ACCOUNTS.prepare('SELECT id,display_name,local_url,public_url,status,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC').bind(userId).all();
+ const result=await env.ACCOUNTS.prepare('SELECT id,display_name,local_url,public_url,status,server_identity,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC').bind(userId).all();
  return result.results||[];
 }
 async function serverMutation(req,env,user) {
@@ -146,20 +146,17 @@ async function serverMutation(req,env,user) {
  const body=await req.text();
  if(body.length>2500)return json({error:'request_too_large'},413);
  const data=new URLSearchParams(body),action=data.get('action');
- if(action==='create'){
-  const name=String(data.get('name')||'').trim();
-  if(!name||name.length>80)return redirect('/account?server=invalid');
-  // Server addresses are not collected during normal onboarding; ownership pairing comes later.
-  const count=await env.ACCOUNTS.prepare('SELECT COUNT(*) AS n FROM servers WHERE owner_user_id=?').bind(user.id).first();
-  if(Number(count?.n||0)>=5)return redirect('/account?server=limit');
-  await env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,local_url,public_url,status) VALUES(?,?,?,?,?,'pending')").bind(crypto.randomUUID(),user.id,name,null,null).run();
-  return redirect('/account?server=created');
+ if(action==='rename'){
+  const id=String(data.get('id')||''),name=String(data.get('name')||'').trim();
+  if(!/^[a-f0-9-]{36}$/.test(id)||!name||name.length>80)return redirect('/account?server=invalid');
+  const result=await env.ACCOUNTS.prepare("UPDATE servers SET display_name=? WHERE id=? AND owner_user_id=?").bind(name,id,user.id).run();
+  return redirect('/account?server='+(result.meta.changes?'renamed':'invalid'));
  }
  if(action==='delete'){
   const id=String(data.get('id')||'');
   if(!/^[a-f0-9-]{36}$/.test(id))return redirect('/account?server=invalid');
-  await env.ACCOUNTS.prepare('DELETE FROM servers WHERE id=? AND owner_user_id=?').bind(id,user.id).run();
-  return redirect('/account?server=deleted');
+  const result=await env.ACCOUNTS.prepare("DELETE FROM servers WHERE id=? AND owner_user_id=? AND server_identity IS NULL").bind(id,user.id).run();
+  return redirect('/account?server='+(result.meta.changes?'deleted':'protected'));
  }
  return redirect('/account?server=invalid');
 }
@@ -231,13 +228,21 @@ async function pairingClaim(req,env,user){
 }
 
 function serversHTML(servers) {
- const summary='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Connect a Yarr Server</h2><p class="note">In the installed server, open Settings → Remote Access → Connect to Yarr. Enter its one-time code here. You do not need an IP address or a public URL.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section><section class="block"><p class="eyebrow">Your servers</p><h2>Connect your server</h2><p class="note">Give your server a name. Yarr will provide a secure pairing process in a future update. No IP addresses or external URLs are required here.</p>';
- const cards=servers.length?servers.map(s=>'<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Awaiting pairing</span></div><p class="note">This server is not connected yet. Its media cannot be viewed until ownership is verified.</p><form method="post" action="/account/servers"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove registration</button></form></article>').join(''):'<div class="server"><p class="note">No servers registered yet.</p></div>';
- const form='<h3>Register a server</h3><form method="post" action="/account/servers" class="serverform"><input type="hidden" name="action" value="create"><label>Server name<input required maxlength="80" name="name" placeholder="My Yarr Server"></label><p class="note">Registration does not open any network ports or connect to media. Automatic secure pairing will be added next.</p><button class="btn" type="submit">Save server</button></form><p class="note"><a href="/app">Open Yarr app preview</a></p></section>';
- return summary+cards+form;
+ const paired=servers.some(s=>s.status==='paired'&&s.server_identity);
+ const pairing=paired?'':'<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
+ const cards=servers.length?servers.map(s=>{
+  const linked=s.status==='paired'&&!!s.server_identity;
+  const tag=linked?'<span class="tag" style="color:#b6e9cb;background:#203c31">Paired</span>':'<span class="tag">Not paired</span>';
+  const description=linked?'Account ownership verified. Remote playback is not enabled yet.':'This manual registration is not linked to an installed server.';
+  const rename='<form method="post" action="/account/servers" class="serverform" style="margin-top:14px;gap:8px"><input type="hidden" name="action" value="rename"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label>Server name<input required maxlength="80" name="name" value="'+escapeHTML(s.display_name)+'"></label><div><button type="submit" class="smallbtn">Save name</button></div></form>';
+  const removal=linked?'':'<form method="post" action="/account/servers" style="margin-top:12px"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove unused registration</button></form>';
+  return '<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3>'+tag+'</div><p class="note">'+description+'</p>'+rename+removal+'</article>';
+ }).join(''):'<div class="server"><p class="note">No servers linked to your account yet.</p></div>';
+ return pairing+'<section class="block"><p class="eyebrow">Your servers</p><h2>Connected servers</h2><p class="note">The server link is tied to your Google account. Media access requires a separate secure connection.</p>'+cards+'<p class="note"><a href="/app">Open Yarr app preview</a></p></section>';
 }
+
 function appHTML(user,servers) {
- const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Pairing required</span></div><p class="note">Media remains on your home server. Connection is not enabled yet.</p></div>').join(''):'<div class="server"><p class="note">No server connected. Register a server name in your account to prepare for pairing.</p></div>';
+ const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">'+(s.status==='paired'&&s.server_identity?'Paired':'Pairing required')+'</span></div><p class="note">'+(s.status==='paired'&&s.server_identity?'Account paired. Remote playback is not enabled yet.':'Server pairing is required.')+'</p></div>').join(''):'<div class="server"><p class="note">No server connected. Register a server name in your account to prepare for pairing.</p></div>';
  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr App Preview</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/account" class="link">Account settings</a></nav><main class="hero"><p class="eyebrow">Your personal media space</p><h1>Welcome, '+escapeHTML(user.display_name||'aboard')+'</h1><p class="lead">Your Yarr app is linked to your Google account. Your personal libraries will appear here once your home server is securely paired.</p><p class="eyebrow">Your servers</p>'+items+'<div class="actions"><a class="btn" href="/account">Manage servers</a></div></main><footer class="note">App preview only. No media is exposed or streamed by this Worker.</footer></div></body></html>';
 }
 
@@ -288,7 +293,7 @@ export default { async fetch(req,env) {
   if(req.method==='GET'&&u.pathname==='/account') {
    const user=await currentUser(req,env);
    const message=u.searchParams.get('login')?'Sign-in was not completed. Please try again.':'';
-   const statuses={created:'Server registered. Secure pairing is the next step.',deleted:'Server registration removed.',invalid:'Check the server name and try again.',limit:'You can register up to five servers during this stage.'};
+   const statuses={renamed:'Server name saved.',deleted:'Unused registration removed.',protected:'Paired servers require a secure unpair flow before removal.',invalid:'Check the server name and try again.'};
    const pairStatuses={success:'Server linked to your account. Remote access is not enabled yet.',invalid:'The pairing code is invalid, expired or already used.',claimed:'That server is already linked. Unpairing is not enabled yet.',slow:'Too many attempts. Try again shortly.',limit:'You can link up to five servers during testing.'};
    const message2=message||pairStatuses[u.searchParams.get('pair')]||statuses[u.searchParams.get('server')]||'';
    const servers=user?await listServers(env,user.id):[];
