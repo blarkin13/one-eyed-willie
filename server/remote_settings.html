@@ -56,15 +56,22 @@
      <a class="primary-button" id="open-remote" href="#" target="_blank" rel="noopener noreferrer" hidden>Open remote site</a>
      <p id="test-note" class="muted">Save a remote URL to enable this link.</p>
     </div>
-    <div class="form-card">
-     <h2>Network setup</h2>
-     <ol class="note-list">
-      <li>Google Wifi forwards TCP 443 to the NUC's HTTPS proxy.</li>
-      <li>A strong password protects remote browser access.</li>
-      <li>Never forward port 8787 publicly.</li>
-      <li>Video playback and Android TV pairing are separate upcoming features.</li>
-     </ol>
-     <p>Changing IP addresses here doesn't automatically alter Cloudflare or HTTPS certificates.</p>
+    <div class="form-card" aria-labelledby="network-heading">
+     <h2 id="network-heading">Direct connection setup</h2>
+     <p>Yarr can use its secure Cloudflare connection without router changes. A direct peer-to-peer connection may require a UDP forwarding rule on some home networks. The steps below are for the current <strong>connection diagnostic only</strong>; direct video playback is still being implemented and verified.</p>
+     <details>
+      <summary>Google Nest Wifi / Google Wifi — test UDP port 3478</summary>
+      <ol class="note-list">
+       <li>Make sure the One-Eyed Willie server has a reserved home-network IP address in Google Home.</li>
+       <li>Open <strong>Google Home → Wi-Fi → Settings → Advanced networking → Port management</strong>.</li>
+       <li>Choose <strong>Add</strong> and select the device running One-Eyed Willie (your Ubuntu server / NUC).</li>
+       <li>Set protocol to <strong>UDP only</strong>. Enter <strong>3478</strong> for both the external and internal ports, then save.</li>
+       <li>From a separate network, sign in to <a href="https://yarr.larki-brian.workers.dev/network-test" target="_blank" rel="noopener noreferrer">Yarr's direct connection test</a>. Look for <strong>PASS</strong> and the <strong>host-network-sidecar</strong> diagnostic backend.</li>
+      </ol>
+      <small>The server must already be running the fixed-UDP diagnostic update. Forwarding a port alone does not configure the application to listen on it.</small>
+     </details>
+     <p>Keep existing HTTPS/443 rules unchanged. <strong>Never forward TCP 8787 or TCP 18799</strong> to the internet; those are local server and diagnostic control endpoints. You do not need to expose your media library to run the test.</p>
+     <p>If the connection test fails, remove the temporary UDP 3478 rule until the network setup is corrected. This port-forward test is optional, not a requirement for every Yarr installation. Yarr still needs automatic NAT traversal and fallback before direct playback can be considered production-ready.</p>
     </div>
    </div>
   </div>
