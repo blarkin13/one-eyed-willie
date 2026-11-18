@@ -13,6 +13,7 @@ NAV = (
     ("home", "Home"),
     ("movies", "Movies"),
     ("tv", "TV Shows"),
+    ("music", "Music"),
     ("connections", "Connections"),
 )
 ALWAYS_VISIBLE = {"home", "settings"}
