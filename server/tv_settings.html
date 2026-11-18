@@ -203,7 +203,7 @@ document.addEventListener('focusin',event=>{
  const action=control.matches('input[type="range"]')?'Left / Right to adjust':
   control.matches('input[type="checkbox"]')?'OK to toggle':
   'OK to select';
- el('tv-focused-control').textContent=label.replace(/\\s+/g,' ').slice(0,110)+' · '+action;
+ el('tv-focused-control').textContent=label.replace(/\s+/g,' ').slice(0,110)+' · '+action;
 });
 async function api(path,options={}){
  const r=await fetch(path,{cache:'no-store',...options,
