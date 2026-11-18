@@ -44,6 +44,8 @@ class TvSortFilterNavigationTests(unittest.TestCase):
         self.assertIn("button.addEventListener('click',()=>{", catalog)
         self.assertIn("select.value=option.value", catalog)
         self.assertIn("menu.hidden=false;", catalog)
+        self.assertIn(".catalog-tool-option:is(:focus,:focus-visible)", catalog)
+        self.assertIn("var(--oew-tv-select-color,#8B5CF6)", catalog)
 
     def test_closed_catalog_menus_are_not_treated_as_active(self):
         native = self.native
