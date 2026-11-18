@@ -372,3 +372,10 @@ document.addEventListener('DOMContentLoaded',()=>{
   });
   document.addEventListener('visibilitychange',()=>{if(document.hidden)select(null)});
 });
+
+// Context menus are shared by Home, both media libraries and season pages.
+// Loading after the page's own handlers preserves Continue Watching's menu.
+const oewContextScript=document.createElement('script');
+oewContextScript.src='/assets/media-context.js?v=1';
+oewContextScript.defer=true;
+document.head.append(oewContextScript);
