@@ -1,6 +1,19 @@
 # One-Eyed Willie
 
-Lightweight, self-hosted Movies and TV media server. Modern interface, with pirate identity limited to the name and logo.
+Lightweight, self-hosted Movies, TV and Music media server. Modern interface, with pirate identity limited to the name and logo.
+
+## Music library (initial web implementation)
+
+Music is a separate media type; it is not included in Movies/TV grouping or Continue Watching.
+
+1. Open **Settings → Libraries → Add library** and select **Music**.
+2. Name the library, select a folder that is already mounted under `/media`, and save.
+3. Click **Scan** for that library (automatic scans also discover new audio files).
+4. Open **Music** in the sidebar to browse artists, albums, and tracks, search and play music.
+
+Supported indexing extensions: MP3, FLAC, M4A, AAC, OGG, Opus, WAV, AIFF, and ALAC. Playback depends on the client's available audio codecs. Music tags and embedded cover art are read with Mutagen; missing or unreadable tags fall back to folder and filename details. Audio media is streamed read-only from configured music library folders.
+
+**Current boundaries:** This is the first web-based Music catalog and player. Playlists, saved favorites, gapless playback, a player that survives full-page navigation, and native Google TV music browsing are not implemented yet. Lidarr can be added later as an optional connection; it is not required to use Music. 
 
 ## Third-party integration branding
 
