@@ -262,6 +262,27 @@ body[data-page="tv"] .workspace>.content {
   padding-left:clamp(36px,5vw,95px)!important;
   padding-right:clamp(36px,5vw,95px)!important;
 }
+/* TV Home: the hero shares the screen with six large posters. Keep it
+   compact: less padding, a smaller title, a two-line description that is cut
+   off with an ellipsis, and no genre/cast lines. Its height is then fitted in
+   dashboard.html so the first row of posters is never pushed off screen. */
+body[data-page="home"] .home-feature {height:clamp(150px,24vh,350px)}
+body[data-page="home"] .home-feature-copy {padding-top:4px!important;padding-bottom:4px!important}
+body[data-page="home"] .home-feature-kicker {height:16px;line-height:16px;margin-bottom:3px}
+body[data-page="home"] .home-feature-title {
+  font-size:clamp(1.3rem,2.6vw,2.4rem);margin-bottom:5px;
+}
+body[data-page="home"] .home-feature-meta {height:20px;min-height:20px;margin-bottom:5px}
+body[data-page="home"] .home-feature-summary {
+  -webkit-line-clamp:2;height:2.86em;min-height:2.86em;
+}
+body[data-page="home"] .home-feature-genres,
+body[data-page="home"] .home-feature-cast {display:none}
+body[data-page="home"] .home-feature {margin-bottom:8px}
+/* The focused poster grows 7% and draws a 2px ring; the row clips vertically,
+   so it needs more room at the bottom than the injected 9px. Higher
+   specificity than the app's injected rule, which is also !important. */
+html body[data-page="home"] .shelf-track {padding-bottom:14px!important}
 /* Home's shelf may use the screen all the way to the right edge. */
 body[data-page="home"] .workspace>.content {padding-right:0!important}
 body[data-page="home"] .shelf .section-heading {
