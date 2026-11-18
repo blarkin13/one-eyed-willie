@@ -265,7 +265,8 @@ class LibraryScrollBrowserTests(unittest.TestCase):
             style = page.evaluate("""() => {
               const node=document.activeElement,s=getComputedStyle(node);
               return {width:s.outlineWidth,style:s.outlineStyle,
-                compact:document.querySelector('.tv-playback-settings').clientWidth<=870};
+                compact:!document.getElementById('tv-remote-help')&&
+                getComputedStyle(document.querySelector('.tv-playback-settings .settings-card')).paddingTop==='13px'};
             }""")
             self.assertEqual(style["style"], "solid")
             self.assertGreaterEqual(float(style["width"].replace("px","")),2)
