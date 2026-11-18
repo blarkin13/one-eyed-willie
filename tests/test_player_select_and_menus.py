@@ -44,12 +44,23 @@ class NativePlayerSelectTests(unittest.TestCase):
         self.assertLess(consumed, passed)
 
     def test_menus_use_translucent_dark_remote_style(self):
+        # Check the look (a translucent dark panel that dims the video and
+        # shows focus in the selection colour), not exact colour values, so
+        # restyling the menus does not break this test.
+        import re
         src = self.source
         self.assertIn('private fun showPlayerMenu(', src)
-        self.assertIn('setColor(0xEF0A111D.toInt())', src)
-        self.assertIn('setDimAmount(0.46f)', src)
+        panel = re.search(r'cornerRadius = dp\(\d+\)\.toFloat\(\)\s+setColor\(0x([0-9A-Fa-f]{8})\.toInt\(\)\)', src)
+        self.assertIsNotNone(panel, 'menu panel colour not found')
+        argb = int(panel.group(1), 16)
+        alpha, red, green, blue = (argb >> 24) & 255, (argb >> 16) & 255, (argb >> 8) & 255, argb & 255
+        self.assertTrue(200 <= alpha < 255, 'panel should be translucent')
+        self.assertLess(max(red, green, blue), 60, 'panel should be dark')
+        dim = re.search(r'setDimAmount\(([0-9.]+)f\)', src)
+        self.assertIsNotNone(dim)
+        self.assertTrue(0.2 <= float(dim.group(1)) <= 0.8)
         self.assertIn('setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))', src)
-        self.assertIn('if (focused || chosen) selectedColor', src)
+        self.assertRegex(src, r'setColor\(if \(focused[^)]*\) selectedColor else Color\.TRANSPARENT\)')
         self.assertIn('isFocusableInTouchMode = true', src)
 
     def test_all_player_menus_share_style(self):
