@@ -68,7 +68,8 @@ def shared_secret():
 
 
 def authorized(credential):
-    if (os.environ.get("YARR_DIRECT_PEER_ENABLED") != "1"
+    if ((os.environ.get("YARR_DIRECT_PEER_ENABLED") != "1"
+            and os.environ.get("YARR_DIRECT_TEST_ENABLED") != "1")
             or os.environ.get("YARR_ICE_PROBE_MODE") != "host"):
         raise HTTPException(404, "Direct peer mode disabled")
     expected = shared_secret()
