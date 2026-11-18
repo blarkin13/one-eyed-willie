@@ -2287,7 +2287,7 @@ class MainActivity : ComponentActivity() {
                 if(path==='/tv/season')return [
                   {scope:'.season-tabs', first:'.season-tabs a[aria-current="page"],.season-tabs a[href]'},
                   {scope:'.season-episode-track', first:'.season-episode-tile.is-selected,.season-episode-tile'},
-                  {scope:'.season-actions-row', first:'#season-play-button'},
+                  {scope:'.season-actions-row', first:'#season-resume-button,#season-play-button'},
                   {scope:'.season-support .tv-cast', first:'.season-support .tv-cast .tv-cast-person'},
                   {scope:'.season-support .tv-reviews', first:'.season-support .tv-reviews button'}
                 ];
@@ -2541,10 +2541,12 @@ class MainActivity : ComponentActivity() {
                 // the current Play action, even when the tile is scrolled
                 // horizontally beyond the location of the action row.
                 if(direction==='down'&&active?.matches?.('.season-episode-tile')){
-                  const play=document.getElementById('season-play-button');
+                  const play=document.getElementById('season-resume-button')||
+                    document.getElementById('season-play-button');
                   if(play&&isVisible(play)){readingScroll=false;return focusNode(play)}
                 }
-                if(direction==='up'&&active?.id==='season-play-button'){
+                if(direction==='up'&&
+                   ['season-play-button','season-resume-button'].includes(active?.id)){
                   const episode=document.querySelector('.season-episode-tile.is-selected');
                   if(episode&&isVisible(episode)){readingScroll=false;return focusNode(episode)}
                 }
