@@ -559,7 +559,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     // Explicit playback (unlike refreshes/checkpoints) restores dismissed
     // Continue Watching titles for this movie or television series.
     fetch('/api/home/continue/'+id+'/start',{method:'POST'}).catch(()=>{});
-    if(location.hostname.endsWith('.workers.dev')){
+    if(location.hostname.endsWith('.workers.dev') && !/^yarr\./i.test(location.hostname) && !/^app-yarr\./i.test(location.hostname)){
       fetch('/api/remote/settings',{cache:'no-store'}).then(r=>r.json()).then(data=>{
         const ip=String(data.public_ip||'').split('.').map(Number);
         if(ip.length!==4||ip.some(x=>!Number.isInteger(x)||x<0||x>255))
