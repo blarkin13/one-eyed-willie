@@ -148,16 +148,17 @@ class CatalogMetadataTests(unittest.TestCase):
                                             "server/main.py").read_text())
 
     def test_metadata_state_reports_coverage_not_only_new_updates(self):
+        # The worker reports how much of the library has metadata, not only how
+        # many titles changed on the last pass...
+        state = catalog_metadata.status()
+        for field in ("total", "processed", "updated", "available", "missing"):
+            self.assertIn(field, state)
+        # ...but the library page deliberately keeps it silent: no banner that
+        # could move the grid or distract during remote browsing.
         page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
-        self.assertIn("available=Number(state.available)", page)
-        self.assertIn("missing=Number(state.missing)", page)
-        self.assertIn("Metadata available for ", page)
-        # A handful of unmatched titles should not generate a persistent warning.
-        self.assertIn("missing>0 && missing/totalTitles>=0.05", page)
-        self.assertLess(4 / 427, 0.05)
-        self.assertGreaterEqual(22 / 427, 0.05)
-        self.assertIn("Unmatched titles are retried automatically.", page)
-        self.assertNotIn("Genres, ratings and runtimes are still being indexed and will be retried automatically.", page)
+        self.assertIn("Background metadata status is intentionally silent", page)
+        self.assertNotIn("Metadata available for ", page)
+        self.assertNotIn("Unmatched titles are retried automatically.", page)
 
     def test_metadata_retry_starts_at_app_lifespan_and_skips_ffprobe(self):
         main = (Path(__file__).resolve().parents[1] / "server/main.py").read_text()
@@ -168,11 +169,16 @@ class CatalogMetadataTests(unittest.TestCase):
 
     def test_library_ui_does_not_require_manual_refresh(self):
         page = (Path(__file__).resolve().parents[1] / "server/catalog.html").read_text()
-        # The refresh control may be offered as an optional recovery action;
-        # normal library loads still start and poll metadata sync automatically.
+        # The refresh control is an optional recovery action; normal library
+        # loads still start and poll metadata sync automatically...
         self.assertIn("checkMetadata();", page)
         self.assertIn("fetch('/api/catalog/metadata/status'", page)
-        self.assertIn("retried automatically", page)
+        # ...and titles without metadata are retried by the worker itself, sooner
+        # than a fully matched library is rescanned.
+        self.assertLess(catalog_metadata.MISSING_RETRY_SECONDS,
+                        catalog_metadata.RESCAN_SECONDS)
+        worker = (Path(__file__).resolve().parents[1] / "server/catalog_metadata.py").read_text()
+        self.assertIn('MISSING_RETRY_SECONDS if _state["missing"] else RESCAN_SECONDS', worker)
 
     def test_older_poster_is_preserved_and_missing_data_never_erases_fields(self):
         identity = ("movies", 1, "the thing:1982")

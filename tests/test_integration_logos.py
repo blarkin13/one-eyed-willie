@@ -62,9 +62,12 @@ class IntegrationLogoTests(unittest.TestCase):
 
     def test_sidebar_and_manager_actions_use_real_logos(self):
         shell = (ROOT / "shell.js").read_text()
-        self.assertIn("'/assets/brand/'+item.id+'.svg'", shell)
-        self.assertIn("className='integration-logo'", shell)
-        self.assertIn("['radarr','sonarr','sabnzbd'].includes(item.id)", shell)
+        # The sidebar offers only SABnzbd among the integrations (Radarr and
+        # Sonarr are managed from Settings), drawn with the shared sidebar icon
+        # set; the real brand logos are used on the manager pages below.
+        self.assertIn("{id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd'", shell)
+        self.assertNotIn("{id:'radarr'", shell)
+        self.assertNotIn("{id:'sonarr'", shell)
         for filename in ("manager_dashboard.html", "arr_connections.html",
                          "services.html"):
             page = (ROOT / filename).read_text()

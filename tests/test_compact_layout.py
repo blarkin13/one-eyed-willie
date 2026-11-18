@@ -73,7 +73,10 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertNotIn("validHomeArt", page)
         self.assertNotIn("translateY(7px)", page)
         self.assertIn("prefers-reduced-motion:reduce", page)
-        self.assertNotIn("position:fixed", page)
+        # No fixed full-page backdrop (it caused jumps). The only fixed element
+        # is the long-press context menu popup, which must stay on screen.
+        self.assertEqual(page.count("position:fixed"), 1)
+        self.assertIn(".continue-menu{position:fixed;", page)
 
     def test_google_tv_home_dpad_moves_by_shelf_with_animated_scroll(self):
         android = (SERVER.parent / "google-tv" / "app" / "src" / "main" /
@@ -85,7 +88,9 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("rows[next].querySelectorAll('.shelf-track .tile-button')", android)
         self.assertIn("first.focus({preventScroll:true})", android)
         self.assertIn("row.getBoundingClientRect().top-10", android)
-        self.assertIn("window.scrollTo({top,behavior:reduced?'instant':'smooth'})", android)
+        # Home shelves scroll with the shared glide animator (cancellable, one
+        # clock) rather than the browser's own smooth scrolling.
+        self.assertIn("glideTo(root,'top',top)", android)
         self.assertIn("if(document.body.dataset.page==='home' &&", android)
         self.assertIn("shelf.matches('.shelf-track'))return true", android)
         self.assertIn("const delta=r.top<padding?r.top-padding", android)
@@ -141,17 +146,19 @@ class CompactLayoutTests(unittest.TestCase):
     def test_ship_greets_only_on_sidebar_expansion(self):
         shell = (SERVER / "shell.js").read_text()
         css = (SERVER / "ui.css").read_text()
-        self.assertIn("greeting.textContent='Yarr'", shell)
-        self.assertIn("greeting.setAttribute('aria-hidden','true')", shell)
+        # The pirate ship logo animates once when the desktop rail opens; the
+        # earlier "Yarr" text bubble is gone.
+        self.assertNotIn("greeting.textContent='Yarr'", shell)
         self.assertIn("target.addEventListener('pointerenter',updateRailGreeting)", shell)
         self.assertIn("target.addEventListener('focusin',updateRailGreeting)", shell)
         self.assertIn("if(open===railExpanded)return", shell)
         self.assertIn("target.classList.toggle('brand-yarr-open',open)", shell)
+        self.assertIn("matchMedia('(min-width:701px)')", shell)
         self.assertIn("@media(min-width:701px)", css)
+        self.assertIn(".sidebar.brand-yarr-open .brand-logo{", css)
         self.assertIn("animation:willie-ship-greeting 950ms ease-in-out 1 both", css)
-        self.assertIn("animation:willie-yarr-greeting 1400ms ease-out 1 both", css)
         self.assertIn("@media(prefers-reduced-motion:reduce)", css)
-        self.assertIn(".sidebar.brand-yarr-open .brand-yarr{opacity:1}", css)
+        self.assertIn(".sidebar.brand-yarr-open .brand-logo{animation:none!important;transform:none!important}", css)
 
     def test_cast_profile_stacks_portrait_above_bio_on_mobile(self):
         page = (SERVER / "person.html").read_text()
@@ -302,7 +309,7 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertNotIn("const dialog=el('dialog','season-overflow-dialog')", page)
         android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
                    "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
-        self.assertIn("Boolean(window.__willieCloseSeasonMenu?.())", android)
+        self.assertIn("if(window.__willieCloseSeasonMenu?.())return 'handled';", android)
         self.assertIn("dialog[open],.season-more-popover", android)
 
     def test_series_vertical_selection_order_uses_first_of_each_section(self):
@@ -424,8 +431,13 @@ class CompactLayoutTests(unittest.TestCase):
                    "java" / "studio" / "oneeyedwillie" / "tv")
         browser = (android / "MainActivity.kt").read_text()
         native = (android / "PlayerActivity.kt").read_text()
-        self.assertIn("color:#a9ddff!important", browser)
-        self.assertIn("0xFFA9DDFF.toInt()", native)
+        # The TV selection color is now one server-owned setting shared by the
+        # web UI, the WebView shell and the native player (default violet).
+        self.assertIn("/api/settings/tv-appearance", native)
+        self.assertIn('optString("selection_color", "#8B5CF6")', native)
+        self.assertIn("applyPlayerSelectionColor(color)", native)
+        self.assertIn("--oew-tv-select-color", browser)
+        self.assertIn("p.selection_color", browser)
         self.assertIn("0xFFF4EFE4.toInt()", native)
         self.assertIn("button.animate().scaleX(if (hasFocus) 1.16f else 1f)", native)
 
@@ -440,7 +452,7 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("window.WilliePlayer.shuffleSeason=nativeShuffle", activity)
         self.assertIn("payload.shuffle_queue", activity)
         self.assertIn("seasonShuffle = intent.hasExtra", native_player)
-        self.assertIn('following.putExtra("shuffle_queue",remaining.toString())', native_player)
+        self.assertIn('following.putExtra("shuffle_queue", remaining.toString())', native_player)
 
     def test_trailer_controls_are_not_required_when_embedded_trailers_are_removed(self):
         movie = (SERVER / "movie_detail.html").read_text()

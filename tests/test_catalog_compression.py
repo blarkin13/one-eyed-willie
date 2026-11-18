@@ -40,6 +40,15 @@ class CatalogCompressionTests(unittest.TestCase):
         self.assertNotIn("content-encoding", response.headers)
         self.assertEqual(json.loads(response.body), {"total": 0, "items": []})
 
+    def test_values_json_cannot_encode_natively_still_serialize(self):
+        import datetime
+        payload = {"seasons": {3, 1, 2}, "day": datetime.date(2026, 11, 17),
+                   "nested": [{"when": datetime.datetime(2026, 1, 2, 3, 4, 5)}]}
+        body = json.loads(compressed_json(request(None), payload).body)
+        self.assertEqual(sorted(body["seasons"]), [1, 2, 3])
+        self.assertEqual(body["day"], "2026-11-17")
+        self.assertEqual(body["nested"][0]["when"], "2026-01-02T03:04:05")
+
     def test_quality_and_wildcard_forms(self):
         self.assertTrue(accepts_gzip("gzip;q=0.8"))
         self.assertTrue(accepts_gzip("*"))
