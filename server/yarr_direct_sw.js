@@ -5,6 +5,7 @@
  */
 const MEDIA=[
  /^\/api\/watch\/[1-9]\d*\/stream$/,
+ /^\/api\/watch\/[1-9]\d*\/transcode$/,
  /^\/api\/stream\/hls\/[a-f0-9]{32}\/(?:index\.m3u8|init\.mp4|segment_\d{6}\.(?:ts|m4s))$/,
  /^\/api\/stream\/subtitles\/[1-9]\d*\/(?:external|embedded)-\d{1,3}\.vtt$/,
  /^\/api\/maintenance\/preview\/[1-9]\d*\/0(?:0\d|1\d|2[0-3])\.jpg$/
