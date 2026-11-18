@@ -47,10 +47,24 @@ document.addEventListener('DOMContentLoaded', () => {
     },{once:true});
     wrap.append(image);return wrap;
   }
+  // Clean is the default. Pirate preserves the original sidebar artwork.
+  const ICON_THEME_KEY='willie-icon-theme';
+  const iconTheme=()=>localStorage.getItem(ICON_THEME_KEY)==='pirate'?'pirate':'clean';
   function defaultIcon(kind){
     const safe=['home','movies','tv','sabnzbd','settings'].includes(kind)?kind:'movies';
-    return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v3');
+    if(iconTheme()==='pirate')return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v3');
+    const key={movies:'film',sabnzbd:'sabnzbd'}[safe]||safe;
+    const wrapper=document.createElement('span');
+    wrapper.className='nav-icon nav-clean-icon';
+    wrapper.setAttribute('aria-hidden','true');
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 24 24');
+    svg.setAttribute('width','30');svg.setAttribute('height','30');
+    svg.setAttribute('fill','none');svg.classList.add('fa-fallback');
+    svg.innerHTML=paths[key];wrapper.append(svg);
+    return wrapper;
   }
+  document.documentElement.dataset.iconTheme=iconTheme();
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
   brand.title='One-Eyed Willie';
@@ -97,9 +111,9 @@ document.addEventListener('DOMContentLoaded', () => {
   function updateSystemIcon(name,url){
     const target=nav.querySelector('a[data-nav-id="'+name+'"]');
     const image=target?.querySelector('.nav-icon img');
-    if(image&&url&&url.startsWith('/assets/sidebar-icon-'))image.src=url;
+    if(image&&iconTheme()==='pirate'&&url&&url.startsWith('/assets/sidebar-icon-'))image.src=url;
   }
-  fetch('/api/settings/sidebar/icons',{cache:'no-store'}).then(r=>r.ok?r.json():null)
+  if(iconTheme()==='pirate')fetch('/api/settings/sidebar/icons',{cache:'no-store'}).then(r=>r.ok?r.json():null)
     .then(data=>data?.icons?.forEach(icon=>updateSystemIcon(icon.name,icon.url)))
     .catch(()=>{});
   document.addEventListener('willie:sidebar-icon-updated',event=>{
