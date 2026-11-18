@@ -370,6 +370,21 @@ async function proxyInstalledApp(req,env,originPath) {
    // Existing local page uses inline scripts and absolute /assets and /api URLs.
    responseHeaders.set('content-security-policy',"default-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   }
+  // Legacy server builds redirect playback from ANY workers.dev host to an old
+  // sslip.io HTTPS origin. Normalize that one player condition for Yarr while
+  // installations update; do not rewrite any other application scripts or media.
+  if(path==='/assets/player.js'&&method==='GET'&&upstream.ok&&
+     (mime==='text/javascript'||mime==='application/javascript')){
+   const script=await upstream.text();
+   if(script.length>180000)return json({error:'player_script_too_large'},502);
+   const legacy="if(location.hostname.endsWith('.workers.dev')){";
+   const corrected="if(location.hostname.endsWith('.workers.dev') && !/^yarr\\./i.test(location.hostname) && !/^app-yarr\\./i.test(location.hostname)){";
+   const fixed=script.includes(legacy)?script.replace(legacy,corrected):script;
+   responseHeaders.delete('content-length');
+   responseHeaders.delete('content-encoding');
+   responseHeaders.set('cache-control','private, no-store');
+   return new Response(fixed,{status:200,headers:responseHeaders});
+  }
   // Keep video, HLS, images and HTTP Range responses streamed, not buffered.
   return new Response(method==='HEAD'||[204,205,304].includes(upstream.status)?null:upstream.body,{status:upstream.status,headers:responseHeaders});
  }catch(_){return json({error:'private_server_unavailable'},503);}
