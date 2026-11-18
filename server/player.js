@@ -48,6 +48,25 @@
     video.append(track);captions=track;
     if(track.track)track.track.mode='showing';
   }
+  // Browser WebVTT cues should not inherit a permanent black caption box.
+  // Users can opt back into a translucent/opaque background in Settings.
+  const cueStyle=document.createElement('style');
+  cueStyle.id='willie-subtitle-appearance';
+  document.head.append(cueStyle);
+  function applySubtitleStyle(input={}){
+    const allowedBg=new Set(['none','25','50','75','100']);
+    const bg=allowedBg.has(input.background)?input.background:'none';
+    const alpha=bg==='none'?0:Number(bg)/100;
+    const size=({small:'85%',normal:'100%',large:'125%'})[input.size]||'100%';
+    const color=input.color==='yellow'?'#ffff00':'#ffffff';
+    const shadow=input.outline===false?'none':
+      '-1px -1px 1px #000,1px -1px 1px #000,-1px 1px 1px #000,1px 1px 1px #000';
+    cueStyle.textContent=
+      '.willie-video::cue{background-color:rgba(0,0,0,'+alpha+
+      ')!important;color:'+color+'!important;font-size:'+size+
+      '!important;text-shadow:'+shadow+'!important}';
+  }
+  applySubtitleStyle();
   const css=`
 .willie-player{position:fixed;inset:0;z-index:10000;background:#000;color:#f0f5fb;
 display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif}
@@ -337,6 +356,10 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         surface.style.setProperty('--oew-tv-select-color',color);
     }).catch(()=>{});
     surface.setAttribute('role','dialog');surface.setAttribute('aria-label','Media player');
+    surface.tabIndex=0;
+    requestJson('/api/settings/subtitle-appearance')
+      .then(pref=>{if(current===surface)applySubtitleStyle(pref)})
+      .catch(()=>{});
     const video=document.createElement('video');video.className='willie-video';
     video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';
     const controls=document.createElement('div');controls.className='willie-controls';
@@ -525,6 +548,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     timeline.append(elapsed,slider,total);
     bottom.prepend(timeline);surface.append(video,controls,info,bottom);
     document.body.append(surface);current=surface;mediaId=id;started=false;saveAt=0;offset=0;captionsSelect=cc;
+    surface.focus({preventScroll:true});
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
     surface.addEventListener('pointerdown',revealChrome);
     surface.addEventListener('focusin',revealChrome);
@@ -544,6 +568,12 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     };
     document.addEventListener('fullscreenchange',fullscreenChanged);
     surface.addEventListener('keydown',e=>{
+      if((e.key==='Enter'||e.key===' ')&&
+         (e.target===surface||e.target===video)){
+        if(video.paused)video.play().catch(()=>{});
+        else video.pause();
+        revealChrome();concealChromeSoon();e.preventDefault();return;
+      }
       if(e.key==='Escape'||e.key==='Backspace'){
         if(!subtitleMenu.hidden){subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false')}
         else if(!document.fullscreenElement)close();
