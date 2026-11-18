@@ -95,8 +95,12 @@ def get_sidebar():
             "connections" if item in ("sabnzbd", "services") else item
             for item in old_order
         ))
-        hidden = set("connections" if item in ("sabnzbd", "services") else item
-                     for item in _read(conn, "sidebar_hidden"))
+        old_hidden = set(_read(conn, "sidebar_hidden"))
+        # The former Download Services link was often hidden by default.
+        # Its visibility must not hide the replacement for the SABnzbd link.
+        old_hidden.discard("services")
+        hidden = set("connections" if item == "sabnzbd" else item
+                     for item in old_hidden)
         hidden.update(item["id"] for item in entries if item.get("sidebar_hidden"))
         order = list(dict.fromkeys(key for key in saved if key in by_id))
         # New libraries and newly-added destinations are appended before Settings.
