@@ -54,7 +54,7 @@ class SubtitleStyleTests(unittest.TestCase):
                        'prefs.getString("size", "normal")'):
             self.assertIn(marker, player)
         for marker in ('"oewtv:subtitles:get"', '"oewtv:subtitles:set"',
-                       '.put("background", background)', '.put("size", size)'):
+                       '.putString("background", background)', '.putString("size", size)'):
             self.assertIn(marker, main)
         for marker in ("tv-subtitle-background", "tv-subtitle-size",
                        "tv-subtitle-color", "tv-subtitle-outline"):
