@@ -5,6 +5,7 @@ import time
 import logging
 import json
 import threading
+from functools import lru_cache
 from pathlib import Path
 from collections import defaultdict
 from .library import db, scan_library, scan_lock, safe_folder
@@ -21,7 +22,7 @@ def pretty(raw):
     return re.sub(r"\s+", " ", raw).strip(" -()[]{}") or "Unknown"
 
 
-def movie_info(path, root):
+def _movie_info(path, root):
     filename = Path(path).stem
     folder = Path(path).parent
     # Prefer the containing folder name when files have generic names.
@@ -32,7 +33,7 @@ def movie_info(path, root):
     return {"key": f"{title.casefold()}:{year or ''}", "title": title, "year": year}
 
 
-def episode_info(path, root):
+def _episode_info(path, root):
     p = Path(path)
     match = EPISODE.search(p.stem)
     relative = p.relative_to(root)
@@ -48,6 +49,32 @@ def episode_info(path, root):
     return {"key": f"{title.casefold()}:{year or ''}", "title": title,
             "year": year, "season": int(match.group(1)) if match else None,
             "episode": int(match.group(2)) if match else None}
+
+
+# Parsing a filename is a pure function of (path, root), yet Home, the catalog,
+# TV pages, posters and movie lookups each re-parsed every file in the library
+# on every request (~10k files: 100s of ms). Memoize it; there is nothing to
+# invalidate because a changed file has a different path/root key. A fresh
+# dict is returned each time so callers may keep or modify their copy.
+_PARSE_CACHE_SIZE = 262_144
+
+
+@lru_cache(maxsize=_PARSE_CACHE_SIZE)
+def _movie_info_cached(path, root):
+    return _movie_info(path, root)
+
+
+@lru_cache(maxsize=_PARSE_CACHE_SIZE)
+def _episode_info_cached(path, root):
+    return _episode_info(path, root)
+
+
+def movie_info(path, root):
+    return dict(_movie_info_cached(str(path), str(root)))
+
+
+def episode_info(path, root):
+    return dict(_episode_info_cached(str(path), str(root)))
 
 
 def title_sort_key(title):

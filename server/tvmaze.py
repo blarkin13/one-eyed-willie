@@ -5,6 +5,7 @@ Local folders and episodes remain authoritative; the provider only adds display 
 """
 import html
 import re
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -50,10 +51,23 @@ def image_url(images, size="medium"):
         return None
     return url if url.startswith(IMAGE_ROOT) else None
 
+# A failed request (outage, rate limit, no route) used to be retried on every
+# page open, each attempt waiting up to the 6 s timeout while holding the global
+# metadata lock, so one bad minute made every show page crawl. Remember failures
+# briefly, in memory only, and let successes be cached as before.
+FAILURE_TTL_SECONDS = 120
+_FAILED_UNTIL = {}
+
+
 def _get(path, query=None):
     url = API_ROOT + path
     if query:
         url += "?" + urllib.parse.urlencode(query)
+    blocked_until = _FAILED_UNTIL.get(url)
+    if blocked_until is not None:
+        if time.monotonic() < blocked_until:
+            return None
+        _FAILED_UNTIL.pop(url, None)
     request = urllib.request.Request(url, headers={
         "Accept": "application/json", "User-Agent": "OneEyedWillie/0.6 (personal TV metadata)"
     })
@@ -62,6 +76,9 @@ def _get(path, query=None):
             import json
             return json.loads(response.read(2_000_000))
     except (urllib.error.HTTPError, urllib.error.URLError, OSError, TimeoutError, ValueError):
+        if len(_FAILED_UNTIL) > 2048:
+            _FAILED_UNTIL.clear()
+        _FAILED_UNTIL[url] = time.monotonic() + FAILURE_TTL_SECONDS
         return None
 
 def _valid_year(first_aired, target):
