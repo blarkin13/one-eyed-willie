@@ -8,6 +8,7 @@
   let monitor=null;
   let chromeTimer=null, seekTimer=null, stallTimer=null;
   let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
+  let viewing='', usageTimer=null;
   // Playback quality: 'auto' plays the original when the browser can, otherwise
   // transcodes at the default size; the others always transcode at that size.
   const QUALITIES=[['auto','Best available'],['full','Full quality'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p'],['240p','240p']];
@@ -53,6 +54,41 @@
   function pickForBudget(rows,budget){
     const fit=rows.find(row=>row.bytes<=budget);
     return fit?{row:fit,fits:true}:{row:rows[rows.length-1],fits:false};
+  }
+  /* One random id per viewing lets the server add up everything it sends for it. */
+  function newViewingId(){
+    const bytes=new Uint8Array(12);
+    if(window.crypto?.getRandomValues)crypto.getRandomValues(bytes);
+    else for(let i=0;i<bytes.length;i++)bytes[i]=Math.floor(Math.random()*256);
+    return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  /* Is it worth offering a cheaper quality? Looks at recent buffering stalls:
+   * three in a minute and a half, or about ten seconds spent waiting. */
+  const SLOW_RULES={window:90000,stalls:3,waitMs:10000,singleMs:8000};
+  function connectionLooksSlow(stalls,ongoingMs,now){
+    const recent=stalls.filter(item=>now-item.at<=SLOW_RULES.window);
+    const count=recent.length+(ongoingMs>0?1:0);
+    const waited=recent.reduce((sum,item)=>sum+item.ms,0)+Math.max(0,ongoingMs);
+    return count>=SLOW_RULES.stalls||waited>=SLOW_RULES.waitMs||ongoingMs>=SLOW_RULES.singleMs;
+  }
+  /* The cheaper choice to suggest: the best tier using well under the data the
+   * current stream does (60%), otherwise the cheapest; null if already lowest. */
+  const STEP_DOWN={original:'720p',full:'720p','1080p':'720p','720p':'480p','480p':'360p','360p':'240p'};
+  function lowerQuality(estimates,current){
+    const tiers=estimates?.qualities||[];
+    const duration=Number(estimates?.duration_seconds)||0;
+    let kbps=null;
+    if(current==='original')kbps=Number(estimates?.original?.kbps)||null;
+    else if(current==='full')kbps=estimates?.full?.bytes>0&&duration?estimates.full.bytes*8/1000/duration:null;
+    else kbps=Number(tiers.find(t=>t.id===current)?.kbps)||null;
+    if(kbps&&tiers.length){
+      const cheaper=tiers.filter(t=>t.id!==current&&Number(t.kbps)>0&&t.kbps<kbps);
+      if(!cheaper.length)return null;
+      const comfortable=cheaper.find(t=>t.kbps<=kbps*0.6);
+      return comfortable||cheaper[cheaper.length-1];
+    }
+    const id=STEP_DOWN[current];
+    return id?(tiers.find(t=>t.id===id)||{id}):null;
   }
   function savedQuality(){
     try{const value=localStorage.getItem('willie:quality');return QUALITIES.some(q=>q[0]===value)?value:'auto'}
@@ -126,45 +162,57 @@
 display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif}
 .willie-player:fullscreen{width:100vw;height:100vh}
 .willie-video{width:100%;height:100%;object-fit:contain;background:#000}
-.willie-controls{position:absolute;top:0;left:0;right:0;z-index:5;padding:17px 20px;
-background:linear-gradient(#020711df,transparent);display:flex;align-items:center;gap:10px;
+.willie-player{--sel:var(--oew-tv-select-color,#8B5CF6);--sel-soft:#ffffff1f}
+@supports(color:color-mix(in srgb,red 20%,transparent)){.willie-player{--sel-soft:color-mix(in srgb,var(--sel) 20%,transparent)}}
+.willie-controls{position:absolute;top:0;left:0;right:0;z-index:5;padding:18px 32px 40px;
+background:linear-gradient(#0000007a,transparent);display:flex;align-items:center;gap:15px;
 opacity:0;transition:opacity .15s}
 .willie-player:hover .willie-controls,.willie-player:focus-within .willie-controls{opacity:1}
-.willie-controls button,.willie-toolbar button{background:transparent;border:0;border-radius:50%;width:46px;height:46px;display:inline-flex;align-items:center;justify-content:center;color:var(--ink,#fff);padding:11px;cursor:pointer}
-.willie-controls button:hover,.willie-toolbar button:hover,.willie-controls button:focus-visible,.willie-toolbar button:focus-visible{background:#ffffff1c;color:var(--oew-tv-select-color,#8B5CF6)}
-.willie-player button:focus-visible{outline:2px solid var(--oew-tv-select-color,#8B5CF6);outline-offset:2px}
-.willie-controls button svg,.willie-toolbar button svg{width:24px;height:24px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-.willie-bottom{position:absolute;bottom:0;left:0;right:0;z-index:5;background:linear-gradient(transparent,#000e 65%);padding:44px 25px 20px;transition:opacity .2s}
-.willie-preview-tooltip{position:absolute;bottom:102px;left:50%;transform:translateX(-50%);z-index:9;width:180px;text-align:center;pointer-events:none;background:#090c11ed;border:1px solid #ffffff50;border-radius:9px;padding:6px;box-shadow:0 8px 22px #0009}
+.willie-controls button,.willie-toolbar button{background:transparent;border:0;border-radius:40px;width:54px;height:54px;display:inline-flex;align-items:center;justify-content:center;color:#F4EFE4;opacity:.88;padding:14px;cursor:pointer;transition:transform .11s,opacity .11s,color .11s;-webkit-tap-highlight-color:transparent}
+.willie-toolbar button.willie-large{width:64px;height:64px;padding:15px}
+.willie-controls button:focus-visible,.willie-toolbar button:focus-visible{background:transparent;color:var(--sel);opacity:1;transform:scale(1.16)}
+@media(hover:hover){.willie-controls button:hover,.willie-toolbar button:hover{background:transparent;color:var(--sel);opacity:1;transform:scale(1.16)}}
+.willie-player button:focus-visible{outline:none}
+.willie-controls button svg,.willie-toolbar button svg{width:100%;height:100%;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+.willie-bottom{position:absolute;bottom:0;left:0;right:0;z-index:5;background:linear-gradient(to top,#000000f2,#090b10db,transparent);padding:64px 50px 23px;transition:opacity .2s}
+.willie-preview-tooltip{position:absolute;bottom:102px;left:50%;transform:translateX(-50%);z-index:9;width:180px;text-align:center;pointer-events:none;background:#0A111DEF;border:1px solid #68798D80;border-radius:13px;padding:6px;box-shadow:0 8px 22px #0009}
 .willie-preview-tooltip[hidden]{display:none}
-.willie-preview-tooltip img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:5px}
-.willie-preview-tooltip span{font-size:12px;color:var(--ink,#fff);font-variant-numeric:tabular-nums}
-.willie-toolbar{display:flex;justify-content:space-between;align-items:center}
+.willie-preview-tooltip img{display:block;width:100%;aspect-ratio:16/9;object-fit:cover;border-radius:8px}
+.willie-preview-tooltip span{font-size:13px;color:#F4EFE4;font-variant-numeric:tabular-nums}
+.willie-toolbar{display:flex;justify-content:space-between;align-items:center;padding-top:8px}
 .willie-group{display:flex;align-items:center;gap:8px}
-.willie-subtitle-menu{position:absolute;right:25px;bottom:90px;background:var(--panel,#171b20);border:1px solid var(--line,#535b64);border-radius:12px;padding:15px;display:flex;flex-direction:column;gap:13px;width:min(360px,calc(100vw - 40px))}
+.willie-subtitle-menu{position:absolute;right:50px;bottom:128px;background:#0A111DEF;border:1px solid #68798D80;border-radius:17px;padding:18px 20px 16px;display:flex;flex-direction:column;gap:10px;width:min(420px,calc(100vw - 40px));color:#F0F2F5;box-shadow:0 14px 48px #000a}
 .willie-subtitle-menu[hidden]{display:none}
-.willie-subtitle-menu a{color:var(--ink,#fff);font-size:14px;text-decoration:none;padding:9px}
-.willie-provider-search,.willie-subtitle-result{width:100%;text-align:left;background:transparent;color:var(--ink,#fff);border:0;border-radius:8px;padding:11px 10px;cursor:pointer;font:inherit}
-.willie-provider-search:hover,.willie-subtitle-result:hover,.willie-provider-search:focus-visible,.willie-subtitle-result:focus-visible{background:#ffffff25;outline:2px solid var(--accent,#fff)}
-.willie-subtitle-results{max-height:35vh;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px}
-.willie-subtitle-menu{max-height:75vh;overflow-y:auto}
-.willie-data-menu{gap:6px}
-.willie-data-heading{font-size:13px;color:#bccddd;padding:2px 4px 8px;line-height:1.4}
-.willie-data-row{display:flex;justify-content:space-between;align-items:center;gap:14px;width:100%;text-align:left;background:transparent;color:var(--ink,#fff);border:1px solid transparent;border-radius:9px;padding:11px 12px;cursor:pointer;font:inherit}
-.willie-data-row:hover,.willie-data-row:focus-visible{background:#ffffff25}
-.willie-data-row[aria-pressed="true"]{border-color:var(--oew-tv-select-color,#8B5CF6);background:#ffffff14}
-.willie-data-cost{font-variant-numeric:tabular-nums;color:#d6e2ee;white-space:nowrap}
-.willie-data-note{font-size:12px;color:#9fb2c6;padding:4px;line-height:1.4}
+.willie-subtitle-menu a{color:#F0F2F5;font-size:16px;text-decoration:none;padding:9px}
+.willie-menu-title{font-size:22px;font-weight:700;color:#F6F2EB;padding:0 7px 4px}
+.willie-provider-search,.willie-subtitle-result{width:100%;min-height:49px;text-align:left;background:transparent;color:#F0F2F5;border:1px solid transparent;border-radius:9px;padding:7px 13px;cursor:pointer;font:inherit;font-size:16px}
+.willie-provider-search:hover,.willie-subtitle-result:hover,.willie-provider-search:focus-visible,.willie-subtitle-result:focus-visible{background:var(--sel-soft);border-color:var(--sel);color:var(--sel)}
+.willie-subtitle-results{max-height:35vh;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:15px}
+.willie-subtitle-menu{max-height:calc(100vh - 230px);overflow-y:auto}
+.willie-data-menu{gap:4px}
+.willie-data-heading{font-size:15px;color:#C9D6E6;padding:2px 8px 12px;line-height:1.45}
+.willie-data-row{display:flex;justify-content:space-between;align-items:center;gap:14px;width:100%;min-height:49px;text-align:left;background:transparent;color:#F0F2F5;border:1px solid transparent;border-radius:9px;padding:7px 13px;cursor:pointer;font:inherit;font-size:16px}
+.willie-data-row:hover,.willie-data-row:focus-visible{background:var(--sel-soft);border-color:var(--sel);color:var(--sel)}
+.willie-data-row[aria-pressed="true"]{color:var(--sel)}
+.willie-data-row[aria-pressed="true"]>span:first-child::before{content:"\\2713\\a0\\a0"}
+.willie-data-cost{font-variant-numeric:tabular-nums;color:#C9D6E6;white-space:nowrap}
+.willie-data-row:hover .willie-data-cost,.willie-data-row:focus-visible .willie-data-cost,.willie-data-row[aria-pressed="true"] .willie-data-cost{color:inherit}
+.willie-data-note{font-size:13px;color:#9fb2c6;padding:4px 8px;line-height:1.45}
+.willie-data-used{font-size:14px;color:#C9D6E6;padding:2px 8px 8px;font-variant-numeric:tabular-nums}
 .willie-subtitle-menu .willie-subtitle-select{max-width:none;width:100%}
-
-.willie-subtitle-select{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
-color:#fff;padding:10px 12px;font:inherit;max-width:180px;cursor:pointer}
-.willie-subtitle-select option{background:#172636;color:#fff}
+.willie-subtitle-select{background:#ffffff12;border:1px solid #68798D80;border-radius:9px;
+color:#F0F2F5;min-height:49px;padding:7px 13px;font:inherit;font-size:16px;max-width:180px;cursor:pointer}
+.willie-subtitle-select:focus-visible{outline:none;border-color:var(--sel);background:var(--sel-soft)}
+.willie-subtitle-select option{background:#0A111D;color:#F0F2F5}
 .willie-subtitle-select[hidden]{display:none}
-.willie-title{font-weight:650;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.willie-info{position:absolute;left:50%;bottom:90px;transform:translateX(-50%);
-background:#172637ec;color:#e8f3ff;border:1px solid #324c66;border-radius:12px;
-max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
+.willie-titles{display:flex;flex-direction:column;flex:1;min-width:0;justify-content:center}
+.willie-kicker{font-size:11px;letter-spacing:.14em;font-weight:700;color:#DDD7CA}
+.willie-title{font-size:22px;font-weight:700;color:#F7F3EB;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.willie-usage{font-size:14px;color:#D2CFCA;white-space:nowrap;font-variant-numeric:tabular-nums;padding:6px 12px;border-radius:40px;background:#0A111DB0}
+.willie-usage[hidden]{display:none}
+.willie-info{position:absolute;left:50%;bottom:150px;transform:translateX(-50%);
+background:#101820DD;color:#fff;font-size:16px;
+max-width:85vw;padding:15px 24px;text-align:center;z-index:6}
 .willie-info:empty{display:none}
 .willie-player.willie-chrome-hidden{cursor:none}
 .willie-player.willie-chrome-hidden .willie-controls,
@@ -173,18 +221,37 @@ max-width:85vw;padding:13px 19px;text-align:center;z-index:6}
 .willie-player .willie-info:not(:empty){opacity:1}
 .willie-player:not(.willie-chrome-hidden) .willie-controls{opacity:1}
 .willie-player:not(.willie-chrome-hidden) .willie-bottom{opacity:1}
-@media(prefers-reduced-motion:reduce){.willie-controls,.willie-bottom{transition:none}}
-.willie-next-prompt{position:absolute;bottom:110px;right:24px;z-index:7;background:#102137f5;border:1px solid #47627f;border-radius:13px;padding:18px;max-width:min(380px,calc(100vw - 48px));color:#fff;box-shadow:0 14px 48px #000a}
-.willie-next-prompt[hidden]{display:none}
-.willie-next-prompt p{margin:0 0 12px;line-height:1.4}
-.willie-next-actions{display:flex;gap:10px;justify-content:flex-end}
-.willie-next-actions button{border:1px solid #6685a4;border-radius:8px;padding:9px 14px;background:#1e3955;color:#fff;cursor:pointer;font:inherit}
-.willie-next-actions button:focus-visible{outline:2px solid #fff}
+@media(prefers-reduced-motion:reduce){.willie-controls,.willie-bottom,.willie-controls button,.willie-toolbar button{transition:none}}
+.willie-slow-prompt{position:absolute;bottom:128px;right:50px;z-index:8;background:#0A111DEF;border:1px solid #68798D80;border-radius:17px;padding:18px 20px 16px;width:min(420px,calc(100vw - 40px));color:#F0F2F5;box-shadow:0 14px 48px #000a;display:flex;flex-direction:column;gap:4px}
+.willie-slow-prompt[hidden]{display:none}
+.willie-slow-prompt p{margin:0;padding:2px 8px 12px;text-align:left;font-size:15px;line-height:1.45;color:#C9D6E6}
+.willie-slow-prompt button{display:block;width:100%;min-height:49px;text-align:left;background:transparent;color:#F0F2F5;border:1px solid transparent;border-radius:9px;padding:7px 13px;cursor:pointer;font:inherit;font-size:16px}
+.willie-slow-prompt button:hover,.willie-slow-prompt button:focus-visible{background:var(--sel-soft);border-color:var(--sel);color:var(--sel)}
 .willie-timeline{display:flex;
-align-items:center;gap:12px;padding:10px 15px;z-index:5}
-.willie-timeline input{flex:1;accent-color:var(--oew-tv-select-color,#8B5CF6);cursor:pointer}
-.willie-timeline span{font-size:12px;color:#bccddd;font-variant-numeric:tabular-nums}
+align-items:center;gap:12px;padding:0;z-index:5;position:relative}
+.willie-timeline input{flex:1;height:55px;margin:0;accent-color:var(--sel);cursor:pointer;-webkit-appearance:none;appearance:none;background:transparent}
+.willie-timeline input::-webkit-slider-runnable-track{height:4px;border-radius:2px;background:linear-gradient(to right,var(--sel) var(--pos,0%),#F4EFE466 var(--pos,0%))}
+.willie-timeline input::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--sel);margin-top:-6px;border:0}
+.willie-timeline input::-moz-range-track{height:4px;border-radius:2px;background:#F4EFE466}
+.willie-timeline input::-moz-range-progress{height:4px;border-radius:2px;background:var(--sel)}
+.willie-timeline input::-moz-range-thumb{width:16px;height:16px;border-radius:50%;background:var(--sel);border:0}
+.willie-timeline input:focus-visible{outline:none}
+.willie-timeline input:focus-visible::-webkit-slider-thumb{box-shadow:0 0 0 5px var(--sel-soft)}
+.willie-timeline span{font-size:15px;color:#F4EFE4;font-variant-numeric:tabular-nums;min-width:74px}
+.willie-timeline span:last-of-type{color:#D2CFCA;text-align:right}
 @media(hover:none){.willie-controls,.willie-bottom{opacity:1}}
+@media(max-width:700px){
+.willie-controls{padding:12px 12px 32px;gap:8px}
+.willie-title{font-size:18px}
+.willie-bottom{padding:48px 14px 14px}
+.willie-timeline span{min-width:0;font-size:13px}
+.willie-timeline input{height:44px}
+.willie-controls button,.willie-toolbar button{width:42px;height:48px;padding:12px 9px}
+.willie-toolbar button.willie-large{width:52px;height:56px;padding:13px 11px}
+.willie-group{gap:2px}
+.willie-subtitle-menu,.willie-slow-prompt{left:10px;right:10px;bottom:118px;width:auto;max-height:70vh}
+.willie-info{bottom:128px}
+}
 `;
   const style=document.createElement('style');style.textContent=css;document.head.append(style);
   const requestJson=async(url,opts={})=>{
@@ -293,7 +360,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const finalSave=saveProgress(true);
     document.removeEventListener('visibilitychange',onVisibilityChange);
     window.removeEventListener('pagehide',onPageHide);
-    clearInterval(monitor);monitor=null;
+    clearInterval(monitor);monitor=null;clearInterval(usageTimer);usageTimer=null;
     clearTimeout(chromeTimer);chromeTimer=null;
     clearTimeout(seekTimer);seekTimer=null;queuedSeek=null;
     clearTimeout(stallTimer);stallTimer=null;recoveryAttempts=0;recoveryHandler=null;
@@ -341,7 +408,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     message('Preparing compatible HLS stream…');
     try{
       const startUrl=tier=>'/api/stream/hls/start/'+mediaId+'?start='+encodeURIComponent(seek)+
-        '&quality='+encodeURIComponent(tier);
+        '&quality='+encodeURIComponent(tier)+'&viewing='+encodeURIComponent(viewing);
       let result;
       try{result=await requestJson(startUrl(quality==='auto'?autoTier:quality),{method:'POST'})}
       catch(error){
@@ -420,15 +487,15 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     }finally{switching=false}
   }
   const icons={
-    back:'<path d="m15 18-6-6 6-6"/><path d="M9 12h12"/>',
-    rewind:'<path d="M11 19 2 12l9-7v14ZM22 19l-9-7 9-7v14Z"/>',
-    forward:'<path d="m13 19 9-7-9-7v14ZM2 19l9-7-9-7v14Z"/>',
-    subtitle:'<rect x="2" y="4" width="20" height="16" rx="2"/><path d="M6 12h5m-5 4h4m4-4h4m-5 4h5"/>',
-    watched:'<path d="M20 6 9 17l-5-5"/>',
-    play:'<path d="m8 5 12 7-12 7z"/>',
-    pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',
-    info:'<circle cx="12" cy="12" r="10"/><path d="M12 11v6m0-10h.01"/>',
-    next:'<path d="m5 5 11 7-11 7z"/><path d="M19 5v14"/>',
+    back:'<path d="M15,18 L9,12 L15,6 M9,12 L21,12"/>',
+    rewind:'<path d="M11,19 L2,12 L11,5 Z M22,19 L13,12 L22,5 Z"/>',
+    forward:'<path d="M13,19 L22,12 L13,5 Z M2,19 L11,12 L2,5 Z"/>',
+    subtitle:'<path d="M4,5 L20,5 L20,19 L4,19 Z M7,11 L11,11 M7,15 L10,15 M14,11 L18,11 M14,15 L17,15"/>',
+    watched:'<path d="M20,6 L9,17 L4,12"/>',
+    play:'<path d="M8,5 L19,12 L8,19 Z"/>',
+    pause:'<path d="M8,5 L8,19 M16,5 L16,19"/>',
+    info:'<path d="M12,2 A10,10 0,1 1,11.99,2 Z M12,11 L12,17 M12,7 L12,7.01"/>',
+    next:'<path d="M5,5 L16,12 L5,19 Z M19,5 L19,19"/>',
     quality:'<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 0 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.5-1H3a2 2 0 0 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 0 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 0 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
     autoplay:'<path d="m5 5 11 7-11 7z"/><path d="M19 5v14"/><path d="M4 2h16"/>'
   };
@@ -440,7 +507,9 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     window.WillieThemeMusic?.stop(true);
     const id=Number(media);
     if(!Number.isInteger(id)||id<=0)return;
+    const replacing=!!current;   // e.g. next episode: the old player's removal ends fullscreen
     if(current)close();
+    viewing=newViewingId();
     // Explicit playback (unlike refreshes/checkpoints) restores dismissed
     // Continue Watching titles for this movie or television series.
     fetch('/api/home/continue/'+id+'/start',{method:'POST'}).catch(()=>{});
@@ -472,7 +541,11 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';
     const controls=document.createElement('div');controls.className='willie-controls';
     const back=document.createElement('button');back.type='button';setIcon(back,'back','Back to library');back.onclick=close;
+    const titles=document.createElement('div');titles.className='willie-titles';
+    const kicker=document.createElement('span');kicker.className='willie-kicker';kicker.textContent='NOW PLAYING';
     const name=document.createElement('span');name.className='willie-title';name.textContent=title||'Now playing';
+    titles.append(kicker,name);
+    const usagePill=document.createElement('span');usagePill.className='willie-usage';usagePill.hidden=true;
     const backward=document.createElement('button');setIcon(backward,'rewind','Rewind 10 seconds');
     const forward=document.createElement('button');setIcon(forward,'forward','Forward 10 seconds');
     const cc=document.createElement('select');cc.className='willie-subtitle-select';
@@ -586,12 +659,19 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     qualityButton.setAttribute('aria-expanded','false');
     const qualityMenu=document.createElement('div');qualityMenu.className='willie-subtitle-menu willie-data-menu';qualityMenu.hidden=true;
     let estimates=null,pendingStart=null;
+    const stalls=[];let stallBegan=0,slowSnoozeUntil=0,quietUntil=0,usedBytes=0;
+    const quiet=ms=>{quietUntil=Math.max(quietUntil,performance.now()+ms)};
+    const slowPrompt=document.createElement('div');slowPrompt.className='willie-slow-prompt';slowPrompt.hidden=true;
+    slowPrompt.setAttribute('role','dialog');slowPrompt.setAttribute('aria-label','Slow connection');
     const estimatesReady=requestJson('/api/stream/hls/estimates/'+id).then(data=>{estimates=data;return data}).catch(()=>null);
     const resolveAutoTier=()=>{autoTier=estimates?.full?.available?'full':'720p'};
-    function chooseQuality(choice){
+    function chooseQuality(choice,remember=true){
       quality=choice;resolveAutoTier();
-      try{localStorage.setItem('willie:quality',quality)}catch(_){}
+      // A temporary drop for a bad connection is not a new standing preference.
+      if(remember)try{localStorage.setItem('willie:quality',quality)}catch(_){}
+      stalls.length=0;stallBegan=0;slowSnoozeUntil=0;slowPrompt.hidden=true;quiet(10000);
       qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');
+      surface.focus({preventScroll:true});
       if(pendingStart){const begin=pendingStart;pendingStart=null;begin();return}
       if(!status)return;
       const at=playerPosition(video);
@@ -600,7 +680,11 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       revealChrome();concealChromeSoon();
     }
     function renderDataMenu(){
+      // Re-rendering (new estimates, usage figures) must not drop the viewer's place.
+      const focused=qualityMenu.contains(document.activeElement)?document.activeElement.dataset?.quality:null;
       qualityMenu.textContent='';
+      const menuTitle=document.createElement('div');menuTitle.className='willie-menu-title';menuTitle.textContent='Quality and data';
+      qualityMenu.append(menuTitle);
       const heading=document.createElement('div');heading.className='willie-data-heading';
       const duration=Number(estimates?.duration_seconds)||Number(status?.duration_seconds)||0;
       const at=started?playerPosition(video):Number(status?.position_seconds)||0;
@@ -612,6 +696,11 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
           ' of '+formatSpan(duration)+'.'):'Playback quality';
       }
       qualityMenu.append(heading);
+      if(usedBytes>0){
+        const used=document.createElement('div');used.className='willie-data-used';
+        used.textContent='Used so far this viewing: '+formatData(usedBytes);
+        qualityMenu.append(used);
+      }
       const rows=planDataUse(estimates,at,canDirect);
       const options=rows.length?rows:QUALITIES.filter(q=>q[0]!=='full').map(([value,label])=>
         ({id:value,name:value==='auto'?'Best available':label,kind:null,bytes:0}));
@@ -651,11 +740,12 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
           'not fixed, so real use is often lower.';
         qualityMenu.append(foot);
       }
+      if(focused)qualityMenu.querySelector('[data-quality="'+focused+'"]')?.focus({preventScroll:true});
     }
     function openDataMenu(){
       subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');
       qualityMenu.hidden=false;qualityButton.setAttribute('aria-expanded','true');
-      renderDataMenu();
+      renderDataMenu();refreshUsage().then(()=>{if(!qualityMenu.hidden&&usedBytes>0&&!qualityMenu.querySelector('.willie-data-used'))renderDataMenu()});
       estimatesReady.then(()=>{if(!qualityMenu.hidden)renderDataMenu()});
       const target=qualityMenu.querySelector('[aria-pressed="true"]')||qualityMenu.querySelector('button');
       target?.focus();
@@ -667,7 +757,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       }
       openDataMenu();
     };
-    subtitleMenu.append(cc,language,searchLink,results);
+    const subtitleTitle=document.createElement('div');subtitleTitle.className='willie-menu-title';subtitleTitle.textContent='Subtitles';
+    subtitleMenu.append(subtitleTitle,cc,language,searchLink,results);
     subtitles.onclick=()=>{qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
     const playPause=document.createElement('button');setIcon(playPause,'pause','Pause');
     playPause.onclick=()=>video.paused?video.play().catch(()=>{}):video.pause();
@@ -692,12 +783,13 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       ' · Server: '+(surface.dataset.engine||'Not reported')+
       ' · Video: '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+
       ' · Client GPU decoding depends on browser, device and codec.');
-    controls.append(back,name);
+    controls.append(back,titles,usagePill);
     const bottom=document.createElement('div');bottom.className='willie-bottom';
     const toolbar=document.createElement('div');toolbar.className='willie-toolbar';
     const left=document.createElement('div');left.className='willie-group';
     const right=document.createElement('div');right.className='willie-group';
-    left.append(playPause,backward,forward);right.append(next,subtitles,qualityButton,watch,diagnostics);
+    playPause.classList.add('willie-large');
+    left.append(backward,playPause,forward);right.append(next,subtitles,qualityButton,watch,diagnostics);
     toolbar.append(left,right);bottom.append(toolbar,subtitleMenu,qualityMenu);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
     const timeline=document.createElement('div');timeline.className='willie-timeline';
@@ -719,6 +811,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       previewTime.textContent=Number.isFinite(duration)?formatTime(target):'';
       preview.hidden=false;
     };
+    const paintSlider=()=>slider.style.setProperty('--pos',(Number(slider.value)/10)+'%');
+    slider.addEventListener('input',paintSlider);
     slider.addEventListener('input',()=>previewAt(Math.max(0,Math.min(1,Number(slider.value)/1000))));
     slider.addEventListener('pointermove',event=>{
       const rect=slider.getBoundingClientRect();
@@ -740,7 +834,7 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     loadPreviews();
     timeline.append(preview);
     timeline.append(elapsed,slider,total);
-    bottom.prepend(timeline);surface.append(video,controls,info,bottom);
+    bottom.prepend(timeline);surface.append(video,controls,info,bottom,slowPrompt);
     document.body.append(surface);current=surface;mediaId=id;started=false;saveAt=0;offset=0;captionsSelect=cc;
     surface.focus({preventScroll:true});
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
@@ -754,10 +848,15 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     });
     // Must be synchronous with user's Play click for fullscreen permission.
     try{surface.requestFullscreen?.().catch(()=>{})}catch(_){}
-    let entered=false;
+    let entered=false,enteredAt=0;
     const fullscreenChanged=()=>{
-      if(document.fullscreenElement===surface)entered=true;
-      else if(entered&&current===surface)close();
+      if(document.fullscreenElement===surface){entered=true;enteredAt=performance.now()}
+      else if(entered&&current===surface){
+        // Replacing a fullscreen player makes the browser leave fullscreen a moment
+        // after the new one enters it. That is not the viewer leaving: keep playing.
+        if(replacing&&performance.now()-enteredAt<1500){entered=false;return}
+        close();
+      }
       if(current!==surface)document.removeEventListener('fullscreenchange',fullscreenChanged);
     };
     document.addEventListener('fullscreenchange',fullscreenChanged);
@@ -769,7 +868,9 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         revealChrome();concealChromeSoon();e.preventDefault();return;
       }
       if(e.key==='Escape'||e.key==='Backspace'){
-        if(!subtitleMenu.hidden){subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false')}
+        if(!slowPrompt.hidden){snoozeSlowPrompt()}
+        else if(!qualityMenu.hidden&&!pendingStart){qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false')}
+        else if(!subtitleMenu.hidden){subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false')}
         else if(!document.fullscreenElement)close();
         e.preventDefault();
       }else if((e.key==='ArrowLeft'||e.key==='ArrowRight')&&e.target!==slider&&e.target!==cc){
@@ -795,10 +896,13 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       if(duration>0&&document.activeElement!==slider){
         slider.value=String(Math.round(1000*Math.min(duration,now)/duration));
       }
+      paintSlider();
       // A regular heartbeat protects streams that do not emit timeupdate
       // events, including some native HLS implementations.
       if(!video.paused&&!video.ended&&started)saveProgress();
+      if(stallBegan)slowCheck();
     },500);
+    usageTimer=setInterval(()=>{if(current===surface&&!document.hidden)refreshUsage()},5000);
     video.addEventListener('playing',()=>{
       started=true;clearTimeout(stallTimer);stallTimer=null;
       if(Date.now()-hlsRecoverAt>30000)hlsRecover={network:0,media:0};
@@ -811,6 +915,64 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       stallTimer=setTimeout(()=>{if(current===surface&&!video.paused)recoverStream()},15000);
     });
     video.addEventListener('pause',()=>{clearTimeout(stallTimer);stallTimer=null;setIcon(playPause,'play','Play');revealChrome()});
+    /* Buffering stalls drive the "slow connection" offer. Start-up buffering
+     * (before the first frame), seeks and quality switches do not count. */
+    video.addEventListener('waiting',()=>{
+      if(!started||video.paused||video.seeking||stallBegan||performance.now()<quietUntil)return;
+      stallBegan=performance.now();
+    });
+    video.addEventListener('playing',()=>{
+      if(!stallBegan)return;
+      const now=performance.now();
+      stalls.push({at:now,ms:now-stallBegan});stallBegan=0;
+      if(stalls.length>20)stalls.shift();
+      slowCheck();
+    });
+    video.addEventListener('seeking',()=>{stallBegan=0;quiet(5000)});
+    video.addEventListener('pause',()=>{stallBegan=0});
+    function slowCheck(){
+      if(current!==surface||!started)return;
+      const now=performance.now();
+      if(connectionLooksSlow(stalls,stallBegan?now-stallBegan:0,now))offerLowerQuality();
+    }
+    function snoozeSlowPrompt(){
+      slowPrompt.hidden=true;slowSnoozeUntil=performance.now()+10*60*1000;
+      stalls.length=0;stallBegan=0;surface.focus({preventScroll:true});
+    }
+    function offerLowerQuality(){
+      if(current!==surface||!slowPrompt.hidden||pendingStart||switching||!status)return;
+      if(performance.now()<slowSnoozeUntil)return;
+      const now=playbackMode==='direct'?'original':(quality==='auto'?autoTier:quality);
+      const option=lowerQuality(estimates,now);
+      if(!option)return;
+      const at=playerPosition(video);
+      const row=planDataUse(estimates,at,playbackMode==='direct').find(item=>item.id===option.id);
+      slowPrompt.textContent='';
+      const heading=document.createElement('div');heading.className='willie-menu-title';heading.textContent='Slow connection';
+      const text=document.createElement('p');
+      text.textContent='Playback keeps pausing to load more video. '+option.id+' uses less data'+
+        (row?.bytes>0?' (about '+formatData(row.bytes)+' for the rest)':'')+' and should play smoothly.';
+      const lower=document.createElement('button');lower.type='button';lower.dataset.action='lower';
+      lower.textContent='Switch to '+option.id;
+      lower.onclick=()=>{slowPrompt.hidden=true;chooseQuality(option.id,false)};
+      const keep=document.createElement('button');keep.type='button';keep.dataset.action='keep';
+      keep.textContent='Keep current quality';keep.onclick=snoozeSlowPrompt;
+      slowPrompt.append(heading,text,lower,keep);
+      slowPrompt.hidden=false;revealChrome();lower.focus({preventScroll:true});
+    }
+    const usagePillText=bytes=>formatData(bytes)+' used';
+    function refreshUsage(){
+      return requestJson('/api/stream/hls/usage/'+viewing).then(data=>{
+        if(current!==surface)return;
+        usedBytes=Number(data.bytes)||0;
+        if(usedBytes>0){
+          usagePill.hidden=false;usagePill.textContent=usagePillText(usedBytes);
+          usagePill.setAttribute('aria-label','Data used this viewing: '+formatData(usedBytes));
+          const line=qualityMenu.querySelector('.willie-data-used');
+          if(line)line.textContent='Used so far this viewing: '+formatData(usedBytes);
+        }
+      }).catch(()=>{});
+    }
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{
@@ -858,7 +1020,10 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     message('Opening video…');
     requestJson('/api/watch/'+id+'/status').then(data=>{
       if(current!==surface)return;
-      status=data;watch.setAttribute('aria-pressed',String(data.watched));watch.title=data.watched?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
+      status=data;
+      if(typeof data.stream_url==='string')
+        data.stream_url+=(data.stream_url.includes('?')?'&':'?')+'viewing='+viewing;
+      watch.setAttribute('aria-pressed',String(data.watched));watch.title=data.watched?'Mark unwatched':'Mark watched';watch.setAttribute('aria-label',watch.title);
       // Server-wide saved setting; no per-playback toggle required.
       requestJson('/api/settings/playback').then(prefs=>{
         if(current!==surface)return;
