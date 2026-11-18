@@ -3,6 +3,7 @@ import os
 import io
 import tempfile
 import sqlite3
+import threading
 from pathlib import Path
 from threading import Lock
 from datetime import datetime, timezone
@@ -60,11 +61,46 @@ class FolderRequest(BaseModel):
     path: str
 
 
+# Bump when db() must change the schema again. The version is stored in the
+# database file itself (PRAGMA user_version), so a database that is already
+# current is opened without running any DDL.
+SCHEMA_VERSION = 1
+_MIGRATE_LOCK = threading.Lock()
+
+
 def db():
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     connection = sqlite3.connect(DB_PATH, timeout=30)
     connection.row_factory = sqlite3.Row
     connection.execute("PRAGMA busy_timeout=30000")
+    # Migrating used to run on every call, and its INSERT took the write lock
+    # each time, so any request could stall behind a scan, poster refresh or
+    # progress save. A current database is now opened without writing at all.
+    if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+        with _MIGRATE_LOCK:
+            if connection.execute("PRAGMA user_version").fetchone()[0] != SCHEMA_VERSION:
+                _migrate(connection)
+    # A library row without a folder row is an old single-folder library; give
+    # it its folder. Checked with a read so the common case never writes.
+    if connection.execute(
+        "SELECT 1 FROM libraries WHERE id NOT IN (SELECT library_id FROM library_folders) LIMIT 1"
+    ).fetchone():
+        connection.execute(
+            "INSERT OR IGNORE INTO library_folders(library_id,path) SELECT id,path FROM libraries")
+        connection.commit()
+    # With WAL, NORMAL cannot corrupt the database; at worst a power cut loses
+    # the last moments of a progress save. FULL would fsync every commit.
+    connection.execute("PRAGMA synchronous=NORMAL")
+    return connection
+
+
+def _migrate(connection):
+    try:
+        # WAL lets readers and the one writer work at the same time and makes
+        # each commit a single append. The mode is stored in the file.
+        connection.execute("PRAGMA journal_mode=WAL")
+    except sqlite3.OperationalError:
+        pass  # keep the existing mode; this is retried by the next migration
     connection.execute("CREATE TABLE IF NOT EXISTS libraries (id INTEGER PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, path TEXT NOT NULL UNIQUE, last_scanned TEXT)")
     connection.execute("CREATE TABLE IF NOT EXISTS media (id INTEGER PRIMARY KEY, library_id INTEGER NOT NULL, path TEXT NOT NULL UNIQUE, title TEXT NOT NULL, size INTEGER NOT NULL, mtime_ns INTEGER NOT NULL, added_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY(library_id) REFERENCES libraries(id))")
     library_columns = {row[1] for row in connection.execute("PRAGMA table_info(libraries)")}
@@ -120,8 +156,8 @@ def db():
     connection.execute("INSERT OR IGNORE INTO catalog_state(id,revision) VALUES (1,0)")
     connection.execute("CREATE INDEX IF NOT EXISTS media_added_idx ON media(added_at DESC)")
     connection.execute("CREATE INDEX IF NOT EXISTS playback_updated_idx ON playback_progress(updated_at DESC)")
+    connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
     connection.commit()
-    return connection
 
 
 def safe_folder(folder: str):
