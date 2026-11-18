@@ -992,3 +992,13 @@ body[data-page="home"] .shelf-track>.tile{
 #library-editor .library-fa-icon>i{display:none}
 .fontawesome-ready .library-settings-icon .library-fa-icon>i,
 .fontawesome-ready #library-editor .library-fa-icon>i{display:inline-block!important}
+
+/* Action / Adventure: bundled vector masks inherit the icon selection color. */
+.nav-action-icon{display:inline-flex;align-items:center;justify-content:center;flex:none;vertical-align:middle;color:inherit}
+.nav-action-icon .adventure-glyph{display:block;width:100%;height:100%;background-color:currentColor;
+ -webkit-mask:var(--adventure-icon) center/contain no-repeat;
+ mask:var(--adventure-icon) center/contain no-repeat}
+.sidebar .nav-action-icon{color:#f7f7f7}
+.sidebar .nav-link[aria-current="page"] .nav-action-icon,
+.sidebar .nav-link:focus-visible .nav-action-icon{color:#a78bfa}
+.library-header-title .library-header-icon .nav-action-icon{width:60px;height:60px}

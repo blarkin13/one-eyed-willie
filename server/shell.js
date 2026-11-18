@@ -110,17 +110,37 @@ document.addEventListener('DOMContentLoaded', () => {
     },{once:true});
     wrap.append(image);return wrap;
   }
-  // Clean is the default. Pirate preserves the original sidebar artwork.
+  // Clean remains default; the theme setting is local to each device.
   const ICON_THEME_KEY='willie-icon-theme';
-  const iconTheme=()=>localStorage.getItem(ICON_THEME_KEY)==='pirate'?'pirate':'clean';
+  const iconTheme=()=>{
+    try{
+      const v=localStorage.getItem(ICON_THEME_KEY);
+      return v==='pirate'||v==='adventure'?v:'clean';
+    }catch(_){return 'clean';}
+  };
+  window.WillieActionIcons={
+    names:{home:'home',movies:'movies',tv:'tv-shows',music:'music',
+      connections:'connections',sabnzbd:'connections',settings:'settings'},
+    create(name,size=24){
+      const asset=this.names[name]||this.names.movies;
+      const wrap=document.createElement('span');
+      wrap.className='nav-icon nav-action-icon';
+      wrap.setAttribute('aria-hidden','true');
+      wrap.style.width=size+'px';wrap.style.height=size+'px';
+      const glyph=document.createElement('span');
+      glyph.className='adventure-glyph';
+      glyph.style.setProperty('--adventure-icon','url("/assets/themes/action-adventure/'+asset+'.svg")');
+      wrap.append(glyph);
+      return wrap;
+    }
+  };
   function defaultIcon(kind){
     const safe=['home','movies','tv','music','connections','settings'].includes(kind)?kind:'movies';
     if(iconTheme()==='pirate'){
-      // Music is new and has no legacy pirate PNG. Use the matching music
-      // glyph instead of requesting a nonexistent sidebar-icon-music.png.
       if(safe==='music')return window.WillieCleanIcons.create('music',24);
       return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
     }
+    if(iconTheme()==='adventure')return window.WillieActionIcons.create(safe,26);
     return window.WillieCleanIcons.create(safe,24);
   }
   document.documentElement.dataset.iconTheme=iconTheme();
@@ -205,8 +225,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Theme selection takes precedence for the main Movies and TV Shows links.
     // Their library image uploads and Pirate presets are used only by Pirate.
     // Custom named libraries keep their individually selected artwork.
-    if(iconTheme()==='clean'){
+    if(iconTheme()==='clean'||iconTheme()==='adventure'){
       if(isStandard)return defaultIcon(kind);
+      // The pack covers the six main destinations; named libraries keep
+      // their individual icon selections in the Font Awesome fallback set.
       return window.WillieCleanIcons.createLibrary(library.icon,appearance,24);
     }
     if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
