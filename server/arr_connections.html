@@ -203,15 +203,14 @@ function build(){
 }
 async function refresh(){
  try{
-   const [data,lidarr]=await Promise.all([
-     fetchJson('/api/arr/connections'),fetchJson('/api/lidarr/connection')
-   ]);
-   data.lidarr=lidarr;
+   const data=await fetchJson('/api/arr/connections');
+   const lidarr=await fetchJson('/api/lidarr/connection').catch(()=>null);
+   data.lidarr=lidarr||{};
    for(const provider of providers){
      const controls=statusEls[provider.id],setting=data[provider.id]||{};
-     controls.state.textContent=setting.connected?'Connected':'Not connected';
+     controls.state.textContent=provider.id==='lidarr'&&!lidarr?'Status unavailable':setting.connected?'Connected':'Not connected';
      controls.state.className='integration-state'+(setting.connected?' on':'');
-     controls.summary.textContent=setting.connected?'Connected to '+setting.address:'Connect to show '+provider.desc.toLowerCase()+'.';
+     controls.summary.textContent=provider.id==='lidarr'&&!lidarr?'Could not check Lidarr connection status.':setting.connected?'Connected to '+setting.address:'Connect to show '+provider.desc.toLowerCase()+'.';
      if(setting.address)controls.url.value=setting.address;
      controls.disconnect.disabled=!setting.connected||setting.managed==='environment';
    }
