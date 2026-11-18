@@ -2477,10 +2477,12 @@ class MainActivity : ComponentActivity() {
                   glideTo(document.scrollingElement||document.documentElement,'top',0);
                   return true;
                 }
-                if(toolbar.includes(active) && direction==='down'){
+                if((toolbar.includes(active) ||
+                    active?.matches?.('#sort-toggle,#genre-toggle')) &&
+                   direction==='down'){
                   const layout=libraryLayout();
                   const first=layout?.rows[0];
-                  if(!first?.length)return true;
+                  if(!first?.length)return false;
                   const target=nearestInRow(first,centerX(rect(active)));
                   readingScroll=false;
                   // Returning to the first row restores the same complete
@@ -2515,29 +2517,42 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               const move=direction=>{
-                // Keep the D-pad inside visible dialogs and library Sort/Filter
-                // menus. Without the catalog menu here, DOWN would navigate
-                // the library behind the popup instead of its choices.
+                // Sort and Filter options are navigable while their popup
+                // is open. Once a choice is applied the menu closes, and DOWN
+                // from its toolbar toggle must go BACK to the poster grid.
+                // Never reopen the menu just because the viewer presses DOWN.
+                if(window.__willieCatalogRemoteNavigate?.(direction))return true;
+                let active=document.activeElement;
                 const menu=document.querySelector(
                   'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'
                 );
                 if(menu){
-                  const options=[...menu.querySelectorAll(
-                    'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
-                  )].filter(isVisible);
+                  const options=menu.matches('.catalog-tool-menu')
+                    ?[...menu.querySelectorAll('.catalog-tool-option:not(:disabled)')]
+                    :[...menu.querySelectorAll(
+                      'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
+                    )].filter(isVisible);
                   const index=options.indexOf(document.activeElement);
                   if(direction==='up'||direction==='down'){
                     if(!options.length)return true;
                     const step=direction==='down'?1:-1;
-                    const next=index<0?(step>0?0:options.length-1):
-                      Math.max(0,Math.min(options.length-1,index+step));
-                    return focusNode(options[next]);
-                  }
-                  // Left/Right must not move into posters underneath an open
-                  // Sort/Filter menu. OK activates the focused option.
-                  return true;
+                    if(menu.matches('.catalog-tool-menu') &&
+                       direction==='down' && index===options.length-1){
+                      menu.hidden=true;
+                      const toggle=document.querySelector(
+                        '[aria-controls="'+menu.id+'"]'
+                      );
+                      toggle?.setAttribute('aria-expanded','false');
+                      toggle?.focus({preventScroll:true});
+                      active=document.activeElement;
+                      // Continue to library toolbar handling below.
+                    }else{
+                      const next=index<0?(step>0?0:options.length-1):
+                        Math.max(0,Math.min(options.length-1,index+step));
+                      return focusNode(options[next]);
+                    }
+                  }else return true;
                 }
-                const active=document.activeElement;
                 if(active?.matches?.('input[type="range"]') &&
                     (direction==='left'||direction==='right')){
                   const min=Number(active.min)||0,max=Number(active.max)||100;

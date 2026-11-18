@@ -22,7 +22,8 @@ class TvSortFilterNavigationTests(unittest.TestCase):
         self.assertIn("const menu=document.querySelector(\n"
                       "                  'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'",
                       native)
-        self.assertIn("const options=[...menu.querySelectorAll(", native)
+        self.assertIn("const options=menu.matches('.catalog-tool-menu')", native)
+        self.assertIn("menu.querySelectorAll('.catalog-tool-option:not(:disabled)')", native)
         self.assertIn("if(direction==='up'||direction==='down'){", native)
         self.assertIn("return focusNode(options[next]);", native)
         self.assertIn("if(!options.length)return true;", native)
@@ -46,6 +47,15 @@ class TvSortFilterNavigationTests(unittest.TestCase):
         self.assertIn("menu.hidden=false;", catalog)
         self.assertIn(".catalog-tool-option:is(:focus,:focus-visible)", catalog)
         self.assertIn("var(--oew-tv-select-color,#8B5CF6)", catalog)
+
+    def test_down_from_closed_menu_toggle_returns_to_posters(self):
+        native=self.native
+        catalog=self.catalog
+        self.assertIn("if(!openId)return false;", catalog)
+        self.assertIn("closeCatalogMenu(openId,true);\n  return false;", catalog)
+        self.assertIn("active?.matches?.('#sort-toggle,#genre-toggle')", native)
+        self.assertIn("if((toolbar.includes(active) ||", native)
+        self.assertNotIn("if(catalogToggle && direction==='down')", native)
 
     def test_closed_catalog_menus_are_not_treated_as_active(self):
         native = self.native

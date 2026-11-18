@@ -743,6 +743,12 @@ async function load({preserveFocus=false}={},quiet=false){
   total=data.total;const entries=Array.isArray(data.items)?data.items:[];
   // Revision travels with the catalog snapshot, avoiding a poll/load race.
   if(Number.isSafeInteger(data.revision))catalogRevision=data.revision;
+  // A Sort/Filter choice starts a fetch; the viewer may press DOWN from the
+  // toolbar before it completes. Swapping #items would then destroy the newly
+  // focused poster and strand the remote on the page body. Capture focus at
+  // the swap, not just when the request started.
+  const returnToPosters=navigator.userAgent.includes('OneEyedWillieTV/1')&&
+    !preserveFocus&&Boolean(document.activeElement?.closest?.('#items .tile-button'));
   updateGenreChoices(data.genres);
   // Metadata refreshes must not throw D-pad focus back to the page body
   // or change the scroll position while the viewer browses poster rows.
@@ -784,6 +790,13 @@ async function load({preserveFocus=false}={},quiet=false){
   const firstCount=Math.min(entries.length,
     Math.max(24,focusIndex>=0?focusIndex+30:0));
   $('items').replaceChildren(buildCards(0,firstCount));
+  if(returnToPosters){
+    // Re-select the first poster in the refreshed ordering and keep it
+    // visible. Do not re-open Sort/Filter or steal focus from search inputs.
+    const first=$('items').querySelector('.tile-button');
+    first?.focus({preventScroll:true});
+    if(first)(document.scrollingElement||document.documentElement).scrollTop=0;
+  }
   if(focusIndex>=0){
     const restored=$('items').children[focusIndex]?.querySelector('.tile-button');
     if(restored){
@@ -936,6 +949,41 @@ for(const id of menuNames){
   else closeCatalogMenu(id,true);
  });
 }
+/* Native TV consumes hardware arrows and calls this when a popup is open.
+   After selecting a choice, DOWN from the closed Sort/Filter toggle must
+   return to the posters, not reopen the menu. Down past the last option also
+   exits the popup into the normal library toolbar navigation. */
+window.__willieCatalogRemoteNavigate=direction=>{
+ const openId=menuNames.find(id=>!$(id+'-menu').hidden);
+ if(!openId)return false;
+ const menu=$(openId+'-menu');
+ const items=[...menu.querySelectorAll('.catalog-tool-option:not(:disabled)')];
+ if(!items.length)return true;
+ const focused=document.activeElement,current=items.indexOf(focused);
+ if(direction==='left'||direction==='right'){
+  closeCatalogMenu(openId);
+  $(openId==='sort'?'genre-toggle':'sort-toggle').focus({preventScroll:true});
+  return true;
+ }
+ if(direction!=='down'&&direction!=='up')return true;
+ if(direction==='down'&&current===items.length-1){
+  closeCatalogMenu(openId,true);
+  return false; // Native DOWN now moves from the toggle to the poster row.
+ }
+ const step=direction==='down'?1:-1;
+ const index=current<0?(step>0?0:items.length-1):
+  Math.max(0,Math.min(items.length-1,current+step));
+ const target=items[index];
+ target.focus({preventScroll:true});
+ // Scroll only the popover, never the poster grid or document behind it.
+ const container=menu.getBoundingClientRect(),bounds=target.getBoundingClientRect();
+ const edge=7;
+ if(bounds.top<container.top+edge)
+  menu.scrollTop-=container.top+edge-bounds.top;
+ else if(bounds.bottom>container.bottom-edge)
+  menu.scrollTop+=bounds.bottom-container.bottom+edge;
+ return true;
+};
 document.addEventListener('pointerdown',event=>{
  if(event.target.closest('.catalog-menu-anchor'))return;
  for(const id of menuNames)closeCatalogMenu(id);

@@ -346,6 +346,65 @@ class LibraryScrollBrowserTests(unittest.TestCase):
         again = self.press(page, "down")
         self.assertEqual((again["kind"], again["top"]), ("poster", 0))
 
+    def test_sort_and_filter_choice_down_returns_to_posters(self):
+        """A selected Sort/Filter option must not trap the viewer in toolbar."""
+        page = self.open_library()
+        for name in ("sort", "genre"):
+            with self.subTest(menu=name):
+                page.evaluate("""name => document.getElementById(name+'-toggle')
+                    .focus({preventScroll:true})""", name)
+                page.evaluate("window.__willieTvSelect()")
+                self.assertTrue(page.evaluate(
+                    "name => !document.getElementById(name+'-menu').hidden", name))
+                self.assertTrue(page.evaluate(
+                    "name => document.activeElement?.closest('#'+name+'-menu') != null",
+                    name))
+                if name == "sort":
+                    # Choose another sort option inside the popup.
+                    page.evaluate("window.__willieTvMove('down')")
+                    self.assertEqual(page.evaluate(
+                        "document.activeElement?.dataset?.menuValue"), "added")
+                page.evaluate("window.__willieTvSelect()")
+                self.assertTrue(page.evaluate(
+                    "name => document.getElementById(name+'-menu').hidden", name))
+                self.assertEqual(page.evaluate("document.activeElement?.id"),
+                                 name+"-toggle")
+                # This is the reported bug: DOWN after choosing should leave
+                # Sort/Filter and select the first poster, not reopen a menu.
+                page.evaluate("window.__willieTvMove('down')")
+                # Sort/Filter fetch may finish *after* the first Down. Verify
+                # the new grid preserves focus even after that asynchronous
+                # rebuild has completed, not just before it.
+                page.wait_for_function("!loading", timeout=30000)
+                self.assertTrue(page.evaluate(
+                    "document.activeElement?.matches?.('#items .tile-button')"))
+                self.assertTrue(page.evaluate(
+                    "name => document.getElementById(name+'-menu').hidden", name))
+
+    def test_filter_last_option_down_exits_to_posters(self):
+        page = self.open_library()
+        page.evaluate("""() => {
+          const select=document.getElementById('genre');
+          for(let i=0;i<25;i++)select.add(new Option('Genre '+i, 'genre-'+i));
+          document.getElementById('genre-toggle').focus({preventScroll:true});
+        }""")
+        page.evaluate("window.__willieTvSelect()")
+        self.assertTrue(page.evaluate("!document.getElementById('genre-menu').hidden"))
+        page.evaluate("() => {for(let i=0;i<25;i++)window.__willieTvMove('down')}")
+        state=page.evaluate("""() => {
+          const menu=document.getElementById('genre-menu'),item=document.activeElement;
+          const r=item.getBoundingClientRect(),bounds=menu.getBoundingClientRect();
+          return {value:item.dataset.menuValue, scroll:menu.scrollTop,
+            visible:r.top>=bounds.top-2&&r.bottom<=bounds.bottom+2};
+        }""")
+        self.assertEqual(state["value"], "genre-24")
+        self.assertGreater(state["scroll"], 0)
+        self.assertTrue(state["visible"])
+        page.evaluate("window.__willieTvMove('down')")
+        self.assertTrue(page.evaluate("document.getElementById('genre-menu').hidden"))
+        self.assertTrue(page.evaluate(
+            "document.activeElement?.matches?.('#items .tile-button')"))
+
     def test_down_then_up_returns_to_the_same_poster(self):
         page = self.open_library()
         self.press(page, "right"); self.press(page, "right")
