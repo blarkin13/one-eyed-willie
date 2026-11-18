@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS servers (
   display_name TEXT NOT NULL,
   public_url TEXT,
   local_url TEXT,
+  server_identity TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -46,3 +47,22 @@ CREATE TABLE IF NOT EXISTS oauth_flows (
   expires_at TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS oauth_flows_expiry_idx ON oauth_flows(expires_at);
+
+-- Time-limited pairing codes; only hashed code and polling secret are stored.
+CREATE TABLE IF NOT EXISTS pairing_requests (
+  code_hash TEXT PRIMARY KEY,
+  server_identity TEXT NOT NULL,
+  secret_hash TEXT NOT NULL UNIQUE,
+  status TEXT NOT NULL DEFAULT 'pending',
+  owner_user_id TEXT,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS pairing_expiry_idx ON pairing_requests(expires_at);
+CREATE TABLE IF NOT EXISTS pairing_rate_limits (
+  ip_hash TEXT NOT NULL,
+  window TEXT NOT NULL,
+  count INTEGER NOT NULL DEFAULT 1,
+  PRIMARY KEY(ip_hash,window)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS servers_identity_unique_idx ON servers(server_identity) WHERE server_identity IS NOT NULL;
