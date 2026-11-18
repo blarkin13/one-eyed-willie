@@ -8,6 +8,9 @@ import asyncio
 import hashlib
 import hmac
 import json
+import os
+import urllib.request
+import urllib.error
 import time
 
 from fastapi import APIRouter, Header, HTTPException
@@ -78,6 +81,29 @@ async def deliver(channel):
 @router.post("/offer")
 async def offer(body: Offer, x_yarr_ice_key: str | None = Header(default=None)):
     authenticate(x_yarr_ice_key)
+    # Preserve the existing Cloudflare tunnel, database, and player in the
+    # standard Docker container. Only forward authenticated SDP negotiation
+    # to the separate diagnostic process using Linux host networking.
+    if os.environ.get("YARR_ICE_PROBE_USE_HOST_NETWORK") == "1":
+        endpoint = "http://host.docker.internal:18799/api/yarr/ice-probe/offer"
+        payload = json.dumps(body.model_dump()).encode()
+        def request_host():
+            req = urllib.request.Request(
+                endpoint, data=payload, method="POST",
+                headers={"Content-Type": "application/json",
+                         "X-Yarr-Ice-Key": x_yarr_ice_key},
+            )
+            with urllib.request.urlopen(req, timeout=35) as response:
+                if response.status != 200 or response.headers.get_content_type() != "application/json":
+                    raise ValueError("Unexpected diagnostic response")
+                result = json.loads(response.read(80000))
+                if not isinstance(result, dict) or result.get("type") != "answer":
+                    raise ValueError("Unexpected diagnostic answer")
+                return result
+        try:
+            return await asyncio.to_thread(request_host)
+        except (OSError, ValueError, urllib.error.HTTPError):
+            raise HTTPException(503, "Host-network diagnostic unavailable")
     if RTCPeerConnection is None:
         raise HTTPException(503, "WebRTC engine not available")
     if len(PEERS) >= MAX_PEERS:
