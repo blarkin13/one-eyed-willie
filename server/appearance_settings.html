@@ -83,10 +83,11 @@
 
 <section class="settings-section" aria-labelledby="sidebar-icons-heading">
 <h2 id="sidebar-icons-heading">Sidebar icons</h2>
-<p>Customize each navigation icon, including Home and download services. Upload a transparent PNG for the Pirate theme, or restore its original artwork. The Clean theme uses consistent white SVG icons.</p>
+<p>Customize each navigation icon, including Home and download services. Upload your own icons, or restore the selected theme's defaults. Clean uses white SVG icons; Pirate preserves the original artwork.</p>
 <div class="settings-card">
   <div id="system-sidebar-icons" class="settings-list" aria-label="Sidebar icon customization">Loading icons…</div>
   <p class="settings-muted" id="system-icon-message" role="status"></p>
+  <p class="settings-muted">“Already default” means no custom upload exists for that icon. Switch themes above to change all default icons.</p>
   <p class="settings-muted">Icons for individually named libraries are managed in <a class="text-link" href="/settings/libraries">Library settings</a>.</p>
 </div>
 </section>
@@ -95,6 +96,7 @@
 <script>
 const el=id=>document.getElementById(id);
 el('icon-theme').value=localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean';
+const activeIconTheme=()=>localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean';
 el('icon-theme').addEventListener('change',event=>{
  localStorage.setItem('willie-icon-theme',event.target.value);
  location.reload();
@@ -236,17 +238,27 @@ async function loadSystemIcons(){
   const row=document.createElement('div');
   row.className='settings-list-row';
   row.style.cssText='display:flex;align-items:center;gap:14px;flex-wrap:wrap';
-  const preview=document.createElement('img');
-  preview.src=item.url;preview.alt='';
-  preview.width=56;preview.height=56;
-  preview.style.cssText='object-fit:contain;flex:none';
+  const preview=document.createElement('span');
+  preview.style.cssText='display:inline-flex;align-items:center;justify-content:center;flex:none;width:56px;height:56px';
+  const drawPreview=(url,custom)=>{
+    preview.replaceChildren();
+    if(!custom&&activeIconTheme()==='clean'&&window.WillieCleanIcons){
+      preview.append(window.WillieCleanIcons.create(item.name,38));
+    }else{
+      const img=document.createElement('img');
+      img.src=url;img.alt='';img.width=56;img.height=56;
+      img.style.cssText='object-fit:contain';
+      preview.append(img);
+    }
+  };
+  drawPreview(item.url,item.custom);
   const label=document.createElement('span');
   label.className='settings-list-title';
   label.textContent=systemIconNames[item.name]||item.name;
   label.style.flex='1';
   const status=document.createElement('span');
   status.className='settings-muted';
-  status.textContent=item.custom?'Custom':'Default';
+  status.textContent=item.custom?'Custom upload':'Already default ('+(activeIconTheme()==='clean'?'Clean':'Pirate')+')';
   const upload=document.createElement('button');
   upload.type='button';upload.className='secondary-button';
   upload.textContent=item.custom?'Replace':'Upload';
@@ -265,7 +277,7 @@ async function loadSystemIcons(){
     });
     const data=await response.json().catch(()=>({}));
     if(!response.ok)throw Error(data.detail||'Icon upload failed');
-    preview.src=data.url;status.textContent='Custom';
+    drawPreview(data.url,true);status.textContent='Custom upload';
     upload.textContent='Replace';restore.disabled=false;
     document.dispatchEvent(new CustomEvent('willie:sidebar-icon-updated',{detail:data}));
     el('system-icon-message').textContent=label.textContent+' icon saved.';
@@ -275,14 +287,19 @@ async function loadSystemIcons(){
   upload.onclick=()=>input.click();
   const restore=document.createElement('button');
   restore.type='button';restore.className='secondary-button';
-  restore.textContent='Restore default';restore.disabled=!item.custom;
+  restore.textContent=item.custom?'Restore default':'Already default';
+  restore.disabled=!item.custom;
+  restore.title=item.custom?'Remove uploaded icon and restore the selected theme':'This icon already uses the selected theme default';
   restore.onclick=async()=>{
    restore.disabled=true;
    try{
     const data=await api('/api/settings/sidebar/icons/'+item.name,{method:'DELETE'});
-    preview.src=data.url;status.textContent='Default';upload.textContent='Upload';
+    drawPreview(data.url,false);
+    status.textContent='Already default ('+(activeIconTheme()==='clean'?'Clean':'Pirate')+')';
+    upload.textContent='Upload';
+    restore.textContent='Already default';
     document.dispatchEvent(new CustomEvent('willie:sidebar-icon-updated',{detail:data}));
-    el('system-icon-message').textContent=label.textContent+' restored to default.';
+    el('system-icon-message').textContent=label.textContent+' restored to the '+(activeIconTheme()==='clean'?'Clean':'Pirate')+' default.';
    }catch(error){
     restore.disabled=false;el('system-icon-message').textContent=error.message;
    }
