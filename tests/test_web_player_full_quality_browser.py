@@ -51,16 +51,7 @@ class FullQualityBrowserTests(unittest.TestCase):
         base = Path(cls.tmp.name)
         folder = base / "media" / "Movies" / "Sample Film (2001)"
         folder.mkdir(parents=True)
-        # 640x360 h264 + AC3 in MKV: neither the container nor the audio plays in a browser.
-        subprocess.run(
-            [FFMPEG, "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24",
-             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
-             "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-t", "40",
-             "-map", "0:v", "-map", "1:a", "-map", "2:a",
-             "-c:v", "libx264", "-preset", "ultrafast", "-g", "48", "-pix_fmt", "yuv420p",
-             "-c:a", "ac3", "-ac", "2",   # English (440 Hz) first, French (880 Hz) second
-             "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fre",
-             str(folder / "Sample.Film.2001.mkv")], check=True)
+        cls.make_movie(folder / "Sample.Film.2001.mkv")
         data = base / "data"
         data.mkdir()
         env = dict(
@@ -112,6 +103,19 @@ class FullQualityBrowserTests(unittest.TestCase):
         cls.server.terminate()
         cls.server.wait(timeout=10)
         cls.tmp.cleanup()
+
+    @classmethod
+    def make_movie(cls, path):
+        # 640x360 h264 + two AC3 tracks in MKV: neither the container nor the audio plays in a browser.
+        subprocess.run(
+            [FFMPEG, "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24",
+             "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000",
+             "-f", "lavfi", "-i", "sine=frequency=880:sample_rate=48000", "-t", "40",
+             "-map", "0:v", "-map", "1:a", "-map", "2:a",
+             "-c:v", "libx264", "-preset", "ultrafast", "-g", "48", "-pix_fmt", "yuv420p",
+             "-c:a", "ac3", "-ac", "2",   # English (440 Hz) first, French (880 Hz) second
+             "-metadata:s:a:0", "language=eng", "-metadata:s:a:1", "language=fre",
+             str(path)], check=True)
 
     def open_player(self):
         context = self.browser.new_context(viewport={"width": 1280, "height": 720})

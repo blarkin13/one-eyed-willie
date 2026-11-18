@@ -98,6 +98,26 @@
   // What "Best available" becomes when the original file cannot be played as-is:
   // the untouched video when the server can pass it through, else a 720p transcode.
   let autoTier='720p';
+  let passthroughFailed=null;   // set by the open player: drop from Full quality to 720p
+  /* The deepest HEVC this browser says it can decode: 10 (Main 10), 8 (Main) or 0.
+   * Sent to the server so Full quality is offered for HEVC and 10-bit video only
+   * where it can play. Forgotten for the tab if a copied video then failed to decode. */
+  function hevcSupport(video){
+    try{if(sessionStorage.getItem('willie:hevc-failed')==='1')return 0}catch(_){}
+    const supported=codec=>{
+      const type='video/mp4; codecs="'+codec+'"';
+      try{if(window.MediaSource?.isTypeSupported)return !!MediaSource.isTypeSupported(type)}catch(_){}
+      try{return !!video?.canPlayType(type)}catch(_){return false}
+    };
+    return supported('hvc1.2.4.L120.B0')?10:supported('hvc1.1.6.L120.B0')?8:0;
+  }
+  let hevcDepth=0;
+  /* True while a copied (not re-encoded) non-H.264 video is playing as a stream. */
+  function passthroughNeedsDecoder(){
+    const tier=quality==='auto'?autoTier:quality;
+    const codec=status?.media?.video_codec;
+    return playbackMode==='hls'&&tier==='full'&&!!codec&&codec!=='h264';
+  }
   let quality=savedQuality(), directRetries=0, hlsRecover={network:0,media:0}, hlsRecoverAt=0;
   function revealChrome(){
     if(!current)return;
@@ -424,7 +444,8 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     message('Preparing compatible HLS stream…');
     try{
       const startUrl=tier=>'/api/stream/hls/start/'+mediaId+'?start='+encodeURIComponent(seek)+
-        '&quality='+encodeURIComponent(tier)+'&viewing='+encodeURIComponent(viewing)+'&audio='+audioIndex;
+        '&quality='+encodeURIComponent(tier)+'&viewing='+encodeURIComponent(viewing)+'&audio='+audioIndex+
+        (hevcDepth?'&hevc='+hevcDepth:'');
       let result;
       try{result=await requestJson(startUrl(quality==='auto'?autoTier:quality),{method:'POST'})}
       catch(error){
@@ -465,6 +486,10 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
         hls.on(Hls.Events.ERROR,(_event,data)=>{
           if(!data.fatal)return;
           hlsRecoverAt=Date.now();
+          // A copied HEVC/10-bit video this browser cannot decode will not improve on retry.
+          if(data.type!==Hls.ErrorTypes.NETWORK_ERROR&&passthroughNeedsDecoder()&&passthroughFailed){
+            passthroughFailed();return;
+          }
           // Recover in place first: a dropped request or a bad segment should not
           // throw away the transcode. An expired session (404) cannot be resumed.
           if(data.type===Hls.ErrorTypes.NETWORK_ERROR&&data.response?.code!==404&&hlsRecover.network<3){
@@ -525,7 +550,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     if(!Number.isInteger(id)||id<=0)return;
     const replacing=!!current;   // e.g. next episode: the old player's removal ends fullscreen
     if(current)close();
-    viewing=newViewingId();audioTracks=[];audioIndex=0;audioChosen=false;
+    viewing=newViewingId();audioTracks=[];audioIndex=0;audioChosen=false;passthroughFailed=null;
     // Explicit playback (unlike refreshes/checkpoints) restores dismissed
     // Continue Watching titles for this movie or television series.
     fetch('/api/home/continue/'+id+'/start',{method:'POST'}).catch(()=>{});
@@ -554,6 +579,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       .then(pref=>{if(current===surface)applySubtitleStyle(pref)})
       .catch(()=>{});
     const video=document.createElement('video');video.className='willie-video';
+    hevcDepth=hevcSupport(video);
     video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';
     const controls=document.createElement('div');controls.className='willie-controls';
     const back=document.createElement('button');back.type='button';setIcon(back,'back','Back to library');back.onclick=close;
@@ -684,7 +710,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     const quiet=ms=>{quietUntil=Math.max(quietUntil,performance.now()+ms)};
     const slowPrompt=document.createElement('div');slowPrompt.className='willie-slow-prompt';slowPrompt.hidden=true;
     slowPrompt.setAttribute('role','dialog');slowPrompt.setAttribute('aria-label','Slow connection');
-    const estimatesReady=requestJson('/api/stream/hls/estimates/'+id).then(data=>{estimates=data;return data}).catch(()=>null);
+    const estimatesReady=requestJson('/api/stream/hls/estimates/'+id+(hevcDepth?'?hevc='+hevcDepth:'')).then(data=>{estimates=data;return data}).catch(()=>null);
     const resolveAutoTier=()=>{autoTier=estimates?.full?.available?'full':'720p'};
     function chooseQuality(choice,remember=true){
       quality=choice;resolveAutoTier();
@@ -700,6 +726,13 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       else playHls(at);
       revealChrome();concealChromeSoon();
     }
+    passthroughFailed=()=>{
+      if(current!==surface||switching)return;
+      try{sessionStorage.setItem('willie:hevc-failed','1')}catch(_){}
+      hevcDepth=0;if(estimates?.full)estimates.full.available=false;
+      chooseQuality('720p',false);
+      setTimeout(()=>{if(current===surface)message('This browser could not play the original video. Using 720p instead.')},900);
+    };
     function chooseAudio(index){
       audioChosen=true;audioIndex=index;
       const track=audioTracks.find(t=>t.id===index);
@@ -1064,7 +1097,8 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
             video.play().catch(()=>{});
           },1000*attempt);
         });
-      }else recoverStream();
+      }else if(passthroughNeedsDecoder()&&video.error?.code!==2&&passthroughFailed)passthroughFailed();
+      else recoverStream();
     });
     message('Opening video…');
     requestJson('/api/watch/'+id+'/status').then(data=>{
