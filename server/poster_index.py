@@ -94,6 +94,7 @@ def _collect():
         media = conn.execute("""
             SELECT m.library_id,m.path,m.source_root FROM media m
             JOIN libraries l ON l.id=m.library_id
+            WHERE l.kind IN ('movies','tv')
             ORDER BY CASE WHEN l.kind='tv' THEN 0 ELSE 1 END,
                      m.added_at DESC,m.id DESC
         """)
