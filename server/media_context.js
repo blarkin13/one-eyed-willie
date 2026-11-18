@@ -239,16 +239,25 @@ font-size:.86rem;line-height:1.35}
       });
   }
   async function playback(data) {
-    let id=data.media_id;
+    // A TV series tile's media_id is only an indexed representative file,
+    // not necessarily its next unwatched/resumable episode.
+    let id=data.kind==='tv'&&data.scope!=='episode'?null:data.media_id;
     let restart=false;
+    const q=new URLSearchParams({library_id:data.library_id,key:data.key});
     if (!id && data.kind==='movies') {
-      const q=new URLSearchParams({library_id:data.library_id,key:data.key});
       const info=await request('/api/movies/details?'+q);
       id=info.media_id; restart=!(info.position_seconds>0);
-    } else if (!id) {
-      const q=new URLSearchParams({library_id:data.library_id,key:data.key});
+    } else if (!id && data.scope==='season' && data.season_number!==null) {
+      q.set('season_number',data.season_number);
+      const info=await request('/api/tv/season?'+q);
+      const episodes=Array.isArray(info.episodes)?info.episodes:[];
+      const episode=episodes.find(e=>!e.watched)||episodes[0];
+      id=episode?.id;
+      restart=!(Number(episode?.position_seconds)>30);
+    } else if (!id && data.kind==='tv') {
       const info=await request('/api/tv/show?'+q);
-      id=info.next_episode?.media_id;restart=!info.next_episode?.resume;
+      id=info.next_episode?.media_id;
+      restart=!info.next_episode?.resume;
     }
     if (!id) throw Error('No playable local media was found');
     closeCurrent();
