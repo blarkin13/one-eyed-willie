@@ -297,6 +297,10 @@ font-size:.86rem;line-height:1.35}
     return true;
   }
 
+  window.__willieMediaLongSelect = () => {
+    const data=resolve(document.activeElement);
+    return data ? show(data) : false;
+  };
   const previousLongSelect = window.__willieTvLongSelect;
   window.__willieTvLongSelect = () => {
     const node=document.activeElement;
