@@ -85,6 +85,8 @@ def _cloud(path, *, data=None, secret=None):
         with urllib.request.urlopen(request, timeout=8) as response:
             return json.loads(response.read(4096))
     except urllib.error.HTTPError as e:
+        if e.code in (401, 403):
+            raise HTTPException(401, "Paired server credential is no longer authorized")
         if e.code == 409:
             raise HTTPException(409, "Server is already paired. Contact support to relink.")
         if e.code == 429:
