@@ -16,6 +16,8 @@ CREATE TABLE IF NOT EXISTS servers (
   public_url TEXT,
   local_url TEXT,
   server_identity TEXT,
+  connection_secret_hash TEXT,
+  last_seen_at TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
