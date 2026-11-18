@@ -10,7 +10,7 @@
   let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
   // Playback quality: 'auto' plays the original when the browser can, otherwise
   // transcodes at the default size; the others always transcode at that size.
-  const QUALITIES=[['auto','Best available'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p'],['240p','240p']];
+  const QUALITIES=[['auto','Best available'],['full','Full quality'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p'],['240p','240p']];
   const BUDGETS=[[250e6,'250 MB'],[500e6,'500 MB'],[1e9,'1 GB'],[2e9,'2 GB'],[5e9,'5 GB']];
   function hasChosenQuality(){try{return localStorage.getItem('willie:quality')!==null}catch(_){return false}}
   /* Metered connections: ask before spending data. Chrome on Android reports
@@ -39,6 +39,9 @@
     const rows=[];
     if(canDirect&&original)rows.push({id:'auto',name:'Original quality',kind:'exact',bytes:original*left,
       perHour:original*3600/duration});
+    if(!canDirect&&estimates.full?.available&&estimates.full.bytes>0)
+      rows.push({id:'full',name:'Full quality (original video)',kind:'about',
+        bytes:estimates.full.bytes*left,perHour:estimates.full.bytes*3600/duration});
     for(const tier of estimates.qualities||[]){
       // A re-encode never needs more than the file it came from.
       const whole=tier.kind==='up_to'&&original?Math.min(tier.bytes,original):tier.bytes;
@@ -55,6 +58,9 @@
     try{const value=localStorage.getItem('willie:quality');return QUALITIES.some(q=>q[0]===value)?value:'auto'}
     catch(_){return 'auto'}
   }
+  // What "Best available" becomes when the original file cannot be played as-is:
+  // the untouched video when the server can pass it through, else a 720p transcode.
+  let autoTier='720p';
   let quality=savedQuality(), directRetries=0, hlsRecover={network:0,media:0}, hlsRecoverAt=0;
   function revealChrome(){
     if(!current)return;
@@ -334,9 +340,16 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     syncCaptions();
     message('Preparing compatible HLS stream…');
     try{
-      const result=await requestJson('/api/stream/hls/start/'+mediaId+
-        '?start='+encodeURIComponent(seek)+
-        '&quality='+encodeURIComponent(quality==='auto'?'720p':quality),{method:'POST'});
+      const startUrl=tier=>'/api/stream/hls/start/'+mediaId+'?start='+encodeURIComponent(seek)+
+        '&quality='+encodeURIComponent(tier);
+      let result;
+      try{result=await requestJson(startUrl(quality==='auto'?autoTier:quality),{method:'POST'})}
+      catch(error){
+        // A saved "Full quality" choice may not suit this particular video.
+        if(quality!=='full'||!/^Full quality is not available/.test(error.message))throw error;
+        message(error.message.replace('Full quality is not available for this file. ','Full quality is not available: ')+' Using 720p.');
+        result=await requestJson(startUrl('720p'),{method:'POST'});
+      }
       if(current!==surface)return;
       session=result.session;
       status.duration_seconds=status.duration_seconds||result.duration;
@@ -350,7 +363,12 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       if(!ready?.ready)throw Error('HLS transcoding did not start. Check server transcoder logs.');
       const url=ready.playlist;
       message('Starting '+ready.engine+' playback…');
-      if(video.canPlayType('application/vnd.apple.mpegurl')){
+      // Chromium (Chrome, Edge, Opera, Android) now claims native HLS support, but its
+      // built-in demuxer rejects these streams (DEMUXER_ERROR_COULD_NOT_PARSE).
+      // hls.js is the reliable path wherever Media Source is available; Safari
+      // and iOS keep their own, mature native HLS.
+      const chromium=/Chrom(?:e|ium)\//.test(navigator.userAgent)&&!!window.MediaSource;
+      if(!chromium&&video.canPlayType('application/vnd.apple.mpegurl')){
         // EVENT playlists are seekable from the beginning; Safari may otherwise
         // jump to the currently advertised live edge.
         video.addEventListener('loadedmetadata',()=>{
@@ -569,8 +587,9 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
     const qualityMenu=document.createElement('div');qualityMenu.className='willie-subtitle-menu willie-data-menu';qualityMenu.hidden=true;
     let estimates=null,pendingStart=null;
     const estimatesReady=requestJson('/api/stream/hls/estimates/'+id).then(data=>{estimates=data;return data}).catch(()=>null);
+    const resolveAutoTier=()=>{autoTier=estimates?.full?.available?'full':'720p'};
     function chooseQuality(choice){
-      quality=choice;
+      quality=choice;resolveAutoTier();
       try{localStorage.setItem('willie:quality',quality)}catch(_){}
       qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');
       if(pendingStart){const begin=pendingStart;pendingStart=null;begin();return}
@@ -594,13 +613,12 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       }
       qualityMenu.append(heading);
       const rows=planDataUse(estimates,at,canDirect);
-      const current=quality==='auto'&&!canDirect?'720p':quality;
-      const options=rows.length?rows:QUALITIES.map(([value,label])=>
+      const options=rows.length?rows:QUALITIES.filter(q=>q[0]!=='full').map(([value,label])=>
         ({id:value,name:value==='auto'?'Best available':label,kind:null,bytes:0}));
       for(const row of options){
         const button=document.createElement('button');button.type='button';button.className='willie-data-row';
         button.dataset.quality=row.id;
-        const selected=row.id===quality||(quality==='auto'&&!canDirect&&row.id==='720p'&&!rows.some(r=>r.id==='auto'));
+        const selected=row.id===quality||(quality==='auto'&&!canDirect&&row.id===autoTier);
         button.setAttribute('aria-pressed',String(selected));
         const name=document.createElement('span');name.textContent=row.name;
         const cost=document.createElement('span');cost.className='willie-data-cost';
@@ -669,7 +687,8 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       if(autoPlayNext&&nextEpisode&&current===surface)launchNext();
     }
     const diagnostics=document.createElement('button');setIcon(diagnostics,'info','Playback diagnostics');
-    diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':'HLS transcoding ('+(quality==='auto'?'720p':quality)+')')+
+    diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':(quality==='auto'?autoTier:quality)==='full'?'HLS — original video, audio converted':
+      'HLS transcoding ('+(quality==='auto'?autoTier:quality)+')')+
       ' · Server: '+(surface.dataset.engine||'Not reported')+
       ' · Video: '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+
       ' · Client GPU decoding depends on browser, device and codec.');
@@ -865,11 +884,18 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
           video.play().catch(()=>message('Press Play to start.'));
         }else playHls(resume);
       };
+      const beginWhenPlanned=async()=>{
+        // "Best available" on a file the browser cannot play as-is: find out
+        // (briefly) whether the original video can be passed through.
+        if(quality==='auto'&&!browserCanDirect(video,data))
+          await Promise.race([estimatesReady,new Promise(resolve=>setTimeout(resolve,2500))]);
+        resolveAutoTier();begin();
+      };
       if(onMeteredConnection()&&!hasChosenQuality()){
         // Nothing is downloaded until the viewer has seen what each choice costs.
         pendingStart=begin;message('Choose how much data to use.');
         estimatesReady.finally(()=>{if(current===surface&&pendingStart)openDataMenu()});
-      }else begin();
+      }else beginWhenPlanned();
     }).catch(e=>message(e.message));
   }
   const open=(id,title,options={})=>{

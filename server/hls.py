@@ -52,11 +52,29 @@ QUALITIES = {
     "240p": {"width": 426, "height": 240, "abr": True, "target": 300, "maxrate": 400, "bufsize": 700, "audio": 64},
 }
 DEFAULT_QUALITY = "720p"
+# "full" keeps the original video untouched (stream copy) and only converts the
+# audio, so it loses nothing and costs the server almost no CPU. It needs video
+# every browser can decode as it is.
+FULL = "full"
+
+
+def full_quality_support(profile):
+    """(available, reason) for passing the original video straight through."""
+    codec = str((profile or {}).get("video_codec") or "")
+    if not codec:
+        return False, "The video format could not be read."
+    if codec != "h264":
+        return False, f"{codec.upper()} video must be converted for browsers; choose 1080p."
+    if (profile.get("pixel_format") or "yuv420p") != "yuv420p":
+        return False, "This video uses a colour format browsers cannot play; choose 1080p."
+    if (profile.get("hdr_transfer") or "") in ("smpte2084", "arib-std-b67"):
+        return False, "HDR video would look washed out unconverted; choose 1080p."
+    return True, ""
 
 
 def normalize_quality(value):
     """Unknown or missing values fall back to the default instead of failing."""
-    return value if isinstance(value, str) and value in QUALITIES else DEFAULT_QUALITY
+    return value if isinstance(value, str) and (value in QUALITIES or value == FULL) else DEFAULT_QUALITY
 
 
 @dataclass
@@ -81,6 +99,18 @@ def _command(file, directory, start, hardware=False, quality=DEFAULT_QUALITY):
     # Keep generated segments available for replay and seeking. The old
     # sliding playlist deleted segments while viewers were still watching.
     # Read slightly ahead of real-time without encoding the entire file at once.
+    if normalize_quality(quality) == FULL:
+        # Copy the video; -noaccurate_seek keeps audio and video starting together
+        # at the keyframe at or before [start]. Copying is far cheaper than
+        # encoding, so read well ahead of real time to make forward seeks cheap.
+        return [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error",
+                "-readrate", "4", "-noaccurate_seek", "-ss", str(start), "-i", str(file),
+                "-map", "0:v:0", "-map", "0:a:0?", "-c:v", "copy",
+                "-c:a", "aac", "-ac", "2", "-b:a", "192k", "-ar", "48000",
+                "-f", "hls", "-hls_time", "4", "-hls_playlist_type", "event",
+                "-hls_list_size", "0", "-hls_flags", "temp_file+independent_segments",
+                "-hls_segment_filename", str(directory / "segment_%06d.ts"),
+                str(directory / "index.m3u8")]
     preset = QUALITIES[normalize_quality(quality)]
     width, height = preset["width"], preset["height"]
     args = [FFMPEG, "-hide_banner", "-nostdin", "-loglevel", "error"]
@@ -204,6 +234,10 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
     _, file = _item(media_id)
     if not os.path.isfile(FFMPEG):
         raise HTTPException(503, "Video transcoder is not installed")
+    if quality == FULL:
+        available, reason = full_quality_support(inspect_media(file))
+        if not available:
+            raise HTTPException(409, "Full quality is not available for this file. " + reason)
     try:
         ROOT.mkdir(parents=True, exist_ok=True)
         disk = shutil.disk_usage(ROOT)
@@ -219,7 +253,7 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
         token = secrets.token_hex(16)
         directory = ROOT / token
         directory.mkdir(mode=0o700)
-        hardware = hardware_available()
+        hardware = hardware_available() and quality != FULL
         try:
             process = _spawn(_command(file, directory, start, hardware, quality), directory)
         except OSError as exc:
@@ -227,8 +261,9 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
             raise HTTPException(503, "Unable to start transcoder") from exc
         now = time.monotonic()
         session = Session(token, directory, process, now, now, media_id,
-                          "Intel VAAPI encode" if hardware else "CPU", probe_duration(file), start,
-                          quality)
+                          "Original video (no re-encode)" if quality == FULL
+                          else "Intel VAAPI encode" if hardware else "CPU",
+                          probe_duration(file), start, quality)
         ACTIVE[token] = session
         return {"session": token,
                 "playlist": f"/api/stream/hls/{token}/index.m3u8",
@@ -279,10 +314,15 @@ def data_estimates(media_id: int):
         kbps, kind = estimate_kbps(preset, hardware)
         options.append({"id": key, "kbps": kbps, "kind": kind,
                         "bytes": estimate_bytes(kbps, seconds) if seconds else 0})
+    available, reason = full_quality_support(profile)
     return {
         "duration_seconds": seconds,
         "original": {"bytes": size,
                      "kbps": int(size * 8 / 1000 / seconds) if seconds and size else 0},
+        # The video is copied as-is, so the stream is about the size of the file
+        # (its audio is re-encoded, which changes that by a few percent).
+        "full": {"available": available, "reason": reason,
+                 "bytes": int(size * PACKAGING_OVERHEAD) if available else 0, "kind": "about"},
         "qualities": options,
         "default": DEFAULT_QUALITY,
     }
