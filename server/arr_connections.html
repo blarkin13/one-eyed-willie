@@ -3,7 +3,7 @@
 <head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-directory-3"><script defer src="/assets/shell.js?v=appearance-1"></script>
+<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-status-fix-4"><script defer src="/assets/shell.js?v=connections-status-fix-4"></script>
 <style>
 .connection-list{display:flex;flex-direction:column;gap:20px;width:100%;min-width:0;margin-top:20px}
 .connection-grid{display:contents}
@@ -202,19 +202,31 @@ function build(){
  }
 }
 async function refresh(){
- try{
-   const data=await fetchJson('/api/arr/connections');
-   const lidarr=await fetchJson('/api/lidarr/connection').catch(()=>null);
-   data.lidarr=lidarr||{};
-   for(const provider of providers){
-     const controls=statusEls[provider.id],setting=data[provider.id]||{};
-     controls.state.textContent=provider.id==='lidarr'&&!lidarr?'Status unavailable':setting.connected?'Connected':'Not connected';
-     controls.state.className='integration-state'+(setting.connected?' on':'');
-     controls.summary.textContent=provider.id==='lidarr'&&!lidarr?'Could not check Lidarr connection status.':setting.connected?'Connected to '+setting.address:'Connect to show '+provider.desc.toLowerCase()+'.';
-     if(setting.address)controls.url.value=setting.address;
-     controls.disconnect.disabled=!setting.connected||setting.managed==='environment';
+ // Check the Arr integrations independently so a failed API leaves the
+ // remaining connection rows and their status intact.
+ const [arrResult,lidarrResult]=await Promise.allSettled([
+   fetchJson('/api/arr/connections',{cache:'no-store'}),
+   fetchJson('/api/lidarr/connection',{cache:'no-store'})
+ ]);
+ for(const provider of providers){
+   const controls=statusEls[provider.id];
+   const result=provider.id==='lidarr'?lidarrResult:arrResult;
+   if(result.status!=='fulfilled'){
+     controls.state.textContent='Status unavailable';
+     controls.state.className='integration-state';
+     controls.summary.textContent='Could not check '+provider.title+' right now. Saved credentials have not been changed.';
+     controls.disconnect.disabled=true;
+     continue;
    }
- }catch(e){for(const id of Object.keys(statusEls))statusEls[id].summary.textContent=e.message;}
+   const setting=provider.id==='lidarr'?result.value:(result.value[provider.id]||{});
+   controls.state.textContent=setting.connected?'Connected':'Not connected';
+   controls.state.className='integration-state'+(setting.connected?' on':'');
+   controls.summary.textContent=setting.connected
+     ?'Connected to '+(setting.address||'configured server')
+     :'Connect to enable '+provider.desc.toLowerCase()+'.';
+   if(setting.address)controls.url.value=setting.address;
+   controls.disconnect.disabled=!setting.connected||setting.managed==='environment';
+ }
 }
 
 async function refreshOpenSubtitles(){
@@ -227,7 +239,7 @@ async function refreshOpenSubtitles(){
      (data.token_configured?' · Account token configured':''):
      'Connect once to search and download missing subtitles from the player.';
    $('os-remove').disabled=data.source!=='settings';
- }catch(error){$('os-summary').textContent=error.message;}
+ }catch(error){$('os-state').textContent='Status unavailable';$('os-summary').textContent='Could not check OpenSubtitles: '+error.message;}
 }
 $('os-form').addEventListener('submit',async event=>{
  event.preventDefault();$('os-save').disabled=true;$('os-message').textContent='Verifying OpenSubtitles connection…';
@@ -264,7 +276,7 @@ async function refreshPlex(){
   $('plex-disconnect').disabled=!data.connected;
   $('plex-preview').disabled=!data.connected;
   $('plex-import').hidden=true;
- }catch(error){$('plex-summary').textContent=error.message}
+ }catch(error){$('plex-state').textContent='Status unavailable';$('plex-summary').textContent='Could not check Plex: '+error.message}
 }
 $('plex-form').addEventListener('submit',async event=>{
  event.preventDefault();$('plex-connect').disabled=true;$('plex-message').textContent='Testing Plex…';
@@ -319,7 +331,7 @@ async function sabConnection(){
   $('sab-summary').textContent=data.connected?'Connected to '+data.address:'Connect SABnzbd to use its dashboard.';
   if(data.address)$('sab-url').value=data.address;
   $('sab-disconnect').disabled=!data.connected;
- }catch(error){$('sab-summary').textContent=error.message}
+ }catch(error){$('sab-state').textContent='Status unavailable';$('sab-summary').textContent='Could not check SABnzbd: '+error.message}
 }
 $('sab-form').addEventListener('submit',async event=>{
  event.preventDefault();$('sab-connect').disabled=true;$('sab-message').textContent='Testing SABnzbd connection…';
