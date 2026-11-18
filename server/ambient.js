@@ -5,7 +5,7 @@
   if (window.WillieAmbient) return;
   const valid = new Set(['off','snow','rain','leaves','fireflies']);
   const reduced = window.matchMedia('(prefers-reduced-motion: reduce)');
-  const tv = /(Android|Google TV)/i.test(navigator.userAgent);
+  const tv = /(Android|Google TV)/i.test(navigator.userAgent);
   const defaults = {effect:'off', intensity:10, speed:'normal', layer:'foreground'};
   let settings = {...defaults}, canvas=null, ctx=null, frame=0;
   let particles=[], width=0, height=0, last=0, running=false, stopped=false;
@@ -137,7 +137,7 @@
     if(!ctx)return;
     canvas.id='willie-ambient-effects';canvas.setAttribute('aria-hidden','true');
     canvas.style.cssText='position:fixed;inset:0;width:100%;height:100%;pointer-events:none;'+
-      'display:block;contain:strict;z-index:700';
+      'contain:strict;z-index:700';
     canvas.hidden=true;
     document.body.append(canvas);
     size();
