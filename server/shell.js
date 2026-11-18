@@ -149,8 +149,12 @@ document.addEventListener('DOMContentLoaded', () => {
     if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
       return coloredIcon(library.icon_image_url);
     const kind=library.kind==='tv'?'tv':'movies';
-    // Built-in Movies / TV Shows retain the first-party PNG icons.
-    // Custom libraries use their individually chosen SVG presets.
+    // In Clean mode, built-in Movies and TV Shows always use their clean icons.
+    // Their library-selected preset icon must not overwrite the active theme.
+    // An explicitly uploaded library image above still takes precedence.
+    if(isStandard && iconTheme()==='clean')
+      return defaultIcon(kind);
+    // Pirate mode preserves the existing library appearance choices.
     if(isStandard && ['film','tv','folder'].includes(library.icon))
       return defaultIcon(kind);
     if(!appearance?.icons[library.icon])
