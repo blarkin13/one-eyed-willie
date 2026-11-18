@@ -13,6 +13,8 @@ services:
       DATABASE_PATH: /data/library.sqlite3
       # Authenticated SDP only; actual test UDP comes from the host-network sidecar.
       YARR_ICE_PROBE_USE_HOST_NETWORK: "1"
+      # Off by default: never route real media over experimental WebRTC implicitly.
+      YARR_DIRECT_PEER_ENABLED: ${YARR_DIRECT_PEER_ENABLED:-0}
     ports:
       - "8787:8787"
     volumes:
@@ -43,6 +45,7 @@ services:
     command: ["uvicorn", "server.yarr_ice_host:app", "--host", "0.0.0.0", "--port", "18799"]
     environment:
       YARR_ICE_PROBE_MODE: host
+      YARR_DIRECT_PEER_ENABLED: ${YARR_DIRECT_PEER_ENABLED:-0}
     volumes:
       - /opt/one-eyed-willie/data:/data:ro
     read_only: true
