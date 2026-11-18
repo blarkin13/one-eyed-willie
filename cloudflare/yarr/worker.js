@@ -248,6 +248,26 @@ async function accountConnectionStatus(req,env){
  return json({servers:(rows.results||[]).map(s=>({id:s.id,display_name:s.display_name,paired:!!s.paired&&s.status==='paired',online:!!s.online,last_seen_at:s.last_seen_at,credential_ready:!!s.credential_ready})),media_access:false});
 }
 
+async function privateTunnelBootstrap(req,env) {
+ if(req.method!=='POST')return json({error:'method_not_allowed'},405);
+ const value=req.headers.get('authorization')||'';
+ if(!value.startsWith('Bearer ')||value.length>120)return json({error:'unauthorized'},401);
+ const credential=value.slice(7);
+ if(!/^[A-Za-z0-9_-]{40,100}$/.test(credential))return json({error:'unauthorized'},401);
+ if(req.headers.get('content-type')?.split(';')[0]!=='application/json')return json({error:'unsupported_type'},415);
+ const body=await req.text();
+ if(body.length>256)return json({error:'invalid_request'},400);
+ let data;try{data=JSON.parse(body);}catch(_){return json({error:'invalid_request'},400);}
+ const identity=String(data.server_id||'');
+ if(!/^[a-f0-9-]{36}$/.test(identity))return json({error:'invalid_request'},400);
+ const hash=await digest(credential);
+ const server=await env.ACCOUNTS.prepare("SELECT id,owner_user_id,server_identity,status FROM servers WHERE connection_secret_hash=? AND server_identity=? AND status='paired'").bind(hash,identity).first();
+ if(!server)return json({error:'unauthorized'},401);
+ // Scoped single-server pilot: do not return this Cloudflare credential to other paired installs.
+ if(server.id!==env.YARR_PRIVATE_SERVER_ID||!env.YARR_PILOT_TUNNEL_TOKEN)return json({error:'automatic_tunnel_not_available_for_server'},503);
+ return json({status:'ready',tunnel_token:env.YARR_PILOT_TUNNEL_TOKEN,transport:'quic',automatic:true,media_access:false});
+}
+
 async function privateVPCHealth(req,env) {
  // Single-server pilot. Later versions provision isolated VPC bindings per installation.
  const user=await currentUser(req,env);
@@ -323,6 +343,7 @@ export default { async fetch(req,env) {
   if(req.method==='POST'&&u.pathname==='/account/servers') {
    return serverMutation(req,env,await currentUser(req,env));
   }
+  if(req.method==='POST'&&u.pathname==='/api/connection/tunnel/bootstrap')return privateTunnelBootstrap(req,env);
   if(req.method==='GET'&&u.pathname==='/api/private/health')return privateVPCHealth(req,env);
   if(req.method==='GET'&&u.pathname==='/api/servers'){
    const user=await currentUser(req,env);
