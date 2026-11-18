@@ -10,6 +10,7 @@ from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.yarr_pairing import router as yarr_pairing_router
+from server.yarr_direct_peer import router as yarr_direct_peer_router
 from server.yarr_pairing import heartbeat_loop as yarr_heartbeat_loop
 from server.yarr_pairing import automatic_tunnel_loop as yarr_automatic_tunnel_loop
 from server.home import router as home_router
@@ -102,6 +103,7 @@ app.include_router(router)
 app.include_router(connections_router)
 app.include_router(remote_config_router)
 app.include_router(yarr_pairing_router)
+app.include_router(yarr_direct_peer_router)
 app.include_router(home_router)
 app.include_router(media_actions_router)
 app.include_router(playback_router)
