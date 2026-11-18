@@ -163,8 +163,75 @@ async function serverMutation(req,env,user) {
  }
  return redirect('/account?server=invalid');
 }
+
+const CODE_ALPHABET='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+function normalizeCode(value){return String(value||'').toUpperCase().replace(/[\s-]/g,'');}
+async function pairingStart(req,env){
+ if(req.headers.get('content-type')?.split(';')[0]!=='application/json')return json({error:'content_type'},415);
+ const ip=req.headers.get('cf-connecting-ip')||'unknown';
+ const bucket=Math.floor(Date.now()/600000),ipHash=await digest(ip);
+ await env.ACCOUNTS.prepare("DELETE FROM pairing_rate_limits WHERE window<?").bind(String(bucket-2)).run();
+ await env.ACCOUNTS.prepare("INSERT INTO pairing_rate_limits(ip_hash,window,count) VALUES(?,?,1) ON CONFLICT(ip_hash,window) DO UPDATE SET count=count+1").bind(ipHash,String(bucket)).run();
+ const n=await env.ACCOUNTS.prepare("SELECT count FROM pairing_rate_limits WHERE ip_hash=? AND window=?").bind(ipHash,String(bucket)).first();
+ if(n.count>15)return json({error:'rate_limited'},429);
+ const raw=await req.text();if(raw.length>700)return json({error:'too_large'},413);
+ let body;try{body=JSON.parse(raw);}catch(_){return json({error:'invalid_json'},400);}
+ const sid=String(body.server_id||''),code=normalizeCode(body.code),secret=String(body.secret||'');
+ if(!/^[a-f0-9-]{36}$/.test(sid)||code.length!==16||[...code].some(c=>!CODE_ALPHABET.includes(c))||!/^[A-Za-z0-9_-]{40,100}$/.test(secret))return json({error:'invalid_request'},400);
+ const existing=await env.ACCOUNTS.prepare("SELECT id FROM servers WHERE server_identity=?").bind(sid).first();
+ if(existing)return json({error:'already_linked'},409);
+ await env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE expires_at<CURRENT_TIMESTAMP OR (server_identity=? AND status='pending')").bind(sid).run();
+ const value=await env.ACCOUNTS.prepare("INSERT OR IGNORE INTO pairing_requests(code_hash,server_identity,secret_hash,expires_at) VALUES(?,?,?,datetime('now','+10 minutes'))").bind(await digest(code),sid,await digest(secret)).run();
+ if(value.meta.changes!==1)return json({error:'retry_code'},409);
+ return json({status:'pending',expires_in:600},201);
+}
+async function pairingStatus(req,env){
+ const bearer=req.headers.get('authorization')||'';
+ if(!bearer.startsWith('Bearer ')||bearer.length>120)return json({error:'unauthorized'},401);
+ const secret=bearer.slice(7);
+ if(!/^[A-Za-z0-9_-]{40,100}$/.test(secret))return json({error:'unauthorized'},401);
+ const row=await env.ACCOUNTS.prepare("SELECT status,expires_at,owner_user_id,server_identity FROM pairing_requests WHERE secret_hash=?").bind(await digest(secret)).first();
+ if(!row)return json({status:'expired'},404);
+ if(row.status==='pending'&&row.expires_at<=new Date().toISOString().replace('T',' ').slice(0,19))return json({status:'expired'},410);
+ if(row.status==='claimed'){
+  const record=await env.ACCOUNTS.prepare("SELECT id FROM servers WHERE server_identity=? AND owner_user_id=?").bind(row.server_identity,row.owner_user_id).first();
+  return json({status:record?'paired':'pending',server_id:record?.id||null});
+ }
+ return json({status:'pending'});
+}
+async function pairingClaim(req,env,user){
+ if(!user)return json({error:'not_authenticated'},401);
+ if(req.headers.get('origin')!==SITE || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
+ const type=req.headers.get('content-type')||'';
+ if(!type.startsWith('application/x-www-form-urlencoded'))return json({error:'content_type'},415);
+ const body=await req.text();if(body.length>500)return json({error:'too_large'},413);
+ const code=normalizeCode(new URLSearchParams(body).get('code'));
+ if(code.length!==16||[...code].some(c=>!CODE_ALPHABET.includes(c)))return redirect('/account?pair=invalid');
+ const ipHash=await digest(req.headers.get('cf-connecting-ip')||'unknown'),minute=String(Math.floor(Date.now()/60000));
+ await env.ACCOUNTS.prepare("INSERT INTO pairing_rate_limits(ip_hash,window,count) VALUES(?,?,1) ON CONFLICT(ip_hash,window) DO UPDATE SET count=count+1").bind(ipHash,'claim:'+minute).run();
+ const attempts=await env.ACCOUNTS.prepare("SELECT count FROM pairing_rate_limits WHERE ip_hash=? AND window=?").bind(ipHash,'claim:'+minute).first();
+ if(attempts.count>8)return redirect('/account?pair=slow');
+ const hash=await digest(code);
+ const request=await env.ACCOUNTS.prepare("SELECT server_identity FROM pairing_requests WHERE code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP").bind(hash).first();
+ if(!request)return redirect('/account?pair=invalid');
+ const exists=await env.ACCOUNTS.prepare("SELECT id FROM servers WHERE server_identity=?").bind(request.server_identity).first();
+ if(exists)return redirect('/account?pair=claimed');
+ const count=await env.ACCOUNTS.prepare("SELECT COUNT(*) AS n FROM servers WHERE owner_user_id=?").bind(user.id).first();
+ if(Number(count?.n||0)>=5)return redirect('/account?pair=limit');
+ const newId=crypto.randomUUID();
+ try{
+  const statements=[
+   env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,status,server_identity) SELECT ?,?,'Yarr Server','paired',server_identity FROM pairing_requests WHERE code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP").bind(newId,user.id,hash),
+   env.ACCOUNTS.prepare("UPDATE pairing_requests SET status='claimed',owner_user_id=? WHERE code_hash=? AND status='pending'").bind(user.id,hash)
+  ];
+  const results=await env.ACCOUNTS.batch(statements);
+  if(results[0]?.meta?.changes!==1)return redirect('/account?pair=invalid');
+ }catch(_){return redirect('/account?pair=claimed');}
+ return redirect('/account?pair=success');
+}
+
 function serversHTML(servers) {
- const summary='<section class="block"><p class="eyebrow">Your servers</p><h2>Connect your server</h2><p class="note">Give your server a name. Yarr will provide a secure pairing process in a future update. No IP addresses or external URLs are required here.</p>';
+ const summary='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Connect a Yarr Server</h2><p class="note">In the installed server, open Settings → Remote Access → Connect to Yarr. Enter its one-time code here. You do not need an IP address or a public URL.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section><section class="block"><p class="eyebrow">Your servers</p><h2>Connect your server</h2><p class="note">Give your server a name. Yarr will provide a secure pairing process in a future update. No IP addresses or external URLs are required here.</p>';
  const cards=servers.length?servers.map(s=>'<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">Awaiting pairing</span></div><p class="note">This server is not connected yet. Its media cannot be viewed until ownership is verified.</p><form method="post" action="/account/servers"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove registration</button></form></article>').join(''):'<div class="server"><p class="note">No servers registered yet.</p></div>';
  const form='<h3>Register a server</h3><form method="post" action="/account/servers" class="serverform"><input type="hidden" name="action" value="create"><label>Server name<input required maxlength="80" name="name" placeholder="My Yarr Server"></label><p class="note">Registration does not open any network ports or connect to media. Automatic secure pairing will be added next.</p><button class="btn" type="submit">Save server</button></form><p class="note"><a href="/app">Open Yarr app preview</a></p></section>';
  return summary+cards+form;
@@ -197,6 +264,9 @@ export default { async fetch(req,env) {
    if(token)await env.ACCOUNTS.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(token)).run();
    return redirect('/account',{'set-cookie':cookie('__Host-yarr_session','',0)});
   }
+  if(req.method==='POST'&&u.pathname==='/api/pairing/start')return pairingStart(req,env);
+  if(req.method==='GET'&&u.pathname==='/api/pairing/status')return pairingStatus(req,env);
+  if(req.method==='POST'&&u.pathname==='/account/pair')return pairingClaim(req,env,await currentUser(req,env));
   if(req.method==='POST'&&u.pathname==='/account/servers') {
    return serverMutation(req,env,await currentUser(req,env));
   }
@@ -219,7 +289,8 @@ export default { async fetch(req,env) {
    const user=await currentUser(req,env);
    const message=u.searchParams.get('login')?'Sign-in was not completed. Please try again.':'';
    const statuses={created:'Server registered. Secure pairing is the next step.',deleted:'Server registration removed.',invalid:'Check the server name and try again.',limit:'You can register up to five servers during this stage.'};
-   const message2=message||statuses[u.searchParams.get('server')]||'';
+   const pairStatuses={success:'Server linked to your account. Remote access is not enabled yet.',invalid:'The pairing code is invalid, expired or already used.',claimed:'That server is already linked. Unpairing is not enabled yet.',slow:'Too many attempts. Try again shortly.',limit:'You can link up to five servers during testing.'};
+   const message2=message||pairStatuses[u.searchParams.get('pair')]||statuses[u.searchParams.get('server')]||'';
    const servers=user?await listServers(env,user.id):[];
    return html(accountHTML(user,authReady(env),message2,servers));
   }
