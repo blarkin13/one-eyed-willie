@@ -475,6 +475,124 @@ class PlayerActivity : ComponentActivity() {
         return root
     }
 
+    /** Consistent dark-glass, D-pad-first options menus over the video.
+     * Uses our own focusable rows rather than Android's system-gray dialogs;
+     * the highlight always matches the user's selection-color setting.
+     */
+    private fun showPlayerMenu(
+        heading: String,
+        options: List<String> = emptyList(),
+        selected: Int = -1,
+        description: String? = null,
+        secondaryLabel: String? = null,
+        secondaryAction: (() -> Unit)? = null,
+        onSelect: (Int) -> Unit = {}
+    ) {
+        lateinit var dialog: AlertDialog
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(16))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(17).toFloat()
+                setColor(0xEF0A111D.toInt())
+                setStroke(dp(1), 0x8068798D.toInt())
+            }
+        }
+        panel.addView(TextView(this).apply {
+            text = heading
+            textSize = 22f
+            setTextColor(0xFFF6F2EB.toInt())
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(7), 0, dp(7), dp(11))
+        })
+        if (!description.isNullOrBlank()) {
+            panel.addView(TextView(this).apply {
+                text = description
+                textSize = 15f
+                setTextColor(0xFFC9D6E6.toInt())
+                setLineSpacing(dp(3).toFloat(), 1f)
+                setPadding(dp(8), dp(4), dp(8), dp(14))
+            })
+        }
+        fun row(label: String, chosen: Boolean = false, action: () -> Unit): TextView =
+            TextView(this).apply {
+                text = (if (chosen) "✓  " else "") + label
+                textSize = 16f
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(49)
+                setPadding(dp(13), dp(7), dp(13), dp(7))
+                isClickable = true
+                isFocusable = true
+                isFocusableInTouchMode = true
+                contentDescription = label + if (chosen) ", selected" else ""
+                fun updateLook(focused: Boolean) {
+                    setTextColor(if (focused || chosen) selectedColor else 0xFFF0F2F5.toInt())
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(9).toFloat()
+                        setColor(if (focused)
+                            Color.argb(50, Color.red(selectedColor), Color.green(selectedColor),
+                                Color.blue(selectedColor))
+                            else Color.TRANSPARENT)
+                        if (focused) setStroke(dp(1), selectedColor)
+                    }
+                }
+                updateLook(false)
+                setOnFocusChangeListener { _, focused -> updateLook(focused) }
+                setOnClickListener { dialog.dismiss(); action() }
+            }
+
+        val optionViews = mutableListOf<TextView>()
+        if (options.isNotEmpty()) {
+            val menu = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            options.forEachIndexed { index, title ->
+                row(title, chosen = index == selected) { onSelect(index) }.let {
+                    optionViews.add(it)
+                    menu.addView(it, LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+            }
+            val scroll = ScrollView(this).apply {
+                isFillViewport = false
+                isVerticalScrollBarEnabled = options.size > 5
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                addView(menu)
+            }
+            val allowedHeight = minOf(dp(405),
+                (resources.displayMetrics.heightPixels * 0.58f).toInt())
+            panel.addView(scroll, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                minOf(allowedHeight, options.size * dp(58))))
+        }
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setPadding(0, dp(9), 0, 0)
+        }
+        if (secondaryLabel != null && secondaryAction != null) {
+            footer.addView(row(secondaryLabel) { secondaryAction() },
+                LinearLayout.LayoutParams(0, dp(48), 1f))
+        }
+        val close = row("Close") {}
+        footer.addView(close, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)))
+        panel.addView(footer)
+        dialog = AlertDialog.Builder(this).setView(panel).create()
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0.46f)
+            setLayout(minOf(dp(580), resources.displayMetrics.widthPixels - dp(48)),
+                ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        optionViews.getOrNull(selected.takeIf { it in optionViews.indices } ?: 0)
+            ?.requestFocus() ?: close.requestFocus()
+    }
+
     private fun showPlaybackMenu() {
         val labels = arrayOf(
             if (completed) "Mark as unwatched" else "Mark as watched",
