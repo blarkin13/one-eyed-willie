@@ -156,6 +156,40 @@ class TvHomeFitTests(unittest.TestCase):
         page.wait_for_timeout(300)
         return page.evaluate(MEASURE), page
 
+    def test_first_selected_poster_is_not_clipped_at_left_edge(self):
+        # In Android TV, injected focus styling must not override the inward
+        # origin. The same protection is needed on ordinary browser Home.
+        _, tv_page = self.measure(960, 540)
+        desktop_context = self.browser.new_context(viewport={"width": 1440, "height": 900})
+        self.addCleanup(desktop_context.close)
+        browser_page = desktop_context.new_page()
+        browser_page.route("**/api/home", lambda r: r.fulfill(json=HOME))
+        browser_page.route("**/api/home/revision",
+                           lambda r: r.fulfill(json={"revision": 1}))
+        browser_page.route("**/api/movies/details*", lambda r: r.fulfill(json=DETAILS))
+        browser_page.route("**/api/tv/show*", lambda r: r.fulfill(json=DETAILS))
+        browser_page.goto("http://127.0.0.1:%d/" % self.port)
+        browser_page.wait_for_selector("#continue-watching .shelf-track .tile-button")
+        browser_page.locator("#continue-watching .shelf-track .tile-button").first.focus()
+        browser_page.wait_for_timeout(300)
+
+        for label, page in (("Android TV", tv_page), ("browser", browser_page)):
+            with self.subTest(client=label):
+                bounds = page.evaluate("""() => {
+                  const track = document.querySelector('#continue-watching .shelf-track');
+                  const cover = track.querySelector('.tile:first-child .tile-button .cover');
+                  return {
+                    railLeft: track.getBoundingClientRect().left,
+                    artworkLeft: cover.getBoundingClientRect().left,
+                    originX: parseFloat(getComputedStyle(cover).transformOrigin),
+                    focus: cover.closest('.tile-button') === document.activeElement
+                  };
+                }""")
+                self.assertTrue(bounds["focus"], bounds)
+                self.assertAlmostEqual(bounds["originX"], 0, delta=1, msg=str(bounds))
+                self.assertGreaterEqual(bounds["artworkLeft"] - 2,
+                                        bounds["railLeft"], bounds)
+
     def test_tv_poster_grid_columns_do_not_overlap(self):
         for width, height in ((960, 540), (1280, 720), (1920, 1080)):
             with self.subTest(viewport=(width, height)):
