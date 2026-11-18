@@ -1,26 +1,48 @@
-# Yarr multi-user foundation (staging)
+# Yarr account platform — development
 
-The product name/domain are **not finalized**. `yarr` is the requested staging Worker name, not a domain decision.
+Yarr is a **working name**, not a final domain decision. Public staging URL: `https://yarr.larki-brian.workers.dev`.
 
-## Provisioned
-- Cloudflare Worker: `yarr`, separate from production `one-eyed-willie`
-- Cloudflare D1: `yarr-accounts`, binding `ACCOUNTS`
-- Account schema: users, servers, devices and hashed sessions
-- Worker responds to `/health` and `/__edge/health`; login and account APIs return 503 until implemented.
-- **No media forwarding**: the existing Worker points at the owner's server and MUST NOT be blindly copied for multi-user access.
+## Current Cloudflare resources
 
-## Required before enabling sign-in
-1. Create Google OAuth application and configure approved redirect URI for the eventual account domain.
-2. Implement OIDC authorization-code flow with PKCE, nonce/state, Google ID token verification and secure HttpOnly session cookies (store only session token hashes).
-3. Implement ownership checks on every user/server/device route and CSRF protection on mutations.
-4. Implement secure one-time server claim/pairing with proof of possession, explicit user consent, server-side verified endpoint allowlisting (prevent SSRF), and revocation.
-5. Implement TV device-code pairing with expiring, one-time tokens, rate limits and authorization scopes. No credentials typed on TV.
-6. Add account UI. Keep each self-hosted server's media catalog, Radarr/Sonarr/SABnzbd credentials, and playback data on that server.
-7. Do not stream media through Workers. Use secure direct connections from the devices to their paired self-hosted server.
-8. Add abuse controls, data deletion behavior, tests, and production auth review before exposing to public users.
-9. Update server installer configuration to avoid hardcoded owner-specific paths and hostname; no forced migration of existing installation.
+- Worker `yarr`: independent of `one-eyed-willie`, with public preview home page and account page
+- D1 database `yarr-accounts` bound as `ACCOUNTS`
+- Account records: users, registered servers, devices, hashed sessions, and one-time OAuth flows
+- Google Sign-In implemented but deliberately disabled until its own Google OAuth credentials are securely configured
+- **No media proxy** or automatic home-server access; `one-eyed-willie` and the Docker install stay unchanged
 
-## Deployment
-This branch contains source of the staging account Worker and initial D1 schema. The Worker was initially uploaded through the Cloudflare API. Next deployments should be reproducible from source and preserve the account DB binding.
+## Google sign-in activation (not complete)
 
-**Do not deploy the current `one-eyed-willie` proxy code into `yarr`.** It hardcodes a single home-server origin, and its Basic Auth is not multi-tenant identity management.
+In Google Cloud Console create/select a project, configure **Google Auth Platform** with External audience and testing users, then create a **Web application** OAuth client.
+
+- Authorized redirect URI: `https://yarr.larki-brian.workers.dev/auth/google/callback`
+- Authorized JavaScript origin, if required: `https://yarr.larki-brian.workers.dev`
+- Required scopes: `openid email profile`
+- Store `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET` as **secrets on the yarr Worker**. Never put them in Git, chat, or frontend code.
+- In Google Auth Platform > Audience, keep the client in testing with only approved test users until verified/ready for public launch.
+
+Once correctly configured, the public landing page reveals Google Sign-In and `/account` works as the authenticated dashboard. Future production domain requires updating the trusted `SITE` constant (or migrating it to a validated env setting), consent screen authorized domain and callback URL; do not redirect between hostnames without retesting cookies and OAuth.
+
+## Implemented login security
+
+- Authorization code with PKCE S256, opaque state cookie, nonce, one-time D1 transaction, 10-minute expiry
+- Token exchange is server-side; cryptographically verify Google's ID token using Google JWKS / RS256, issuer, audience, nonce, expiry and verified email
+- Store account identity by Google's immutable `sub`, not email
+- Cryptographically random session secret goes only in an HttpOnly, Secure, SameSite=Lax cookie; only SHA-256 hash is stored in D1; expires after 7 days
+- Sign-out revokes the server-side session; POST with same-origin check
+- `/api/me` returns only authenticated profile data; server operations remain disabled
+
+## Not ready for public users
+
+- Google Cloud application credentials and real end-to-end login validation
+- Secure pairing/ownership proof for an installed media server
+- CSRF, authorization and origin checks on all future state-changing endpoints
+- Safe remote connectivity, per-user server isolation, device-code TV pairing, revocation, rate limits, privacy/legal review
+- Installers and server onboarding built for independent installations and not hard-coded owner paths
+
+## No-change compatibility rule
+
+**Never copy the old `one-eyed-willie` Worker proxy to Yarr**: it has one hardcoded origin pointing at the owner's server. Keep media and integration credentials inside each self-hosted instance. Do not transport video data through the account Worker.
+
+## Validation
+
+Cloudflare accepted the Worker deployment and binding. Actual Google OAuth sign-in has **not** been tested because Google client ID/secret are not configured. Browser-level live smoke checks remain outstanding.
