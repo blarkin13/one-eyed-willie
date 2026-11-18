@@ -1,0 +1,18 @@
+# Optional Yarr Workers VPC tunnel for one local server.
+# Use only with: docker compose -f compose.yaml -f compose.yarr-vpc.yaml up -d yarr-cloudflared
+# The tunnel token is provided in a LOCAL, untracked .env file on the server.
+# This service does not publish a hostname or forward any inbound router ports.
+services:
+  yarr-cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate --protocol quic run
+    environment:
+      TUNNEL_TOKEN: ${YARR_TUNNEL_TOKEN:?Set YARR_TUNNEL_TOKEN in local .env before starting}
+    depends_on:
+      one-eyed-willie:
+        condition: service_healthy
+    networks:
+      - default
+    security_opt:
+      - no-new-privileges:true
