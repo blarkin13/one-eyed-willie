@@ -2,6 +2,7 @@ name: Yarr remote network diagnostic
 on:
   pull_request:
     paths:
+      - "cloudflare/yarr/worker.js"
       - "server/yarr_ice_probe.py"
       - "server/main.py"
       - "requirements.txt"
@@ -28,3 +29,17 @@ jobs:
         run: python -m compileall -q server/yarr_ice_probe.py tests/test_yarr_ice_probe.py
       - name: Verify authentication, bounded transfer and real ICE connection
         run: python -m pytest -q tests/test_yarr_ice_probe.py
+      - name: Validate Worker and diagnostic browser script
+        run: |
+          node --input-type=module --check < cloudflare/yarr/worker.js
+          node - <<'NODE'
+          const fs = require('fs'), vm = require('vm');
+          const source = fs.readFileSync('cloudflare/yarr/worker.js', 'utf8');
+          const match = source.match(/const YARR_TEST_PAGE=("(?:\\.|[^"\\])*");/);
+          if (!match) throw Error('Diagnostic page missing');
+          const html = JSON.parse(match[1]);
+          const script = html.match(/<script>([\\s\\S]*?)<\\/script>/);
+          if (!script) throw Error('Diagnostic browser script missing');
+          new vm.Script(script[1]);
+          console.log('Yarr diagnostic Worker and embedded browser script parse correctly');
+          NODE
