@@ -89,5 +89,43 @@ function createIcon(key,size=26){
  svg.innerHTML=data[2];
  return svg;
 }
-window.WillieLibraryAppearance=Object.freeze({icons,fonts,createIcon});
+
+// Use the same Font Awesome Free vocabulary for library headers, settings,
+// previews and icon selection. The existing SVG remains the offline fallback.
+const faIcons={
+ film:'fa-film',tv:'fa-tv',folder:'fa-folder',clapperboard:'fa-clapperboard',
+ play:'fa-play',reel:'fa-film',popcorn:'fa-bowl-food',ticket:'fa-ticket',
+ camera:'fa-camera',video:'fa-video',headphones:'fa-headphones',music:'fa-music',
+ star:'fa-star',heart:'fa-heart',ghost:'fa-ghost',skull:'fa-skull',
+ pumpkin:'fa-face-grin',flame:'fa-fire',zap:'fa-bolt',rocket:'fa-rocket',
+ planet:'fa-earth-americas',robot:'fa-robot',alien:'fa-user-astronaut',
+ wand:'fa-wand-magic-sparkles',sword:'fa-shield-halved',crown:'fa-crown',
+ shield:'fa-shield',smile:'fa-face-smile',drama:'fa-masks-theater',
+ eye:'fa-eye',fingerprint:'fa-fingerprint',trophy:'fa-trophy',gamepad:'fa-gamepad',
+ book:'fa-book',archive:'fa-box-archive',layers:'fa-layer-group',grid:'fa-table-cells',
+ bookmark:'fa-bookmark',gem:'fa-gem',award:'fa-award',clock:'fa-clock',
+ calendar:'fa-calendar',hourglass:'fa-hourglass',search:'fa-magnifying-glass',
+ map:'fa-map',compass:'fa-compass',globe:'fa-globe',mountain:'fa-mountain',
+ tree:'fa-tree',leaf:'fa-leaf',paw:'fa-paw',users:'fa-users',sun:'fa-sun',
+ moon:'fa-moon',snowflake:'fa-snowflake',gift:'fa-gift',plane:'fa-plane',
+ ship:'fa-ship',car:'fa-car',sparkles:'fa-wand-magic-sparkles'
+};
+function iconTheme(){
+ try{return localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean'}
+ catch{return 'clean'}
+}
+function createThemeIcon(key,size=26){
+ if(iconTheme()==='pirate')return createIcon(key,size);
+ const wrap=document.createElement('span');
+ wrap.className='library-fa-icon';
+ wrap.style.fontSize=size+'px';
+ wrap.setAttribute('aria-hidden','true');
+ const glyph=document.createElement('i');
+ glyph.className='fa-solid '+(faIcons[key]||'fa-folder');
+ const fallback=createIcon(key,size);
+ fallback.classList.add('library-fa-fallback');
+ wrap.append(glyph,fallback);
+ return wrap;
+}
+window.WillieLibraryAppearance=Object.freeze({icons,fonts,createIcon,createThemeIcon,iconTheme});
 })();
