@@ -2548,10 +2548,18 @@ class MainActivity : ComponentActivity() {
                 }
                 if(direction==='right')return false;
                 if(direction!=='up'&&direction!=='down')return false;
+                // Never steal Up/Down while the remote is on the sidebar.
+                // Those keys must move among Home, TV, Movies and Settings.
+                if(!active?.closest?.('.tv-playback-settings'))return false;
                 const index=controls.indexOf(active);
                 const next=index<0?0:Math.max(0,Math.min(controls.length-1,
                   index+(direction==='down'?1:-1)));
-                return focusNode(controls[next]);
+                const focused=focusNode(controls[next]);
+                // The first control sits below the heading. Returning to it
+                // must reveal the entire Settings title, not leave it clipped.
+                if(focused&&direction==='up'&&next===0)
+                  glideTo(document.scrollingElement||document.documentElement,'top',0);
+                return focused;
               };
               const move=direction=>{
                 // Sort and Filter options are navigable while their popup
@@ -2595,6 +2603,16 @@ class MainActivity : ComponentActivity() {
                   const min=Number(active.min)||0,max=Number(active.max)||100;
                   const step=Number(active.step)||1;
                   const value=Number(active.value)||0;
+                  // A slider normally consumes Left to lower its value.
+                  // Once it is at minimum, Left exits to the sidebar so
+                  // remote users cannot become trapped in Settings.
+                  if(direction==='left'&&value<=min&&
+                     location.pathname==='/settings'){
+                    const sidebar=allMenu();
+                    const target=sidebar.find(node=>
+                      node.getAttribute('aria-current')==='page')||sidebar[0];
+                    if(target)return focusNode(target);
+                  }
                   active.value=String(Math.min(max,Math.max(min,
                     value+(direction==='right'?step:-step))));
                   active.dispatchEvent(new Event('input',{bubbles:true}));
