@@ -151,7 +151,7 @@ def home_shelves():
         ).fetchall()
         for row in rows:
             lib = libs.get(row["library_id"])
-            if not lib:
+            if not lib or lib["kind"] not in ("movies", "tv"):
                 continue
             desc = _describe(row, lib)
             if not desc:
