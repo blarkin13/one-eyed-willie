@@ -78,7 +78,7 @@ class SubtitleStyleTests(unittest.TestCase):
         main = MAIN.read_text()
         detail = TV_DETAILS.read_text()
         self.assertIn("document.getElementById('season-resume-button')||", main)
-        self.assertIn("data.selectedEpisodeId", detail)
+        self.assertIn("actions.dataset.selectedEpisodeId", detail)
         self.assertIn("Play '+epTitle.textContent+' from beginning", detail)
         self.assertIn("Resume '+epTitle.textContent+' from saved position", detail)
 
