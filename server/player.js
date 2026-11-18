@@ -9,6 +9,7 @@
   let chromeTimer=null, seekTimer=null, stallTimer=null;
   let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
   let viewing='', usageTimer=null;
+  let audioTracks=[], audioIndex=0, audioChosen=false;
   // Playback quality: 'auto' plays the original when the browser can, otherwise
   // transcodes at the default size; the others always transcode at that size.
   const QUALITIES=[['auto','Best available'],['full','Full quality'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p'],['240p','240p']];
@@ -195,6 +196,11 @@ opacity:0;transition:opacity .15s}
 .willie-data-row:hover,.willie-data-row:focus-visible{background:var(--sel-soft);border-color:var(--sel);color:var(--sel)}
 .willie-data-row[aria-pressed="true"]{color:var(--sel)}
 .willie-data-row[aria-pressed="true"]>span:first-child::before{content:"\\2713\\a0\\a0"}
+.willie-audio-title{padding-top:12px}
+.willie-audio-row{display:flex;justify-content:space-between;align-items:center;gap:14px;width:100%;min-height:49px;text-align:left;background:transparent;color:#F0F2F5;border:1px solid transparent;border-radius:9px;padding:7px 13px;cursor:pointer;font:inherit;font-size:16px}
+.willie-audio-row:hover,.willie-audio-row:focus-visible{background:var(--sel-soft);border-color:var(--sel);color:var(--sel)}
+.willie-audio-row[aria-pressed="true"]{color:var(--sel)}
+.willie-audio-row[aria-pressed="true"]>span:first-child::before{content:"\\2713\\a0\\a0"}
 .willie-data-cost{font-variant-numeric:tabular-nums;color:#C9D6E6;white-space:nowrap}
 .willie-data-row:hover .willie-data-cost,.willie-data-row:focus-visible .willie-data-cost,.willie-data-row[aria-pressed="true"] .willie-data-cost{color:inherit}
 .willie-data-note{font-size:13px;color:#9fb2c6;padding:4px 8px;line-height:1.45}
@@ -293,6 +299,16 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     if(mime==='video/mp4'&&!['h264','hevc','av1','vp9'].includes(media.video_codec))return false;
     const codecs=vc+(ac?', '+ac:'');
     return !!video.canPlayType(mime+'; codecs="'+codecs+'"');
+  }
+  /* A browser plays only a file's first audio track; any other needs a stream. */
+  const directAudio=()=>audioIndex===0;
+  /* Saved language first, then the file's default track, else the first. */
+  function pickAudio(tracks){
+    if(!Array.isArray(tracks)||tracks.length<2)return 0;
+    let language='';
+    try{language=localStorage.getItem('willie:audio-language')||''}catch(_){}
+    const wanted=language&&tracks.find(t=>t.language===language);
+    return (wanted||tracks.find(t=>t.default)||tracks[0]).id;
   }
   function destroyStream(){
     if(hls){hls.destroy();hls=null}
@@ -408,7 +424,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     message('Preparing compatible HLS stream…');
     try{
       const startUrl=tier=>'/api/stream/hls/start/'+mediaId+'?start='+encodeURIComponent(seek)+
-        '&quality='+encodeURIComponent(tier)+'&viewing='+encodeURIComponent(viewing);
+        '&quality='+encodeURIComponent(tier)+'&viewing='+encodeURIComponent(viewing)+'&audio='+audioIndex;
       let result;
       try{result=await requestJson(startUrl(quality==='auto'?autoTier:quality),{method:'POST'})}
       catch(error){
@@ -509,7 +525,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     if(!Number.isInteger(id)||id<=0)return;
     const replacing=!!current;   // e.g. next episode: the old player's removal ends fullscreen
     if(current)close();
-    viewing=newViewingId();
+    viewing=newViewingId();audioTracks=[];audioIndex=0;audioChosen=false;
     // Explicit playback (unlike refreshes/checkpoints) restores dismissed
     // Continue Watching titles for this movie or television series.
     fetch('/api/home/continue/'+id+'/start',{method:'POST'}).catch(()=>{});
@@ -659,6 +675,11 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     qualityButton.setAttribute('aria-expanded','false');
     const qualityMenu=document.createElement('div');qualityMenu.className='willie-subtitle-menu willie-data-menu';qualityMenu.hidden=true;
     let estimates=null,pendingStart=null;
+    const tracksReady=requestJson('/api/stream/hls/audio/'+id).then(data=>{
+      audioTracks=Array.isArray(data.tracks)?data.tracks:[];
+      if(!audioChosen)audioIndex=pickAudio(audioTracks);
+      return audioTracks;
+    }).catch(()=>[]);
     const stalls=[];let stallBegan=0,slowSnoozeUntil=0,quietUntil=0,usedBytes=0;
     const quiet=ms=>{quietUntil=Math.max(quietUntil,performance.now()+ms)};
     const slowPrompt=document.createElement('div');slowPrompt.className='willie-slow-prompt';slowPrompt.hidden=true;
@@ -675,20 +696,35 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       if(pendingStart){const begin=pendingStart;pendingStart=null;begin();return}
       if(!status)return;
       const at=playerPosition(video);
-      if(quality==='auto'&&browserCanDirect(video,status))playDirect(at);
+      if(quality==='auto'&&browserCanDirect(video,status)&&directAudio())playDirect(at);
+      else playHls(at);
+      revealChrome();concealChromeSoon();
+    }
+    function chooseAudio(index){
+      audioChosen=true;audioIndex=index;
+      const track=audioTracks.find(t=>t.id===index);
+      try{if(track?.language)localStorage.setItem('willie:audio-language',track.language)}catch(_){}
+      stalls.length=0;stallBegan=0;slowPrompt.hidden=true;quiet(10000);
+      qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');
+      surface.focus({preventScroll:true});
+      if(pendingStart){const begin=pendingStart;pendingStart=null;begin();return}
+      if(!status)return;
+      const at=playerPosition(video);
+      if(quality==='auto'&&browserCanDirect(video,status)&&directAudio())playDirect(at);
       else playHls(at);
       revealChrome();concealChromeSoon();
     }
     function renderDataMenu(){
       // Re-rendering (new estimates, usage figures) must not drop the viewer's place.
       const focused=qualityMenu.contains(document.activeElement)?document.activeElement.dataset?.quality:null;
+      const focusedAudio=qualityMenu.contains(document.activeElement)?document.activeElement.dataset?.audio:null;
       qualityMenu.textContent='';
       const menuTitle=document.createElement('div');menuTitle.className='willie-menu-title';menuTitle.textContent='Quality and data';
       qualityMenu.append(menuTitle);
       const heading=document.createElement('div');heading.className='willie-data-heading';
       const duration=Number(estimates?.duration_seconds)||Number(status?.duration_seconds)||0;
       const at=started?playerPosition(video):Number(status?.position_seconds)||0;
-      const canDirect=!!status&&browserCanDirect(video,status);
+      const canDirect=!!status&&browserCanDirect(video,status)&&directAudio();
       if(pendingStart){
         heading.textContent='You are on mobile data. Choose how much to use — playback starts when you pick.';
       }else{
@@ -740,13 +776,26 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
           'not fixed, so real use is often lower.';
         qualityMenu.append(foot);
       }
+      if(audioTracks.length>1){
+        const audioTitle=document.createElement('div');audioTitle.className='willie-menu-title willie-audio-title';audioTitle.textContent='Audio';
+        qualityMenu.append(audioTitle);
+        for(const track of audioTracks){
+          const button=document.createElement('button');button.type='button';button.className='willie-audio-row';
+          button.dataset.audio=String(track.id);button.setAttribute('aria-pressed',String(track.id===audioIndex));
+          const label=document.createElement('span');label.textContent=track.label;button.append(label);
+          button.onclick=()=>chooseAudio(track.id);
+          qualityMenu.append(button);
+        }
+      }
       if(focused)qualityMenu.querySelector('[data-quality="'+focused+'"]')?.focus({preventScroll:true});
+      else if(focusedAudio)qualityMenu.querySelector('[data-audio="'+focusedAudio+'"]')?.focus({preventScroll:true});
     }
     function openDataMenu(){
       subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');
       qualityMenu.hidden=false;qualityButton.setAttribute('aria-expanded','true');
       renderDataMenu();refreshUsage().then(()=>{if(!qualityMenu.hidden&&usedBytes>0&&!qualityMenu.querySelector('.willie-data-used'))renderDataMenu()});
       estimatesReady.then(()=>{if(!qualityMenu.hidden)renderDataMenu()});
+      tracksReady.then(()=>{if(!qualityMenu.hidden)renderDataMenu()});
       const target=qualityMenu.querySelector('[aria-pressed="true"]')||qualityMenu.querySelector('button');
       target?.focus();
     }
@@ -1041,7 +1090,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
       const begin=()=>{
         if(current!==surface)return;
-        if(quality==='auto'&&browserCanDirect(video,data)){
+        if(quality==='auto'&&browserCanDirect(video,data)&&directAudio()){
           playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
           if(resume>5)video.addEventListener('loadedmetadata',()=>{
             if(Number.isFinite(video.duration)&&resume<video.duration-4)video.currentTime=resume;
@@ -1050,9 +1099,10 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
         }else playHls(resume);
       };
       const beginWhenPlanned=async()=>{
+        await Promise.race([tracksReady,new Promise(resolve=>setTimeout(resolve,1500))]);
         // "Best available" on a file the browser cannot play as-is: find out
         // (briefly) whether the original video can be passed through.
-        if(quality==='auto'&&!browserCanDirect(video,data))
+        if(quality==='auto'&&!(browserCanDirect(video,data)&&directAudio()))
           await Promise.race([estimatesReady,new Promise(resolve=>setTimeout(resolve,2500))]);
         resolveAutoTier();begin();
       };
