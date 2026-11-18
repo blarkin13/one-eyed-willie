@@ -7,12 +7,11 @@
 <script defer src="/assets/shell.js?v=connections-hub-1"></script>
 <style>
 .connections-hub{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:16px;margin-top:22px}
-.connections-hub a{display:flex;flex-direction:column;gap:15px;padding:22px;min-height:168px;border-radius:16px;
- background:#142030;border:1px solid #32455a;color:#f6f7fa;text-decoration:none;transition:background .18s,border-color .18s,transform .18s}
-.connections-hub a:hover,.connections-hub a:focus-visible{background:#1e3044;border-color:#aa91fa;outline:2px solid #aa91fa;outline-offset:2px;transform:translateY(-2px)}
+.connections-hub .service-card{display:flex;flex-direction:column;gap:15px;padding:22px;min-height:168px;border-radius:16px;
+ background:#142030;border:1px solid #32455a;color:#f6f7fa}
 .connections-hub .service-name{font-size:1.3rem;font-weight:700;display:flex;align-items:center;gap:12px}
 .connections-hub .service-description{color:#a9bdce;line-height:1.5}
-.connections-hub .service-action{margin-top:auto;color:#cbb8ff;font-size:.9rem}
+.connections-hub .service-state{margin-top:auto;color:#92d9b4;font-size:.9rem;font-weight:650}
 .connections-hub .integration-logo{width:35px;height:35px}
 .connection-empty{padding:25px 0;color:#b8c9dc}
 </style></head>
@@ -20,18 +19,18 @@
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
 <div class="page-head"><div><p class="eyebrow">Media management</p><h1>Connections</h1>
-<p>Open the services connected to your media server. Unconfigured services are hidden.</p></div>
+<p>View your configured media service integrations. Unconfigured services are hidden; cards are informational, not navigation links.</p></div>
 <a class="secondary-button" href="/settings/connections">Manage connections</a></div>
 <div class="connections-hub" id="connected-services" aria-label="Connected services" aria-live="polite"></div>
 <p class="connection-empty" id="connections-message" role="status">Checking configured services…</p>
 </main></div></div>
 <script>
 const entries=[
- {id:'radarr',title:'Radarr',href:'/radarr',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
- {id:'sonarr',title:'Sonarr',href:'/sonarr',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
- {id:'sabnzbd',title:'SABnzbd',href:'/sabnzbd',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
- {id:'plex',title:'Plex',href:'/settings/connections#plex-heading',description:'Manage connected Plex watched-history import.'},
- {id:'opensubtitles',title:'OpenSubtitles',href:'/settings/connections#opensubtitles-heading',description:'Manage subtitles and API access.'}
+ {id:'radarr',title:'Radarr',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
+ {id:'sonarr',title:'Sonarr',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
+ {id:'sabnzbd',title:'SABnzbd',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
+ {id:'plex',title:'Plex',description:'Manage connected Plex watched-history import.'},
+ {id:'opensubtitles',title:'OpenSubtitles',description:'Manage subtitles and API access.'}
 ];
 async function status(url){
  const response=await fetch(url,{cache:'no-store'});
@@ -54,7 +53,7 @@ async function showConnected(){
    sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
  for(const service of entries){
    if(!connected[service.id])continue;
-   const link=document.createElement('a');link.href=service.href;
+   const card=document.createElement('article');card.className='service-card';
    const heading=document.createElement('span');heading.className='service-name';
    if(service.image){
      const image=document.createElement('img');image.src=service.image;image.alt='';
@@ -63,9 +62,9 @@ async function showConnected(){
    heading.append(document.createTextNode(service.title));
    const description=document.createElement('span');description.className='service-description';
    description.textContent=service.description;
-   const action=document.createElement('span');action.className='service-action';
-   action.textContent=service.id==='plex'||service.id==='opensubtitles'?'Manage connection':'Open dashboard';
-   link.append(heading,description,action);root.append(link);
+   const state=document.createElement('span');state.className='service-state';
+   state.textContent='Configured';
+   card.append(heading,description,state);root.append(card);
  }
  if(root.childElementCount && settled.every(value=>value.status==='fulfilled'))
    message.textContent='';
