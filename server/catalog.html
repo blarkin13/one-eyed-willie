@@ -743,6 +743,12 @@ async function load({preserveFocus=false}={},quiet=false){
   total=data.total;const entries=Array.isArray(data.items)?data.items:[];
   // Revision travels with the catalog snapshot, avoiding a poll/load race.
   if(Number.isSafeInteger(data.revision))catalogRevision=data.revision;
+  // A Sort/Filter choice starts a fetch; the viewer may press DOWN from the
+  // toolbar before it completes. Swapping #items would then destroy the newly
+  // focused poster and strand the remote on the page body. Capture focus at
+  // the swap, not just when the request started.
+  const returnToPosters=navigator.userAgent.includes('OneEyedWillieTV/1')&&
+    !preserveFocus&&Boolean(document.activeElement?.closest?.('#items .tile-button'));
   updateGenreChoices(data.genres);
   // Metadata refreshes must not throw D-pad focus back to the page body
   // or change the scroll position while the viewer browses poster rows.
@@ -784,6 +790,13 @@ async function load({preserveFocus=false}={},quiet=false){
   const firstCount=Math.min(entries.length,
     Math.max(24,focusIndex>=0?focusIndex+30:0));
   $('items').replaceChildren(buildCards(0,firstCount));
+  if(returnToPosters){
+    // Re-select the first poster in the refreshed ordering and keep it
+    // visible. Do not re-open Sort/Filter or steal focus from search inputs.
+    const first=$('items').querySelector('.tile-button');
+    first?.focus({preventScroll:true});
+    if(first)(document.scrollingElement||document.documentElement).scrollTop=0;
+  }
   if(focusIndex>=0){
     const restored=$('items').children[focusIndex]?.querySelector('.tile-button');
     if(restored){
