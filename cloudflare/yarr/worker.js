@@ -229,7 +229,7 @@ async function pairingClaim(req,env,user){
 
 function serversHTML(servers) {
  const paired=servers.some(s=>s.status==='paired'&&s.server_identity);
- const pairing=paired?'':'<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
+ const pairing='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
  const cards=servers.length?servers.map(s=>{
   const linked=s.status==='paired'&&!!s.server_identity;
   const tag=linked?'<span class="tag" style="color:#b6e9cb;background:#203c31">Paired</span>':'<span class="tag">Not paired</span>';
@@ -242,7 +242,7 @@ function serversHTML(servers) {
 }
 
 function appHTML(user,servers) {
- const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">'+(s.status==='paired'&&s.server_identity?'Paired':'Pairing required')+'</span></div><p class="note">'+(s.status==='paired'&&s.server_identity?'Account paired. Remote playback is not enabled yet.':'Server pairing is required.')+'</p></div>').join(''):'<div class="server"><p class="note">No server connected. Register a server name in your account to prepare for pairing.</p></div>';
+ const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">'+(s.status==='paired'&&s.server_identity?'Paired':'Pairing required')+'</span></div><p class="note">'+(s.status==='paired'&&s.server_identity?'Account paired. Remote playback is not enabled yet.':'Server pairing is required.')+'</p></div>').join(''):'<div class="server"><p class="note">No server connected. Generate a pairing code on your installed server, then enter it in your account.</p></div>';
  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr App Preview</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/account" class="link">Account settings</a></nav><main class="hero"><p class="eyebrow">Your personal media space</p><h1>Welcome, '+escapeHTML(user.display_name||'aboard')+'</h1><p class="lead">Your Yarr app is linked to your Google account. Your personal libraries will appear here once your home server is securely paired.</p><p class="eyebrow">Your servers</p>'+items+'<div class="actions"><a class="btn" href="/account">Manage servers</a></div></main><footer class="note">App preview only. No media is exposed or streamed by this Worker.</footer></div></body></html>';
 }
 
