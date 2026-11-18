@@ -77,5 +77,31 @@ class DiagnosticRoundTripTests(unittest.IsolatedAsyncioTestCase):
                 probe.PEERS.discard(connection)
 
 
+
+class HostSidecarForwardTests(unittest.IsolatedAsyncioTestCase):
+    async def test_authenticated_sdp_is_forwarded_without_arbitrary_urls(self):
+        from unittest.mock import MagicMock
+        offer = probe.Offer(type="offer", sdp="a valid experimental SDP placeholder")
+        answer = {"type": "answer", "sdp": "synthetic-answer"}
+        response = MagicMock()
+        response.status = 200
+        response.headers.get_content_type.return_value = "application/json"
+        response.read.return_value = json.dumps(answer).encode()
+        response.__enter__.return_value = response
+        with patch.object(probe, "authenticate", lambda secret: None), \\
+             patch.dict(probe.os.environ, {"YARR_ICE_PROBE_USE_HOST_NETWORK": "1"}), \\
+             patch.object(probe.urllib.request, "urlopen", return_value=response) as send:
+            result = await probe.offer(offer, x_yarr_ice_key="test-credential")
+        self.assertEqual(result, answer)
+        request = send.call_args.args[0]
+        self.assertEqual(request.full_url,
+                         "http://host.docker.internal:18799/api/yarr/ice-probe/offer")
+        self.assertIn(b'"type": "offer"', request.data)
+        self.assertEqual(request.get_header("X-yarr-ice-key"), "test-credential")
+
+    async def test_sidecar_is_never_used_without_explicit_switch(self):
+        self.assertEqual(probe.os.environ.get("YARR_ICE_PROBE_USE_HOST_NETWORK"), None)
+
+
 if __name__ == "__main__":
     unittest.main()
