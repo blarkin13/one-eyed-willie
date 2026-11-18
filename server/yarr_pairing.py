@@ -128,7 +128,8 @@ def pairing_status():
                    "account_server_id": cloud["server_id"],
                    "poll_secret": poll_secret,
                    "paired_at": int(time.time())})
-            return {"status": "paired"}
+            return {"status": "paired", "connection_ready": True,
+                    "last_heartbeat": current.get("last_heartbeat")}
         code = current.get("code", "")
         grouped_code = "-".join(code[i:i + 4] for i in range(0, len(code), 4)) if len(code) == 16 else None
         return {"status": "pending",
