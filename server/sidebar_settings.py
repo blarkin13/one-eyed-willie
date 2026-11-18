@@ -13,8 +13,7 @@ NAV = (
     ("home", "Home"),
     ("movies", "Movies"),
     ("tv", "TV Shows"),
-    ("sabnzbd", "SABnzbd"),
-    ("services", "Download services"),
+    ("connections", "Connections"),
 )
 ALWAYS_VISIBLE = {"home", "settings"}
 ICON_NAMES = ("home", "movies", "tv", "sabnzbd", "settings")
@@ -90,8 +89,14 @@ def get_sidebar():
         _settings_table(conn)
         entries = _available(conn)
         by_id = {item["id"]: item for item in entries}
-        saved = _read(conn, "sidebar_order")
-        hidden = set(_read(conn, "sidebar_hidden"))
+        # Migrate pre-Connections layouts without losing the user's saved order.
+        old_order = _read(conn, "sidebar_order")
+        saved = list(dict.fromkeys(
+            "connections" if item in ("sabnzbd", "services") else item
+            for item in old_order
+        ))
+        hidden = set("connections" if item in ("sabnzbd", "services") else item
+                     for item in _read(conn, "sidebar_hidden"))
         hidden.update(item["id"] for item in entries if item.get("sidebar_hidden"))
         order = list(dict.fromkeys(key for key in saved if key in by_id))
         # New libraries and newly-added destinations are appended before Settings.
