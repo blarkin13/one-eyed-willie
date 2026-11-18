@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS servers (
   owner_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   display_name TEXT NOT NULL,
   public_url TEXT,
+  local_url TEXT,
   status TEXT NOT NULL DEFAULT 'pending',
   created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
