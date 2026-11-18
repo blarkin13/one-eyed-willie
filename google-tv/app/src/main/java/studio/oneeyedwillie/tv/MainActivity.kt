@@ -2527,6 +2527,32 @@ class MainActivity : ComponentActivity() {
                 revealLibraryRow(target,next===0);
                 return true;
               };
+              // TV settings are a form, not a poster grid. Spatial geometry
+              // skips rows and makes focus impossible to predict in a tall
+              // settings page. Up/Down follow visible control order instead.
+              const tvSettingsControls=()=>[...document.querySelectorAll(
+                '.tv-playback-settings input[type="checkbox"],'+
+                '.tv-playback-settings input[type="range"],'+
+                '.tv-playback-settings button:not(:disabled)'
+              )].filter(node=>isVisible(node)&&!node.closest('dialog:not([open])'));
+              const moveTvSettings=(active,direction)=>{
+                if(location.pathname!=='/settings'||
+                   !document.querySelector('.tv-playback-settings'))return false;
+                if(active?.closest?.('dialog[open]'))return false;
+                const controls=tvSettingsControls();
+                if(!controls.length)return false;
+                if(direction==='left'&&active?.closest?.('.tv-playback-settings')){
+                  const menu=allMenu();
+                  const target=menu.find(node=>node.getAttribute('aria-current')==='page')||menu[0];
+                  if(target)return focusNode(target);
+                }
+                if(direction==='right')return false;
+                if(direction!=='up'&&direction!=='down')return false;
+                const index=controls.indexOf(active);
+                const next=index<0?0:Math.max(0,Math.min(controls.length-1,
+                  index+(direction==='down'?1:-1)));
+                return focusNode(controls[next]);
+              };
               const move=direction=>{
                 // Sort and Filter options are navigable while their popup
                 // is open. Once a choice is applied the menu closes, and DOWN
@@ -2577,6 +2603,7 @@ class MainActivity : ComponentActivity() {
                 }
                 // Library handlers use the cached grid model and must run
                 // BEFORE candidates(), which style/layout-scans every link.
+                if(moveTvSettings(active,direction))return true;
                 if(moveLibraryToolbar(active,direction))return true;
                 if(moveLibraryAlphabet(active,direction))return true;
                 if(moveLibraryHorizontal(active,direction))return true;
@@ -2784,7 +2811,10 @@ class MainActivity : ComponentActivity() {
                 const firstHome=document.querySelector(
                   '#continue-watching .shelf-track .tile-button')||
                   document.querySelector('.content .shelf-track .tile-button');
+                const onTvSettings=location.pathname==='/settings'&&
+                  Boolean(document.querySelector('.tv-playback-settings'));
                 const dest=library?firstPoster():home?firstHome:
+                  onTvSettings?tvSettingsControls()[0]:
                   ((preferred&&isVisible(preferred)?preferred:null)||
                   firstPoster()||
                   [...document.querySelectorAll(
