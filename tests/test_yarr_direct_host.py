@@ -52,7 +52,7 @@ async def test_streams_real_http_206_bytes_through_media_channel():
         assert request.url.query == b"viewing=123"
         assert request.headers["range"] == "bytes=200-100199"
         assert request.headers.get("x-untrusted-header") is None
-        return httpx.Response(206, content=source, headers={
+        return httpx.Response(206, stream=httpx.ByteStream(source), headers={
             "content-type": "video/mp4",
             "content-range": "bytes 200-100199/999999",
             "content-length": str(len(source)),
@@ -143,7 +143,7 @@ async def test_real_webrtc_range_transfer_over_datachannel():
         def respond(req):
             assert req.headers["range"] == "bytes=10-1048708"
             return httpx.Response(
-                206, content=body,
+                206, stream=httpx.ByteStream(body),
                 headers={
                     "content-type": "video/mp4",
                     "content-range": "bytes 10-1048708/3000000",
