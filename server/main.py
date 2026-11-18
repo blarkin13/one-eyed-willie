@@ -264,7 +264,7 @@ html body[data-page="home"] .shelf-track
   .tile-button:is(:focus,:focus-visible) .cover{
   transform:scale(1.02)!important;
   transform-origin:center center!important;
-  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+  box-shadow:0 0 0 2px var(--oew-tv-select-color,#A61E1E)!important;
   filter:brightness(1.16)!important;
 }
 body[data-page="home"] .shelf {
