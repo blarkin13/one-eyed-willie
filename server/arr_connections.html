@@ -3,7 +3,7 @@
 <head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-layout-2"><script defer src="/assets/shell.js?v=appearance-1"></script>
+<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-directory-3"><script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .connection-list{display:flex;flex-direction:column;gap:20px;width:100%;min-width:0;margin-top:20px}
 .connection-grid{display:contents}
@@ -25,6 +25,43 @@
 .sab-entry span{color:var(--muted);font-size:.8rem;text-align:right;flex-shrink:0}
 .sab-entry:focus-visible{outline:2px solid #b2cde8}
 @media(max-width:600px){.sab-entry{flex-direction:column;gap:4px}.sab-entry span{text-align:left}}
+/* Dense, scalable connection directory. Each service has one full-width row. */
+.connection-list{gap:9px;margin-top:12px}
+.connection-tools{margin:20px 0 0;max-width:100%}
+.connection-tools label{display:block;font-weight:650;font-size:.9rem;margin-bottom:9px}
+.connection-search-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+#connection-search{flex:1 1 300px;min-width:0;max-width:720px;background:#111d2a;color:#f2f6ff;
+ border:1px solid #425974;border-radius:10px;padding:10px 14px;min-height:44px;font:inherit}
+#connection-search:focus-visible{outline:2px solid #b59aff;outline-offset:2px}
+#connections-count{font-size:.83rem;color:#a9bbce;margin:9px 0 0}
+.connection-item{width:100%;min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
+.connection-item[hidden]{display:none}
+.connection-item>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:13px;
+ padding:15px 19px;min-height:59px;color:#eef4ff}
+.connection-item>summary::-webkit-details-marker{display:none}
+.connection-item>summary:hover,.connection-item>summary:focus-visible{background:#213149}
+.connection-item>summary:focus-visible{outline:2px solid #b59aff;outline-offset:-3px}
+.connection-item>summary .summary-logo{width:29px;height:29px;object-fit:contain;flex:none}
+.connection-item .summary-title{font-weight:720;font-size:1.05rem;min-width:125px}
+.connection-item .summary-desc{color:#a8b9cc;font-size:.87rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
+.connection-item .summary-status{font-size:.8rem;color:#b5c6db;flex:none;margin-left:auto;white-space:nowrap}
+.connection-item .summary-status.on{color:#92d9b4}
+.connection-item .summary-chevron{width:11px;height:11px;border-right:2px solid #b4c4d8;border-bottom:2px solid #b4c4d8;
+ transform:rotate(45deg);margin:0 3px 5px 8px;flex:none;transition:transform .15s}
+.connection-item[open] .summary-chevron{transform:rotate(225deg);margin-top:7px;margin-bottom:0}
+.connection-item>.connection-card{width:100%;max-width:none;margin:0!important;padding:20px 22px 22px;
+ border:0;border-top:1px solid var(--line);border-radius:0;background:transparent;box-sizing:border-box}
+.connection-item>.connection-card .connection-head{display:none}
+.connection-item>.connection-card .connection-kind{margin-top:0}
+.connection-item>.connection-card form{max-width:860px}
+@media(max-width:700px){
+ .connection-item>summary{padding:13px;gap:10px;flex-wrap:wrap}
+ .connection-item .summary-title{min-width:0}
+ .connection-item .summary-desc{order:5;flex-basis:100%;white-space:normal}
+ .connection-item .summary-status{margin-left:auto}
+ .connection-item>.connection-card{padding:17px}
+ .connection-search-row button{flex:1}
+}
 </style></head>
 <body data-page="connections"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -34,7 +71,16 @@
 <p>Configure your media integrations. Each connection has its own settings and status.</p></div>
 </div>
 
-<div class="connection-list" aria-label="Connection configuration">
+<div class="connection-tools" role="search">
+<label for="connection-search">Search connections</label>
+<div class="connection-search-row">
+<input id="connection-search" type="search" autocomplete="off" placeholder="Search by service or purpose…" aria-controls="connection-list" />
+<button id="connections-expand" type="button" class="secondary-button">Expand all</button>
+<button id="connections-collapse" type="button" class="secondary-button">Collapse all</button>
+</div>
+<p id="connections-count" role="status" aria-live="polite"></p>
+</div>
+<div class="connection-list" id="connection-list" aria-label="Connection configuration">
 <div class="connection-grid" id="connections"></div>
 <section class="connection-card" aria-labelledby="sab-heading">
 <div class="connection-head"><h2 id="sab-heading"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt=""> SABnzbd</h2><span id="sab-state" class="integration-state">Checking…</span></div>
@@ -288,5 +334,63 @@ $('sab-disconnect').onclick=async()=>{
 
 sabConnection();
 
-build();refresh();
+// Convert all five existing connection forms into compact, keyboard-accessible rows.
+// This preserves their original forms, IDs, and API handlers unchanged.
+function initConnectionDirectory(){
+ const list=$('connection-list');
+ const cards=[...list.querySelectorAll('.connection-card')];
+ const search=$('connection-search');
+ const records=[];
+ for(const card of cards){
+   const title=card.querySelector('.connection-head h2')?.textContent.trim()||'Connection';
+   const desc=card.querySelector('.connection-kind')?.textContent.trim()||'';
+   const sourceStatus=card.querySelector('.integration-state');
+   const details=document.createElement('details');
+   details.className='connection-item';
+   const summary=document.createElement('summary');
+   const existingIcon=card.querySelector('.connection-head .integration-logo');
+   if(existingIcon){
+     const icon=existingIcon.cloneNode(true);
+     icon.className='summary-logo';
+     summary.append(icon);
+   }
+   const name=document.createElement('span');name.className='summary-title';name.textContent=title;
+   const description=document.createElement('span');description.className='summary-desc';description.textContent=desc;
+   const status=document.createElement('span');status.className='summary-status';
+   const chevron=document.createElement('span');chevron.className='summary-chevron';chevron.setAttribute('aria-hidden','true');
+   summary.append(name,description,status,chevron);
+   details.append(summary);
+   card.replaceWith(details);
+   details.append(card);
+   function syncStatus(){
+     status.textContent=sourceStatus?.textContent.trim()||'Checking…';
+     status.classList.toggle('on',sourceStatus?.classList.contains('on')||false);
+   }
+   syncStatus();
+   if(sourceStatus)new MutationObserver(syncStatus).observe(sourceStatus,{childList:true,characterData:true,subtree:true,attributes:true,attributeFilter:['class']});
+   const searchText=(title+' '+desc).toLocaleLowerCase();
+   records.push({details,searchText});
+ }
+ const counter=$('connections-count');
+ function filter(){
+   const terms=search.value.trim().toLocaleLowerCase().split(/\s+/).filter(Boolean);
+   let matches=0;
+   for(const record of records){
+     const visible=terms.every(term=>record.searchText.includes(term));
+     record.details.hidden=!visible;
+     if(visible)matches++;
+   }
+   counter.textContent=matches+' of '+records.length+' connections'+(matches===0?' — no matches':'');
+ }
+ search.addEventListener('input',filter);
+ $('connections-expand').addEventListener('click',()=>records.filter(item=>!item.details.hidden).forEach(item=>item.details.open=true));
+ $('connections-collapse').addEventListener('click',()=>records.forEach(item=>item.details.open=false));
+ filter();
+ // Open a connection automatically when navigating from the Connections hub.
+ const hash=location.hash;
+ const target=hash?document.getElementById(hash.slice(1)):null;
+ const selected=target?.closest('.connection-item');
+ if(selected){selected.hidden=false;selected.open=true;selected.scrollIntoView({block:'start'});}
+}
+build();initConnectionDirectory();refresh();
 </script></body></html>
