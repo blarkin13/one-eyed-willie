@@ -956,10 +956,12 @@ body[data-page="home"] .shelf-track>.tile{
 
 /* Clean theme uses Font Awesome Free, with local SVGs only if the font cannot load.
    Pirate retains its existing PNG artwork. */
-.sidebar .nav-clean-icon{display:inline-flex;align-items:center;justify-content:center;color:#f7f7f7}
+.sidebar .nav-clean-icon{display:inline-flex;align-items:center;justify-content:center;color:#f7f7f7;width:27px;height:27px;flex:none}
 .sidebar .nav-clean-icon i{display:none;font-size:1em;line-height:1}
-.sidebar .nav-clean-icon .fa-fallback{display:block;width:30px;height:30px}
+.sidebar .nav-clean-icon .fa-fallback{display:block;width:24px;height:24px}
 .fontawesome-ready .sidebar .nav-clean-icon i{display:inline-block!important}
 .fontawesome-ready .sidebar .nav-clean-icon .fa-fallback{display:none!important}
+.sidebar .library-nav-link .nav-clean-icon.library-custom-icon{font-size:24px;color:#f7f7f7}
+.sidebar .library-nav-link .nav-clean-icon.library-custom-icon .fa-fallback{width:24px;height:24px}
 .sidebar .nav-link[aria-current="page"] .nav-clean-icon,
 .sidebar .nav-link:focus-visible .nav-clean-icon{color:#a78bfa}
