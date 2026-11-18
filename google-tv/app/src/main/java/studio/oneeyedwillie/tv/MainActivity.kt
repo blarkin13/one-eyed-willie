@@ -1716,16 +1716,19 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
                 body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
                   outline:0!important;border-color:transparent!important;
-                  box-shadow:none!important;transform:scale(1.07)!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  transform:scale(1.07)!important;
                   filter:brightness(1.16)!important;position:relative;z-index:3
                 }
                 body[data-page] .season-episode-tile:is(:focus,:focus-visible){
-                  outline:0!important;border-color:transparent!important;
+                  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline-offset:2px!important;border-color:transparent!important;
                   box-shadow:none!important;transform:scale(1.07)!important;
                   filter:brightness(1.16)!important;z-index:3
                 }
-                body[data-page] .season-episode-tile.is-selected{
-                  border-color:transparent!important;box-shadow:none!important
+                body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+                  border-color:var(--oew-tv-select-color,#8B5CF6)!important;
+                  box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,.nav-link,
                   .season-tabs a):is(:focus,:focus-visible){
