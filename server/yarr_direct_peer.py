@@ -112,8 +112,17 @@ async def serve_asgi_media(channel, path, req_headers=None):
         "root_path": "", "headers": headers,
         "client": ("127.0.0.1", 0), "server": ("127.0.0.1", 8787),
     }
+    request_seen = False
+    response_done = asyncio.Event()
+
     async def receive():
-        return {"type": "http.request", "body": b"", "more_body": False}
+        nonlocal request_seen
+        if not request_seen:
+            request_seen = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+        # StreamingResponse must not spin on repeated http.request frames.
+        await response_done.wait()
+        return {"type": "http.disconnect"}
 
     async def send(message):
         if message["type"] == "http.response.start":
@@ -129,6 +138,7 @@ async def serve_asgi_media(channel, path, req_headers=None):
             if not message.get("more_body", False):
                 await drain(channel)
                 channel.send('{"type":"done"}')
+                response_done.set()
 
     # Resolve the actual FastAPI router only after main.py has initialized.
     from .main import app
@@ -200,7 +210,15 @@ async def offer(data: PeerOffer, x_yarr_direct_secret: str | None = Header(defau
                     if channel.readyState == "open":
                         channel.send('{"type":"error","message":"Media request failed"}')
                 finally:
+                    # Allow queued SCTP chunks and the final DONE control frame
+                    # to reach the browser before closing the channel.
+                    deadline = asyncio.get_running_loop().time() + 5
+                    while (channel.readyState == "open"
+                           and channel.bufferedAmount > 0
+                           and asyncio.get_running_loop().time() < deadline):
+                        await asyncio.sleep(0.02)
                     if channel.readyState == "open":
+                        await asyncio.sleep(0.05)
                         channel.close()
             asyncio.create_task(stream())
 
