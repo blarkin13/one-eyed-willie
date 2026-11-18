@@ -138,7 +138,14 @@
 <p>Other *arr applications have different content types: Readarr manages books, and Prowlarr manages indexers. They can be integrated separately when those features are supported; connecting them here would not add movie or TV browsing.</p></section>
 </main></div></div>
 <script>
-const providers=[{id:'radarr',title:'Radarr',desc:'Movie artwork, descriptions and add-to-library',port:7878},{id:'sonarr',title:'Sonarr',desc:'TV show metadata and add-to-library',port:8989},{id:'lidarr',title:'Lidarr',desc:'Music collection and artist management',port:8686}];
+const providers=[
+  {id:'radarr',title:'Radarr',desc:'Movie artwork, descriptions and add-to-library',
+   port:7878,image:'/assets/brand/radarr.svg'},
+  {id:'sonarr',title:'Sonarr',desc:'TV show metadata and add-to-library',
+   port:8989,image:'/assets/brand/sonarr.svg'},
+  {id:'lidarr',title:'Lidarr',desc:'Music collection and artist management',
+   port:8686,image:'/assets/brand/lidarr.svg'}
+];
 const $=id=>document.getElementById(id);
 const statusEls={};
 async function fetchJson(url,opts){
@@ -155,7 +162,7 @@ function build(){
    const name=document.createElement('h2');
    const icon=document.createElement('img');
    icon.className='integration-logo';
-   icon.src='/assets/brand/'+provider.id+'.svg';icon.alt='';
+   icon.src=provider.image;icon.alt='';
    icon.onerror=()=>icon.remove();
    name.append(icon,document.createTextNode(provider.title));
    const state=document.createElement('span');state.className='integration-state';state.textContent='Checking…';
