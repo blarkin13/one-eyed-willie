@@ -135,10 +135,12 @@ class LibraryScrollBrowserTests(unittest.TestCase):
         cls.port = free_port()
         env = dict(os.environ, MEDIA_ROOT=str(base / "media"),
                    DATABASE_PATH=str(base / "data" / "library.sqlite3"))
-        cls.server = subprocess.Popen(
-            [sys.executable, "-m", "uvicorn", "server.main:app",
-             "--port", str(cls.port), "--log-level", "warning"],
-            cwd=ROOT, env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        cls.server_log = base / "server.log"
+        with open(cls.server_log, "wb") as log:
+            cls.server = subprocess.Popen(
+                [sys.executable, "-m", "uvicorn", "server.main:app",
+                 "--port", str(cls.port), "--log-level", "warning"],
+                cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         cls.origin = "http://127.0.0.1:%d" % cls.port
         for _ in range(100):
             try:
@@ -147,7 +149,11 @@ class LibraryScrollBrowserTests(unittest.TestCase):
             except Exception:
                 time.sleep(0.2)
         else:
-            raise RuntimeError("test server did not start")
+            # Say why: a silent "did not start" hid a CI-only failure for days.
+            output = cls.server_log.read_text(errors="replace")[-3000:]
+            code = cls.server.poll()
+            cls.server.kill()
+            raise RuntimeError("test server did not start (exit code %s):\n%s" % (code, output))
         library = call(cls.origin + "/api/libraries", "POST", {
             "name": "Movies", "kind": "movies", "path": str(base / "media" / "Movies")})
         call("%s/api/libraries/%d/scan" % (cls.origin, library["id"]), "POST")
