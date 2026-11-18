@@ -232,6 +232,35 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
             page.wait_for_timeout(100)
         self.assertIn("quality=1080p", hls_urls[-1])
 
+    def test_leaving_while_a_stream_is_starting_releases_it(self):
+        """Closing the player mid-start must not leave a transcoder holding a server slot."""
+        held, deleted = [], []
+
+        def setup(page):
+            page.route("**/api/stream/hls/start/7**", lambda route: held.append(route))
+            page.route("**/api/stream/hls/%s" % ("c" * 32), lambda route: (
+                deleted.append(route.request.method), route.fulfill(status=200, content_type="application/json",
+                                                                   body='{"stopped": true}')))
+
+        page, _, _ = self.open_player(status=dict(STATUS, extension=".mkv", mode="compatible",
+                                                  media={"container": "mkv", "video_codec": "hevc", "audio_codec": "ac3"}),
+                                      setup=setup)
+        for _ in range(50):
+            if held:
+                break
+            page.wait_for_timeout(100)
+        self.assertTrue(held, "the stream start never went out")
+        page.evaluate("WilliePlayer.close()")                    # the viewer backs out
+        held[0].fulfill(status=200, content_type="application/json", body=json.dumps(
+            {"session": "c" * 32, "playlist": "/x.m3u8", "engine": "CPU", "quality": "720p",
+             "duration": 3600, "start": 0}))
+        for _ in range(50):
+            if deleted:
+                break
+            page.wait_for_timeout(100)
+        self.assertEqual(deleted, ["DELETE"])
+
+
     def test_dropped_connection_on_original_is_retried_before_transcoding(self):
         page, hls_urls, stream_urls = self.open_player(stream="network-error")
         # First load fails with a network error; the player retries the same

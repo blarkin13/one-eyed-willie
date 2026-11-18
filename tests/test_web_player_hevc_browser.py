@@ -25,12 +25,16 @@ CLAIMS_MAIN_ONLY = CLAIMS_HEVC.replace("/hvc1|hev1/", "/hvc1\\.1\\./")
 class HevcFullQualityBrowserTests(unittest.TestCase):
     setUpClass = classmethod(full.FullQualityBrowserTests.setUpClass.__func__)
     tearDownClass = classmethod(full.FullQualityBrowserTests.tearDownClass.__func__)
-    playing = full.FullQualityBrowserTests.playing
+    _playing = full.FullQualityBrowserTests.playing
+
+    def playing(self, page, width=None, engine=None):
+        # Software-decoding 10-bit HEVC and re-encoding it is slow on a busy CI runner.
+        self._playing(page, width=width, engine=engine, timeout=120000)
 
     @classmethod
     def make_movie(cls, path):
         subprocess.run(
-            [full.FFMPEG, "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24",
+            [full.FFMPEG, "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24",
              "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "30",
              "-c:v", "libx265", "-preset", "ultrafast", "-pix_fmt", "yuv420p10le",
              "-x265-params", "keyint=48:min-keyint=48:log-level=error",

@@ -454,7 +454,12 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
         message(error.message.replace('Full quality is not available for this file. ','Full quality is not available: ')+' Using 720p.');
         result=await requestJson(startUrl('720p'),{method:'POST'});
       }
-      if(current!==surface)return;
+      if(current!==surface){
+        // The viewer left while the stream was starting: release it, or it would
+        // hold one of the server's two stream slots until it times out.
+        fetch('/api/stream/hls/'+result.session,{method:'DELETE',keepalive:true}).catch(()=>{});
+        return;
+      }
       session=result.session;
       status.duration_seconds=status.duration_seconds||result.duration;
       let ready=null;
