@@ -1029,6 +1029,11 @@ body[data-page="home"] .shelf-track>.tile{
    selected scale, remote navigation and all other posters unchanged. */
 body[data-page="home"] .shelf-track{
   padding-inline:10px;
+  /* Browser focus scrolling must respect the room reserved for the ring. */
+  scroll-padding-inline:12px;
+}
+body[data-page="home"] .shelf-track .tile-button{
+  scroll-margin-inline:12px;
 }
 html body[data-page="home"] .shelf-track > .tile:first-child
   .tile-button:is(:focus,:focus-visible) .cover{
