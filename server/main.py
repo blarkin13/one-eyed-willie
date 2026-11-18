@@ -332,6 +332,13 @@ def library_appearance_js():
                         media_type="application/javascript")
 
 
+@app.get("/assets/media-context.js")
+def media_context_script():
+    return FileResponse(Path(__file__).with_name("media_context.js"),
+                        media_type="text/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/assets/shell.js")
 def ui_shell():
     return FileResponse(Path(__file__).with_name("shell.js"), media_type="text/javascript",
