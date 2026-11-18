@@ -39,7 +39,10 @@ MAX_ANALYSIS = 40
 MAX_EXTENSIVE = 3
 MAX_PREVIEWS = 4
 MAX_PREVIEW_BYTES = 800000
-PREVIEW_FRAMES = 24
+PREVIEW_FRAMES = 24          # coarse set; files 000-023 keep their original positions
+PREVIEW_MIN_STEP = 10        # finest spacing, in seconds, between detailed thumbnails
+PREVIEW_MAX_EXTRA = 420      # cap on detailed thumbnails per video (bounds disk and work)
+PREVIEW_FILE = re.compile(r"^(\d{3})\.jpg$")
 PREVIEW_WORKER = threading.Lock()
 PREVIEW_RETRY_AT = {}
 DEFAULTS = {
@@ -220,8 +223,53 @@ def _preview_key(row):
     return hashlib.sha256(f'v2:{row["id"]}:{row["size"]}:{row["mtime_ns"]}'.encode()).hexdigest()[:24]
 
 
-def _preview_complete(directory):
-    return all((directory / f"{i:03}.jpg").is_file() for i in range(PREVIEW_FRAMES))
+def preview_times(duration):
+    """Timestamps (seconds) for every thumbnail of a video, indexed by file number.
+
+    Files 000-023 are the original 24 evenly spaced frames, so older clients
+    and already generated sets stay valid. Detailed frames follow, ordered
+    coarse-to-fine so a partially generated set still covers the whole timeline.
+    """
+    total = round(float(duration or 0))
+    if total <= 15:
+        return []
+    times = [total * (i + 1) / (PREVIEW_FRAMES + 1) for i in range(PREVIEW_FRAMES)]
+    step = max(PREVIEW_MIN_STEP, -(-total // PREVIEW_MAX_EXTRA))
+    grid = [t for t in range(step, total - 1, step)
+            if all(abs(t - base) >= step / 3 for base in times[:PREVIEW_FRAMES])]
+    ordered, seen = [], set()
+    for stride in (16, 8, 4, 2, 1):
+        for position, t in enumerate(grid):
+            if position % stride == 0 and position not in seen:
+                seen.add(position)
+                ordered.append(float(t))
+    return times + ordered
+
+
+def _manifest(directory):
+    return directory / "times.json"
+
+
+def _load_times(directory):
+    try:
+        data = json.loads(_manifest(directory).read_text())
+        times = [float(t) for t in data["times"]]
+        if PREVIEW_FRAMES <= len(times) <= 1000:
+            return times
+    except (OSError, ValueError, KeyError, TypeError):
+        pass
+    return None
+
+
+def _save_times(directory, times):
+    tmp = directory / "times.json.tmp"
+    tmp.write_text(json.dumps({"times": times}))
+    tmp.replace(_manifest(directory))
+
+
+def _preview_complete(directory, times=None):
+    count = len(times) if times is not None else len(_load_times(directory) or range(PREVIEW_FRAMES))
+    return all((directory / f"{i:03}.jpg").is_file() for i in range(count))
 
 
 def _create_preview(row):
@@ -230,31 +278,39 @@ def _create_preview(row):
         return False
     token = _preview_key(row)
     target = PREVIEWS / token
-    if _preview_complete(target):
+    # A manifest means the full detailed set was planned; legacy 24-frame sets
+    # have none and are topped up below.
+    if _manifest(target).is_file() and _preview_complete(target):
         return False
     try:
         PREVIEWS.mkdir(parents=True, exist_ok=True)
         target.mkdir(mode=0o700, exist_ok=True)
-        duration = 0
-        with db() as conn:
-            _tables(conn)
-            record = conn.execute("SELECT payload FROM media_analysis WHERE media_id=?", (row["id"],)).fetchone()
-        if record:
-            duration = float(json.loads(record["payload"]).get("duration") or 0)
-        # Never process entire movies if duration could not be determined.
-        if duration <= 15:
-            info = _probe(row)
-            duration = float(info.get("duration") or 0) if info else 0
-        if duration <= 15:
+        times = _load_times(target)
+        if times is None:
+            duration = 0
+            with db() as conn:
+                _tables(conn)
+                record = conn.execute("SELECT payload FROM media_analysis WHERE media_id=?", (row["id"],)).fetchone()
+            if record:
+                duration = float(json.loads(record["payload"]).get("duration") or 0)
+            # Never process entire movies if duration could not be determined.
+            if duration <= 15:
+                info = _probe(row)
+                duration = float(info.get("duration") or 0) if info else 0
+            times = preview_times(duration)
+            if not times:
+                return False
+            _save_times(target, times)
+        if _preview_complete(target, times):
             return False
         success = 0
         # Fill the middle and quarters first, so thumbnails cover the entire
         # timeline while the rest are generated in the background.
         priority = [11, 5, 17, 2, 8, 14, 20, 0, 23]
-        order = priority + [i for i in range(PREVIEW_FRAMES) if i not in priority]
+        order = priority + [i for i in range(len(times)) if i not in priority]
         for index in order:
             if not (target / f"{index:03}.jpg").exists():
-                offset = max(1, duration * (index + 1) / (PREVIEW_FRAMES + 1))
+                offset = max(1, times[index])
                 command = ["nice", "-n", "15", "/usr/bin/ffmpeg", "-nostdin",
                            "-v", "error", "-ss", str(offset), "-i", str(path),
                            "-frames:v", "1", "-vf", "scale=320:-2",
@@ -268,7 +324,7 @@ def _create_preview(row):
                         (target / f"{index:03}.jpg").unlink(missing_ok=True)
                 except (OSError, subprocess.TimeoutExpired, subprocess.CalledProcessError):
                     pass
-        if success == 0:
+        if success == 0 and not any(PREVIEW_FILE.match(f.name) for f in target.iterdir()):
             shutil.rmtree(target, ignore_errors=True)
         return bool(success)
     except OSError:
@@ -477,12 +533,16 @@ def preview_info(media_id: int):
     token = _preview_key(entry)
     profile = inspect_media(path)
     duration = float(profile.get("duration") or 0)
+    times = _load_times(PREVIEWS / token) or preview_times(duration)
+    if not times and duration <= 0:
+        times = []
     files = [
         (i, f"/api/maintenance/preview/{media_id}/{i:03}.jpg")
-        for i in range(PREVIEW_FRAMES)
+        for i in range(len(times) or PREVIEW_FRAMES)
         if (PREVIEWS / token / f"{i:03}.jpg").is_file()
     ]
-    if (len(files) < PREVIEW_FRAMES and duration > 15 and
+    expected = len(times) or PREVIEW_FRAMES
+    if (len(files) < expected and duration > 15 and
             not WORKING.locked() and not PREVIEW_WORKER.locked() and
             time.monotonic() > PREVIEW_RETRY_AT.get(token, 0)):
         if PREVIEW_WORKER.acquire(blocking=False):
@@ -494,12 +554,12 @@ def preview_info(media_id: int):
         "enabled": True,
         "images": [url for _, url in files],  # Backward-compatible browser UI
         "frames": [
-            {"time_seconds": duration * (i + 1) / (PREVIEW_FRAMES + 1) if duration else 0,
-             "url": url}
+            {"time_seconds": times[i] if i < len(times) else 0, "url": url}
             for i, url in files
         ],
         "generating": PREVIEW_WORKER.locked(),
         "duration_seconds": duration,
+        "total_frames": expected,
     }
 
 
@@ -507,7 +567,7 @@ def preview_info(media_id: int):
 def preview_image(media_id: int, filename: str):
     if not settings()["video_preview_thumbnails"]:
         raise HTTPException(404, "Previews disabled")
-    if not re.fullmatch(r"0(?:0[0-9]|1[0-9]|2[0-3])\.jpg", filename):
+    if not PREVIEW_FILE.match(filename) or int(filename[:3]) >= PREVIEW_FRAMES + PREVIEW_MAX_EXTRA:
         raise HTTPException(404, "Preview not found")
     _, path = _item(media_id)
     stat = path.stat()

@@ -35,16 +35,17 @@ internal class PlayerScrubPreview(
     private data class Frame(val time: Double, val url: String)
     private val handler = Handler(Looper.getMainLooper())
     private val worker = Executors.newSingleThreadExecutor()
-    private val cache = object : LruCache<String, Bitmap>(6 * 1024 * 1024) {
+    private val cache = object : LruCache<String, Bitmap>(12 * 1024 * 1024) {
         override fun sizeOf(key: String, value: Bitmap) = value.byteCount
     }
-    private val framePattern = Regex("^/api/maintenance/preview/$mediaId/0(?:0[0-9]|1[0-9]|2[0-3])\\.jpg$")
+    private val framePattern = Regex("^/api/maintenance/preview/$mediaId/\\d{3}\\.jpg$")
     private var frames: List<Frame> = emptyList()
     private var currentUrl: String? = null
     private var lastPosition = 0.0
     private var desiredUrl: String? = null
     private var disposed = false
     private var refreshCount = 0
+    private val inFlight = HashSet<String>()
     private val hideAction = Runnable { view.visibility = View.GONE }
     private var imageAction: Runnable? = null
 
@@ -108,11 +109,14 @@ internal class PlayerScrubPreview(
             currentUrl = null
             return
         }
-        val nearest = frames.minByOrNull { frame ->
+        val nearestIndex = frames.indices.minByOrNull { i ->
+            val frame = frames[i]
             val time = if (frame.time < 0) -frame.time * videoDuration() else frame.time
             abs(time - seconds)
         } ?: return
+        val nearest = frames[nearestIndex]
         desiredUrl = nearest.url
+        prefetchAround(nearestIndex)
         if (currentUrl == nearest.url) return
         cache.get(nearest.url)?.let {
             image.setImageBitmap(it)
@@ -180,15 +184,19 @@ internal class PlayerScrubPreview(
                         } else if (incoming.isEmpty()) {
                             placeholder.text = "Preparing thumbnails…"
                         }
-                        frames = incoming
+                        // Detailed frames arrive coarse-to-fine, so order by time for neighbour lookups.
+                        frames = incoming.sortedBy { it.time }
                         if (view.visibility == View.VISIBLE) {
                             show(lastPosition)
                             hideSoon()
                         }
-                        val remaining = incoming.size < 24 &&
+                        val expected = data.optInt("total_frames", 24)
+                        val remaining = incoming.size < expected &&
                             data.optDouble("duration_seconds", 0.0) > 15
-                        if ((generating || remaining) && refreshCount++ < 30) {
-                            handler.postDelayed({ if (!disposed) refresh() }, 3000)
+                        // Dense sets take minutes to build: poll quickly at first, then back off.
+                        if ((generating || remaining) && refreshCount++ < 120) {
+                            val delay = if (refreshCount < 10) 3000L else 12000L
+                            handler.postDelayed({ if (!disposed) refresh() }, delay)
                         }
                     }
                 } finally {
@@ -200,8 +208,17 @@ internal class PlayerScrubPreview(
         }
     }
 
-    private fun fetchImage(url: String) {
+    /** Warm the cache for the thumbnails on either side so single steps don't flash a placeholder. */
+    private fun prefetchAround(index: Int) {
+        for (neighbour in intArrayOf(index + 1, index - 1, index + 2, index - 2)) {
+            val url = frames.getOrNull(neighbour)?.url ?: continue
+            if (cache.get(url) == null && inFlight.add(url)) fetchImage(url, prefetch = true)
+        }
+    }
+
+    private fun fetchImage(url: String, prefetch: Boolean = false) {
         if (disposed) return
+        if (!prefetch && !inFlight.add(url)) return
         worker.execute {
             var bitmap: Bitmap? = null
             try {
@@ -225,6 +242,7 @@ internal class PlayerScrubPreview(
             }
             val result = bitmap
             handler.post {
+                inFlight.remove(url)
                 if (disposed) return@post
                 if (result != null) cache.put(url, result)
                 if (desiredUrl == url && result != null) {

@@ -147,6 +147,75 @@ class MaintenanceTests(unittest.TestCase):
             self.assertTrue(maintenance.run_due(now=2000000000))
         self.assertNotIn("update_all_libraries", maintenance.get_settings()["last_runs"])
 
+    def test_detailed_preview_times_keep_original_frames_and_cover_timeline(self):
+        self.assertEqual(maintenance.preview_times(10), [])
+        times = maintenance.preview_times(7200)
+        # The original 24 positions are unchanged so older apps and sets stay valid.
+        self.assertEqual(times[:24], [7200 * (i + 1) / 25 for i in range(24)])
+        self.assertGreater(len(times), 300)
+        self.assertEqual(len(times), len(set(times)))
+        self.assertTrue(all(0 < t < 7200 for t in times))
+        # Coarse-to-fine: the first detailed frames already span the whole video.
+        early = sorted(times[24:44])
+        self.assertLess(early[0], 1200)
+        self.assertGreater(early[-1], 5500)
+        # Bounded work for very long videos, and dense for short ones.
+        self.assertLessEqual(len(maintenance.preview_times(6 * 3600)), 24 + maintenance.PREVIEW_MAX_EXTRA)
+        short = sorted(maintenance.preview_times(1200))
+        self.assertLessEqual(max(b - a for a, b in zip(short, short[1:])), 60)
+
+    def test_preview_info_uses_manifest_times_and_reports_total(self):
+        data = {key: False for key in maintenance.DEFAULTS}
+        data["video_preview_thumbnails"] = True
+        media = maintenance.DATA / "long.mp4"
+        media.parent.mkdir(parents=True, exist_ok=True)
+        media.write_bytes(b"test")
+        record = {"id": 4, "size": media.stat().st_size, "mtime_ns": media.stat().st_mtime_ns}
+        folder = maintenance.PREVIEWS / maintenance._preview_key(record)
+        folder.mkdir(parents=True)
+        times = maintenance.preview_times(7200)
+        maintenance._save_times(folder, times)
+        for index in (0, 24, 25, 398):
+            (folder / f"{index:03}.jpg").write_bytes(b"sample")
+        with patch.object(maintenance, "settings", return_value=data), \
+             patch.object(maintenance, "inspect_media", return_value={"duration": 7200}), \
+             patch.object(maintenance, "_item", return_value=({"id": 4}, media)), \
+             patch.object(maintenance, "WORKING") as busy:
+            busy.locked.return_value = True
+            result = maintenance.preview_info(4)
+            self.assertEqual(result["total_frames"], len(times))
+            self.assertEqual([f["time_seconds"] for f in result["frames"]],
+                             [times[0], times[24], times[25], times[398]])
+            self.assertEqual(maintenance.preview_image(4, "398.jpg").media_type, "image/jpeg")
+            with self.assertRaises(HTTPException):
+                maintenance.preview_image(4, "999.jpg")
+
+    def test_legacy_24_frame_set_is_topped_up_not_regenerated(self):
+        media = maintenance.DATA / "legacy.mp4"
+        media.parent.mkdir(parents=True, exist_ok=True)
+        media.write_bytes(b"test")
+        row = {"id": 6, "size": media.stat().st_size, "mtime_ns": media.stat().st_mtime_ns}
+        folder = maintenance.PREVIEWS / maintenance._preview_key(row)
+        folder.mkdir(parents=True)
+        for index in range(24):
+            (folder / f"{index:03}.jpg").write_bytes(b"old")
+        made = []
+
+        def fake_ffmpeg(command, **kwargs):
+            made.append(command)
+            Path(command[-1]).write_bytes(b"new")
+
+        with patch.object(maintenance, "_safe_media", return_value=media), \
+             patch.object(maintenance, "_probe", return_value={"duration": 3600}), \
+             patch.object(maintenance.subprocess, "run", side_effect=fake_ffmpeg):
+            self.assertTrue(maintenance._create_preview(row))
+        times = maintenance._load_times(folder)
+        self.assertEqual(len(made), len(times) - 24)       # only the missing frames
+        self.assertEqual((folder / "000.jpg").read_bytes(), b"old")
+        self.assertTrue(maintenance._preview_complete(folder))
+        with patch.object(maintenance, "_safe_media", return_value=media):
+            self.assertFalse(maintenance._create_preview(row))   # nothing left to do
+
 
 if __name__ == "__main__":
     unittest.main()
