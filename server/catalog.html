@@ -936,29 +936,27 @@ for(const id of menuNames){
   else closeCatalogMenu(id,true);
  });
 }
-/* Native Google TV consumes physical arrow keys and calls this explicitly.
-   Unlike document keydown, it runs for the actual remote in Android WebView.
-   This owns both entry from the Sort/Filter toggle and focus *inside* the
-   popup, so library poster navigation cannot steal the Down press. */
+/* Native TV consumes hardware arrows and calls this when a popup is open.
+   After selecting a choice, DOWN from the closed Sort/Filter toggle must
+   return to the posters, not reopen the menu. Down past the last option also
+   exits the popup into the normal library toolbar navigation. */
 window.__willieCatalogRemoteNavigate=direction=>{
  const openId=menuNames.find(id=>!$(id+'-menu').hidden);
- const focused=document.activeElement;
- const toggleId=menuNames.find(id=>focused===$(id+'-toggle'));
- if(!openId){
-  if(direction!=='down'||!toggleId)return false;
-  openCatalogMenu(toggleId);
-  return true;
- }
+ if(!openId)return false;
  const menu=$(openId+'-menu');
  const items=[...menu.querySelectorAll('.catalog-tool-option:not(:disabled)')];
  if(!items.length)return true;
- const current=items.indexOf(focused);
+ const focused=document.activeElement,current=items.indexOf(focused);
  if(direction==='left'||direction==='right'){
   closeCatalogMenu(openId);
   $(openId==='sort'?'genre-toggle':'sort-toggle').focus({preventScroll:true});
   return true;
  }
  if(direction!=='down'&&direction!=='up')return true;
+ if(direction==='down'&&current===items.length-1){
+  closeCatalogMenu(openId,true);
+  return false; // Native DOWN now moves from the toggle to the poster row.
+ }
  const step=direction==='down'?1:-1;
  const index=current<0?(step>0?0:items.length-1):
   Math.max(0,Math.min(items.length-1,current+step));
