@@ -7,6 +7,10 @@ WebRTC transfer; no library volumes or media routes are mounted here.
 from fastapi import FastAPI
 
 from .yarr_ice_probe import router
+from .yarr_ice_fixed_port import install as install_fixed_ice_udp
+
+# This process runs alone on Linux host networking, not in the main Yarr app.
+install_fixed_ice_udp()
 
 app = FastAPI(title="Yarr host-network diagnostic", docs_url=None,
               redoc_url=None, openapi_url=None)

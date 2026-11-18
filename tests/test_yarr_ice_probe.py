@@ -110,5 +110,30 @@ class HostSidecarForwardTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(probe.os.environ.get("YARR_ICE_PROBE_USE_HOST_NETWORK"), None)
 
 
+
+class FixedPortIceTests(unittest.IsolatedAsyncioTestCase):
+    async def test_host_diagnostic_binds_actual_udp_3478(self):
+        from aioice import Connection
+        from server.yarr_ice_fixed_port import UDP_PORT, fixed_get_component_candidates
+        ice = Connection(ice_controlling=False)
+        try:
+            candidates = await fixed_get_component_candidates(
+                ice, component=1, addresses=["127.0.0.1"])
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(candidates[0].port, UDP_PORT)
+            self.assertEqual(candidates[0].type, "host")
+            self.assertEqual(candidates[0].host, "127.0.0.1")
+        finally:
+            await ice.close()
+
+    async def test_out_of_range_interfaces_are_not_bound(self):
+        from aioice import Connection
+        from server.yarr_ice_fixed_port import fixed_get_component_candidates
+        ice = Connection(ice_controlling=False)
+        with self.assertRaises(RuntimeError):
+            await fixed_get_component_candidates(ice, component=1,
+                                                 addresses=["::1"])
+
+
 if __name__ == "__main__":
     unittest.main()
