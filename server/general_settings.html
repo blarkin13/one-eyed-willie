@@ -125,7 +125,9 @@ async function yarrCheck(){
   const result=await r.json();
   if(!r.ok)throw Error(result.detail||'Unable to check Yarr pairing');
   if(result.status==='paired'&&result.connection_ready){
-   yarrStatus.textContent='Account paired. Secure online status is enabled; remote playback is not yet available.';
+   const t=result.private_connector||{};
+   const detail=t.status==='running'?'Automatic private connector running.':t.detail||'Automatic tunnel is starting.';
+   yarrStatus.textContent='Account paired. '+detail+' Remote playback is not yet available.';
    yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);yarrTimer=null;
   }else if(result.status==='paired'){
    yarrStatus.textContent='Account paired. Refresh the connection to activate online status reporting.';
