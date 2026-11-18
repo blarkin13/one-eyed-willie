@@ -138,7 +138,7 @@
 <p>Other *arr applications have different content types: Lidarr manages music, Readarr manages books, and Prowlarr manages indexers. They can be integrated separately when those features are supported; connecting them here would not add movie or TV browsing.</p></section>
 </main></div></div>
 <script>
-const providers=[{id:'radarr',title:'Radarr',desc:'Movie artwork, descriptions and add-to-library',port:7878},{id:'sonarr',title:'Sonarr',desc:'TV show metadata and add-to-library',port:8989}];
+const providers=[{id:'radarr',title:'Radarr',desc:'Movie artwork, descriptions and add-to-library',port:7878},{id:'sonarr',title:'Sonarr',desc:'TV show metadata and add-to-library',port:8989},{id:'lidarr',title:'Lidarr',desc:'Music collection and artist management',port:8686}];
 const $=id=>document.getElementById(id);
 const statusEls={};
 async function fetchJson(url,opts){
@@ -159,6 +159,11 @@ function build(){
      icon.src='/assets/brand/'+provider.id+'.svg';icon.alt='';
      header.append(icon);
    }
+   if(provider.id==='lidarr'){
+     const icon=document.createElement('i');icon.className='fa-solid fa-music';
+     icon.setAttribute('aria-hidden','true');icon.style.cssText='font-size:1.3rem;color:#e1e7f0';
+     header.append(icon);
+   }
    header.append(name,state);
    const desc=document.createElement('p');desc.className='connection-kind';desc.textContent=provider.desc;
    const summary=document.createElement('div');summary.className='connection-state';
@@ -177,7 +182,8 @@ function build(){
    form.onsubmit=async event=>{
      event.preventDefault();connect.disabled=true;message.textContent='Testing local connection…';
      try{
-       await fetchJson('/api/arr/connections/'+provider.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),api_key:key.value.trim()})});
+       await fetchJson(provider.id==='lidarr'?'/api/lidarr/connection':'/api/arr/connections/'+provider.id,
+         {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),api_key:key.value.trim()})});
        key.value='';message.textContent=provider.title+' connected successfully.';await refresh();
      }catch(e){message.textContent=e.message;}
      finally{connect.disabled=false;}
@@ -185,19 +191,22 @@ function build(){
    disconnect.onclick=async()=>{
      if(!confirm('Disconnect '+provider.title+'? Saved artwork and locally indexed files will remain.'))return;
      disconnect.disabled=true;
-     try{await fetchJson('/api/arr/connections/'+provider.id,{method:'DELETE'});message.textContent=provider.title+' disconnected.';await refresh();}
+     try{await fetchJson(provider.id==='lidarr'?'/api/lidarr/connection':'/api/arr/connections/'+provider.id,{method:'DELETE'});message.textContent=provider.title+' disconnected.';await refresh();}
      catch(e){message.textContent=e.message;}
      finally{disconnect.disabled=false;}
    };
    const help=document.createElement('p');help.className='connection-help';
-   help.textContent='The API key is stored privately on your NUC. Do not use the public forwarded address.';
+   help.textContent='The API key is stored privately on your server. Use the service's local LAN address, not the public forwarded address.';
    article.append(header,desc,summary,form,help);parent.append(article);
    statusEls[provider.id]={state,summary,url,disconnect,connect};
  }
 }
 async function refresh(){
  try{
-   const data=await fetchJson('/api/arr/connections');
+   const [data,lidarr]=await Promise.all([
+     fetchJson('/api/arr/connections'),fetchJson('/api/lidarr/connection')
+   ]);
+   data.lidarr=lidarr;
    for(const provider of providers){
      const controls=statusEls[provider.id],setting=data[provider.id]||{};
      controls.state.textContent=setting.connected?'Connected':'Not connected';
