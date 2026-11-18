@@ -45,7 +45,7 @@ const page = `<!doctype html>
 
 const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/new%20logo.png" alt="" aria-hidden="true"><span>YARR <strong>MEDIA</strong></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
 const SITE_FOOTER = '<footer class="site-footer" role="contentinfo"><div><div class="site-foot-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="site-foot-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a></div><div><div class="site-foot-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="site-foot-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>';
-const SITE_CHROME_CSS = \`
+const SITE_CHROME_CSS = `
 .site-header{max-width:100%;min-height:90px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 0;border-bottom:1px solid #ffffff29}
 .site-header .site-brand{display:flex;align-items:center;gap:12px;white-space:nowrap;text-decoration:none;color:#f5f1e8;font-size:21px;letter-spacing:.075em;font-weight:900}
 .site-brand img{height:54px;width:45px;object-fit:contain}.site-brand strong{color:#eb8888}
@@ -60,7 +60,7 @@ const SITE_CHROME_CSS = \`
 @media(max-width:560px){.site-header{gap:13px}.site-header .site-brand{font-size:18px}.site-brand img{width:38px;height:45px}.site-nav{order:3;width:100%;gap:15px}.site-nav a{font-size:13px}.site-actions{margin-left:auto}.site-actions a{padding:9px;font-size:12px}.site-footer{grid-template-columns:1fr}}
 @media(max-width:350px){.site-actions{width:100%}.site-actions a{flex:1}}
 @media(prefers-reduced-motion:reduce){.site-actions a{transition:none}.site-actions a:hover{transform:none}}
-\`;
+`;
 function siteChrome(html) {
  let out=html;
  const header=/<header class="nav">[\s\S]*?<\/header>|<nav class="nav">[\s\S]*?<\/nav>/;
