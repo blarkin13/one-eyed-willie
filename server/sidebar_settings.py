@@ -20,8 +20,8 @@ ALWAYS_VISIBLE = {"home", "settings"}
 ICON_NAMES = ("home", "movies", "tv", "sabnzbd", "settings")
 
 # Shared TV focus appearance: one setting for all TV clients, editable on web.
-DEFAULT_SELECTION_COLOR = "#8B5CF6"
-SelectionColor = Literal["#8B5CF6", "#3B82F6", "#14B8A6", "#22C55E",
+DEFAULT_SELECTION_COLOR = "#A61E1E"
+SelectionColor = Literal["#A61E1E", "#8B5CF6", "#3B82F6", "#14B8A6", "#22C55E",
                          "#F59E0B", "#EC4899", "#EF4444", "#FFFFFF"]
 
 
