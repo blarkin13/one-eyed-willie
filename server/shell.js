@@ -9,11 +9,13 @@ document.addEventListener('DOMContentLoaded', () => {
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
+    {id:'music',href:'/music',name:'Music',fa:'fa-music',fallback:'music'},
     {id:'connections',href:'/connections',name:'Connections',fa:'fa-plug',fallback:'connections'},
     {id:'settings',href:'/settings',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
   // Inline SVG fallbacks make every control usable without an external font.
   const paths={
+    music:'<path d="M9 18V5l11-2v13M9 9l11-2" stroke="currentColor" fill="none" stroke-width="1.7"/><ellipse cx="6" cy="18.5" rx="3" ry="2" fill="currentColor"/><ellipse cx="17" cy="16.5" rx="3" ry="2" fill="currentColor"/>',
     home:'<path d="M3 10.5 12 3l9 7.5V21h-6v-7H9v7H3z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" fill="none"/>',
     film:'<rect x="3" y="4" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M7 4v16M17 4v16M3 9h4m-4 6h4m10-6h4m-4 6h4" stroke="currentColor" stroke-width="1.5" fill="none"/>',
     tv:'<rect x="3" y="5" width="18" height="13" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M9 21h6m-3-3v3m-5-11 3 3 6-5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" fill="none"/>',
@@ -31,7 +33,7 @@ document.addEventListener('DOMContentLoaded', () => {
   // A local SVG fallback keeps navigation usable if the font CDN is unavailable.
   window.WillieCleanIcons={
     names:{
-      home:['fa-house','home'],movies:['fa-film','film'],tv:['fa-tv','tv'],
+      home:['fa-house','home'],movies:['fa-film','film'],tv:['fa-tv','tv'],music:['fa-music','music'],
       connections:['fa-plug','connections'],sabnzbd:['fa-download','sabnzbd'],
       settings:['fa-gear','settings']
     },
@@ -112,7 +114,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const ICON_THEME_KEY='willie-icon-theme';
   const iconTheme=()=>localStorage.getItem(ICON_THEME_KEY)==='pirate'?'pirate':'clean';
   function defaultIcon(kind){
-    const safe=['home','movies','tv','connections','settings'].includes(kind)?kind:'movies';
+    const safe=['home','movies','tv','music','connections','settings'].includes(kind)?kind:'movies';
     if(iconTheme()==='pirate')
       return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
     return window.WillieCleanIcons.create(safe,24);
@@ -189,7 +191,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.head.append(script);
     });
   function libraryGlyph(appearance,library,isStandard=false){
-    const kind=library.kind==='tv'?'tv':'movies';
+    const kind=library.kind==='music'?'music':library.kind==='tv'?'tv':'movies';
     // Theme selection takes precedence for the main Movies and TV Shows links.
     // Their library image uploads and Pirate presets are used only by Pirate.
     // Custom named libraries keep their individually selected artwork.
@@ -200,7 +202,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
       return coloredIcon(library.icon_image_url);
     // Pirate mode preserves the existing library appearance choices.
-    if(isStandard && ['film','tv','folder'].includes(library.icon))
+    if(isStandard && ['film','tv','folder','music'].includes(library.icon))
       return defaultIcon(kind);
     if(!appearance?.icons[library.icon])
       return defaultIcon(kind);
@@ -216,14 +218,15 @@ document.addEventListener('DOMContentLoaded', () => {
   ]).then(([libraries,layout,appearance])=>{
     const selected=new URLSearchParams(location.search).get('library_id');
     for(const library of libraries){
-      if(!Number.isInteger(library.id)||!['movies','tv'].includes(library.kind))continue;
+      if(!Number.isInteger(library.id)||!['movies','tv','music'].includes(library.kind))continue;
       const name=String(library.name||'').trim().slice(0,80);
       if(!name)continue;
       // A standard Movies/TV entry already exists, but a custom appearance
       // makes that library an intentional named entry.
       const normalized=name.toLocaleLowerCase().replace(/[^a-z0-9]/g,'');
       const isDefault=(library.kind==='movies'&&normalized==='movies')||
-        (library.kind==='tv'&&(normalized==='tvshows'||normalized==='tv'));
+        (library.kind==='tv'&&(normalized==='tvshows'||normalized==='tv'))||
+        (library.kind==='music'&&normalized==='music');
       if(isDefault){
         // A standard Movies/TV Shows library decorates the existing combined
         // entry instead of creating a second identically named sidebar link.
@@ -238,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
         continue;
       }
       const link=document.createElement('a');
-      link.href=(library.kind==='tv'?'/tv':'/movies')+'?'+new URLSearchParams({library_id:String(library.id)});
+      link.href=(library.kind==='music'?'/music':library.kind==='tv'?'/tv':'/movies')+'?'+new URLSearchParams({library_id:String(library.id)});
       link.title=name;link.setAttribute('aria-label',name+' library');
       link.className='nav-link library-nav-link library-font--'+
         (appearance?.fonts[library.font]?library.font:'default');
@@ -282,10 +285,11 @@ document.addEventListener('DOMContentLoaded', () => {
   // without requiring the user to navigate away or reload the entire page.
   document.addEventListener('willie:library-icon-updated',event=>{
     const lib=event.detail;
-    if(!lib||!Number.isInteger(lib.id)||!['movies','tv'].includes(lib.kind))return;
+    if(!lib||!Number.isInteger(lib.id)||!['movies','tv','music'].includes(lib.kind))return;
     const name=String(lib.name||'').toLowerCase().replace(/[^a-z0-9]/g,'');
     const standard=(lib.kind==='movies'&&name==='movies')||
-      (lib.kind==='tv'&&(name==='tv'||name==='tvshows'));
+      (lib.kind==='tv'&&(name==='tv'||name==='tvshows'))||
+      (lib.kind==='music'&&name==='music');
     const navId=standard?lib.kind:'library:'+lib.id;
     const link=nav.querySelector('a[data-nav-id="'+navId+'"]');
     if(!link)return;
