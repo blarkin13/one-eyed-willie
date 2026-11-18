@@ -1291,7 +1291,7 @@ class MainActivity : ComponentActivity() {
                 }
                 .tile-button:focus-visible .cover,.tile-button:focus .cover {
                   outline:0!important;
-                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#A61E1E)!important;
                   border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
@@ -1309,7 +1309,7 @@ class MainActivity : ComponentActivity() {
                   border:0!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
-                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#A61E1E)!important;
                   border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
@@ -1320,7 +1320,7 @@ class MainActivity : ComponentActivity() {
                 /* Episode cards are also selectable art: no text block or
                    other card chrome is included in D-pad focus. */
                 body[data-page="tv"] .season-episode-tile:is(:focus,:focus-visible){
-                  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline:2px solid var(--oew-tv-select-color,#A61E1E)!important;
                   outline-offset:2px!important;box-shadow:none!important
                 }
                 /* Explore uses a full-card button. Focus ONLY its poster. */
@@ -1331,7 +1331,7 @@ class MainActivity : ComponentActivity() {
                 }
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible .cover,
                 body[data-page="explore"] .explore-card .detail-trigger:focus .cover{
-                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#A61E1E)!important;
                   border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
@@ -1397,7 +1397,7 @@ class MainActivity : ComponentActivity() {
                   .tile-button:is(:focus,:focus-visible) .cover{
                   transform:scale(1.02)!important;
                   transform-origin:center center!important;
-                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#A61E1E)!important;
                   filter:brightness(1.16)!important
                 }
                 body[data-page="home"] .workspace>.content{
@@ -1753,18 +1753,18 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
                 body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
                   outline:0!important;border-color:transparent!important;
-                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#A61E1E)!important;
                   transform:scale(1.07)!important;
                   filter:brightness(1.16)!important;position:relative;z-index:3
                 }
                 body[data-page] .season-episode-tile:is(:focus,:focus-visible){
-                  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline:2px solid var(--oew-tv-select-color,#A61E1E)!important;
                   outline-offset:2px!important;border-color:transparent!important;
                   box-shadow:none!important;transform:scale(1.07)!important;
                   filter:brightness(1.16)!important;z-index:3
                 }
                 body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-visible){
-                  border-color:var(--oew-tv-select-color,#8B5CF6)!important;
+                  border-color:var(--oew-tv-select-color,#A61E1E)!important;
                   box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,.nav-link,
@@ -1782,18 +1782,18 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .person-credit-link:is(:focus,:focus-visible){
                   outline:0!important;box-shadow:none!important;border-color:transparent!important
                 }
-                /* Purple is an icon-only remote focus cue, never a box or fill.
+                /* Crimson is an icon-only remote focus cue, never a box or fill.
                    Service-brand icons retain their original Radarr/Sonarr art. */
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible){
-                  color:var(--oew-tv-select-color,#8B5CF6)!important;background:transparent!important;
+                  color:var(--oew-tv-select-color,#A61E1E)!important;background:transparent!important;
                   outline:0!important;box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,
                   .watch-icon-control,.tv-trailer-launch):is(:focus,:focus-visible) svg,
                 body[data-page] :is(.willie-controls,.willie-toolbar)
                   button:is(:focus,:focus-visible){
-                  color:var(--oew-tv-select-color,#8B5CF6)!important
+                  color:var(--oew-tv-select-color,#A61E1E)!important
                 }
                 /* The sidebar has no selected background, outline, side marker,
                    border or shadow. Only the focused/current icon changes color. */
@@ -1815,7 +1815,7 @@ class MainActivity : ComponentActivity() {
                   width:28px!important;height:2px!important;
                   transform:translateX(-50%)!important;
                   border:0!important;border-radius:2px!important;
-                  background:var(--oew-tv-select-color,#8B5CF6)!important;
+                  background:var(--oew-tv-select-color,#A61E1E)!important;
                   opacity:1!important;box-shadow:none!important;
                   pointer-events:none!important
                 }
@@ -1823,9 +1823,9 @@ class MainActivity : ComponentActivity() {
                   [data-service-nav="sonarr"]):is(:focus,:focus-visible) .nav-icon,
                 body[data-page] .sidebar .nav-link[aria-current="page"]:not(
                   [data-service-nav="radarr"]):not([data-service-nav="sonarr"]) .nav-icon{
-                  color:var(--oew-tv-select-color,#8B5CF6)!important
+                  color:var(--oew-tv-select-color,#A61E1E)!important
                 }
-                /* Strong icon-only purple focus on all detail pages, including
+                /* Strong icon-only crimson focus on all detail pages, including
                    dynamic movie/TV/season actions and navigation popovers. */
                 body[data-page] :is(.movie-detail-actions,.tv-show-hero,
                   .season-actions-row,.episode-actions,.episode-detail-actions,
@@ -1837,7 +1837,7 @@ class MainActivity : ComponentActivity() {
                   .icon-only-control,.season-more-button,.season-rail-arrow,
                   .tv-trailer-launch,.catalog-tool-icon,.explore-icon-link)
                   :is(:focus,:focus-visible) {
-                  color:var(--oew-tv-select-color,#8B5CF6)!important;
+                  color:var(--oew-tv-select-color,#A61E1E)!important;
                   background:transparent!important;
                   border-color:transparent!important;
                   outline:0!important;box-shadow:none!important
@@ -1851,12 +1851,12 @@ class MainActivity : ComponentActivity() {
                 body[data-page] :is(.media-icon-action,.watch-icon-control,
                   .icon-only-control,.season-more-button,.tv-trailer-launch,
                   .catalog-tool-icon,.explore-icon-link):is(:focus,:focus-visible)
-                  :is(svg,i,.fa) { color:var(--oew-tv-select-color,#8B5CF6)!important }
+                  :is(svg,i,.fa) { color:var(--oew-tv-select-color,#A61E1E)!important }
                 body[data-page] [data-service-nav="radarr"] :is(svg,img,i),
                 body[data-page] [data-service-nav="sonarr"] :is(svg,img,i) {
                   filter:none!important
                 }
-                /* The current sidebar destination stays purple even when
+                /* The current sidebar destination stays crimson even when
                    remote focus is on the page instead of the sidebar.
                    Color the actual glyph (including async library SVG icons)
                    and never recolor branded Radarr/Sonarr/SABnzbd logos. */
@@ -1866,12 +1866,12 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .sidebar .nav-link[aria-current="page"]
                   :is(.nav-icon svg path,.nav-icon svg circle,.nav-icon svg rect,
                       .nav-icon svg polygon,.nav-icon svg polyline,.nav-icon svg line){
-                  color:var(--oew-tv-select-color,#8B5CF6)!important
+                  color:var(--oew-tv-select-color,#A61E1E)!important
                 }
                 body[data-page] .sidebar .nav-link[aria-current="page"]
                   :is(.nav-icon,.nav-icon svg,.nav-icon i,.nav-icon .fa-fallback,
                       .nav-icon .library-symbol,.library-custom-icon):not(img){
-                  color:var(--oew-tv-select-color,#8B5CF6)!important
+                  color:var(--oew-tv-select-color,#A61E1E)!important
                 }
                 body[data-page] .sidebar
                   .nav-link:is([data-service-nav="radarr"],[data-service-nav="sonarr"],
@@ -2207,7 +2207,7 @@ class MainActivity : ComponentActivity() {
                     // the page. Hidden rail items still have valid DOM geometry.
                     const bounds=rect(shelf);
                     // A focused TV poster grows 7% and needs extra room for its
-                    // rounded corners and purple focus ring. Keep that clearance
+                    // rounded corners and crimson focus ring. Keep that clearance
                     // on BOTH sides as the horizontal rail scrolls.
                     const edge=(document.body.dataset.page==='home' &&
                       shelf.matches('.shelf-track'))?48:16;
