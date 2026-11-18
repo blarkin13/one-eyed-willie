@@ -38,6 +38,12 @@ class AdventureIconThemeTests(unittest.TestCase):
         self.assertIn('<option value="adventure">Action / Adventure</option>', settings)
         self.assertIn("WillieActionIcons.create(safe,26)", shell)
         self.assertIn("value==='pirate'||value==='adventure'", library)
+        # Direct SVG images work when a browser does not support CSS masking.
+        self.assertIn("image.src='/assets/themes/action-adventure/'+asset+'.svg?v=2'", shell)
+        self.assertIn("image.addEventListener('error'", shell)
+        self.assertIn("image.src='/assets/themes/action-adventure/'+asset+'.svg?v=2'", library)
+        self.assertNotIn("glyph.style.setProperty('--adventure-icon'", shell)
+        self.assertNotIn("glyph.style.setProperty('--adventure-icon'", library)
 
 if __name__ == "__main__":
     unittest.main()
