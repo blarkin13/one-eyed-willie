@@ -83,7 +83,7 @@
 
 <section class="settings-section" aria-labelledby="sidebar-icons-heading">
 <h2 id="sidebar-icons-heading">Sidebar icons</h2>
-<p>Customize each navigation icon, including Home and download services. Upload your own icons, or restore the selected theme's defaults. Clean uses white SVG icons; Pirate preserves the original artwork.</p>
+<p>Customize each navigation icon, including Home and Connections. Upload your own icons, or restore the selected theme's defaults. Clean uses white SVG icons; Pirate preserves the original artwork.</p>
 <div class="settings-card">
   <div id="system-sidebar-icons" class="settings-list" aria-label="Sidebar icon customization">Loading icons…</div>
   <p class="settings-muted" id="system-icon-message" role="status"></p>
@@ -216,7 +216,7 @@ el('save-sidebar').onclick=async()=>{
 };
 el('reset-sidebar').onclick=()=>{
  if(!confirm('Restore sidebar order and visibility to defaults?'))return;
- const priorities=['home','movies','tv','sabnzbd'];
+ const priorities=['home','movies','tv','connections'];
  const originalPosition=new Map(sidebarItems.map((item,index)=>[item.id,index]));
  sidebarItems.sort((a,b)=>{
   const score=x=>x.id==='settings'?999:
@@ -228,7 +228,7 @@ el('reset-sidebar').onclick=()=>{
 };
 const systemIconNames={
  home:'Home',movies:'Movies',tv:'TV Shows',
- sabnzbd:'SABnzbd',settings:'Settings'
+ sabnzbd:'Connections',settings:'Settings'
 };
 async function loadSystemIcons(){
  const data=await api('/api/settings/sidebar/icons');
