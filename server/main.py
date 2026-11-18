@@ -231,6 +231,8 @@ body .workspace {margin-left:0!important}
 /* TV-only first-paint sizes. Include in CSS response so the Home shelves
    never flash at their larger desktop size before WebView JS injection. */
 body[data-page="home"] .shelf-track {
+  display:grid!important;
+  grid-auto-flow:column!important;
   /* Six whole posters fit the available TV row; overflow remains scrollable. */
   grid-auto-columns:calc((100% - 92px)/6)!important;
   grid-template-rows:max-content!important;
