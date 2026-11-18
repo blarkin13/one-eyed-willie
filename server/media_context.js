@@ -9,6 +9,8 @@
   style.textContent = `
 .oew-context{position:fixed;max-width:min(340px,calc(100vw - 24px));width:306px;
 padding:9px;margin:0;border:1px solid #3a4f69;border-radius:12px;
+inset:50% auto auto 50%;transform:translate(-50%,-50%);
+max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;
 background:#101b2cf8;color:#f1f6ff;box-shadow:0 22px 60px #000d;z-index:10000}
 .oew-context::backdrop{background:#0008}
 .oew-context h3{font-size:1rem;margin:6px 10px 10px;line-height:1.35}
@@ -27,7 +29,7 @@ font-size:.86rem;line-height:1.35}
 .oew-context .oew-status{color:#ffc3c3}
 @media(prefers-reduced-motion:no-preference){
 .oew-context[open]{animation:oew-context-in .14s ease-out}
-@keyframes oew-context-in{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes oew-context-in{from{opacity:0}to{opacity:1}}
 }`;
   document.head.append(style);
 
@@ -97,12 +99,9 @@ font-size:.86rem;line-height:1.35}
     document.body.append(modal);
     modal.showModal();
     active = modal;
-    const bounds = origin?.getBoundingClientRect();
-    const box = modal.getBoundingClientRect();
-    modal.style.left = Math.max(8, Math.min(innerWidth-box.width-8,
-      (bounds ? bounds.left : innerWidth/2)))+'px';
-    modal.style.top = Math.max(8, Math.min(innerHeight-box.height-8,
-      (bounds ? bounds.bottom+6 : innerHeight/3)))+'px';
+    // Center inside the actual viewport. Positioning beside a poster
+    // pushed long menus off-screen; content can grow after asynchronous
+    // manager lookup without needing another coordinate calculation.
     modal.addEventListener('click', event => {
       if (event.target === modal) modal.close();
     });
@@ -211,9 +210,8 @@ font-size:.86rem;line-height:1.35}
       },true);
       option(modal,'Cancel',()=>modal.close());
       confirm.focus({preventScroll:true});
-      const pos=modal.getBoundingClientRect();
-      modal.style.top=Math.max(8,Math.min(innerHeight-pos.height-8,
-        (origin.getBoundingClientRect().top)))+'px';
+      // Dialog stays viewport-centered and internally scrollable, including
+      // when the confirmation checkboxes increase its height.
     }).catch(error=>{
       if (!modal.open) return;
       status.textContent=error.message;
