@@ -334,11 +334,10 @@ async function proxyInstalledApp(req,env,originPath) {
  // The origin host is a compile-time constant. Browser controls only path/query.
  const path=originPath||source.pathname;
  if(!path.startsWith('/')||path.startsWith('//')||path.includes('\\'))return json({error:'invalid_path'},400);
- // When the direct mode is enabled, fail closed instead of silently
- // relaying video gigabytes through the Cloudflare Worker.
+ // When direct mode is enabled, fail closed rather than proxy video bytes.
  if(env.YARR_DIRECT_ENABLED==='1'&&method==='GET'&&
-    (/^\\/api\\/watch\\/[1-9][0-9]*\\/stream$/.test(path)||
-     /^\\/api\\/stream\\/hls\\/[a-f0-9]{32}\\/(?:index\\.m3u8|init\\.mp4|segment_[0-9]{6}\\.(?:ts|m4s))$/.test(path)))
+    (/^\/api\/watch\/[1-9][0-9]*\/stream$/.test(path)||
+     /^\/api\/stream\/hls\/[a-f0-9]{32}\/(?:index\.m3u8|init\.mp4|segment_[0-9]{6}\.(?:ts|m4s))$/.test(path)))
     return json({error:'media_requires_direct_peer'},503);
  const upstreamUrl=ORIGIN_BASE+path+source.search;
  const headers=new Headers();
