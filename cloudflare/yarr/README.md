@@ -58,3 +58,15 @@ Cloudflare accepted the Worker deployment and binding. Actual Google OAuth sign-
 - The account Worker still cannot view or stream media; the original Docker server and legacy Worker are untouched.
 - Cloudflare confirmed Google credentials and D1 binding remained attached after deployment.
 - A full end-to-end browser CRUD and two-user isolation test is still needed before public release.
+
+## Step 4 — application entry point and simplified registration
+
+- Public website and sign-in: `https://yarr.larki-brian.workers.dev/`
+- App entry address: `https://app-yarr.larki-brian.workers.dev/`
+- **Temporary deliberate redirect:** app-yarr sends users to `https://yarr.larki-brian.workers.dev/app`, where the established secure host-scoped Google session can be checked. The app is not yet independently hosted on the second hostname.
+- Signed-in `/app` is an isolated *shell* listing only the account's own server registrations. It does not stream media or read local libraries.
+- Normal server registration requires a **name only**. Both local and remote address inputs are removed. Records remain `pending`; pre-existing saved addresses are not displayed or used for access.
+- The server-side create route ignores address fields if malicious/older clients submit them. Neither account Worker nor app entry Worker ever fetches user-supplied origins.
+- Future pairing should use a one-time ownership proof initiated by the installed server and a secure outbound connection. That requires a planned backward-compatible server update.
+- Do not claim the second app hostname has authenticated independent application hosting until cross-host sign-in is implemented and verified.
+- Both Workers were accepted by Cloudflare and workers.dev routing is enabled; browser end-to-end visual testing remains outstanding.
