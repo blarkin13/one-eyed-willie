@@ -2141,7 +2141,9 @@ class MainActivity : ComponentActivity() {
                 // Dialogs have their own scrolling content. Keep the focused
                 // Match result visible inside that content, without scrolling
                 // the page behind the modal.
-                const modal=node.closest('dialog[open],.season-more-popover');
+                const modal=node.closest(
+                  'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'
+                );
                 if(modal){
                   let scroller=node.parentElement;
                   while(scroller && scroller!==modal){
@@ -2513,19 +2515,26 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               const move=direction=>{
-                // Native D-pad must stay inside modal dialogs, including
-                // episode actions and the subsequent Fix Match results dialog.
-                const menu=document.querySelector('dialog[open],.season-more-popover');
+                // Keep the D-pad inside visible dialogs and library Sort/Filter
+                // menus. Without the catalog menu here, DOWN would navigate
+                // the library behind the popup instead of its choices.
+                const menu=document.querySelector(
+                  'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'
+                );
                 if(menu){
                   const options=[...menu.querySelectorAll(
                     'button:not(:disabled),input:not(:disabled),a[href],select:not(:disabled)'
                   )].filter(isVisible);
                   const index=options.indexOf(document.activeElement);
                   if(direction==='up'||direction==='down'){
+                    if(!options.length)return true;
                     const step=direction==='down'?1:-1;
-                    const next=Math.max(0,Math.min(options.length-1,index+step));
-                    return focusNode(options[next]||options[0]);
+                    const next=index<0?(step>0?0:options.length-1):
+                      Math.max(0,Math.min(options.length-1,index+step));
+                    return focusNode(options[next]);
                   }
+                  // Left/Right must not move into posters underneath an open
+                  // Sort/Filter menu. OK activates the focused option.
                   return true;
                 }
                 const active=document.activeElement;
