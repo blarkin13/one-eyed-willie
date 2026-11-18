@@ -254,11 +254,15 @@ async function privateVPCHealth(req,env) {
  if(!user)return json({error:'not_authenticated'},401);
  if(!env.YARR_PRIVATE_API||!env.YARR_PRIVATE_SERVER_ID)return json({error:'private_connection_not_configured'},503);
  const server=await env.ACCOUNTS.prepare(
-  "SELECT id FROM servers WHERE id=? AND owner_user_id=? AND status='paired' AND server_identity IS NOT NULL"
+  "SELECT id,server_identity FROM servers WHERE id=? AND owner_user_id=? AND status='paired' AND server_identity IS NOT NULL"
  ).bind(env.YARR_PRIVATE_SERVER_ID,user.id).first();
  if(!server)return json({error:'not_found'},404);
  try{
   const signal=AbortSignal.timeout(5000);
+  const identityResponse=await env.YARR_PRIVATE_API.fetch('http://one-eyed-willie:8787/api/server/info',{method:'GET',signal,headers:{accept:'application/json'}});
+  if(!identityResponse.ok||!(identityResponse.headers.get('content-type')||'').includes('application/json'))return json({connected:false,reason:'server_identity_unavailable'},502);
+  const identity=await identityResponse.json();
+  if(identity.server_id!==server.server_identity)return json({connected:false,reason:'wrong_server_identity'},403);
   const remote=await env.YARR_PRIVATE_API.fetch('http://one-eyed-willie:8787/health',{method:'GET',signal,headers:{accept:'application/json'}});
   if(!remote.ok)return json({connected:false,reason:'origin_unavailable'},502);
   const type=remote.headers.get('content-type')||'';
