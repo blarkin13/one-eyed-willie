@@ -29,6 +29,8 @@
 .progress-time{font-size:.75rem;color:#b8d4ee;margin-top:9px;font-weight:650}
 .continue-menu{position:fixed;max-width:min(310px,calc(100vw - 24px));width:280px;
  margin:0;padding:8px;border:1px solid #36485e;border-radius:12px;
+inset:50% auto auto 50%;transform:translate(-50%,-50%);
+max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;
  background:#101b2bf5;color:#eff5ff;box-shadow:0 16px 45px #000a}
 .continue-menu::backdrop{background:#0005}
 .continue-menu h3{font-size:.9rem;margin:5px 9px 8px;line-height:1.3}
@@ -38,7 +40,7 @@
 .continue-menu button:is(:focus,:focus-visible,:hover){background:#23334b;
  outline:2px solid var(--oew-tv-select-color,#8B5CF6);outline-offset:-2px}
 @media(prefers-reduced-motion:no-preference){.continue-menu[open]{animation:continue-open .15s ease-out}
- @keyframes continue-open{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}}
+ @keyframes continue-open{from{opacity:0}to{opacity:1}}}
 .next-episode-badge{display:inline-block;margin-top:8px;color:#b8d6f4;font-size:.75rem;font-weight:700;letter-spacing:.02em}
 .progress-track{height:4px;border-radius:4px;background:#2c394b;margin-top:9px;overflow:hidden}.progress-fill{height:100%;background:#a3d4ff;border-radius:4px}
 .shelf-action{font-size:.84rem;color:#b4d6ff;font-weight:650}.page-lead{max-width:650px;color:#9aa9bc}
@@ -518,13 +520,8 @@ function openContinueMenu(link,x=0,y=0){
  menu.addEventListener('click',event=>{if(event.target===menu)close();});
  document.body.append(menu);
  menu.showModal();continueMenu=menu;
- const bounds=link.getBoundingClientRect();
- const width=menu.getBoundingClientRect().width;
- const height=menu.getBoundingClientRect().height;
- const left=x>0?x:bounds.left+bounds.width/2;
- const top=y>0?y:bounds.bottom+4;
- menu.style.left=Math.max(8,Math.min(innerWidth-width-8,left-width/2))+'px';
- menu.style.top=Math.max(8,Math.min(innerHeight-height-8,top))+'px';
+ // Center to keep every action visible, even near the screen edges
+ // and when Google TV's WebView reports a reduced visual viewport.
  menu.querySelector('button')?.focus({preventScroll:true});
  return true;
 }
