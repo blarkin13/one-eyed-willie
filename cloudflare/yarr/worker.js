@@ -134,7 +134,7 @@ function remoteAddress(input) {
  return url.origin;
 }
 async function listServers(env,userId) {
- const result=await env.ACCOUNTS.prepare('SELECT id,display_name,local_url,public_url,status,server_identity,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC').bind(userId).all();
+ const result=await env.ACCOUNTS.prepare('SELECT id,display_name,local_url,public_url,status,server_identity,connection_secret_hash,last_seen_at,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC').bind(userId).all();
  return result.results||[];
 }
 async function serverMutation(req,env,user) {
@@ -175,8 +175,8 @@ async function pairingStart(req,env){
  let body;try{body=JSON.parse(raw);}catch(_){return json({error:'invalid_json'},400);}
  const sid=String(body.server_id||''),code=normalizeCode(body.code),secret=String(body.secret||'');
  if(!/^[a-f0-9-]{36}$/.test(sid)||code.length!==16||[...code].some(c=>!CODE_ALPHABET.includes(c))||!/^[A-Za-z0-9_-]{40,100}$/.test(secret))return json({error:'invalid_request'},400);
+ // An already-linked server can request credential renewal, but only its existing account owner can approve the code.
  const existing=await env.ACCOUNTS.prepare("SELECT id FROM servers WHERE server_identity=?").bind(sid).first();
- if(existing)return json({error:'already_linked'},409);
  await env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE expires_at<CURRENT_TIMESTAMP OR (server_identity=? AND status='pending')").bind(sid).run();
  const value=await env.ACCOUNTS.prepare("INSERT OR IGNORE INTO pairing_requests(code_hash,server_identity,secret_hash,expires_at) VALUES(?,?,?,datetime('now','+10 minutes'))").bind(await digest(code),sid,await digest(secret)).run();
  if(value.meta.changes!==1)return json({error:'retry_code'},409);
@@ -211,29 +211,49 @@ async function pairingClaim(req,env,user){
  const hash=await digest(code);
  const request=await env.ACCOUNTS.prepare("SELECT server_identity FROM pairing_requests WHERE code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP").bind(hash).first();
  if(!request)return redirect('/account?pair=invalid');
- const exists=await env.ACCOUNTS.prepare("SELECT id FROM servers WHERE server_identity=?").bind(request.server_identity).first();
- if(exists)return redirect('/account?pair=claimed');
- const count=await env.ACCOUNTS.prepare("SELECT COUNT(*) AS n FROM servers WHERE owner_user_id=?").bind(user.id).first();
- if(Number(count?.n||0)>=5)return redirect('/account?pair=limit');
- const newId=crypto.randomUUID();
+ const existing=await env.ACCOUNTS.prepare("SELECT id,owner_user_id FROM servers WHERE server_identity=?").bind(request.server_identity).first();
+ if(existing && existing.owner_user_id!==user.id)return redirect('/account?pair=claimed');
+ if(!existing){
+  const count=await env.ACCOUNTS.prepare("SELECT COUNT(*) AS n FROM servers WHERE owner_user_id=?").bind(user.id).first();
+  if(Number(count?.n||0)>=5)return redirect('/account?pair=limit');
+ }
  try{
-  const statements=[
-   env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,status,server_identity) SELECT ?,?,'Yarr Server','paired',server_identity FROM pairing_requests WHERE code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP").bind(newId,user.id,hash),
-   env.ACCOUNTS.prepare("UPDATE pairing_requests SET status='claimed',owner_user_id=? WHERE code_hash=? AND status='pending'").bind(user.id,hash)
-  ];
+  const statements=[env.ACCOUNTS.prepare("UPDATE pairing_requests SET status='claimed',owner_user_id=? WHERE code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP").bind(user.id,hash)];
+  if(existing){
+   statements.push(env.ACCOUNTS.prepare("UPDATE servers SET connection_secret_hash=(SELECT secret_hash FROM pairing_requests WHERE code_hash=? AND owner_user_id=? AND status='claimed'),last_seen_at=NULL WHERE id=? AND owner_user_id=?").bind(hash,user.id,existing.id,user.id));
+  }else{
+   statements.push(env.ACCOUNTS.prepare("INSERT INTO servers(id,owner_user_id,display_name,status,server_identity,connection_secret_hash) SELECT ?,?,'Yarr Server','paired',server_identity,secret_hash FROM pairing_requests WHERE code_hash=? AND status='claimed' AND owner_user_id=?").bind(crypto.randomUUID(),user.id,hash,user.id));
+  }
   const results=await env.ACCOUNTS.batch(statements);
-  if(results[0]?.meta?.changes!==1)return redirect('/account?pair=invalid');
+  if(results[0]?.meta?.changes!==1||results[1]?.meta?.changes!==1)return redirect('/account?pair=invalid');
  }catch(_){return redirect('/account?pair=claimed');}
  return redirect('/account?pair=success');
 }
 
+async function connectionHeartbeat(req,env){
+ if(req.method!=='POST')return json({error:'method_not_allowed'},405);
+ const token=req.headers.get('authorization')||'';
+ if(!token.startsWith('Bearer ')||token.length>120)return json({error:'unauthorized'},401);
+ const credential=token.slice(7);
+ if(!/^[A-Za-z0-9_-]{40,100}$/.test(credential))return json({error:'unauthorized'},401);
+ const hash=await digest(credential);
+ const result=await env.ACCOUNTS.prepare("UPDATE servers SET last_seen_at=CURRENT_TIMESTAMP WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(hash).run();
+ if(result.meta.changes!==1)return json({error:'unauthorized'},401);
+ return json({status:'accepted',media_access:false});
+}
+async function accountConnectionStatus(req,env){
+ const user=await currentUser(req,env);
+ if(!user)return json({error:'not_authenticated'},401);
+ const rows=await env.ACCOUNTS.prepare("SELECT id,display_name,status,server_identity IS NOT NULL AS paired,last_seen_at,connection_secret_hash IS NOT NULL AS credential_ready,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online FROM servers WHERE owner_user_id=? ORDER BY created_at DESC").bind(user.id).all();
+ return json({servers:(rows.results||[]).map(s=>({id:s.id,display_name:s.display_name,paired:!!s.paired&&s.status==='paired',online:!!s.online,last_seen_at:s.last_seen_at,credential_ready:!!s.credential_ready})),media_access:false});
+}
 function serversHTML(servers) {
  const paired=servers.some(s=>s.status==='paired'&&s.server_identity);
  const pairing='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
  const cards=servers.length?servers.map(s=>{
   const linked=s.status==='paired'&&!!s.server_identity;
-  const tag=linked?'<span class="tag" style="color:#b6e9cb;background:#203c31">Paired</span>':'<span class="tag">Not paired</span>';
-  const description=linked?'Account ownership verified. Remote playback is not enabled yet.':'This manual registration is not linked to an installed server.';
+  const tag=linked?'<span class="tag" style="color:#b6e9cb;background:#203c31">Paired'+(s.online?' · Online':' · Offline')+'</span>':'<span class="tag">Not paired</span>';
+  const description=linked?(s.online?'Server is online and reporting securely. Remote playback is not enabled yet.':s.connection_secret_hash?'Account paired; server is offline or has not reported recently.':'Account paired. Reconnect from server settings to activate secure status reporting.'):'This manual registration is not linked to an installed server.';
   const rename='<form method="post" action="/account/servers" class="serverform" style="margin-top:14px;gap:8px"><input type="hidden" name="action" value="rename"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label>Server name<input required maxlength="80" name="name" value="'+escapeHTML(s.display_name)+'"></label><div><button type="submit" class="smallbtn">Save name</button></div></form>';
   const removal=linked?'':'<form method="post" action="/account/servers" style="margin-top:12px"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button type="submit" class="smallbtn">Remove unused registration</button></form>';
   return '<article class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3>'+tag+'</div><p class="note">'+description+'</p>'+rename+removal+'</article>';
@@ -242,7 +262,7 @@ function serversHTML(servers) {
 }
 
 function appHTML(user,servers) {
- const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">'+(s.status==='paired'&&s.server_identity?'Paired':'Pairing required')+'</span></div><p class="note">'+(s.status==='paired'&&s.server_identity?'Account paired. Remote playback is not enabled yet.':'Server pairing is required.')+'</p></div>').join(''):'<div class="server"><p class="note">No server connected. Generate a pairing code on your installed server, then enter it in your account.</p></div>';
+ const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">'+(s.status==='paired'&&s.server_identity?(s.online?'Online':'Offline'):'Pairing required')+'</span></div><p class="note">'+(s.status==='paired'&&s.server_identity?'Account paired. Remote playback is not enabled yet.':'Server pairing is required.')+'</p></div>').join(''):'<div class="server"><p class="note">No server connected. Generate a pairing code on your installed server, then enter it in your account.</p></div>';
  return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr App Preview</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/account" class="link">Account settings</a></nav><main class="hero"><p class="eyebrow">Your personal media space</p><h1>Welcome, '+escapeHTML(user.display_name||'aboard')+'</h1><p class="lead">Your Yarr app is linked to your Google account. Your personal libraries will appear here once your home server is securely paired.</p><p class="eyebrow">Your servers</p>'+items+'<div class="actions"><a class="btn" href="/account">Manage servers</a></div></main><footer class="note">App preview only. No media is exposed or streamed by this Worker.</footer></div></body></html>';
 }
 
@@ -269,6 +289,8 @@ export default { async fetch(req,env) {
    if(token)await env.ACCOUNTS.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(token)).run();
    return redirect('/account',{'set-cookie':cookie('__Host-yarr_session','',0)});
   }
+  if(req.method==='POST'&&u.pathname==='/api/connection/heartbeat')return connectionHeartbeat(req,env);
+  if(req.method==='GET'&&u.pathname==='/api/connection/status')return accountConnectionStatus(req,env);
   if(req.method==='POST'&&u.pathname==='/api/pairing/start')return pairingStart(req,env);
   if(req.method==='GET'&&u.pathname==='/api/pairing/status')return pairingStatus(req,env);
   if(req.method==='POST'&&u.pathname==='/account/pair')return pairingClaim(req,env,await currentUser(req,env));
