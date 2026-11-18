@@ -5,7 +5,7 @@ import mimetypes
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
-from mutagen import File as AudioFile
+from mutagen import File as AudioFile, MutagenError
 
 from .library import db, AUDIO_EXTENSIONS
 
@@ -42,7 +42,7 @@ def _read_file_tags(path):
                 except ValueError:
                     pass
             duration = round(float(audio.info.length), 2) if audio.info else None
-    except (OSError, ValueError, TypeError, KeyError):
+    except (OSError, ValueError, TypeError, KeyError, MutagenError):
         pass
     return {"title": title, "artist": artist, "album": album,
             "track_number": track_number, "duration": duration}
@@ -140,7 +140,7 @@ def music_art(track_id: int):
                         data = bytes(value[0])
                         mime = "image/png" if data.startswith(bytes([137,80,78,71])) else "image/jpeg"
                         break
-    except (OSError, ValueError, TypeError, KeyError, AttributeError):
+    except (OSError, ValueError, TypeError, KeyError, AttributeError, MutagenError):
         pass
     if not data or len(data) > 5_000_000 or mime not in ("image/jpeg", "image/png"):
         raise HTTPException(404, "No embedded album artwork")
