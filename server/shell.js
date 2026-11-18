@@ -3,13 +3,13 @@ document.addEventListener('DOMContentLoaded', () => {
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
-  const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
-  const active=inSettings?'settings':page;
+  const inSettings=['settings','general','appearance','libraries','remote','metadata','maintenance','playback'].includes(page);
+  const active=page==='connectionshub'?'connections':inSettings?'settings':page;
   const navItems=[
     {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
-    {id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd',fa:'fa-download',fallback:'sabnzbd'},
+    {id:'connections',href:'/connections',name:'Connections',fa:'fa-plug',fallback:'connections'},
     {id:'settings',href:'/settings',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
   // Inline SVG fallbacks make every control usable without an external font.
@@ -24,11 +24,12 @@ document.addEventListener('DOMContentLoaded', () => {
     services:'<rect x="3" y="3" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="13" y="3" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="3" y="13" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/><rect x="13" y="13" width="8" height="8" rx="1.7" stroke="currentColor" stroke-width="1.8" fill="none"/>',
     radarr:'<circle cx="12" cy="12" r="8.5" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="4.8" stroke="currentColor" stroke-width="1.7" fill="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>',
     sonarr:'<path d="M3 12c3-6 6 6 9 0s6-6 9 0M3 17c3-6 6 6 9 0s6-6 9 0M3 7c3-6 6 6 9 0s6-6 9 0" stroke="currentColor" stroke-width="1.7" fill="none" stroke-linecap="round"/>',
+    connections:'<path d="M8 3v6m8-6v6M5 9h14v3a7 7 0 0 1-6 6v3h-2v-3a7 7 0 0 1-6-6z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
     sabnzbd:'<path d="M12 3v12m-5-5 5 5 5-5M4 17v4h16v-4" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>'
   };
   // Shared SVG source for the Appearance preview and application navigation.
   window.WillieCleanIcons={
-    names:{home:'home',movies:'film',tv:'tv',sabnzbd:'sabnzbd',settings:'settings'},
+    names:{home:'home',movies:'film',tv:'tv',connections:'connections',sabnzbd:'sabnzbd',settings:'settings'},
     create(name,size=30){
       const key=this.names[name]||name;
       const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -65,8 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
   const ICON_THEME_KEY='willie-icon-theme';
   const iconTheme=()=>localStorage.getItem(ICON_THEME_KEY)==='pirate'?'pirate':'clean';
   function defaultIcon(kind){
-    const safe=['home','movies','tv','sabnzbd','settings'].includes(kind)?kind:'movies';
-    if(iconTheme()==='pirate')return coloredIcon('/assets/sidebar-icon-'+safe+'.png?v=pirate-v3');
+    const safe=['home','movies','tv','connections','settings'].includes(kind)?kind:'movies';
+    if(iconTheme()==='pirate')return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
     const wrapper=document.createElement('span');
     wrapper.className='nav-icon nav-clean-icon';
     wrapper.setAttribute('aria-hidden','true');
@@ -109,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
   navItems.forEach(item=>{
     const a=document.createElement('a');a.href=item.href;a.title=item.name;
     a.className='nav-link';a.setAttribute('aria-label',item.name);
-    if(item.id==='sabnzbd')a.dataset.serviceNav=item.id;
+    if(item.id==='connections')a.dataset.serviceNav=item.id;
         if(item.id===active)a.setAttribute('aria-current','page');
     a.dataset.navId=item.id;
     a.append(defaultIcon(item.id));
@@ -118,7 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });target.append(nav);
   // Uploaded replacements win in both themes; removing one restores the active theme.
   function updateSystemIcon(name,url,custom=false){
-    const link=nav.querySelector('a[data-nav-id="'+name+'"]');
+    const link=nav.querySelector('a[data-nav-id="'+(name==='sabnzbd'?'connections':name)+'"]');
     if(!link)return;
     const existing=link.querySelector('.nav-icon');
     if(!existing)return;
