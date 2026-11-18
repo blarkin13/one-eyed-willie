@@ -45,7 +45,7 @@ class MusicLibraryTests(unittest.TestCase):
         library.scan_library(created["id"])
         track_id=music.music_catalog()["tracks"][0]["id"]
         response=music.music_stream(track_id)
-        self.assertEqual(response.path,str(self.song))
+        self.assertEqual(str(response.path),str(self.song))
         with self.assertRaises(HTTPException):
             music.music_stream(track_id+1000)
 
