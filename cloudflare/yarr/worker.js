@@ -308,6 +308,17 @@ async function verifiedOrigin(env,server,signal){
  const obj=await r.json();
  if(obj.server_id!==server.server_identity)throw new Error('wrong_origin');
 }
+const sharedOriginChecks=new Map();
+async function verifiedOriginShared(env,server,signal){
+ const key=String(server.server_identity);
+ let pending=sharedOriginChecks.get(key);
+ if(!pending){
+  pending=verifiedOrigin(env,server,signal);
+  sharedOriginChecks.set(key,pending);
+  pending.then(()=>{if(sharedOriginChecks.get(key)===pending)sharedOriginChecks.delete(key);},()=>{if(sharedOriginChecks.get(key)===pending)sharedOriginChecks.delete(key);});
+ }
+ return pending;
+}
 // This single-server pilot currently streams media through the Yarr Worker;
 // production multi-tenant playback needs a separate authorized data plane.
 // Full One-Eyed Willie application pilot. Every request is authorized against the
@@ -353,7 +364,7 @@ async function proxyInstalledApp(req,env,originPath) {
  }
  const identitySignal=AbortSignal.timeout(7000);
  try {
-  await verifiedOrigin(env,owned.server,identitySignal);
+  await verifiedOriginShared(env,owned.server,identitySignal);
   const upstream=await env.YARR_PRIVATE_API.fetch(upstreamUrl,{method,headers,body:['GET','HEAD'].includes(method)?undefined:req.body,redirect:'manual'});
   if(upstream.status>=300&&upstream.status<400){
    const location=upstream.headers.get('location');
@@ -366,7 +377,7 @@ async function proxyInstalledApp(req,env,originPath) {
   for(const [key,value] of upstream.headers){
    if(RESPONSE_HEADERS.has(key.toLowerCase()))responseHeaders.set(key,value);
   }
-  responseHeaders.set('cache-control','private, no-store');
+  responseHeaders.set('cache-control', method==='GET' && upstream.status===200 && /^image\/(?:jpeg|png|webp|gif|avif|svg\+xml)$/.test((upstream.headers.get('content-type')||'').split(';')[0].toLowerCase()) ? 'private, max-age=120' : 'private, no-store');
   responseHeaders.set('x-content-type-options','nosniff');
   responseHeaders.set('referrer-policy','same-origin');
   responseHeaders.set('x-frame-options','DENY');
