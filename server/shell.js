@@ -165,6 +165,12 @@ document.addEventListener('DOMContentLoaded', () => {
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
+  // Do not show unconfigured library types, including during initial paint.
+  // The successful /api/libraries result below decides which to reveal.
+  for(const kind of ['movies','tv','music']){
+    const link=nav.querySelector('a[data-nav-id="'+kind+'"]');
+    if(link){link.hidden=true;link.classList.add('sidebar-hidden');}
+  }
   // Uploaded replacements win in both themes; removing one restores the active theme.
   function updateSystemIcon(name,url,custom=false){
     const link=nav.querySelector('a[data-nav-id="'+(name==='sabnzbd'?'connections':name)+'"]');
@@ -220,6 +226,14 @@ document.addEventListener('DOMContentLoaded', () => {
     fetch('/api/settings/sidebar',{cache:'no-store'}).then(r=>r.ok?r.json():null).catch(()=>null),
     appearanceReady,
   ]).then(([libraries,layout,appearance])=>{
+    const configured = new Set(libraries.map(item=>item.kind));
+    for(const kind of ['movies','tv','music']){
+      const link=nav.querySelector('a[data-nav-id="'+kind+'"]');
+      if(link && configured.has(kind)){
+        link.hidden=false;
+        link.classList.remove('sidebar-hidden');
+      }
+    }
     const selected=new URLSearchParams(location.search).get('library_id');
     for(const library of libraries){
       if(!Number.isInteger(library.id)||!['movies','tv','music'].includes(library.kind))continue;
@@ -284,7 +298,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
-  }).catch(()=>{});
+  }).catch(()=>{
+    // On network failure never reveal library links that may not exist.
+  });
   // Update the sidebar immediately after saving icon changes in Library Settings
   // without requiring the user to navigate away or reload the entire page.
   document.addEventListener('willie:library-icon-updated',event=>{
