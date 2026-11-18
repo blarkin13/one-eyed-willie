@@ -234,24 +234,24 @@ body[data-page="home"] .shelf-track {
   display:grid!important;
   grid-auto-flow:column!important;
   /* Six whole posters fit the available TV row; overflow remains scrollable. */
-  grid-auto-columns:calc((100% - 126px)/6)!important;
+  grid-auto-columns:calc((100% - 138px)/6)!important;
   grid-template-rows:max-content!important;
   grid-auto-rows:0!important;
   align-items:start!important;
   align-content:start!important;
   gap:14px!important;
-  padding:11px 28px 14px!important;
+  padding:11px 28px 14px 40px!important;
   width:100%!important;
   margin:0!important;
   overflow-y:hidden!important;
   min-height:0!important;
-  scroll-padding-inline:40px!important;
+  scroll-padding-inline:48px!important;
   scroll-snap-type:none!important;
 }
 /* Preserve the full rounded corners and focus ring when TV focus grows
    a poster, without moving the unfocused posters. */
 body[data-page="home"] .shelf-track .tile-button{
-  scroll-margin-inline:40px!important;
+  scroll-margin-inline:48px!important;
 }
 body[data-page="home"] .shelf-track>.tile:first-child
   .tile-button:is(:focus,:focus-visible) .cover{
