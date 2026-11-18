@@ -88,9 +88,11 @@ class HostSidecarForwardTests(unittest.IsolatedAsyncioTestCase):
         response.headers.get_content_type.return_value = "application/json"
         response.read.return_value = json.dumps(answer).encode()
         response.__enter__.return_value = response
-        with patch.object(probe, "authenticate", lambda secret: None), \\
-             patch.dict(probe.os.environ, {"YARR_ICE_PROBE_USE_HOST_NETWORK": "1"}), \\
-             patch.object(probe.urllib.request, "urlopen", return_value=response) as send:
+        with (
+            patch.object(probe, "authenticate", lambda secret: None),
+            patch.dict(probe.os.environ, {"YARR_ICE_PROBE_USE_HOST_NETWORK": "1"}),
+            patch.object(probe.urllib.request, "urlopen", return_value=response) as send,
+        ):
             result = await probe.offer(offer, x_yarr_ice_key="test-credential")
         self.assertEqual(result, answer)
         request = send.call_args.args[0]
