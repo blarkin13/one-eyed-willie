@@ -135,8 +135,12 @@ class HLSTests(unittest.TestCase):
         self.assertIn("pad=1920:1080", high[high.index("-vf") + 1])
         self.assertIn("pad=854:480", low[low.index("-vf") + 1])
         self.assertEqual(high[high.index("-maxrate") + 1], "8000k")
-        self.assertEqual(low[low.index("-maxrate") + 1], "1600k")
+        self.assertEqual(low[low.index("-maxrate") + 1], "1300k")
         self.assertEqual(high[high.index("-crf") + 1], "23")
+        # Data-saving tiers target a bitrate so the data cost is predictable.
+        self.assertNotIn("-crf", low)
+        self.assertEqual(low[low.index("-b:v") + 1], "1000k")
+        self.assertEqual(low[low.index("-b:a") + 1], "96k")
         # Segmenting and seekability settings must not vary with quality.
         for command in (high, low):
             self.assertEqual(command[command.index("-hls_time") + 1], "4")
@@ -159,7 +163,7 @@ class HLSTests(unittest.TestCase):
             self.assertIn("pad=854:480", popen.call_args.args[0][popen.call_args.args[0].index("-vf") + 1])
         self.assertEqual(hls.list_qualities()["default"], "720p")
         self.assertEqual([q["id"] for q in hls.list_qualities()["qualities"]],
-                         ["1080p", "720p", "480p", "360p"])
+                         ["1080p", "720p", "480p", "360p", "240p"])
 
     def test_fallback_keeps_the_selected_quality(self):
         gpu = FakeProcess()
@@ -210,6 +214,45 @@ class HLSTests(unittest.TestCase):
         # The log is never served as a stream file.
         with self.assertRaises(HTTPException):
             hls.stream_file(token, hls.LOG_NAME)
+
+    def test_data_estimates_cover_the_whole_title_and_are_honest_about_kind(self):
+        movie = self.video
+        movie.write_bytes(b"x" * 4_000_000)
+        with patch.object(hls, "_item", return_value=({"id": 1}, movie)), \
+             patch.object(hls, "inspect_media", return_value={"duration": 7200}), \
+             patch.object(hls, "hardware_available", return_value=False):
+            result = hls.data_estimates(1)
+        self.assertEqual(result["duration_seconds"], 7200)
+        self.assertEqual(result["original"]["bytes"], 4_000_000)
+        by_id = {q["id"]: q for q in result["qualities"]}
+        self.assertEqual(list(by_id), ["1080p", "720p", "480p", "360p", "240p"])
+        # CPU CRF tiers are only capped -> "up to"; data-saving tiers target a bitrate -> "about".
+        self.assertEqual((by_id["1080p"]["kind"], by_id["720p"]["kind"]), ("up_to", "up_to"))
+        self.assertEqual((by_id["480p"]["kind"], by_id["240p"]["kind"]), ("about", "about"))
+        # 480p: (1000 + 96) kbit/s for 2 h plus packaging overhead.
+        expected = int((1000 + 96) * 1000 / 8 * 7200 * hls.PACKAGING_OVERHEAD)
+        self.assertEqual(by_id["480p"]["bytes"], expected)
+        self.assertGreater(by_id["1080p"]["bytes"], by_id["720p"]["bytes"])
+        self.assertGreater(by_id["720p"]["bytes"], by_id["480p"]["bytes"])
+        self.assertGreater(by_id["480p"]["bytes"], by_id["360p"]["bytes"])
+        self.assertGreater(by_id["360p"]["bytes"], by_id["240p"]["bytes"])
+        # A 2-hour 480p stream is on the order of a gigabyte, not ten.
+        self.assertTrue(0.8e9 < by_id["480p"]["bytes"] < 1.2e9)
+        with patch.object(hls, "_item", return_value=({"id": 1}, movie)), \
+             patch.object(hls, "inspect_media", return_value={"duration": 7200}), \
+             patch.object(hls, "hardware_available", return_value=True):
+            hardware = {q["id"]: q for q in hls.data_estimates(1)["qualities"]}
+        self.assertEqual(hardware["720p"]["kind"], "about")      # VAAPI is bitrate-targeted
+        self.assertLess(hardware["720p"]["bytes"], by_id["720p"]["bytes"])
+
+    def test_data_estimates_without_known_duration_do_not_invent_numbers(self):
+        with patch.object(hls, "_item", return_value=({"id": 1}, self.video)), \
+             patch.object(hls, "inspect_media", return_value={}), \
+             patch.object(hls, "probe_duration", return_value=0), \
+             patch.object(hls, "hardware_available", return_value=False):
+            result = hls.data_estimates(1)
+        self.assertEqual(result["duration_seconds"], 0)
+        self.assertTrue(all(q["bytes"] == 0 for q in result["qualities"]))
 
     def test_invalid_id_does_not_serve_file(self):
         with self.assertRaises(HTTPException) as err:

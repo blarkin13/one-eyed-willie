@@ -45,6 +45,22 @@ STATUS = {
 }
 
 
+# One hour, 4 GB original. Costs are chosen so each data limit has one clear answer.
+ESTIMATES = {
+    "duration_seconds": 3600, "default": "720p",
+    "original": {"bytes": 4_000_000_000, "kbps": 8900},
+    "qualities": [
+        {"id": "1080p", "kbps": 8128, "kind": "up_to", "bytes": 3_600_000_000},
+        {"id": "720p", "kbps": 3328, "kind": "up_to", "bytes": 1_500_000_000},
+        {"id": "480p", "kbps": 1096, "kind": "about", "bytes": 500_000_000},
+        {"id": "360p", "kbps": 696, "kind": "about", "bytes": 300_000_000},
+        {"id": "240p", "kbps": 364, "kind": "about", "bytes": 170_000_000},
+    ],
+}
+CELLULAR = ("Object.defineProperty(navigator,'connection',"
+            "{value:{type:'cellular',saveData:false},configurable:true});")
+
+
 def free_port():
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -108,18 +124,32 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
 
     @staticmethod
     def choose(page, value):
-        """Open the quality menu like a user would, then pick an option."""
-        if not page.is_visible("select[aria-label='Playback quality']"):
-            page.click("button[aria-label='Playback quality']")
-        page.select_option("select[aria-label='Playback quality']", value)
+        """Open the data/quality panel like a user would, then pick a row."""
+        row = "button.willie-data-row[data-quality='%s']" % value
+        if not page.is_visible(row):
+            page.click("button[aria-label='Data use and quality']")
+        page.click(row)
 
-    def open_player(self, status=None, hls_start="busy", stream="hang"):
+    def open_player(self, status=None, hls_start="busy", stream="hang", metered=False,
+                    estimates=ESTIMATES):
         """Open /watch/7 with stubbed media APIs; returns (page, hls_start_urls, stream_urls)."""
         context = self.browser.new_context(viewport={"width": 1280, "height": 720})
         self.addCleanup(context.close)
         page = context.new_page()
+        if metered:
+            page.add_init_script(CELLULAR)
         # Requests left pending on purpose must not raise when the page closes.
-        self.addCleanup(lambda: page.unroute_all(behavior="ignoreErrors"))
+        hanging = []
+
+        def release():
+            for held in hanging:
+                try:
+                    held.abort()
+                except Exception:
+                    pass
+            page.unroute_all(behavior="ignoreErrors")
+
+        self.addCleanup(release)
         hls_urls, stream_urls = [], []
         body = json.dumps(status or STATUS)
 
@@ -135,8 +165,12 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
             stream_urls.append(route.request.url)
             if stream == "network-error":
                 route.abort("connectionreset")
-            # otherwise leave the request pending: the video stays "loading"
+            else:
+                hanging.append(route)   # left pending: the video stays "loading"
 
+        page.route("**/api/stream/hls/estimates/7", lambda route: route.fulfill(
+            status=200, content_type="application/json", body=json.dumps(estimates))
+            if estimates else route.fulfill(status=404, content_type="application/json", body="{}"))
         page.route("**/api/watch/7/status", on_status)
         page.route("**/api/stream/hls/start/7**", on_hls_start)
         page.route("**/api/watch/7/stream", on_stream)
@@ -157,7 +191,8 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
         page, hls_urls, stream_urls = self.open_player()
         page.wait_for_function("document.querySelector('.willie-player video')?.src.includes('/api/watch/7/stream')")
         self.assertEqual(hls_urls, [])
-        self.assertEqual(page.eval_on_selector("select[aria-label='Playback quality']", "e => e.value"), "auto")
+        page.click("button[aria-label='Data use and quality']")
+        self.assertEqual(page.get_attribute("button.willie-data-row[data-quality='auto']", "aria-pressed"), "true")
 
         self.choose(page, "480p")
         for _ in range(50):
@@ -171,8 +206,8 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
         # The choice survives reopening the player.
         page.reload(wait_until="load")
         page.click("#launch")
-        page.wait_for_selector("select[aria-label='Playback quality']", state="attached")
-        self.assertEqual(page.eval_on_selector("select[aria-label='Playback quality']", "e => e.value"), "480p")
+        page.click("button[aria-label='Data use and quality']")
+        self.assertEqual(page.get_attribute("button.willie-data-row[data-quality='480p']", "aria-pressed"), "true")
 
         # Back to Auto plays the original file again.
         self.choose(page, "auto")
@@ -211,6 +246,90 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
                 break
             page.wait_for_timeout(100)
         self.assertTrue(hls_urls)
+
+    def rows(self, page):
+        return {r["id"]: r["text"] for r in page.eval_on_selector_all(
+            "button.willie-data-row", "els => els.map(e => ({id: e.dataset.quality, text: e.textContent}))")}
+
+    def test_panel_shows_what_each_choice_costs_for_the_rest_of_the_video(self):
+        page, _, _ = self.open_player()
+        page.click("button[aria-label='Data use and quality']")
+        page.wait_for_selector("button.willie-data-row[data-quality='480p']")
+        rows = self.rows(page)
+        self.assertEqual(list(rows), ["auto", "1080p", "720p", "480p", "360p", "240p"])
+        self.assertIn("4.0 GB", rows["auto"])                 # the original file: exact size
+        self.assertNotIn("about", rows["auto"])
+        self.assertIn("up to 3.6 GB", rows["1080p"])
+        self.assertIn("up to 1.5 GB", rows["720p"])
+        self.assertIn("about 500 MB", rows["480p"])
+        self.assertIn("about 170 MB", rows["240p"])
+        self.assertIn("1h 00m", page.text_content(".willie-data-heading"))
+
+    def test_data_limit_picks_the_best_quality_that_fits(self):
+        for limit, expected in (("1000000000", "480p"), ("250000000", "240p"), ("2000000000", "720p"),
+                                ("5000000000", "auto")):
+            with self.subTest(limit=limit):
+                page, hls_urls, _ = self.open_player()
+                page.click("button[aria-label='Data use and quality']")
+                page.select_option("select[aria-label='Fit to a data limit']", limit)
+                page.wait_for_function(
+                    "localStorage.getItem('willie:quality') === %s" % json.dumps(expected))
+                if expected != "auto":
+                    for _ in range(50):
+                        if hls_urls:
+                            break
+                        page.wait_for_timeout(100)
+                    self.assertIn("quality=" + expected, hls_urls[-1])
+
+    def test_a_limit_nothing_fits_says_so_and_chooses_the_cheapest(self):
+        page, _, _ = self.open_player()
+        page.click("button[aria-label='Data use and quality']")
+        page.select_option("select[aria-label='Fit to a data limit']", "250000000")
+        # 250 MB fits 240p (170 MB); a tiny budget would not. Use a smaller estimate set.
+        page2, _, _ = self.open_player(estimates=dict(ESTIMATES, qualities=[
+            dict(q, bytes=q["bytes"] * 3) for q in ESTIMATES["qualities"]]))
+        page2.click("button[aria-label='Data use and quality']")
+        page2.select_option("select[aria-label='Fit to a data limit']", "250000000")
+        self.assertIn("Even 240p needs about 510 MB", page2.text_content(".willie-data-note"))
+        page2.wait_for_function("localStorage.getItem('willie:quality') === '240p'")
+
+    def test_rows_work_without_estimates(self):
+        page, _, _ = self.open_player(estimates=None)
+        page.click("button[aria-label='Data use and quality']")
+        rows = self.rows(page)
+        self.assertEqual(list(rows), ["auto", "1080p", "720p", "480p", "360p", "240p"])
+        self.assertFalse(page.is_visible("select[aria-label='Fit to a data limit']"))
+        self.choose(page, "360p")
+        page.wait_for_function("localStorage.getItem('willie:quality') === '360p'")
+
+    def test_on_mobile_data_nothing_plays_until_a_choice_is_made(self):
+        page, hls_urls, stream_urls = self.open_player(metered=True)
+        page.wait_for_selector("button.willie-data-row[data-quality='480p']")
+        self.assertIn("mobile data", page.text_content(".willie-data-heading"))
+        page.wait_for_timeout(1200)
+        self.assertEqual((hls_urls, stream_urls), ([], []), "no media may be requested before the choice")
+        # The panel cannot be dismissed without choosing.
+        page.click("button[aria-label='Data use and quality']")
+        self.assertTrue(page.is_visible("button.willie-data-row[data-quality='480p']"))
+        page.click("button.willie-data-row[data-quality='480p']")
+        for _ in range(50):
+            if hls_urls:
+                break
+            page.wait_for_timeout(100)
+        self.assertIn("quality=480p", hls_urls[0])
+        # Once chosen, later plays start straight away.
+        page.reload(wait_until="load")
+        page.click("#launch")
+        page.wait_for_timeout(1200)
+        self.assertGreaterEqual(len(hls_urls), 2)
+
+    def test_on_mobile_data_choosing_the_original_streams_the_file(self):
+        page, hls_urls, stream_urls = self.open_player(metered=True)
+        page.wait_for_selector("button.willie-data-row[data-quality='auto']")
+        page.click("button.willie-data-row[data-quality='auto']")
+        page.wait_for_function(
+            "document.querySelector('.willie-player video')?.src.includes('/api/watch/7/stream')")
+        self.assertEqual(hls_urls, [])
 
 
 if __name__ == "__main__":

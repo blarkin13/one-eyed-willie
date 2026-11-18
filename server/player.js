@@ -10,7 +10,47 @@
   let queuedSeek=null, recoveryAttempts=0, lastRecovery=0, recoveryHandler=null;
   // Playback quality: 'auto' plays the original when the browser can, otherwise
   // transcodes at the default size; the others always transcode at that size.
-  const QUALITIES=[['auto','Auto (original when possible)'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p']];
+  const QUALITIES=[['auto','Best available'],['1080p','1080p'],['720p','720p'],['480p','480p'],['360p','360p'],['240p','240p']];
+  const BUDGETS=[[250e6,'250 MB'],[500e6,'500 MB'],[1e9,'1 GB'],[2e9,'2 GB'],[5e9,'5 GB']];
+  function hasChosenQuality(){try{return localStorage.getItem('willie:quality')!==null}catch(_){return false}}
+  /* Metered connections: ask before spending data. Chrome on Android reports
+   * the connection type; "Data Saver" is honoured everywhere it is exposed. */
+  function onMeteredConnection(){
+    const connection=navigator.connection||navigator.mozConnection||navigator.webkitConnection;
+    return !!connection&&(connection.type==='cellular'||connection.saveData===true);
+  }
+  function formatData(bytes){
+    if(!(bytes>0))return '—';
+    if(bytes>=1e9)return (bytes/1e9).toFixed(bytes>=1e10?0:1)+' GB';
+    return Math.max(1,Math.round(bytes/1e6))+' MB';
+  }
+  function formatSpan(seconds){
+    const total=Math.max(0,Math.round(seconds)),h=Math.floor(total/3600),m=Math.floor(total%3600/60);
+    return h?h+'h '+String(m).padStart(2,'0')+'m':Math.max(1,m)+'m';
+  }
+  /* Data cost of each choice for the part of the video still to watch, best
+   * quality first. "Original" streams the file as-is (its size is exact);
+   * transcodes come from the server's per-tier estimates. */
+  function planDataUse(estimates,position,canDirect){
+    const duration=Number(estimates?.duration_seconds)||0;
+    if(!duration)return [];
+    const left=Math.max(0,Math.min(1,(duration-position)/duration));
+    const original=Number(estimates.original?.bytes)||0;
+    const rows=[];
+    if(canDirect&&original)rows.push({id:'auto',name:'Original quality',kind:'exact',bytes:original*left,
+      perHour:original*3600/duration});
+    for(const tier of estimates.qualities||[]){
+      // A re-encode never needs more than the file it came from.
+      const whole=tier.kind==='up_to'&&original?Math.min(tier.bytes,original):tier.bytes;
+      rows.push({id:tier.id,name:tier.id,kind:tier.kind,bytes:whole*left,perHour:whole*3600/duration});
+    }
+    return rows;
+  }
+  /* Best quality that fits [budget] bytes; falls back to the cheapest tier. */
+  function pickForBudget(rows,budget){
+    const fit=rows.find(row=>row.bytes<=budget);
+    return fit?{row:fit,fits:true}:{row:rows[rows.length-1],fits:false};
+  }
   function savedQuality(){
     try{const value=localStorage.getItem('willie:quality');return QUALITIES.some(q=>q[0]===value)?value:'auto'}
     catch(_){return 'auto'}
@@ -102,6 +142,13 @@ opacity:0;transition:opacity .15s}
 .willie-provider-search:hover,.willie-subtitle-result:hover,.willie-provider-search:focus-visible,.willie-subtitle-result:focus-visible{background:#ffffff25;outline:2px solid var(--accent,#fff)}
 .willie-subtitle-results{max-height:35vh;overflow-y:auto;display:flex;flex-direction:column;gap:3px;font-size:13px}
 .willie-subtitle-menu{max-height:75vh;overflow-y:auto}
+.willie-data-menu{gap:6px}
+.willie-data-heading{font-size:13px;color:#bccddd;padding:2px 4px 8px;line-height:1.4}
+.willie-data-row{display:flex;justify-content:space-between;align-items:center;gap:14px;width:100%;text-align:left;background:transparent;color:var(--ink,#fff);border:1px solid transparent;border-radius:9px;padding:11px 12px;cursor:pointer;font:inherit}
+.willie-data-row:hover,.willie-data-row:focus-visible{background:#ffffff25}
+.willie-data-row[aria-pressed="true"]{border-color:var(--oew-tv-select-color,#8B5CF6);background:#ffffff14}
+.willie-data-cost{font-variant-numeric:tabular-nums;color:#d6e2ee;white-space:nowrap}
+.willie-data-note{font-size:12px;color:#9fb2c6;padding:4px;line-height:1.4}
 .willie-subtitle-menu .willie-subtitle-select{max-width:none;width:100%}
 
 .willie-subtitle-select{background:#172636e9;border:1px solid #4b6078;border-radius:10px;
@@ -517,31 +564,90 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
       }catch(error){results.textContent=error.message;}
       finally{searchLink.disabled=false;}
     };
-    const qualityButton=document.createElement('button');setIcon(qualityButton,'quality','Playback quality');
+    const qualityButton=document.createElement('button');setIcon(qualityButton,'quality','Data use and quality');
     qualityButton.setAttribute('aria-expanded','false');
-    const qualityMenu=document.createElement('div');qualityMenu.className='willie-subtitle-menu';qualityMenu.hidden=true;
-    const qualitySelect=document.createElement('select');qualitySelect.className='willie-subtitle-select';
-    qualitySelect.setAttribute('aria-label','Playback quality');
-    for(const [value,label] of QUALITIES){
-      const option=document.createElement('option');option.value=value;option.textContent=label;qualitySelect.append(option);
-    }
-    qualitySelect.value=quality;
-    qualityMenu.append(qualitySelect);
-    qualityButton.onclick=()=>{
-      qualityMenu.hidden=!qualityMenu.hidden;subtitleMenu.hidden=true;
-      subtitles.setAttribute('aria-expanded','false');
-      qualityButton.setAttribute('aria-expanded',String(!qualityMenu.hidden));
-      if(!qualityMenu.hidden)qualitySelect.focus();
-    };
-    qualitySelect.onchange=()=>{
-      quality=qualitySelect.value;
+    const qualityMenu=document.createElement('div');qualityMenu.className='willie-subtitle-menu willie-data-menu';qualityMenu.hidden=true;
+    let estimates=null,pendingStart=null;
+    const estimatesReady=requestJson('/api/stream/hls/estimates/'+id).then(data=>{estimates=data;return data}).catch(()=>null);
+    function chooseQuality(choice){
+      quality=choice;
       try{localStorage.setItem('willie:quality',quality)}catch(_){}
       qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');
+      if(pendingStart){const begin=pendingStart;pendingStart=null;begin();return}
       if(!status)return;
       const at=playerPosition(video);
       if(quality==='auto'&&browserCanDirect(video,status))playDirect(at);
       else playHls(at);
       revealChrome();concealChromeSoon();
+    }
+    function renderDataMenu(){
+      qualityMenu.textContent='';
+      const heading=document.createElement('div');heading.className='willie-data-heading';
+      const duration=Number(estimates?.duration_seconds)||Number(status?.duration_seconds)||0;
+      const at=started?playerPosition(video):Number(status?.position_seconds)||0;
+      const canDirect=!!status&&browserCanDirect(video,status);
+      if(pendingStart){
+        heading.textContent='You are on mobile data. Choose how much to use — playback starts when you pick.';
+      }else{
+        heading.textContent=duration?('Data use for the remaining '+formatSpan(Math.max(0,duration-at))+
+          ' of '+formatSpan(duration)+'.'):'Playback quality';
+      }
+      qualityMenu.append(heading);
+      const rows=planDataUse(estimates,at,canDirect);
+      const current=quality==='auto'&&!canDirect?'720p':quality;
+      const options=rows.length?rows:QUALITIES.map(([value,label])=>
+        ({id:value,name:value==='auto'?'Best available':label,kind:null,bytes:0}));
+      for(const row of options){
+        const button=document.createElement('button');button.type='button';button.className='willie-data-row';
+        button.dataset.quality=row.id;
+        const selected=row.id===quality||(quality==='auto'&&!canDirect&&row.id==='720p'&&!rows.some(r=>r.id==='auto'));
+        button.setAttribute('aria-pressed',String(selected));
+        const name=document.createElement('span');name.textContent=row.name;
+        const cost=document.createElement('span');cost.className='willie-data-cost';
+        cost.textContent=row.bytes>0?((row.kind==='up_to'?'up to ':row.kind==='about'?'about ':'')+formatData(row.bytes)):'';
+        if(row.perHour>0)button.title=formatData(row.perHour)+' per hour';
+        button.append(name,cost);
+        button.onclick=()=>chooseQuality(row.id);
+        qualityMenu.append(button);
+      }
+      if(rows.length){
+        const budget=document.createElement('select');budget.className='willie-subtitle-select';
+        budget.setAttribute('aria-label','Fit to a data limit');
+        const first=document.createElement('option');first.value='';first.textContent='Fit to a data limit…';budget.append(first);
+        for(const [bytes,label] of BUDGETS){
+          const option=document.createElement('option');option.value=String(bytes);option.textContent='Use at most '+label;budget.append(option);
+        }
+        const note=document.createElement('div');note.className='willie-data-note';note.setAttribute('aria-live','polite');
+        budget.onchange=()=>{
+          if(!budget.value)return;
+          const limit=Number(budget.value),result=pickForBudget(rows,limit);
+          if(!result.fits){
+            note.textContent='Even '+result.row.name+' needs about '+formatData(result.row.bytes)+
+              ' for the rest. Choosing it anyway.';
+            setTimeout(()=>chooseQuality(result.row.id),1500);
+          }else chooseQuality(result.row.id);
+        };
+        qualityMenu.append(budget,note);
+        const foot=document.createElement('div');foot.className='willie-data-note';
+        foot.textContent='Estimates include audio and streaming overhead. "Up to" tiers are capped, '+
+          'not fixed, so real use is often lower.';
+        qualityMenu.append(foot);
+      }
+    }
+    function openDataMenu(){
+      subtitleMenu.hidden=true;subtitles.setAttribute('aria-expanded','false');
+      qualityMenu.hidden=false;qualityButton.setAttribute('aria-expanded','true');
+      renderDataMenu();
+      estimatesReady.then(()=>{if(!qualityMenu.hidden)renderDataMenu()});
+      const target=qualityMenu.querySelector('[aria-pressed="true"]')||qualityMenu.querySelector('button');
+      target?.focus();
+    }
+    qualityButton.onclick=()=>{
+      if(!qualityMenu.hidden){
+        if(pendingStart)return;   // a choice is required before anything plays
+        qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');return;
+      }
+      openDataMenu();
     };
     subtitleMenu.append(cc,language,searchLink,results);
     subtitles.onclick=()=>{qualityMenu.hidden=true;qualityButton.setAttribute('aria-expanded','false');subtitleMenu.hidden=!subtitleMenu.hidden;subtitles.setAttribute('aria-expanded',String(!subtitleMenu.hidden));if(!subtitleMenu.hidden)cc.focus()};
@@ -749,13 +855,21 @@ align-items:center;gap:12px;padding:10px 15px;z-index:5}
         if(video.ended)showNextCountdown();
       }).catch(()=>{next.hidden=true});
       const resume=options.restart||data.watched?0:Number(data.position_seconds)||0;
-      if(quality==='auto'&&browserCanDirect(video,data)){
-        playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
-        if(resume>5)video.addEventListener('loadedmetadata',()=>{
-          if(Number.isFinite(video.duration)&&resume<video.duration-4)video.currentTime=resume;
-        },{once:true});
-        video.play().catch(()=>message('Press Play to start.'));
-      }else playHls(resume);
+      const begin=()=>{
+        if(current!==surface)return;
+        if(quality==='auto'&&browserCanDirect(video,data)){
+          playbackMode='direct';surface.dataset.engine='Browser';video.src=data.stream_url;
+          if(resume>5)video.addEventListener('loadedmetadata',()=>{
+            if(Number.isFinite(video.duration)&&resume<video.duration-4)video.currentTime=resume;
+          },{once:true});
+          video.play().catch(()=>message('Press Play to start.'));
+        }else playHls(resume);
+      };
+      if(onMeteredConnection()&&!hasChosenQuality()){
+        // Nothing is downloaded until the viewer has seen what each choice costs.
+        pendingStart=begin;message('Choose how much data to use.');
+        estimatesReady.finally(()=>{if(current===surface&&pendingStart)openDataMenu()});
+      }else begin();
     }).catch(e=>message(e.message));
   }
   const open=(id,title,options={})=>{
