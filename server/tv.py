@@ -374,8 +374,12 @@ def season_details(
 
 
 @router.get("/next")
-def next_episode(media_id: int = Query(ge=1)):
-    """Next locally indexed, numbered and unwatched episode in series order."""
+def next_episode(media_id: int = Query(ge=1), include_watched: bool = Query(False)):
+    """Next locally indexed episode in series order.
+
+    Browsing retains its unwatched-only behavior. Autoplay requests the next
+    episode even when playback history already marks that episode watched.
+    """
     with db() as conn:
         row = conn.execute(
             "SELECT m.path,m.library_id,COALESCE(NULLIF(m.source_root,''),l.path) AS root,l.kind "
@@ -397,7 +401,9 @@ def next_episode(media_id: int = Query(ge=1)):
         return {"next": None}
     for entry in show["episodes"]:
         next_season, next_number = entry["season"], entry["episode"]
-        if next_season is None or next_number is None or entry["watched"]:
+        if next_season is None or next_number is None or (
+            entry["watched"] and not include_watched
+        ):
             continue
         if (next_season, next_number) > (season, number):
             return {"next": {

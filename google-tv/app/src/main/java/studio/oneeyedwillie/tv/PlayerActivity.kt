@@ -96,6 +96,10 @@ class PlayerActivity : ComponentActivity() {
     private var seasonShuffle = false
     private var shuffleQueue = JSONArray()
     private var autoPlayNext = false
+    // Keep the end-of-playback handoff pending until next-episode/settings
+    // requests finish; network timing must not disable autoplay.
+    private var endedAwaitingNext = false
+    private var nextLookupInFlight = false
     private var advancingToNext = false
     private var selectedColor = 0xFF8B5CF6.toInt()
     private val iconControls = mutableListOf<ImageButton>()
@@ -253,7 +257,9 @@ class PlayerActivity : ComponentActivity() {
                         saveProgress(true)
                         chrome.visibility = View.VISIBLE
                         handler.removeCallbacks(hideChrome)
+                        endedAwaitingNext = true
                         if (autoPlayNext && nextMediaId != null) playNextEpisode()
+                        else if (!nextLookupInFlight) loadNextEpisode()
                     }
                 }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -1148,17 +1154,35 @@ class PlayerActivity : ComponentActivity() {
     }
 
     private fun loadNextEpisode() {
+        if (nextLookupInFlight || shuttingDown) return
+        nextLookupInFlight = true
         network.execute {
-            try {
-                val next = if (seasonShuffle) shuffleQueue.optJSONObject(0)
-                    else request("/api/tv/next?media_id=$mediaId").optJSONObject("next")
-                val settings=request("/api/settings/playback")
-                handler.post {
-                    autoPlayNext=settings.optBoolean("auto_play_next",false) || seasonShuffle
-                    nextMediaId=next?.optInt("media_id")?.takeIf{it>0}
-                    nextTitle=next?.optString("title","Next Episode") ?: ""
-                }
-            }catch(_:Exception){}
+            // Read independently: a failed settings call must not throw away
+            // the next episode, and late responses must still trigger autoplay.
+            val enabled = try {
+                request("/api/settings/playback").optBoolean("auto_play_next", false)
+            } catch (error: Exception) {
+                Log.w("OEWPlayer", "Could not load autoplay setting", error)
+                null
+            }
+            val next = try {
+                if (seasonShuffle) shuffleQueue.optJSONObject(0)
+                else request("/api/tv/next?media_id=$mediaId&include_watched=true")
+                    .optJSONObject("next")
+            } catch (error: Exception) {
+                Log.w("OEWPlayer", "Could not load next episode", error)
+                null
+            }
+            handler.post {
+                nextLookupInFlight = false
+                if (shuttingDown || isFinishing) return@post
+                if (enabled != null) autoPlayNext = enabled || seasonShuffle
+                else if (seasonShuffle) autoPlayNext = true
+                nextMediaId = next?.optInt("media_id")?.takeIf { it > 0 }
+                nextTitle = next?.optString("title", "Next Episode") ?: ""
+                if (endedAwaitingNext && autoPlayNext && nextMediaId != null)
+                    playNextEpisode()
+            }
         }
     }
 
@@ -1168,6 +1192,7 @@ class PlayerActivity : ComponentActivity() {
         // Guard against duplicate STATE_ENDED callbacks and fast remote presses.
         if (advancingToNext || isFinishing) return
         advancingToNext = true
+        endedAwaitingNext = false
         val following = android.content.Intent(this, PlayerActivity::class.java)
             .putExtra("media_id", next).putExtra("title", nextTitle)
             .putExtra("server", server)
