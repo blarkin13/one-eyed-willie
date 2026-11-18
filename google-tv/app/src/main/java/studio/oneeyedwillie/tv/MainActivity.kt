@@ -1375,20 +1375,20 @@ class MainActivity : ComponentActivity() {
                 /* Home-only trial: 60% of the current poster dimensions,
                    preserving the original 2:3 artwork ratio. */
                 body[data-page="home"] .shelf-track{
-                  grid-auto-columns:calc((100% - 126px)/6)!important;
+                  grid-auto-columns:calc((100% - 138px)/6)!important;
                   grid-template-rows:max-content!important;
                   grid-auto-rows:0!important;
                   align-items:start!important;align-content:start!important;
                   gap:14px!important;
-                  padding:11px 28px 14px!important;
+                  padding:11px 28px 14px 40px!important;
                   width:100%!important;
                   margin:0!important;
                   overflow-y:hidden!important;
                   min-height:0!important;
-                  scroll-padding-inline:40px!important
+                  scroll-padding-inline:48px!important
                 }
                 body[data-page="home"] .shelf-track .tile-button{
-                  scroll-margin-inline:40px!important
+                  scroll-margin-inline:48px!important
                 }
                 body[data-page="home"] .shelf-track>.tile:first-child
                   .tile-button:is(:focus,:focus-visible) .cover{
@@ -2204,7 +2204,7 @@ class MainActivity : ComponentActivity() {
                     // rounded corners and purple focus ring. Keep that clearance
                     // on BOTH sides as the horizontal rail scrolls.
                     const edge=(document.body.dataset.page==='home' &&
-                      shelf.matches('.shelf-track'))?40:16;
+                      shelf.matches('.shelf-track'))?48:16;
                     const deltaX=r.left<bounds.left+edge?r.left-bounds.left-edge:
                       r.right>bounds.right-edge?r.right-bounds.right+edge:0;
                     if(Math.abs(deltaX)>1){
