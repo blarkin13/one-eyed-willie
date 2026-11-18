@@ -8,6 +8,7 @@ from server.library import router, db
 from server.catalog import catalog, start_background_scans
 from server.compression import compressed_json
 from server.connections import router as connections_router
+from server.music import router as music_router
 from server.remote_config import router as remote_config_router
 from server.yarr_pairing import router as yarr_pairing_router
 from server.yarr_ice_probe import router as yarr_ice_probe_router
@@ -102,6 +103,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="One-Eyed Willie", version="0.14.2", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
+app.include_router(music_router)
 app.include_router(remote_config_router)
 app.include_router(yarr_pairing_router)
 app.include_router(yarr_ice_probe_router)
@@ -200,6 +202,12 @@ def credit_title_page():
 @app.get("/movie")
 def movie_page():
     return TextFileResponse(Path(__file__).with_name("movie_detail.html"), media_type="text/html")
+
+
+@app.get("/music")
+def music_page():
+    return TextFileResponse(Path(__file__).with_name("music.html"), media_type="text/html",
+                            headers={"Cache-Control":"no-cache"})
 
 
 @app.get("/movies")
