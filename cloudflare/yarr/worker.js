@@ -345,6 +345,12 @@ async function proxyInstalledApp(req,env,originPath) {
  // The origin host is a compile-time constant. Browser controls only path/query.
  const path=originPath||source.pathname;
  if(!path.startsWith('/')||path.startsWith('//')||path.includes('\\'))return json({error:'invalid_path'},400);
+ // Feature gate stays OFF until off-LAN media tests pass.
+ // When enabled, never proxy movie bytes through the Cloudflare Worker.
+ if(env.YARR_DIRECT_ENABLED==='1'&&method==='GET'&&
+    (/^\\/api\\/watch\\/[1-9][0-9]*\\/stream$/.test(path)||
+     /^\\/api\\/stream\\/hls\\/[a-f0-9]{32}\\/(?:index\\.m3u8|init\\.mp4|segment_[0-9]{6}\\.(?:ts|m4s))$/.test(path)))
+   return json({error:'media_requires_direct_peer'},503);
  const upstreamUrl=ORIGIN_BASE+path+source.search;
  const headers=new Headers();
  for(const [key,value] of req.headers){
@@ -396,6 +402,17 @@ async function proxyInstalledApp(req,env,originPath) {
    responseHeaders.set('cache-control','private, no-store');
    return new Response(fixed,{status:200,headers:responseHeaders});
   }
+  if(env.YARR_DIRECT_ENABLED==='1'&&method==='GET'&&upstream.ok&&mime==='text/html'){
+   const htmlBody=await upstream.text();
+   if(htmlBody.length>650000)return json({error:'html_too_large_for_direct_client'},502);
+   const tag='<script src="/assets/yarr-direct-client.js" defer></script>';
+   const output=htmlBody.includes('</body>')?
+     htmlBody.replace('</body>',tag+'</body>'):htmlBody+tag;
+   responseHeaders.delete('content-length');
+   responseHeaders.delete('content-encoding');
+   responseHeaders.set('cache-control','private, no-store');
+   return new Response(output,{status:upstream.status,headers:responseHeaders});
+  }
   // Keep video, HLS, images and HTTP Range responses streamed, not buffered.
   return new Response(method==='HEAD'||[204,205,304].includes(upstream.status)?null:upstream.body,{status:upstream.status,headers:responseHeaders});
  }catch(_){return json({error:'private_server_unavailable'},503);}
@@ -403,6 +420,39 @@ async function proxyInstalledApp(req,env,originPath) {
 
 
 const YARR_TEST_PAGE="<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"><title>Yarr direct connection test</title><style>body{font:16px system-ui,sans-serif;background:#0c101b;color:#f4f2ef;max-width:680px;padding:40px 22px;margin:auto}h1{font-size:35px}p{line-height:1.55;color:#bfc4cc}a{color:#ba9dff}button{border:0;background:#9e84eb;color:#141020;padding:14px 18px;font:700 16px system-ui;border-radius:8px;cursor:pointer}button:disabled{opacity:.5}pre{white-space:pre-wrap;word-break:break-word;line-height:1.55;background:#252b38;padding:20px;border-radius:8px}small{color:#bfc4cc}</style></head><body><a href=\"/app\">Yarr</a><h1>Direct connection test</h1><p>Check whether your current Wi-Fi can exchange encrypted test data directly with your home Yarr server. No videos or personal files are accessed. Cloudflare carries only the connection setup.</p><button id=\"go\">Test connection</button><pre id=\"out\" role=\"status\" aria-live=\"polite\">Ready.</pre><small>The working Yarr video player is not changed by this test.</small><script>\n(()=>{'use strict';const btn=document.getElementById('go'),out=document.getElementById('out');const log=s=>{out.textContent+='\\n'+s};\nconst candidates=sdp=>{const list=(sdp||'').split(/\\r?\\n/).filter(x=>x.startsWith('a=candidate:'));return {total:list.length,host:list.filter(x=>/ typ host(?: |$)/.test(x)).length,srflx:list.filter(x=>/ typ srflx(?: |$)/.test(x)).length,relay:list.filter(x=>/ typ relay(?: |$)/.test(x)).length}};\nconst explain=pc=>{if(!pc)return 'No peer connection was initialized';const local=candidates(pc.localDescription?.sdp),remote=candidates(pc.remoteDescription?.sdp);return 'ICE='+pc.iceConnectionState+'; peer='+pc.connectionState+'; signaling='+pc.signalingState+'; gathering='+pc.iceGatheringState+'; candidates local='+JSON.stringify(local)+' remote='+JSON.stringify(remote)};\nfunction waitIce(pc){return new Promise((ok,no)=>{if(pc.iceGatheringState==='complete')return ok();const timer=setTimeout(()=>no(Error('STUN candidate discovery timed out')),25000);pc.addEventListener('icegatheringstatechange',function fn(){if(pc.iceGatheringState==='complete'){clearTimeout(timer);pc.removeEventListener('icegatheringstatechange',fn);ok()}})})}\nasync function route(pc){const stats=await pc.getStats();const t=[...stats.values()].find(s=>s.type==='transport'&&s.selectedCandidatePairId);const pair=(t&&stats.get(t.selectedCandidatePairId))||[...stats.values()].find(s=>s.type==='candidate-pair'&&s.nominated&&s.state==='succeeded');if(!pair)return 'Candidate path was not reported';const l=stats.get(pair.localCandidateId),r=stats.get(pair.remoteCandidateId),a=l?.candidateType||'unknown',b=r?.candidateType||'unknown';return 'ICE path: '+a+' / '+b+(a==='relay'||b==='relay'?' (relayed)':' (no TURN relay)')}\nbtn.onclick=async()=>{btn.disabled=true;out.textContent='Starting encrypted connection…';let pc;try{\npc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});const dc=pc.createDataChannel('yarr-network-probe-v1');dc.binaryType='arraybuffer';pc.addEventListener('iceconnectionstatechange',()=>log('ICE state: '+pc.iceConnectionState));pc.addEventListener('connectionstatechange',()=>log('Peer state: '+pc.connectionState));dc.addEventListener('close',()=>log('Data channel closed'));let size=0,received=0,good=true;const begin=performance.now();\nconst done=new Promise((resolve,reject)=>{const timer=setTimeout(()=>reject(Error('Peer data transfer timed out')),45000);dc.onopen=()=>{log('Peer connected; testing 256 KiB');dc.send('test')};dc.onerror=()=>reject(Error('Data-channel error'));dc.onmessage=({data})=>{if(typeof data==='string'){const obj=JSON.parse(data);if(obj.type==='start')size=obj.length;else if(obj.type==='done'){clearTimeout(timer);resolve()}}else{const bytes=new Uint8Array(data);for(let i=0;i<bytes.length;i++)if(bytes[i]!==((received+i)%251))good=false;received+=bytes.length}}});\nawait pc.setLocalDescription(await pc.createOffer());await waitIce(pc);log('Negotiating with the paired home server…');\nconst res=await fetch('/api/network-test/offer',{method:'POST',credentials:'same-origin',cache:'no-store',headers:{'content-type':'application/json'},body:JSON.stringify({type:'offer',sdp:pc.localDescription.sdp})});\nif(!res.ok)throw Error('Home diagnostic unavailable (HTTP '+res.status+')');\nconst answer=await res.json();log('Diagnostic backend: '+(answer.diagnostic_origin||'unknown; server may be on an older version'));log('Home server answer: '+JSON.stringify(candidates(answer.sdp)));await pc.setRemoteDescription({type:answer.type,sdp:answer.sdp});log('Answer accepted; waiting for ICE and the data channel…');await done;\nif(!good||received!==262144||size!==262144)throw Error('Test data integrity mismatch ('+received+' bytes)');\nlog('PASS: '+received+' correct bytes in '+Math.round(performance.now()-begin)+' ms');log(await route(pc));log('Synthetic-data connectivity verified; real media playback not yet proven.');\n}catch(e){log('FAILED: '+(e?.message||String(e)));log('Diagnostics: '+explain(pc));log('If ICE stays checking or failed, the internet connections may block direct UDP. This does not mean your Yarr sign-in or Cloudflare connection is broken.')}finally{pc?.close();btn.disabled=false}};\n})();\n</script></body></html>";
+async function directPeerOffer(req,env){
+ if(env.YARR_DIRECT_ENABLED!=='1')return json({error:'direct_media_disabled'},404);
+ if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
+ const owned=await ownedPrivateServer(req,env);
+ if(owned.error)return owned.error;
+ if(!env.YARR_PILOT_TUNNEL_TOKEN)return json({error:'direct_peer_not_configured'},503);
+ const size=Number(req.headers.get('content-length')||0);
+ if(!Number.isFinite(size)||size>72000)return json({error:'request_too_large'},413);
+ const body=await req.text();
+ if(body.length>72000)return json({error:'request_too_large'},413);
+ let parsed;try{parsed=JSON.parse(body)}catch(_){return json({error:'invalid_offer'},400)}
+ if(parsed?.type!=='offer'||typeof parsed.sdp!=='string'||parsed.sdp.length>65536||parsed.sdp.length===0)
+   return json({error:'invalid_offer'},400);
+ // Do not reuse or expose the tunnel token; derive an independent key.
+ const raw='yarr-direct-offer-v1'+String.fromCharCode(0)+env.YARR_PILOT_TUNNEL_TOKEN;
+ const keyBytes=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(raw));
+ const secret=Array.from(new Uint8Array(keyBytes)).map(n=>n.toString(16).padStart(2,'0')).join('');
+ try{
+  await verifiedOrigin(env,owned.server,AbortSignal.timeout(7000));
+  const upstream=await env.YARR_PRIVATE_API.fetch(ORIGIN_BASE+'/api/yarr/direct/offer',{
+   method:'POST',
+   headers:{'content-type':'application/json','x-yarr-direct-secret':secret},
+   body:JSON.stringify(parsed),redirect:'manual',signal:AbortSignal.timeout(20000)
+  });
+  if(!(upstream.headers.get('content-type')||'').includes('application/json'))
+   return json({error:'unexpected_direct_offer_response'},502);
+  if(!upstream.ok)return json({error:'direct_peer_offer_unavailable',status:upstream.status},upstream.status===403?503:upstream.status);
+  const result=await upstream.json();
+  if(result?.type!=='answer'||typeof result.sdp!=='string'||result.sdp.length>65536)
+    return json({error:'invalid_direct_answer'},502);
+  return json({type:'answer',sdp:result.sdp});
+ }catch(_){return json({error:'direct_peer_origin_unreachable'},503)}
+}
 async function yarrWifiOffer(req,env){
  if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
  const owned=await ownedPrivateServer(req,env);if(owned.error)return owned.error;
@@ -483,6 +533,7 @@ export default { async fetch(req,env) {
     'content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self' https:; base-uri 'none'; frame-ancestors 'none'; form-action 'none'"}});
   }
   if(req.method==='POST'&&u.pathname==='/api/network-test/offer')return yarrWifiOffer(req,env);
+  if(req.method==='POST'&&u.pathname==='/api/yarr/direct/offer')return directPeerOffer(req,env);
   if(req.method==='GET'&&u.pathname==='/api/servers'){
    const user=await currentUser(req,env);
    if(!user)return json({error:'not_authenticated'},401);
