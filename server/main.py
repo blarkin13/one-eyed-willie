@@ -8,6 +8,7 @@ from server.catalog import catalog, start_background_scans
 from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
+from server.yarr_pairing import router as yarr_pairing_router
 from server.home import router as home_router
 from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
@@ -81,6 +82,7 @@ app = FastAPI(title="One-Eyed Willie", version="0.14.2", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
 app.include_router(remote_config_router)
+app.include_router(yarr_pairing_router)
 app.include_router(home_router)
 app.include_router(media_actions_router)
 app.include_router(playback_router)
