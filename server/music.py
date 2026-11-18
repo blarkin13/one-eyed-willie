@@ -1,6 +1,6 @@
 """Read-only Music library API: indexed files, embedded tags and ranged audio streaming."""
-from collections import defaultdict
 from pathlib import Path
+from functools import lru_cache
 import mimetypes
 
 from fastapi import APIRouter, HTTPException
@@ -11,8 +11,12 @@ from .library import db, AUDIO_EXTENSIONS
 
 router = APIRouter(prefix="/api/music", tags=["music"])
 
-def _track(row):
-    path = Path(row["path"])
+@lru_cache(maxsize=15000)
+def _read_tags(filename, mtime_ns):
+    return _read_file_tags(Path(filename))
+
+def _read_file_tags(path):
+    # Metadata is cached against the file modification timestamp, not its ID.
     parts = path.parts
     artist = path.parent.parent.name if len(parts) >= 3 else "Unknown Artist"
     album = path.parent.name if path.parent != path.parent.parent else "Unknown Album"
@@ -40,9 +44,18 @@ def _track(row):
             duration = round(float(audio.info.length), 2) if audio.info else None
     except (OSError, ValueError, TypeError, KeyError):
         pass
-    return {"id": row["id"], "library_id": row["library_id"], "title": title,
-            "artist": artist, "album": album, "track_number": track_number,
-            "duration": duration, "added_at": row["added_at"]}
+    return {"title": title, "artist": artist, "album": album,
+            "track_number": track_number, "duration": duration}
+
+def _track(row):
+    path = Path(row["path"])
+    try:
+        metadata = _read_tags(str(path), path.stat().st_mtime_ns)
+    except OSError:
+        metadata = {"title": path.stem, "artist": path.parent.parent.name,
+                    "album": path.parent.name, "track_number": None, "duration": None}
+    return {"id": row["id"], "library_id": row["library_id"],
+            "added_at": row["added_at"], **metadata}
 
 def _files(library_id=None):
     with db() as connection:
