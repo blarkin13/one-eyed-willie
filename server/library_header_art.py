@@ -69,9 +69,24 @@ def _television(draw):
         draw.line((x,y,x+11,y),fill=(*BASE,60),width=3)
 
 
-@lru_cache(maxsize=2)
+def _music(draw):
+    # Subtle record grooves and waveform behind the title, matching the video headers.
+    cx, cy = 665, 180
+    for radius, alpha, width in ((148, 55, 6), (132, 120, 5), (116, 52, 3),
+                                 (99, 90, 2), (75, 85, 3), (36, 173, 5)):
+        draw.ellipse((cx-radius,cy-radius,cx+radius,cy+radius),
+                     outline=(*BASE,alpha),width=width)
+    draw.ellipse((cx-17,cy-17,cx+17,cy+17),fill=(*BASE,87))
+    draw.ellipse((cx-4,cy-4,cx+4,cy+4),fill=(*BASE,194))
+    for x in range(40,490,12):
+        envelope = max(10, 75 * (1 - abs(x-265)/250))
+        amplitude = envelope * abs(sin(x/43)*cos(x/31))
+        draw.line((x,180-amplitude,x,180+amplitude),fill=(*BASE,125),width=5)
+
+
+@lru_cache(maxsize=3)
 def default_png(kind: str) -> bytes:
-    if kind not in ("movies", "tv"):
+    if kind not in ("movies", "tv", "music"):
         raise ValueError("Unsupported library type")
     multiplier = 2
     image = Image.new("RGBA", (900*multiplier,360*multiplier),(0,0,0,0))
@@ -98,8 +113,10 @@ def default_png(kind: str) -> bytes:
     pencil=Scaled()
     if kind=="movies":
         _movie(pencil)
-    else:
+    elif kind=="tv":
         _television(pencil)
+    else:
+        _music(pencil)
     image=image.resize((900,360),Image.Resampling.LANCZOS)
     output=BytesIO()
     image.save(output,format="PNG",optimize=True)
