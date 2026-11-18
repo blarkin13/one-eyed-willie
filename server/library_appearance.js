@@ -111,11 +111,27 @@ const faIcons={
  ship:'fa-ship',car:'fa-car',sparkles:'fa-wand-magic-sparkles'
 };
 function iconTheme(){
- try{return localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean'}
- catch{return 'clean'}
+ try{
+  const value=localStorage.getItem('willie-icon-theme');
+  return value==='pirate'||value==='adventure'?value:'clean';
+ }catch{return 'clean'}
 }
 function createThemeIcon(key,size=26){
  if(iconTheme()==='pirate')return createIcon(key,size);
+ if(iconTheme()==='adventure'){
+   const asset={film:'movies',clapperboard:'movies',reel:'movies',
+     tv:'tv-shows',music:'music',headphones:'music'}[key];
+   if(asset){
+     const wrap=document.createElement('span');
+     wrap.className='nav-icon nav-action-icon library-action-icon';
+     wrap.style.width=size+'px';wrap.style.height=size+'px';
+     wrap.setAttribute('aria-hidden','true');
+     const glyph=document.createElement('span');glyph.className='adventure-glyph';
+     glyph.style.setProperty('--adventure-icon','url("/assets/themes/action-adventure/'+asset+'.svg")');
+     wrap.append(glyph);
+     return wrap;
+   }
+ }
  const wrap=document.createElement('span');
  wrap.className='library-fa-icon';
  wrap.style.fontSize=size+'px';

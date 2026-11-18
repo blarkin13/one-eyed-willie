@@ -273,9 +273,11 @@ function applyLibraryAppearance(lib){
  const iconKey=lib?.icon|| (type==='tv'?'tv':'film');
  const fontKey=lib?.font||'default';
  const icon=$('library-title-icon');
- if(libraryAppearance?.iconTheme()==='clean'){
-  // Clean must be consistent on the library page as well as the sidebar.
-  icon.replaceChildren(libraryAppearance.createThemeIcon(iconKey,60));
+ if(libraryAppearance?.iconTheme()!=='pirate'){
+  // Use the active theme's category icon on library mastheads.
+  const headerKey=libraryAppearance.iconTheme()==='adventure'
+    ?(type==='tv'?'tv':'film'):iconKey;
+  icon.replaceChildren(libraryAppearance.createThemeIcon(headerKey,60));
  }else if(lib?.icon_image_url||['film','tv','folder'].includes(iconKey)){
   const image=document.createElement('img');
   image.src=lib?.icon_image_url||'/assets/sidebar-icon-'+(type==='tv'?'tv':'movies')+'.png?v=1';
