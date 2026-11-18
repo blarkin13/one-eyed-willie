@@ -91,7 +91,9 @@ class SettingsNavigationTests(unittest.TestCase):
         self.assertNotIn("sonarr", nav_ids)
         self.assertNotIn("radarr", ICON_NAMES)
         self.assertNotIn("sonarr", ICON_NAMES)
-        self.assertIn("sabnzbd", nav_ids)
+        self.assertIn("connections", nav_ids)
+        self.assertNotIn("sabnzbd", nav_ids)
+        self.assertNotIn("services", nav_ids)
         self.assertIn("sabnzbd", ICON_NAMES)
         shell = (ROOT / "shell.js").read_text()
         for link in ("{id:'radarr'", "{id:'sonarr'"):
