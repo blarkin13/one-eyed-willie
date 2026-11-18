@@ -6,19 +6,6 @@
 <link rel="stylesheet" href="/assets/ui.css?v=service-switcher-20261117-2">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
-/* Keep these identical on the three service dashboards, including in
-   WebViews/browsers with an old version of the global stylesheet cached. */
-.service-switcher{display:flex;align-items:center;flex-wrap:wrap;
-  column-gap:clamp(48px,6vw,90px);row-gap:18px;margin:20px 0 32px}
-.service-switcher>a{display:inline-flex;align-items:center;gap:14px;
-  flex:0 0 auto;min-height:52px;padding:6px 4px 9px;
-  font-weight:650;text-decoration:none;white-space:nowrap;
-  color:#a8c6e4;border-bottom:2px solid transparent}
-.service-switcher>a>.integration-logo{display:block;width:30px;height:30px;
-  flex:none;margin:0}
-.service-switcher>a[aria-current="page"]{color:#fff;border-bottom-color:#afcfea}
-.service-switcher>a:is(:hover,:focus-visible){color:#fff}
-
 .manager-content{max-width:1540px}
 .manager-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .manager-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 28px}
@@ -104,11 +91,7 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
   <button id="manager-rss" class="secondary-button" type="button">Sync RSS</button>
  </div>
 </div>
-<nav class="service-switcher" aria-label="Download services">
-<a href="/sabnzbd" id="tab-sabnzbd"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd</a>
-<a href="/radarr" id="tab-radarr"><img class="integration-logo" src="/assets/brand/radarr.svg" alt="">Radarr</a>
-<a href="/sonarr" id="tab-sonarr"><img class="integration-logo" src="/assets/brand/sonarr.svg" alt="">Sonarr</a>
-</nav>
+
 <p id="manager-message" role="status" class="manager-note">Loading your media manager…</p>
 <section id="manager-body" hidden>
 <div class="manager-stat-grid" aria-label="Library summary">
@@ -165,7 +148,7 @@ $('missing-label').textContent=managerName==='radarr'?'Movies missing files':'Se
 $('library-heading').textContent=managerName==='radarr'?'Managed movies':'Managed series';
 $('manager-library-help').hidden=managerName!=='sonarr';
 $('manager-add').href='/explore?type='+(managerName==='radarr'?'movies':'tv');
-$('tab-'+managerName).setAttribute('aria-current','page');
+
 let activeData=null,waiting=false;
 const endpoint='/api/managers/'+managerName;
 async function api(url,options){
