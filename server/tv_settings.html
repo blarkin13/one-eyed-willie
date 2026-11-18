@@ -177,7 +177,34 @@ html body[data-page="settings"] .tv-playback-settings
 </main></div></div>
 <script>
 const el=id=>document.getElementById(id);
-const message=text=>{el('tv-status').textContent=text};
+let tvToastTimer=null;
+function message(text,section='',state=''){
+ const status=el('tv-status');
+ status.textContent=text;
+ const kind=state||(/could not|unavailable|failed|unable|error/i.test(text)?'error':
+   /saving|loading/i.test(text)?'saving':'success');
+ const local=section?el('tv-'+section+'-status'):null;
+ if(local){local.textContent=text;local.dataset.state=kind;}
+ const toast=el('tv-save-toast');
+ toast.textContent=(kind==='success'?'✓  ':'')+text;
+ toast.dataset.state=kind;
+ toast.hidden=false;
+ clearTimeout(tvToastTimer);
+ // Failures stay readable longer; the latest status also remains in its card.
+ tvToastTimer=setTimeout(()=>{toast.hidden=true},kind==='error'?8500:4500);
+}
+document.addEventListener('focusin',event=>{
+ const control=event.target;
+ if(!control?.matches?.('button,input:not([type="hidden"]),select')||
+    !control.closest('.tv-playback-settings'))return;
+ const label=control.closest('label')?.textContent?.trim()||
+  (control.id?document.querySelector('label[for="'+control.id+'"]')?.textContent?.trim():'')||
+  control.textContent?.trim()||control.getAttribute('aria-label')||'Setting';
+ const action=control.matches('input[type="range"]')?'Left / Right to adjust':
+  control.matches('input[type="checkbox"]')?'OK to toggle':
+  'OK to select';
+ el('tv-focused-control').textContent=label.replace(/\\s+/g,' ').slice(0,110)+' · '+action;
+});
 async function api(path,options={}){
  const r=await fetch(path,{cache:'no-store',...options,
   headers:{'Content-Type':'application/json',...(options.headers||{})}});
@@ -208,6 +235,7 @@ for(const [code,label] of tvLanguages){
  option.addEventListener('click',()=>{
   chooseLanguage(code);
   langDialog.close();
+  saveSubtitleOnTv();
  });
  el('tv-language-options').append(option);
 }
@@ -239,6 +267,7 @@ for(const key of Object.keys(captionStyleChoices)){
   const index=choices.findIndex(pair=>pair[0]===captionStyle[key]);
   captionStyle[key]=choices[(index+1)%choices.length][0];
   updateCaptionButton(key);
+  saveSubtitleOnTv();
  };
  updateCaptionButton(key);
 }
@@ -253,16 +282,19 @@ try{
   updateCaptionButton(key);
  }
 }catch(error){message(error.message)}
-el('tv-subtitle-form').onsubmit=event=>{
- event.preventDefault();
+function saveSubtitleOnTv(){
  try{
   const settings=JSON.stringify({enabled:el('tv-subtitles-on').checked,
    language:el('tv-subtitle-language').value,
    background:captionStyle.background,size:captionStyle.size,
    color:captionStyle.color,outline:captionStyle.outline==='true'});
   if(devicePrompt('set',settings)!=='ACK')throw Error('Could not save subtitle preferences');
-  message('Subtitle preferences saved on this TV only.');
- }catch(error){message(error.message)}
+  message('Subtitles saved on this TV.','subtitle');
+ }catch(error){message('Could not save subtitles: '+error.message,'subtitle','error')}
+}
+el('tv-subtitles-on').addEventListener('change',saveSubtitleOnTv);
+el('tv-subtitle-form').onsubmit=event=>{
+ event.preventDefault();saveSubtitleOnTv();
 };
 el('tv-theme-volume').oninput=()=>{
  el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
@@ -291,7 +323,9 @@ for(const [code,name] of tvColors){
  swatch.style.backgroundColor=code;
  const title=document.createElement('span');title.textContent=name;
  option.append(swatch,title);
- option.addEventListener('click',()=>{chooseColor(code);colorDialog.close()});
+ option.addEventListener('click',()=>{
+  chooseColor(code);colorDialog.close();void saveSelectionColor();
+ });
  el('tv-color-options').append(option);
 }
 colorButton.onclick=()=>{
@@ -304,16 +338,19 @@ colorDialog.addEventListener('close',()=>colorButton.focus({preventScroll:true})
 api('/api/settings/tv-appearance').then(data=>{
  chooseColor(data.selection_color);
 }).catch(error=>message('Could not load selection color: '+error.message));
-el('tv-color-form').onsubmit=async event=>{
- event.preventDefault();
+async function saveSelectionColor(){
+ const chosen=el('tv-selected-color').value;
+ message('Saving selection color…','color','saving');
  try{
-  const chosen=el('tv-selected-color').value;
   await api('/api/settings/tv-appearance',{
    method:'PUT',body:JSON.stringify({selection_color:chosen})
   });
   document.documentElement.style.setProperty('--oew-tv-select-color',chosen);
-  message('Selection color saved. Player controls use it when playback opens.');
- }catch(error){message('Could not save selection color: '+error.message)}
+  message('Selection color saved for all TVs.','color');
+ }catch(error){message('Could not save selection color: '+error.message,'color','error')}
+}
+el('tv-color-form').onsubmit=event=>{
+ event.preventDefault();void saveSelectionColor();
 };
 let sharedPlayback=null;
 api('/api/settings/playback').then(data=>{
@@ -326,20 +363,42 @@ api('/api/settings/playback').then(data=>{
  el('tv-theme-volume').value=Number.isFinite(data.theme_volume)?data.theme_volume:25;
  el('tv-theme-volume-label').textContent=el('tv-theme-volume').value+'%';
 }).catch(error=>message(error.message));
-el('tv-playback-form').onsubmit=async event=>{
- event.preventDefault();
- if(!sharedPlayback){message('Playback settings are not available');return}
- try{
-  await api('/api/settings/playback',{method:'PUT',body:JSON.stringify({
-   auto_play_next:el('tv-auto-next').checked,
-   tv_theme_music:el('tv-show-theme').checked,
-   movie_theme_music:el('tv-movie-theme').checked,
-   theme_loop:el('tv-loop-theme').checked,
-   theme_fade:el('tv-fade-theme').checked,
-   theme_volume:Number(el('tv-theme-volume').value)
-  })});
-  message('Shared playback settings saved.');
- }catch(error){message(error.message)}
+let playbackSaveQueue=Promise.resolve(),playbackSaveVersion=0;
+function saveSharedPlayback(){
+ if(!sharedPlayback){
+  message('Playback settings are not available yet.','playback','error');
+  return Promise.resolve();
+ }
+ const values={
+  auto_play_next:el('tv-auto-next').checked,
+  tv_theme_music:el('tv-show-theme').checked,
+  movie_theme_music:el('tv-movie-theme').checked,
+  theme_loop:el('tv-loop-theme').checked,
+  theme_fade:el('tv-fade-theme').checked,
+  theme_volume:Number(el('tv-theme-volume').value)
+ },version=++playbackSaveVersion;
+ message('Saving playback settings…','playback','saving');
+ // Serialize rapid remote changes to prevent older writes from winning.
+ playbackSaveQueue=playbackSaveQueue.catch(()=>{}).then(async()=>{
+  const saved=await api('/api/settings/playback',{
+   method:'PUT',body:JSON.stringify(values)
+  });
+  if(version===playbackSaveVersion){
+   sharedPlayback=saved;
+   message('Playback settings saved for all TVs.','playback');
+  }
+ }).catch(error=>{
+  if(version===playbackSaveVersion)
+   message('Could not save playback settings: '+error.message,'playback','error');
+ });
+ return playbackSaveQueue;
+}
+for(const id of ['tv-auto-next','tv-show-theme','tv-movie-theme','tv-loop-theme','tv-fade-theme']){
+ el(id).addEventListener('change',()=>{void saveSharedPlayback()});
+}
+el('tv-theme-volume').addEventListener('change',()=>{void saveSharedPlayback()});
+el('tv-playback-form').onsubmit=event=>{
+ event.preventDefault();void saveSharedPlayback();
 };
 const ambientChoices={
  effect:[['off','Off (default)'],['snow','Snow'],['rain','Rain'],['leaves','Falling leaves'],['fireflies','Fireflies']],
@@ -351,17 +410,18 @@ let ambientTouched=false,ambientSaveVersion=0,ambientSaveQueue=Promise.resolve()
 function saveAmbientOnTv(){
  ambientTouched=true;
  const values={...ambientState},version=++ambientSaveVersion;
- message('Saving ambient effects…');
+ message('Saving ambient effects…','ambient','saving');
  ambientSaveQueue=ambientSaveQueue.catch(()=>{}).then(async()=>{
   const saved=await api('/api/settings/ambient',{
    method:'PUT',body:JSON.stringify(values)
   });
   if(version===ambientSaveVersion){
    window.WillieAmbient?.confirmed(saved);
-   message('Ambient effects saved for the server and other TVs.');
+   message('Ambient effects saved for all TVs.','ambient');
   }
  }).catch(error=>{
-  if(version===ambientSaveVersion)message('Could not save ambient effects: '+error.message);
+  if(version===ambientSaveVersion)
+   message('Could not save ambient effects: '+error.message,'ambient','error');
  });
  return ambientSaveQueue;
 }
