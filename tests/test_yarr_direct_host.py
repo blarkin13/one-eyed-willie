@@ -171,6 +171,24 @@ async def test_real_webrtc_range_transfer_over_datachannel():
             peer.ACTIVE.discard(pc)
 
 
+def test_test_mode_only_allows_paired_credentials_on_host_sidecar():
+    with (patch.dict(os.environ, {"YARR_DIRECT_PEER_ENABLED":"0",
+                                   "YARR_DIRECT_TEST_ENABLED":"1",
+                                   "YARR_ICE_PROBE_MODE":"host"}),
+          patch.object(peer, "shared_secret", lambda: "correct-secret")):
+        peer.authorized("correct-secret")
+        with pytest.raises(HTTPException) as err:
+            peer.authorized("not-the-secret")
+        assert err.value.status_code == 403
+    with (patch.dict(os.environ, {"YARR_DIRECT_PEER_ENABLED":"0",
+                                   "YARR_DIRECT_TEST_ENABLED":"1",
+                                   "YARR_ICE_PROBE_MODE":"docker"}),
+          patch.object(peer, "shared_secret", lambda: "correct-secret")):
+        with pytest.raises(HTTPException) as err:
+            peer.authorized("correct-secret")
+        assert err.value.status_code == 404
+
+
 @pytest.mark.asyncio
 async def test_gateway_forwards_only_an_authenticated_offer_to_fixed_host():
     offer = gateway.PeerOffer(type="offer", sdp="test-sdp")
