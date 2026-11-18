@@ -84,3 +84,66 @@ async def test_asgi_stream_keeps_range_headers_and_bytes():
     assert "x-private-secret" not in start["headers"]
     assert b"".join(m for m in channel.messages if isinstance(m, bytes)) == sent
     assert channel.messages[-1] == '{"type":"done"}'
+
+@pytest.mark.asyncio
+async def test_real_webrtc_datachannel_proxies_only_authorized_media_asgi():
+    """Real RTCDataChannel, no Worker media proxy; local fake ASGI video."""
+    import json
+    from aiortc import RTCPeerConnection, RTCSessionDescription
+
+    browser = RTCPeerConnection()
+    channel = browser.createDataChannel("yarr-media-v1:test")
+    loop = asyncio.get_running_loop()
+    complete = loop.create_future()
+    blocks, headers = [], []
+
+    @channel.on("open")
+    def opened():
+        channel.send(json.dumps({
+            "type": "get", "path": "/api/watch/42/stream",
+            "headers": {"range": "bytes=100-20123"}
+        }))
+
+    @channel.on("message")
+    def received(data):
+        if complete.done():
+            return
+        if isinstance(data, str):
+            message = json.loads(data)
+            if message["type"] == "headers":
+                headers.append(message)
+            elif message["type"] == "done":
+                complete.set_result(True)
+            elif message["type"] == "error":
+                complete.set_exception(AssertionError(message))
+        else:
+            blocks.append(bytes(data))
+
+    async def fake_asgi(scope, receive, send):
+        assert scope["path"] == "/api/watch/42/stream"
+        assert (b"range", b"bytes=100-20123") in scope["headers"]
+        await send({"type": "http.response.start", "status": 206,
+                    "headers": [(b"content-type", b"video/mp4"),
+                                (b"content-range", b"bytes 100-20123/50000")]})
+        await send({"type": "http.response.body", "body": b"p" * 20024,
+                    "more_body": False})
+
+    try:
+        await browser.setLocalDescription(await browser.createOffer())
+        with patch.object(peer, "authorized", lambda value: None), \
+             patch.dict(sys.modules, {"server.main": SimpleNamespace(app=fake_asgi)}):
+            answer = await peer.offer(
+                peer.PeerOffer(type="offer", sdp=browser.localDescription.sdp),
+                x_yarr_direct_secret="test-only",
+            )
+            await browser.setRemoteDescription(
+                RTCSessionDescription(type=answer["type"], sdp=answer["sdp"]))
+            await asyncio.wait_for(complete, timeout=25)
+        assert headers[0]["status"] == 206
+        assert headers[0]["headers"]["content-range"] == "bytes 100-20123/50000"
+        assert b"".join(blocks) == b"p" * 20024
+    finally:
+        await browser.close()
+        for item in tuple(peer.ACTIVE):
+            await item.close()
+            peer.ACTIVE.discard(item)
