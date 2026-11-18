@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Music · Yarr</title>
+<link rel="stylesheet" href="/assets/ui.css?v=music-1">
+<script defer src="/assets/shell.js?v=music-1"></script>
+<style>
+.music-main{max-width:1550px;padding-bottom:170px}
+.music-head{display:flex;justify-content:space-between;align-items:end;gap:20px;flex-wrap:wrap;margin-bottom:22px}
+.music-head h1{font-size:clamp(2.3rem,5vw,4.7rem);line-height:1.1;margin:4px 0}
+.music-tools{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:15px 0 25px}
+.music-tools input,.music-tools select{background:#162234;border:1px solid #445670;color:#edf3ff;padding:12px 15px;border-radius:10px;min-height:44px}
+.music-tools input{flex:1 1 260px;max-width:640px}
+.music-summary{color:#9eafc4;margin:12px 0 22px}
+.album-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(185px,1fr));gap:21px}
+.album-card{display:flex;flex-direction:column;gap:9px;border:0;text-align:left;background:none;color:inherit;padding:7px;border-radius:12px;cursor:pointer}
+.album-card:focus-visible,.album-card:hover{background:#1b2a3d;outline:2px solid #a98df5}
+.album-art{width:100%;aspect-ratio:1;border-radius:12px;background:#24364e;display:grid;place-items:center;overflow:hidden}
+.album-art img{width:100%;height:100%;object-fit:cover}
+.album-art i{font-size:3rem;color:#c2cfe2}
+.album-card strong{font-size:1rem;line-height:1.35;overflow-wrap:anywhere}
+.album-card small{color:#b0bdd0}
+.track-list{display:grid;gap:5px;margin-top:18px}
+.track{display:grid;grid-template-columns:32px minmax(0,1fr) minmax(110px,190px) 64px;gap:14px;align-items:center;padding:12px 15px;background:#142133;border:1px solid #28394e;border-radius:10px;color:#f0f5fc;text-align:left;min-height:57px;cursor:pointer}
+.track:hover,.track:focus-visible{background:#233852;outline:2px solid #a78bfa}
+.track .secondary{color:#aebed0;font-size:.86rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track .title{font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.track.playing{border-color:#a78bfa}
+.music-back{background:transparent;border:1px solid #455b74;border-radius:9px;color:#f7f7fb;padding:9px 14px;min-height:44px}
+.music-player{position:fixed;bottom:0;left:var(--sidebar-width,96px);right:0;background:#0c1625f5;backdrop-filter:blur(16px);border-top:1px solid #41536b;z-index:25;padding:12px 22px}
+.music-player-inner{display:flex;align-items:center;gap:17px;max-width:1550px;margin:auto}
+.music-current{flex:1;min-width:0;display:flex;flex-direction:column}
+.music-current strong,.music-current small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.music-current small{color:#aebed0}
+.music-player button{background:transparent;border:0;color:#f7f7fb;min-width:44px;min-height:44px;font-size:1.2rem}
+.music-player button:hover,.music-player button:focus-visible{color:#bbabff;outline:2px solid #a78bfa;border-radius:7px}
+.music-player input[type=range]{flex:1 1 210px;min-width:90px;accent-color:#a78bfa}
+.music-time{color:#aebed0;font-variant-numeric:tabular-nums;font-size:.85rem;min-width:84px}
+.music-player audio{display:none}
+@media(max-width:820px){.track{grid-template-columns:24px minmax(0,1fr) 42px}.track .secondary{display:none}.music-player{left:0;padding:8px}.music-player-inner{gap:4px;flex-wrap:wrap}.music-player input[type=range]{order:5;flex-basis:100%}.music-current{flex-basis:35%}.music-time{display:none}}
+</style></head><body data-page="music"><div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside><div class="workspace">
+<main class="content music-main">
+<div class="music-head"><div><p class="eyebrow">YOUR LIBRARY</p><h1>Music</h1>
+<p>Explore your artists, albums and songs.</p></div>
+<a class="secondary-button" href="/settings/libraries">Manage music folders</a></div>
+<div class="music-tools">
+<input id="music-search" type="search" placeholder="Search songs, artists, albums…" aria-label="Search music">
+<select id="music-library" aria-label="Select music library"><option value="">All music libraries</option></select>
+<select id="music-view" aria-label="Browse music by"><option value="albums">Albums</option><option value="artists">Artists</option><option value="songs">Songs</option></select>
+</div>
+<p class="music-summary" id="music-summary" role="status">Loading your music…</p>
+<div id="music-content"></div>
+</main></div></div>
+<div class="music-player" id="music-player" hidden>
+<div class="music-player-inner"><div class="music-current"><strong id="now-title">—</strong><small id="now-artist">—</small></div>
+<button type="button" id="previous" aria-label="Previous track" title="Previous"><i class="fa-solid fa-backward-step"></i></button>
+<button type="button" id="play-pause" aria-label="Pause" title="Play or pause"><i class="fa-solid fa-pause"></i></button>
+<button type="button" id="next" aria-label="Next track" title="Next"><i class="fa-solid fa-forward-step"></i></button>
+<input id="seek" type="range" min="0" max="100" value="0" aria-label="Playback position">
+<span class="music-time" id="playback-time">0:00 / 0:00</span>
+<audio id="music-audio" preload="metadata"></audio>
+</div></div>
+<script>
+const $=id=>document.getElementById(id);
+let tracks=[],visible=[],queue=[],current=-1,selectedAlbum=null;
+const audio=$('music-audio');
+const fmt=seconds=>{if(!Number.isFinite(seconds))return '0:00';const n=Math.floor(seconds);return Math.floor(n/60)+':'+String(n%60).padStart(2,'0')};
+function element(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!==undefined)e.textContent=text;return e}
+function artwork(track,container){
+ const wrapper=element('span','album-art');
+ if(track){const image=document.createElement('img');image.loading='lazy';image.alt='';image.src='/api/music/tracks/'+track.id+'/art';
+ image.onerror=()=>{image.remove();wrapper.append(element('i','fa-solid fa-music'))};wrapper.append(image)}
+ else wrapper.append(element('i','fa-solid fa-music'));
+ container.append(wrapper);
+}
+function play(items,index){
+ queue=items;current=index;const t=queue[current];if(!t)return;
+ audio.src='/api/music/tracks/'+t.id+'/stream';
+ $('now-title').textContent=t.title;$('now-artist').textContent=t.artist+' · '+t.album;
+ $('music-player').hidden=false;audio.play().catch(()=>{$('music-summary').textContent='Press Play to begin audio.'});
+ updatePlay();render();
+}
+function updatePlay(){
+ $('play-pause').querySelector('i').className='fa-solid '+(audio.paused?'fa-play':'fa-pause');
+ $('play-pause').setAttribute('aria-label',audio.paused?'Play':'Pause');
+}
+function listSongs(items){
+ const list=element('div','track-list');
+ items.forEach((t,i)=>{
+  const row=element('button','track'+(queue[current]?.id===t.id?' playing':''));
+  row.type='button';
+  row.append(element('span','secondary',String(t.track_number||i+1)),element('span','title',t.title),element('span','secondary',t.artist+' · '+t.album),element('span','secondary',fmt(t.duration)));
+  row.addEventListener('click',()=>play(items,i));list.append(row);
+ });
+ return list;
+}
+function render(){
+ const out=$('music-content');out.replaceChildren();
+ const mode=$('music-view').value;
+ if(!visible.length){out.append(element('p','music-summary','No tracks found. Add a Music library and scan its folders in Settings.'));return}
+ if(selectedAlbum&&mode==='albums'){
+   const group=visible.filter(t=>t.artist===selectedAlbum.artist&&t.album===selectedAlbum.album);
+   const back=element('button','music-back','Back to albums');back.type='button';back.onclick=()=>{selectedAlbum=null;render()};
+   out.append(back,element('h2','',selectedAlbum.album),element('p','music-summary',selectedAlbum.artist+' · '+group.length+' songs'),listSongs(group));return;
+ }
+ if(mode==='songs'){out.append(listSongs(visible));return}
+ if(mode==='artists'){
+  const artistMap=new Map();
+  visible.forEach(t=>{if(!artistMap.has(t.artist))artistMap.set(t.artist,[]);artistMap.get(t.artist).push(t)});
+  for(const [name,items] of [...artistMap].sort((a,b)=>a[0].localeCompare(b[0]))){
+   out.append(element('h2','',name),listSongs(items));
+  }return;
+ }
+ const albums=new Map();
+ visible.forEach(t=>{const key=t.artist+'\u0000'+t.album;if(!albums.has(key))albums.set(key,[]);albums.get(key).push(t)});
+ const grid=element('div','album-grid');
+ for(const items of albums.values()){
+   const t=items[0],card=element('button','album-card');card.type='button';
+   artwork(t,card);card.append(element('strong','',t.album),element('small','',t.artist+' · '+items.length+' songs'));
+   card.onclick=()=>{selectedAlbum={artist:t.artist,album:t.album};render()};grid.append(card);
+ }
+ out.append(grid);
+}
+function filter(){
+ const q=$('music-search').value.trim().toLocaleLowerCase();
+ const library=$('music-library').value;
+ visible=tracks.filter(t=>(!library||String(t.library_id)===library)&&(!q||(t.title+' '+t.artist+' '+t.album).toLocaleLowerCase().includes(q)));
+ selectedAlbum=null;
+ $('music-summary').textContent=visible.length+' songs · '+new Set(visible.map(t=>t.artist)).size+' artists · '+new Set(visible.map(t=>t.artist+'\u0000'+t.album)).size+' albums';
+ render();
+}
+async function boot(){
+ try{
+  const [libraries,result]=await Promise.all([fetch('/api/libraries').then(r=>r.json()),fetch('/api/music/catalog').then(r=>{if(!r.ok)throw Error('Music catalog unavailable');return r.json()})]);
+  for(const lib of libraries.filter(l=>l.kind==='music')){const option=element('option','',lib.name);option.value=lib.id;$('music-library').append(option)}
+  tracks=result.tracks||[];filter();
+ }catch(error){$('music-summary').textContent='Unable to load music: '+error.message}
+}
+$('music-search').addEventListener('input',filter);$('music-library').addEventListener('change',filter);
+$('music-view').addEventListener('change',()=>{selectedAlbum=null;render()});
+$('play-pause').onclick=()=>{if(audio.paused)audio.play().catch(()=>{});else audio.pause();updatePlay()};
+$('next').onclick=()=>{if(queue.length)play(queue,(current+1)%queue.length)};
+$('previous').onclick=()=>{if(audio.currentTime>3){audio.currentTime=0;return}if(queue.length)play(queue,(current-1+queue.length)%queue.length)};
+$('seek').addEventListener('input',()=>{if(audio.duration)audio.currentTime=audio.duration*Number($('seek').value)/100});
+audio.addEventListener('play',updatePlay);audio.addEventListener('pause',updatePlay);
+audio.addEventListener('timeupdate',()=>{$('seek').value=audio.duration?String(100*audio.currentTime/audio.duration):'0';$('playback-time').textContent=fmt(audio.currentTime)+' / '+fmt(audio.duration)});
+audio.addEventListener('ended',()=>{if(queue.length)play(queue,(current+1)%queue.length)});
+boot();
+</script></body></html>
