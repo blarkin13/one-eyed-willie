@@ -462,6 +462,20 @@ def sidebar_default_icon(name: str):
                              "X-Content-Type-Options": "nosniff"})
 
 
+@app.get("/assets/themes/action-adventure/{name}.svg")
+def action_adventure_theme_icon(name: str):
+    """Only bundled icon names can be requested; no arbitrary file access."""
+    from fastapi import HTTPException
+    if name not in ("home", "movies", "tv-shows", "music", "connections", "settings"):
+        raise HTTPException(404, "Unknown theme icon")
+    return FileResponse(
+        Path(__file__).with_name("theme_icons") / "action-adventure" / (name + ".svg"),
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "public, max-age=3600",
+                 "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @app.get("/assets/library-header-{kind}.png")
 def default_library_header_image(kind: str):
     from server.library_header_art import default_png

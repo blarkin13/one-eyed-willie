@@ -2,8 +2,8 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Appearance & Navigation · One-Eyed Willie</title>
-<link rel="stylesheet" href="/assets/ui.css?v=fa-compact-2">
-<script defer src="/assets/shell.js?v=fa-default-1"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=adventure-theme-1">
+<script defer src="/assets/shell.js?v=adventure-theme-1"></script>
 <script defer src="/assets/ambient.js?v=1"></script>
 <style>
 /* Font Awesome previews match the sidebar and stay consistent when offline. */
@@ -22,10 +22,10 @@
 <p id="general-message" class="message" role="status" aria-live="polite"></p>
 <section class="settings-section" aria-labelledby="icon-theme-heading">
 <h2 id="icon-theme-heading">Icon theme</h2>
-<p>Choose Font Awesome icons or the original pirate artwork. Clean uses Font Awesome and is the default.</p>
+<p>Choose Clean (Font Awesome), Pirate (original icons), or Action / Adventure (six custom white icons). Clean remains the default.</p>
 <div class="settings-card">
 <label for="icon-theme">Navigation icon style</label>
-<select id="icon-theme"><option value="clean">Clean (default)</option><option value="pirate">Pirate (original icons)</option></select>
+<select id="icon-theme"><option value="clean">Clean (default)</option><option value="pirate">Pirate (original icons)</option><option value="adventure">Action / Adventure</option></select>
 <p class="settings-muted">Changes apply immediately to this browser or TV app. Your pirate ship logo stays the same.</p>
 </div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
@@ -91,7 +91,7 @@
 
 <section class="settings-section" aria-labelledby="sidebar-icons-heading">
 <h2 id="sidebar-icons-heading">Sidebar icons</h2>
-<p>Customize each navigation icon, including Home and Connections. Upload your own icons, or restore the selected theme's defaults. Clean uses Font Awesome icons; Pirate preserves the original artwork.</p>
+<p>Customize each navigation icon, including Home and Connections. Upload your own icons, or restore the selected theme's defaults. Clean uses Font Awesome, Pirate uses original artwork, and Action / Adventure uses the custom icons.</p>
 <div class="settings-card">
   <div id="system-sidebar-icons" class="settings-list" aria-label="Sidebar icon customization">Loading icons…</div>
   <p class="settings-muted" id="system-icon-message" role="status"></p>
@@ -103,8 +103,14 @@
 </main></div></div>
 <script>
 const el=id=>document.getElementById(id);
-el('icon-theme').value=localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean';
-const activeIconTheme=()=>localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean';
+const activeIconTheme=()=>{
+  try{
+    const theme=localStorage.getItem('willie-icon-theme');
+    return theme==='pirate'||theme==='adventure'?theme:'clean';
+  }catch(_){return 'clean';}
+};
+const themeLabel=()=>({clean:'Clean',pirate:'Pirate',adventure:'Action / Adventure'}[activeIconTheme()]);
+el('icon-theme').value=activeIconTheme();
 el('icon-theme').addEventListener('change',event=>{
  localStorage.setItem('willie-icon-theme',event.target.value);
  location.reload();
@@ -252,6 +258,9 @@ async function loadSystemIcons(){
     preview.replaceChildren();
     if(!custom&&activeIconTheme()==='clean'&&window.WillieCleanIcons){
       preview.append(window.WillieCleanIcons.create(item.name,24));
+    }else if(!custom&&activeIconTheme()==='adventure'){
+      const icon=window.WillieActionIcons?.create(item.name,34);
+      if(icon)preview.append(icon);
     }else{
       const img=document.createElement('img');
       img.src=url;img.alt='';img.width=56;img.height=56;
@@ -266,7 +275,7 @@ async function loadSystemIcons(){
   label.style.flex='1';
   const status=document.createElement('span');
   status.className='settings-muted';
-  status.textContent=item.custom?'Custom upload':'Already default ('+(activeIconTheme()==='clean'?'Clean':'Pirate')+')';
+  status.textContent=item.custom?'Custom upload':'Already default ('+themeLabel()+')';
   const upload=document.createElement('button');
   upload.type='button';upload.className='secondary-button';
   upload.textContent=item.custom?'Replace':'Upload';
@@ -303,11 +312,11 @@ async function loadSystemIcons(){
    try{
     const data=await api('/api/settings/sidebar/icons/'+item.name,{method:'DELETE'});
     drawPreview(data.url,false);
-    status.textContent='Already default ('+(activeIconTheme()==='clean'?'Clean':'Pirate')+')';
+    status.textContent='Already default ('+themeLabel()+')';
     upload.textContent='Upload';
     restore.textContent='Already default';
     document.dispatchEvent(new CustomEvent('willie:sidebar-icon-updated',{detail:data}));
-    el('system-icon-message').textContent=label.textContent+' restored to the '+(activeIconTheme()==='clean'?'Clean':'Pirate')+' default.';
+    el('system-icon-message').textContent=label.textContent+' restored to the '+themeLabel()+' default.';
    }catch(error){
     restore.disabled=false;el('system-icon-message').textContent=error.message;
    }

@@ -113,7 +113,7 @@ function defaultSidebarIcon(){
 let stagedIcon=null,revertIcon=false,iconObjectUrl=null,currentIconUrl='';
 function sidebarPreviewIcon(size=35){
  const key=byId('library-icon').value;
- if(appearance.iconTheme()==='clean')return appearance.createThemeIcon(key,size);
+ if(appearance.iconTheme()!=='pirate')return appearance.createThemeIcon(key,size);
  if(iconObjectUrl||currentIconUrl||['film','tv','folder'].includes(key)){
   const image=document.createElement('img');
   image.src=iconObjectUrl||currentIconUrl||defaultSidebarIcon();
@@ -308,7 +308,7 @@ async function load(){
    iconImage.src=lib.icon_image_url||('/assets/sidebar-icon-'+(lib.kind==='tv'?'tv':'movies')+'.png?v=1');
    iconImage.className='sidebar-icon-preview-image';iconImage.width=30;iconImage.height=30;
    iconImage.alt='';
-   if(appearance.iconTheme()==='clean')logo.append(appearance.createThemeIcon(lib.icon,27));
+   if(appearance.iconTheme()!=='pirate')logo.append(appearance.createThemeIcon(lib.icon,27));
    else if(lib.icon_image_url||['folder','film','tv'].includes(lib.icon))logo.append(iconImage);
    else logo.append(appearance.createIcon(lib.icon,27));
    const details=document.createElement('div');details.className='library-settings-details';
