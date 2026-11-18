@@ -387,8 +387,16 @@ class LibraryScrollBrowserTests(unittest.TestCase):
         self.assertTrue(state["focused"])
         self.assertGreater(state["scroll"], 0, "long filters must scroll within popup")
         self.assertTrue(state["inside"], "selected genre must remain visible")
+        # The artificial genre exists only in this test, so the subsequent
+        # server catalog refresh can replace the <select> with real genres.
+        # Observe the actual chosen button click before that refresh.
+        page.evaluate("""() => document.addEventListener('click', event => {
+          const option=event.target.closest?.('.catalog-tool-option');
+          if(option?.closest('#genre-menu'))
+            window.__pickedTestGenre=option.dataset.menuValue;
+        }, true)""")
         page.evaluate("window.__willieTvSelect()")
-        page.wait_for_function("document.getElementById('genre').value==='genre-14'")
+        self.assertEqual(page.evaluate("window.__pickedTestGenre"), "genre-14")
         self.assertTrue(page.evaluate("document.getElementById('genre-menu').hidden"))
 
     def test_down_then_up_returns_to_the_same_poster(self):
