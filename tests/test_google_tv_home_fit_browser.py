@@ -10,6 +10,7 @@ when Playwright or Chrome are unavailable.
 """
 import json
 import os
+import re
 import shutil
 import socket
 import subprocess
@@ -21,6 +22,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+ACTIVITY = ROOT / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/MainActivity.kt"
 try:  # pragma: no cover - environment dependent
     from playwright.sync_api import sync_playwright
 except Exception:  # pragma: no cover
@@ -36,6 +38,13 @@ LONG_EPISODE = "S02E0%d · An Extremely Long Episode Title That Keeps Going And 
 SUMMARY = ("A very long description that keeps going and going so that it would take many "
            "lines if nothing limited it, mentioning every cast member, the plot, the "
            "production history and several other details nobody needs on a TV home screen. ") * 3
+
+
+def tv_remote_script():
+    source = ACTIVITY.read_text()
+    match = re.search(r'private val TV_REMOTE_SCRIPT = """(.*?)"""\.trimIndent\(\)', source, re.S)
+    assert match, "TV_REMOTE_SCRIPT not found in MainActivity.kt"
+    return match.group(1)
 
 
 def item(i, kind, long=False, watching=False):
@@ -138,6 +147,10 @@ class TvHomeFitTests(unittest.TestCase):
         page.goto("http://127.0.0.1:%d/" % self.port)
         page.wait_for_selector("#continue-watching .shelf-track .tile", timeout=20000)
         page.wait_for_function("document.querySelector('.home-feature-title')?.textContent")
+        # The app injects its own CSS and remote navigation from onPageFinished;
+        # test the page exactly as the TV sees it, including that CSS.
+        page.evaluate(tv_remote_script())
+        page.wait_for_function("typeof window.__willieTvMove==='function'")
         page.wait_for_timeout(600)
         page.evaluate("document.querySelector('#continue-watching .tile-button').focus()")
         page.wait_for_timeout(300)
@@ -154,6 +167,32 @@ class TvHomeFitTests(unittest.TestCase):
                 # The focused (scaled) poster and its ring fit inside the row's
                 # bottom padding instead of being clipped by it.
                 self.assertLessEqual(m["ringBottom"], m["trackBottom"], m)
+
+    def test_the_next_shelf_never_peeks_in_below_the_active_one(self):
+        peek = """() => {
+          const shelves = [...document.querySelectorAll('.content > .shelf')]
+            .filter(s => s.querySelector('.shelf-track .tile-button'));
+          const active = document.activeElement.closest('.shelf');
+          const i = shelves.indexOf(active);
+          const next = shelves[i + 1];
+          return {index: i, count: shelves.length, innerHeight,
+                  nextTop: next ? next.getBoundingClientRect().top : null,
+                  activeTop: active.getBoundingClientRect().top,
+                  activeBottom: active.getBoundingClientRect().bottom};
+        }"""
+        for width, height in ((960, 540), (1280, 720), (1920, 1080)):
+            with self.subTest(viewport="%dx%d" % (width, height)):
+                _, page = self.measure(width, height)
+                for step in range(3):
+                    seen = page.evaluate(peek)
+                    if seen["nextTop"] is not None:
+                        self.assertGreaterEqual(seen["nextTop"], seen["innerHeight"], seen)
+                    page.evaluate("window.__willieTvMove('down')")
+                    page.wait_for_timeout(750)
+                # The last shelf scrolls to the top like the others.
+                last = page.evaluate(peek)
+                self.assertEqual(last["index"], last["count"] - 1, last)
+                self.assertLessEqual(last["activeTop"], 12, last)
 
     def test_hero_text_is_clamped_and_never_overflows(self):
         for width, height in ((960, 540), (1280, 720), (1920, 1080)):

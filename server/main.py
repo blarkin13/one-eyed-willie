@@ -283,6 +283,11 @@ body[data-page="home"] .home-feature {margin-bottom:8px}
    so it needs more room at the bottom than the injected 9px. Higher
    specificity than the app's injected rule, which is also !important. */
 html body[data-page="home"] .shelf-track {padding-bottom:14px!important}
+/* Each Home shelf (banner + posters) is one screen: the remote scrolls a whole
+   shelf to the top, and the next shelf must stay below the fold instead of
+   peeking in under the posters. Higher specificity than the injected
+   min-height:0 rules. */
+body[data-page="home"] .shelf:has(.shelf-track) {min-height:100vh!important;box-sizing:border-box}
 /* Home's shelf may use the screen all the way to the right edge. */
 body[data-page="home"] .workspace>.content {padding-right:0!important}
 body[data-page="home"] .shelf .section-heading {
