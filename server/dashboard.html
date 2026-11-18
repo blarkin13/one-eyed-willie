@@ -102,6 +102,7 @@ max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;
  .home-feature-copy.is-entering{animation:none!important;will-change:auto}
 }
 
+.shelf[hidden]{display:none!important}
 </style><script defer src="/assets/ambient.js?v=1"></script>
 </head>
 <body data-page="home">
@@ -590,8 +591,11 @@ async function load({preserveFocus=false}={}){
   ):{};
   const pageScroll=window.scrollY;
   shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
-  shelf('recent-movies',data.recent_movies,'No movies yet','');
-  shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  const configured=new Set(data.configured_library_kinds||[]);
+  byId('recent-movies').closest('.shelf').hidden=!configured.has('movies');
+  byId('recent-tv').closest('.shelf').hidden=!configured.has('tv');
+  if(configured.has('movies'))shelf('recent-movies',data.recent_movies,'No movies yet','');
+  if(configured.has('tv'))shelf('recent-tv',data.recent_tv,'No TV shows yet','');
   if(!preserveFocus){
     try{
       const previous=JSON.parse(sessionStorage.getItem('oew-continue-return')||'null');
