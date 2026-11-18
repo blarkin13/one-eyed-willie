@@ -170,7 +170,7 @@ async function pairingStart(req,env){
  if(req.headers.get('content-type')?.split(';')[0]!=='application/json')return json({error:'content_type'},415);
  const ip=req.headers.get('cf-connecting-ip')||'unknown';
  const bucket=Math.floor(Date.now()/600000),ipHash=await digest(ip);
- await env.ACCOUNTS.prepare("DELETE FROM pairing_rate_limits WHERE window<?").bind(String(bucket-2)).run();
+ await env.ACCOUNTS.prepare("DELETE FROM pairing_rate_limits WHERE (window NOT LIKE 'claim:%' AND CAST(window AS INTEGER)<?) OR (window LIKE 'claim:%' AND CAST(substr(window,7) AS INTEGER)<?)").bind(bucket-2,Math.floor(Date.now()/60000)-20).run();
  await env.ACCOUNTS.prepare("INSERT INTO pairing_rate_limits(ip_hash,window,count) VALUES(?,?,1) ON CONFLICT(ip_hash,window) DO UPDATE SET count=count+1").bind(ipHash,String(bucket)).run();
  const n=await env.ACCOUNTS.prepare("SELECT count FROM pairing_rate_limits WHERE ip_hash=? AND window=?").bind(ipHash,String(bucket)).first();
  if(n.count>15)return json({error:'rate_limited'},429);
