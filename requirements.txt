@@ -5,3 +5,6 @@ Pillow>=11,<13
 
 # Paired-server WebRTC transport diagnostic (no access to media files)
 aiortc>=1.13,<2
+
+# Gated host-sidecar media relay from local server HTTP into peer data channels
+httpx>=0.27,<1
