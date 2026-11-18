@@ -4,6 +4,7 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
 import android.app.AlertDialog
 import android.view.KeyEvent
 import android.widget.ImageButton
@@ -18,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.media3.common.C
@@ -86,6 +88,9 @@ class PlayerActivity : ComponentActivity() {
     private var advancingToNext = false
     private var selectedColor = 0xFF8B5CF6.toInt()
     private val iconControls = mutableListOf<ImageButton>()
+    // A Select key-down that toggles playback must consume its paired key-up.
+    // Otherwise Android can activate a newly focused Back button and exit.
+    private var consumedPlaybackSelect = false
     private var lastRemoteDirection = -1
     private var lastRemoteMoveAt = 0L
     // All remote seeking goes through ONE tracker (see SeekTracker). The
@@ -981,14 +986,15 @@ class PlayerActivity : ComponentActivity() {
                 return true
             }
         }
-        // The paired key-up must not activate a newly revealed control after
-        // DOWN paused or resumed the video.
-        if (direction == KeyEvent.KEYCODE_DPAD_CENTER ||
-            direction == KeyEvent.KEYCODE_ENTER) {
-            val focused = currentFocus
-            if (event.action == KeyEvent.ACTION_UP &&
-                (focused == null || focused === timeline || focused === playerView))
-                return true
+        // Consume the paired UP independently of current focus. Focus moves
+        // to Play after the DOWN; letting UP through could click a different
+        // button (including Back) and immediately close the video.
+        val selectKey = direction == KeyEvent.KEYCODE_DPAD_CENTER ||
+            direction == KeyEvent.KEYCODE_ENTER ||
+            direction == KeyEvent.KEYCODE_NUMPAD_ENTER
+        if (selectKey && event.action == KeyEvent.ACTION_UP && consumedPlaybackSelect) {
+            consumedPlaybackSelect = false
+            return true
         }
         if (isDpad && event.action == KeyEvent.ACTION_UP) {
             if (lastRemoteDirection == direction) lastRemoteDirection = -1
@@ -1004,20 +1010,24 @@ class PlayerActivity : ComponentActivity() {
                     }
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    // Select toggles playback whenever the video is showing
-                    // without an actionable control selected. A visible, focused
-                    // toolbar button still responds to OK normally.
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    // OK on visible transport controls respects focus. OK on
+                    // the video/timeline, or with hidden chrome, toggles playback
+                    // and *always* hands focus to Play so the next OK resumes.
                     val focused = currentFocus
                     val controlsHidden = chrome.visibility != View.VISIBLE
                     val videoSelected = focused == null || focused === timeline ||
                         focused === playerView
-                    if (controlsHidden || videoSelected) {
+                    if (controlsHidden || videoSelected || focused === playButton) {
+                        consumedPlaybackSelect = true
                         if (event.repeatCount == 0) {
                             val active = player
                             if (active?.isPlaying == true) active.pause() else active?.play()
                             showChrome()
+                            playButton.requestFocus()
                             refreshControls()
+                            applyPlayerSelectionColor(selectedColor)
                         }
                         return true
                     }
