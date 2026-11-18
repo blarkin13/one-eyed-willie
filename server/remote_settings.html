@@ -86,7 +86,7 @@ async function yarrCheck(){
    const t=result.private_connector||{};
    const detail=t.status==='running'?'Automatic private connector running.':t.detail||'Automatic tunnel is starting.';
    yarrStatus.textContent='Account paired. '+detail+' Remote playback is not yet available.';
-   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);yarrTimer=null;
+   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;if(!yarrTimer)yarrTimer=setInterval(yarrCheck,10000);
   }else if(result.status==='paired'){
    yarrStatus.textContent='Account paired. Refresh the connection to activate online status reporting.';
    yarrStart.textContent='Refresh secure connection';
