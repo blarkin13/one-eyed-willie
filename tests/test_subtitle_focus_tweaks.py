@@ -64,7 +64,7 @@ class SubtitleStyleTests(unittest.TestCase):
         player = PLAYER.read_text()
         self.assertIn('val controlsHidden = chrome.visibility != View.VISIBLE', player)
         self.assertIn('focused === timeline', player)
-        self.assertIn('if (controlsHidden || videoSelected)', player)
+        self.assertIn('if (controlsHidden || videoSelected || focused === playButton)', player)
         self.assertIn('if (active?.isPlaying == true) active.pause() else active?.play()', player)
 
     def test_poster_and_episode_focus_ring_is_thin(self):

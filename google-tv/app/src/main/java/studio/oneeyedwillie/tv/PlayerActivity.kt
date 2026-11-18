@@ -4,6 +4,7 @@ import android.media.MediaCodecList
 import android.media.MediaFormat
 import android.graphics.Color
 import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.ColorDrawable
 import android.app.AlertDialog
 import android.view.KeyEvent
 import android.widget.ImageButton
@@ -18,6 +19,7 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.widget.FrameLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import androidx.activity.ComponentActivity
 import androidx.media3.common.C
@@ -86,6 +88,9 @@ class PlayerActivity : ComponentActivity() {
     private var advancingToNext = false
     private var selectedColor = 0xFF8B5CF6.toInt()
     private val iconControls = mutableListOf<ImageButton>()
+    // A Select key-down that toggles playback must consume its paired key-up.
+    // Otherwise Android can activate a newly focused Back button and exit.
+    private var consumedPlaybackSelect = false
     private var lastRemoteDirection = -1
     private var lastRemoteMoveAt = 0L
     // All remote seeking goes through ONE tracker (see SeekTracker). The
@@ -470,22 +475,138 @@ class PlayerActivity : ComponentActivity() {
         return root
     }
 
+    /** Consistent dark-glass, D-pad-first options menus over the video.
+     * Uses our own focusable rows rather than Android's system-gray dialogs;
+     * the highlight always matches the user's selection-color setting.
+     */
+    private fun showPlayerMenu(
+        heading: String,
+        options: List<String> = emptyList(),
+        selected: Int = -1,
+        description: String? = null,
+        secondaryLabel: String? = null,
+        secondaryAction: (() -> Unit)? = null,
+        onSelect: (Int) -> Unit = {}
+    ) {
+        lateinit var dialog: AlertDialog
+        val panel = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(20), dp(18), dp(20), dp(16))
+            background = GradientDrawable().apply {
+                cornerRadius = dp(17).toFloat()
+                setColor(0xEF0A111D.toInt())
+                setStroke(dp(1), 0x8068798D.toInt())
+            }
+        }
+        panel.addView(TextView(this).apply {
+            text = heading
+            textSize = 22f
+            setTextColor(0xFFF6F2EB.toInt())
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setPadding(dp(7), 0, dp(7), dp(11))
+        })
+        if (!description.isNullOrBlank()) {
+            panel.addView(TextView(this).apply {
+                text = description
+                textSize = 15f
+                setTextColor(0xFFC9D6E6.toInt())
+                setLineSpacing(dp(3).toFloat(), 1f)
+                setPadding(dp(8), dp(4), dp(8), dp(14))
+            })
+        }
+        fun row(label: String, chosen: Boolean = false, action: () -> Unit): TextView =
+            TextView(this).apply {
+                text = (if (chosen) "✓  " else "") + label
+                textSize = 16f
+                maxLines = 2
+                ellipsize = android.text.TextUtils.TruncateAt.END
+                gravity = Gravity.CENTER_VERTICAL
+                minHeight = dp(49)
+                setPadding(dp(13), dp(7), dp(13), dp(7))
+                isClickable = true
+                isFocusable = true
+                isFocusableInTouchMode = true
+                contentDescription = label + if (chosen) ", selected" else ""
+                fun updateLook(focused: Boolean) {
+                    setTextColor(if (focused || chosen) selectedColor else 0xFFF0F2F5.toInt())
+                    background = GradientDrawable().apply {
+                        cornerRadius = dp(9).toFloat()
+                        setColor(if (focused)
+                            Color.argb(50, Color.red(selectedColor), Color.green(selectedColor),
+                                Color.blue(selectedColor))
+                            else Color.TRANSPARENT)
+                        if (focused) setStroke(dp(1), selectedColor)
+                    }
+                }
+                updateLook(false)
+                setOnFocusChangeListener { _, focused -> updateLook(focused) }
+                setOnClickListener { dialog.dismiss(); action() }
+            }
+
+        val optionViews = mutableListOf<TextView>()
+        if (options.isNotEmpty()) {
+            val menu = LinearLayout(this).apply {
+                orientation = LinearLayout.VERTICAL
+            }
+            options.forEachIndexed { index, title ->
+                row(title, chosen = index == selected) { onSelect(index) }.let {
+                    optionViews.add(it)
+                    menu.addView(it, LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT))
+                }
+            }
+            val scroll = ScrollView(this).apply {
+                isFillViewport = false
+                isVerticalScrollBarEnabled = options.size > 5
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                addView(menu)
+            }
+            val allowedHeight = minOf(dp(405),
+                (resources.displayMetrics.heightPixels * 0.58f).toInt())
+            panel.addView(scroll, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                minOf(allowedHeight, options.size * dp(58))))
+        }
+        val footer = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.END or Gravity.CENTER_VERTICAL
+            setPadding(0, dp(9), 0, 0)
+        }
+        if (secondaryLabel != null && secondaryAction != null) {
+            footer.addView(row(secondaryLabel) { secondaryAction() },
+                LinearLayout.LayoutParams(0, dp(48), 1f))
+        }
+        val close = row("Close") {}
+        footer.addView(close, LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, dp(48)))
+        panel.addView(footer)
+        dialog = AlertDialog.Builder(this).setView(panel).create()
+        dialog.show()
+        dialog.window?.apply {
+            setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
+            addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            setDimAmount(0.46f)
+            setLayout(minOf(dp(580), resources.displayMetrics.widthPixels - dp(48)),
+                ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+        optionViews.getOrNull(selected.takeIf { it in optionViews.indices } ?: 0)
+            ?.requestFocus() ?: close.requestFocus()
+    }
+
     private fun showPlaybackMenu() {
         val labels = arrayOf(
             if (completed) "Mark as unwatched" else "Mark as watched",
             "Playback details",
             "Play from beginning"
         )
-        AlertDialog.Builder(this).setTitle("Playback options")
-            .setItems(labels) { _, choice ->
-                when (choice) {
-                    0 -> toggleWatched()
-                    1 -> showDiagnostics()
-                    2 -> seekTo(0.0)
-                }
-                showChrome()
+        showPlayerMenu("Playback options", labels.toList(), onSelect = { choice ->
+            when (choice) {
+                0 -> toggleWatched()
+                1 -> showDiagnostics()
+                2 -> seekTo(0.0)
             }
-            .setNegativeButton("Close", null).show()
+            showChrome()
+        })
     }
 
     private fun showScrubAt(position: Double) {
@@ -629,8 +750,7 @@ class PlayerActivity : ComponentActivity() {
             "\nPosition: "+fmt(currentPosition())+
             "\nServer: "+server+
             "\nSession: "+(if(session!=null)"Active" else "None")
-        AlertDialog.Builder(this).setTitle("Playback diagnostics")
-            .setMessage(messageText).setPositiveButton("Close",null).show()
+        showPlayerMenu("Playback diagnostics", description = messageText)
     }
 
     private fun toggleWatched() {
@@ -770,11 +890,9 @@ class PlayerActivity : ComponentActivity() {
                 labels.add("Search OpenSubtitles…")
                 handler.post {
                     if (shuttingDown) return@post
-                    AlertDialog.Builder(this).setTitle("Closed Captions")
-                        .setSingleChoiceItems(
-                            labels.toTypedArray(), ids.indexOf(selectedCaption).coerceAtLeast(0)
-                        ) { dialog, index ->
-                            dialog.dismiss()
+                    showPlayerMenu("Closed Captions", labels,
+                        selected = ids.indexOf(selectedCaption).coerceAtLeast(0),
+                        onSelect = { index ->
                             if (index == labels.lastIndex) {
                                 chooseSubtitleLanguage()
                             } else {
@@ -782,8 +900,7 @@ class PlayerActivity : ComponentActivity() {
                                 applyCaption()
                                 showChrome()
                             }
-                        }
-                        .setNegativeButton("Cancel", null).show()
+                        })
                 }
             } catch (error: Exception) {
                 handler.post { if (!shuttingDown) showMessage("Subtitles unavailable: ${error.message}") }
@@ -793,11 +910,10 @@ class PlayerActivity : ComponentActivity() {
 
     private fun chooseSubtitleLanguage() {
         showChrome()
-        AlertDialog.Builder(this).setTitle("Search subtitle language")
-            .setItems(subtitleLanguages.map { it.first }.toTypedArray()) { _, index ->
+        showPlayerMenu("Search subtitle language",
+            subtitleLanguages.map { it.first }, onSelect = { index ->
                 searchOpenSubtitles(subtitleLanguages[index].second)
-            }
-            .setNegativeButton("Cancel", null).show()
+            })
     }
 
     private fun searchOpenSubtitles(language: String) {
@@ -837,14 +953,13 @@ class PlayerActivity : ComponentActivity() {
                         showMessage("No downloadable subtitle matches found.")
                         return@post
                     }
-                    AlertDialog.Builder(this).setTitle("OpenSubtitles results")
-                        .setItems(names.toTypedArray()) { _, selected ->
+                    showPlayerMenu("OpenSubtitles results", names,
+                        secondaryLabel = "Change language",
+                        secondaryAction = { chooseSubtitleLanguage() },
+                        onSelect = { selected ->
                             val (id, lang) = options[selected]
                             downloadSubtitle(id, lang)
-                        }
-                        .setNegativeButton("Cancel", null)
-                        .setNeutralButton("Change language") { _, _ -> chooseSubtitleLanguage() }
-                        .show()
+                        })
                 }
             } catch (error: Exception) {
                 handler.post { if (!shuttingDown) showMessage("Subtitle search failed: ${error.message}") }
@@ -981,14 +1096,15 @@ class PlayerActivity : ComponentActivity() {
                 return true
             }
         }
-        // The paired key-up must not activate a newly revealed control after
-        // DOWN paused or resumed the video.
-        if (direction == KeyEvent.KEYCODE_DPAD_CENTER ||
-            direction == KeyEvent.KEYCODE_ENTER) {
-            val focused = currentFocus
-            if (event.action == KeyEvent.ACTION_UP &&
-                (focused == null || focused === timeline || focused === playerView))
-                return true
+        // Consume the paired UP independently of current focus. Focus moves
+        // to Play after the DOWN; letting UP through could click a different
+        // button (including Back) and immediately close the video.
+        val selectKey = direction == KeyEvent.KEYCODE_DPAD_CENTER ||
+            direction == KeyEvent.KEYCODE_ENTER ||
+            direction == KeyEvent.KEYCODE_NUMPAD_ENTER
+        if (selectKey && event.action == KeyEvent.ACTION_UP && consumedPlaybackSelect) {
+            consumedPlaybackSelect = false
+            return true
         }
         if (isDpad && event.action == KeyEvent.ACTION_UP) {
             if (lastRemoteDirection == direction) lastRemoteDirection = -1
@@ -1004,20 +1120,24 @@ class PlayerActivity : ComponentActivity() {
                     }
                     return true
                 }
-                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
-                    // Select toggles playback whenever the video is showing
-                    // without an actionable control selected. A visible, focused
-                    // toolbar button still responds to OK normally.
+                KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER,
+                KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                    // OK on visible transport controls respects focus. OK on
+                    // the video/timeline, or with hidden chrome, toggles playback
+                    // and *always* hands focus to Play so the next OK resumes.
                     val focused = currentFocus
                     val controlsHidden = chrome.visibility != View.VISIBLE
                     val videoSelected = focused == null || focused === timeline ||
                         focused === playerView
-                    if (controlsHidden || videoSelected) {
+                    if (controlsHidden || videoSelected || focused === playButton) {
+                        consumedPlaybackSelect = true
                         if (event.repeatCount == 0) {
                             val active = player
                             if (active?.isPlaying == true) active.pause() else active?.play()
                             showChrome()
+                            playButton.requestFocus()
                             refreshControls()
+                            applyPlayerSelectionColor(selectedColor)
                         }
                         return true
                     }
