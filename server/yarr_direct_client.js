@@ -38,7 +38,9 @@
    setup.onopen=()=>setup.close();
    await peer.setLocalDescription(await peer.createOffer());
    await waitIce(peer);
-   const response=await fetch('/api/yarr/direct/offer',{
+   const offerUrl=window.YARR_DIRECT_TEST_MODE?
+     '/api/yarr/direct/test-offer':'/api/yarr/direct/offer';
+   const response=await fetch(offerUrl,{
     method:'POST',headers:{'content-type':'application/json'},
     credentials:'same-origin',body:JSON.stringify({type:'offer',sdp:peer.localDescription.sdp}),cache:'no-store'
    });
@@ -70,7 +72,13 @@
      if(control.type==='headers')port.postMessage({type:'headers',status:control.status,headers:control.headers});
      else if(control.type==='done'){port.postMessage({type:'done'});closed=true;channel.close();port.close();}
      else if(control.type==='error')abort(control.message||'Media unavailable');
-    }else port.postMessage({type:'chunk',body:payload},[payload]);
+    }else {
+     if(window.YARR_DIRECT_TEST_MODE){
+      window.YarrDirectTestBytes=(window.YarrDirectTestBytes||0)+payload.byteLength;
+      window.dispatchEvent(new CustomEvent('yarr:peer:bytes',{detail:window.YarrDirectTestBytes}));
+     }
+     port.postMessage({type:'chunk',body:payload},[payload]);
+    }
    };
    channel.onerror=()=>abort('Direct media channel error');
    channel.onclose=()=>{sessions.delete(channel);if(!closed)abort('Direct media channel closed')};
@@ -78,11 +86,12 @@
  });
  (async()=>{
   try{
-   await navigator.serviceWorker.register('/_yarr_direct_sw.js',{scope:'/',updateViaCache:'none'});
+   await navigator.serviceWorker.register('/_yarr_direct_sw.js',{
+     scope:window.YARR_DIRECT_TEST_MODE?'/media-test':'/',updateViaCache:'none'});
    if(!navigator.serviceWorker.controller){
     await navigator.serviceWorker.ready;
-    if(!sessionStorage.getItem('yarr:direct-sw-ready')){
-     sessionStorage.setItem('yarr:direct-sw-ready','1');
+    if(!sessionStorage.getItem('yarr:direct-sw-ready:'+location.pathname)){
+     sessionStorage.setItem('yarr:direct-sw-ready:'+location.pathname,'1');
      location.reload();return;
     }
    }
