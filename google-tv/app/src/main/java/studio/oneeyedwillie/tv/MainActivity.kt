@@ -763,6 +763,10 @@ class MainActivity : ComponentActivity() {
             val target = try { org.json.JSONArray("[" + result + "]").optString(0, "/") }
                 catch (_: Exception) { "/" }
             if (target == "handled") return@evaluateJavascript
+            if (target == "exit") {
+                finish()
+                return@evaluateJavascript
+            }
             if (target.startsWith("/") && !target.startsWith("//")) {
                 if (web.url != origin + target) web.loadUrl(origin + target)
             } else if (web.url != origin + "/") {
@@ -1259,7 +1263,8 @@ class MainActivity : ComponentActivity() {
                    p.startsWith('/sonarr/'))return '/';
                 if(p.startsWith('/settings/'))return '/settings';
                 if(p==='/settings')return '/';
-                if(p==='/')return 'handled';
+                // Back on Home closes the Android TV app instead of being swallowed.
+                if(p==='/')return 'exit';
                 if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
                 return '/';
               };
@@ -2034,8 +2039,12 @@ class MainActivity : ComponentActivity() {
                     '#continue-watching .shelf-track .tile-button')||
                     document.querySelector('.content .shelf-track .tile-button');
                 if(!selected)return;
+                // Artwork and the remote's real activeElement must describe
+                // the same poster. A synthetic focus event alone cannot
+                // establish D-pad focus after async Home shelf rendering.
                 if(!focused?.matches?.('.shelf-track .tile-button'))
                   selected.focus({preventScroll:true});
+                if(document.activeElement!==selected)return;
                 setBackdropTarget(locateBackdrop(selected),true);
                 selected.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
               };
@@ -2868,7 +2877,24 @@ class MainActivity : ComponentActivity() {
                 cancelGlide(document.scrollingElement||document.documentElement);
               };
               window.__willieTvMove=direction=>{
-                tvUserMoved=true;return move(direction);
+                // A remote key may arrive before Home finishes rendering or
+                // after an async shelf replacement detached the focused tile.
+                // Restore a real focus target BEFORE handling the direction:
+                // first Left must enter the rail, not merely select a poster.
+                if(location.pathname==='/'){
+                  const active=document.activeElement;
+                  if(!active || active===document.body ||
+                     active===document.documentElement ||
+                     !active.isConnected){
+                    const first=document.querySelector(
+                      '#continue-watching .shelf-track .tile-button')||
+                      document.querySelector('.content .shelf-track .tile-button');
+                    if(first)first.focus({preventScroll:true});
+                  }
+                }
+                if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
+                tvUserMoved=true;
+                return move(direction);
               };
               const tryFocus=()=>{
                 if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
