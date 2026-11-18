@@ -12,6 +12,7 @@ from server.home import router as home_router
 from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
+from server.ambient_settings import router as ambient_settings_router
 from server.theme_music import router as theme_music_router
 from server.sidebar_settings import router as sidebar_settings_router
 from server.plex_import import router as plex_router
@@ -83,6 +84,7 @@ app.include_router(home_router)
 app.include_router(media_actions_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
+app.include_router(ambient_settings_router)
 app.include_router(theme_music_router)
 app.include_router(sidebar_settings_router)
 app.include_router(plex_router)
@@ -342,6 +344,13 @@ def library_appearance_js():
 @app.get("/assets/media-context.js")
 def media_context_script():
     return FileResponse(Path(__file__).with_name("media_context.js"),
+                        media_type="text/javascript",
+                        headers={"Cache-Control": "no-store"})
+
+
+@app.get("/assets/ambient.js")
+def ambient_script():
+    return FileResponse(Path(__file__).with_name("ambient.js"),
                         media_type="text/javascript",
                         headers={"Cache-Control": "no-store"})
 

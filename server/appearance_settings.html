@@ -4,6 +4,7 @@
 <title>Appearance & Navigation · One-Eyed Willie</title>
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
+<script defer src="/assets/ambient.js?v=1"></script>
 </head><body data-page="appearance">
 <div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
@@ -30,6 +31,35 @@
 <div class="form-actions"><button class="primary-button" type="submit">Save TV selection color</button></div>
 <p id="tv-appearance-status" class="settings-muted" role="status"></p>
 </form></div></section>
+<section class="settings-section" aria-labelledby="ambient-heading">
+<h2 id="ambient-heading">Ambient effects</h2>
+<p>Add optional animated weather and seasonal particles while browsing. Effects never intercept remote controls or mouse clicks and disappear during video playback.</p>
+<div class="settings-card">
+<form id="ambient-form">
+<label for="ambient-effect">Effect</label>
+<select id="ambient-effect">
+<option value="off">Off (default)</option>
+<option value="snow">Snow</option>
+<option value="rain">Rain</option>
+<option value="leaves">Falling leaves</option>
+<option value="fireflies">Fireflies</option>
+</select>
+<label for="ambient-intensity">Intensity: <output id="ambient-intensity-value">10%</output></label>
+<input id="ambient-intensity" type="range" min="10" max="100" step="5" value="10">
+<label for="ambient-speed">Speed</label>
+<select id="ambient-speed"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast">Fast</option></select>
+<label for="ambient-layer">Position</label>
+<select id="ambient-layer"><option value="foreground">Over interface</option><option value="background">Behind interface</option></select>
+<p class="settings-muted">Live preview on this page. These preferences are saved on the server and shared with connected TVs. Animation is automatically disabled when reduced motion is requested.</p>
+<div class="form-actions">
+<button type="submit" class="primary-button">Save ambient effects</button>
+<button type="button" class="secondary-button" id="ambient-off">Turn off</button>
+</div>
+<p id="ambient-status" role="status" class="settings-muted"></p>
+</form>
+</div>
+</section>
+
 <section class="settings-section" aria-labelledby="sidebar-heading">
 <h2 id="sidebar-heading">Organize sidebar</h2>
 <p>Choose which destinations are visible and change their order. Home and Settings stay visible; Settings always stays last.</p>
@@ -80,6 +110,31 @@ el('tv-appearance-form').onsubmit=async event=>{
   el('tv-appearance-status').textContent='Saved on the server. TV apps use this color on the next page load.';
   notice('TV selection color saved.');
  }catch(error){notice(error.message,true)}
+};
+const ambientFields=['effect','intensity','speed','layer'];
+const ambientInput=()=>Object.fromEntries(ambientFields.map(key=>[
+ key, key==='intensity'?Number(el('ambient-'+key).value):el('ambient-'+key).value
+]));
+async function loadAmbient(){
+ const pref=await api('/api/settings/ambient');
+ for(const key of ambientFields)el('ambient-'+key).value=pref[key];
+ el('ambient-intensity-value').textContent=pref.intensity+'%';
+}
+for(const key of ambientFields)el('ambient-'+key).addEventListener('input',()=>{
+ el('ambient-intensity-value').textContent=el('ambient-intensity').value+'%';
+ window.WillieAmbient?.preview(ambientInput());
+});
+el('ambient-form').onsubmit=async event=>{
+ event.preventDefault();
+ try{
+  await api('/api/settings/ambient',{method:'PUT',body:JSON.stringify(ambientInput())});
+  el('ambient-status').textContent='Ambient effects saved for all devices.';
+ }catch(error){el('ambient-status').textContent='Could not save: '+error.message}
+};
+el('ambient-off').onclick=()=>{
+ el('ambient-effect').value='off';
+ window.WillieAmbient?.preview(ambientInput());
+ el('ambient-form').requestSubmit();
 };
 let sidebarItems=[];
 function renderSidebar(){
@@ -197,7 +252,7 @@ async function loadSystemIcons(){
   row.append(preview,label,status,upload,restore,input);root.append(row);
  }
 }
-Promise.allSettled([loadTvAppearance(),loadSidebar(),loadSystemIcons()]).then(results=>{
+Promise.allSettled([loadTvAppearance(),loadAmbient(),loadSidebar(),loadSystemIcons()]).then(results=>{
  const failed=results.filter(x=>x.status==='rejected');
  if(failed.length)notice('Some appearance settings could not load: '+failed.map(x=>x.reason.message).join('; '),true);
 });

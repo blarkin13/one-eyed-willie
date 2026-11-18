@@ -21,6 +21,7 @@
 .tv-playback-settings .tv-language-options button[aria-pressed="true"]{
  border-color:#b5c9e4;font-weight:750}
 </style>
+<script defer src="/assets/ambient.js?v=1"></script>
 </head><body data-page="settings"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content tv-playback-settings">
@@ -73,6 +74,21 @@
 <input id="tv-theme-volume" type="range" min="0" max="100" step="5" value="25">
 <p class="settings-muted">These playback options are shared with the server and other TVs.</p>
 <div class="form-actions"><button type="submit" class="primary-button">Save shared playback settings</button></div>
+</form></div></section>
+<section class="settings-section" aria-labelledby="tv-ambient-heading">
+<h2 id="tv-ambient-heading">Ambient effects</h2>
+<div class="settings-card"><form id="tv-ambient-form">
+<p class="settings-muted">Optional snow, rain, leaves or fireflies while browsing. Never shown during video playback. Settings are shared with the server and all TVs.</p>
+<label for="tv-ambient-effect">Effect</label>
+<button type="button" class="secondary-button" id="tv-ambient-effect">Off (default)</button>
+<label for="tv-ambient-intensity">Intensity: <output id="tv-ambient-intensity-label">10%</output></label>
+<input id="tv-ambient-intensity" type="range" min="10" max="100" step="5" value="10">
+<label for="tv-ambient-speed">Speed</label>
+<button type="button" class="secondary-button" id="tv-ambient-speed">Normal</button>
+<label for="tv-ambient-layer">Position</label>
+<button type="button" class="secondary-button" id="tv-ambient-layer">Over interface</button>
+<div class="form-actions"><button type="submit" class="primary-button">Save ambient effects</button>
+<button type="button" id="tv-ambient-off" class="secondary-button">Turn off</button></div>
 </form></div></section>
 <section class="settings-section" aria-labelledby="tv-connection-heading"><h2 id="tv-connection-heading">Server connection</h2>
 <div class="settings-card"><p class="settings-muted">Change the IP address or port saved on this television. Other TVs and the server are unaffected.</p>
@@ -213,6 +229,47 @@ el('tv-playback-form').onsubmit=async event=>{
   })});
   message('Shared playback settings saved.');
  }catch(error){message(error.message)}
+};
+const ambientChoices={
+ effect:[['off','Off (default)'],['snow','Snow'],['rain','Rain'],['leaves','Falling leaves'],['fireflies','Fireflies']],
+ speed:[['slow','Slow'],['normal','Normal'],['fast','Fast']],
+ layer:[['foreground','Over interface'],['background','Behind interface']]
+};
+let ambientState={effect:'off',intensity:10,speed:'normal',layer:'foreground'};
+function drawAmbientButtons(){
+ for(const [field,choices] of Object.entries(ambientChoices)){
+  const row=choices.find(pair=>pair[0]===ambientState[field])||choices[0];
+  el('tv-ambient-'+field).textContent=row[1];
+  el('tv-ambient-'+field).setAttribute('aria-label',field+': '+row[1]+'. Press OK to change.');
+ }
+ el('tv-ambient-intensity').value=ambientState.intensity;
+ el('tv-ambient-intensity-label').textContent=ambientState.intensity+'%';
+ window.WillieAmbient?.preview(ambientState);
+}
+for(const [field,choices] of Object.entries(ambientChoices)){
+ el('tv-ambient-'+field).onclick=()=>{
+  const index=choices.findIndex(pair=>pair[0]===ambientState[field]);
+  ambientState[field]=choices[(index+1)%choices.length][0];
+  drawAmbientButtons();
+ };
+}
+el('tv-ambient-intensity').oninput=()=>{
+ ambientState.intensity=Number(el('tv-ambient-intensity').value);
+ drawAmbientButtons();
+};
+api('/api/settings/ambient').then(data=>{
+ ambientState={...ambientState,...data};drawAmbientButtons();
+}).catch(error=>message('Could not load ambient effects: '+error.message));
+el('tv-ambient-form').onsubmit=async event=>{
+ event.preventDefault();
+ try{
+  await api('/api/settings/ambient',{method:'PUT',body:JSON.stringify(ambientState)});
+  message('Ambient effects saved for the server and other TVs.');
+ }catch(error){message('Could not save ambient effects: '+error.message)}
+};
+el('tv-ambient-off').onclick=()=>{
+ ambientState.effect='off';drawAmbientButtons();
+ el('tv-ambient-form').requestSubmit();
 };
 el('tv-server-connection').onclick=()=>prompt('oewtv:settings:server','');
 </script></body></html>
