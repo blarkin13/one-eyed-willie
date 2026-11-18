@@ -125,3 +125,7 @@ This app does not have Plex's full deep-video-analysis engine or its seek
 thumbnail index format. Its extensive analysis currently samples audio loudness;
 it does not perform whole-file scene detection, intros, credits, or loudness
 normalization. GPU/CPU use and throughput vary by the NUC's hardware.
+
+## Integration logo assets
+
+Connection-service logos are bundled locally and used only to identify supported third-party services. Lidarr and Plex pictograms are sourced from the [selfh.st icon collection](https://github.com/selfhst/icons), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) by that collection's contributors. OpenSubtitles' icon is from the [official OpenSubtitles.com Kodi add-on](https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com). Radarr, Sonarr, and SABnzbd keep their previously bundled logos. Logos and trademarks belong to their respective owners; their presence does not imply endorsement.

@@ -31,10 +31,10 @@
 const entries=[
  {id:'radarr',title:'Radarr',dashboard:'/radarr',config:'#connections',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
  {id:'sonarr',title:'Sonarr',dashboard:'/sonarr',config:'#connections',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
- {id:'lidarr',title:'Lidarr',config:'#connections',description:'Manage music artists and albums through Lidarr.'},
+ {id:'lidarr',title:'Lidarr',config:'#connections',description:'Manage music artists and albums through Lidarr.',image:'/assets/brand/lidarr.svg'},
  {id:'sabnzbd',title:'SABnzbd',dashboard:'/sabnzbd',config:'#sab-heading',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
- {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.'},
- {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.'}
+ {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.',image:'/assets/brand/plex.svg'},
+ {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'}
 ];
 async function status(url){
  const response=await fetch(url,{cache:'no-store'});
@@ -69,12 +69,8 @@ async function showConnected(){
    const heading=document.createElement('span');heading.className='service-name';
    if(service.image){
      const image=document.createElement('img');image.src=service.image;image.alt='';
-     image.className='integration-logo';heading.append(image);
-   }
-   if(service.id==='lidarr'){
-     const icon=document.createElement('i');icon.className='fa-solid fa-music';
-     icon.style.cssText='font-size:1.8rem;color:#d8e2f2';icon.setAttribute('aria-hidden','true');
-     heading.append(icon);
+     image.className='integration-logo';image.onerror=()=>image.remove();
+     heading.append(image);
    }
    heading.append(document.createTextNode(service.title));
    const description=document.createElement('span');description.className='service-description';

@@ -10,7 +10,7 @@
 .connection-list>.connection-card,.connection-grid>.connection-card{width:100%;max-width:none;min-width:0;box-sizing:border-box;margin:0}
 .connection-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:24px;min-width:0}
 .connection-head{display:flex;align-items:center;justify-content:space-between;gap:15px}
-.connection-head h2{margin:0;font-size:1.3rem;letter-spacing:-.02em}
+.connection-head h2{margin:0;font-size:1.3rem;letter-spacing:-.02em;display:inline-flex;align-items:center;gap:10px}
 .connection-kind{color:var(--muted);font-size:.9rem;margin:6px 0 16px}
 .connection-state{color:#b9cadc;font-size:.84rem;padding:9px 0;overflow-wrap:anywhere}
 .connection-card label{display:block;font-size:.83rem;font-weight:650;margin:14px 0 6px}
@@ -99,7 +99,7 @@
 <p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. One-Eyed Willie only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
 </section>
 <section class="connection-card" aria-labelledby="plex-heading">
-<div class="connection-head"><h2 id="plex-heading">Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
+<div class="connection-head"><h2 id="plex-heading"><img class="integration-logo" src="/assets/brand/plex.svg" alt=""> Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Import watched movies and episodes from your local Plex server into One-Eyed Willie.</p>
 <p id="plex-summary" class="connection-state" role="status">Checking connection…</p>
 <form id="plex-form">
@@ -115,7 +115,7 @@
 <p class="connection-help">Imports only confirmed watched items, never removes existing watch history and never changes Plex. Matches are checked by movie title/year or TV show/season/episode number. Review the preview before importing.</p>
 </section>
 <section class="connection-card" aria-labelledby="opensubtitles-heading">
-<div class="connection-head"><h2 id="opensubtitles-heading">OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
+<div class="connection-head"><h2 id="opensubtitles-heading"><img class="integration-logo" src="/assets/brand/opensubtitles.png" alt=""> OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Find, download and enable subtitles without leaving the player.</p>
 <p id="os-summary" class="connection-state" role="status">Checking connection…</p>
 <form id="os-form">
@@ -152,18 +152,13 @@ function build(){
  for(const provider of providers){
    const article=document.createElement('article');article.className='connection-card';
    const header=document.createElement('div');header.className='connection-head';
-   const name=document.createElement('h2');name.textContent=provider.title;
+   const name=document.createElement('h2');
+   const icon=document.createElement('img');
+   icon.className='integration-logo';
+   icon.src='/assets/brand/'+provider.id+'.svg';icon.alt='';
+   icon.onerror=()=>icon.remove();
+   name.append(icon,document.createTextNode(provider.title));
    const state=document.createElement('span');state.className='integration-state';state.textContent='Checking…';
-   if(provider.id==='radarr'||provider.id==='sonarr'){
-     const icon=document.createElement('img');icon.className='integration-logo';
-     icon.src='/assets/brand/'+provider.id+'.svg';icon.alt='';
-     header.append(icon);
-   }
-   if(provider.id==='lidarr'){
-     const icon=document.createElement('i');icon.className='fa-solid fa-music';
-     icon.setAttribute('aria-hidden','true');icon.style.cssText='font-size:1.3rem;color:#e1e7f0';
-     header.append(icon);
-   }
    header.append(name,state);
    const desc=document.createElement('p');desc.className='connection-kind';desc.textContent=provider.desc;
    const summary=document.createElement('div');summary.className='connection-state';

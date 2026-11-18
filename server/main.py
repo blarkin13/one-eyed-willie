@@ -409,13 +409,23 @@ def media_title_logo_script():
 @app.get("/assets/brand/{brand}.svg")
 def integration_brand_svg(brand: str):
     # Serve only the locally bundled official integration logos.
-    if brand not in ("radarr", "sonarr", "sabnzbd"):
+    if brand not in ("radarr", "sonarr", "sabnzbd", "lidarr", "plex"):
         from fastapi import HTTPException
         raise HTTPException(404, "Unknown integration")
     return FileResponse(
         Path(__file__).with_name(f"{brand}-official.svg"),
         media_type="image/svg+xml",
         headers={"Cache-Control": "public, max-age=86400"},
+    )
+
+
+@app.get("/assets/brand/opensubtitles.png")
+def opensubtitles_brand_png():
+    return FileResponse(
+        Path(__file__).with_name("opensubtitles-official.png"),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400",
+                 "X-Content-Type-Options": "nosniff"},
     )
 
 

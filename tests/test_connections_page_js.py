@@ -29,6 +29,19 @@ class ConnectionsPageTests(unittest.TestCase):
                 self.assertIn('id="' + service + '"', self.html)
         self.assertIn("build();initConnectionDirectory();refresh();", self.script)
 
+    def test_integration_logos_match_between_pages(self):
+        from server.main import integration_brand_svg, opensubtitles_brand_png
+        hub = (PAGE.parent / "connections_hub.html").read_text(encoding="utf-8")
+        for name in ("lidarr", "plex"):
+            with self.subTest(name=name):
+                src = "/assets/brand/" + name + ".svg"
+                self.assertIn(src, self.html)
+                self.assertIn(src, hub)
+                self.assertTrue(Path(integration_brand_svg(name).path).is_file())
+        self.assertIn("/assets/brand/opensubtitles.png", self.html)
+        self.assertIn("/assets/brand/opensubtitles.png", hub)
+        self.assertTrue(Path(opensubtitles_brand_png().path).is_file())
+
     def test_search_and_expand_controls_present(self):
         for control in ("connection-search", "connections-expand",
                         "connections-collapse", "connections-count"):
