@@ -965,3 +965,20 @@ body[data-page="home"] .shelf-track>.tile{
 .sidebar .library-nav-link .nav-clean-icon.library-custom-icon .fa-fallback{width:24px;height:24px}
 .sidebar .nav-link[aria-current="page"] .nav-clean-icon,
 .sidebar .nav-link:focus-visible .nav-clean-icon{color:#a78bfa}
+
+/* Theme-consistent Font Awesome icons for library mastheads, settings rows,
+   library editor previews and icon picker. Pirate remains unchanged. */
+.library-fa-icon{display:inline-flex;align-items:center;justify-content:center;
+ vertical-align:middle;line-height:1;color:#f7f7f7;flex:none;width:1em;height:1em}
+.library-fa-icon>i{display:none;font-size:1em;line-height:1}
+.library-fa-icon>.library-fa-fallback{display:block;width:1em;height:1em;flex:none}
+.fontawesome-ready .library-fa-icon>i{display:inline-block}
+.fontawesome-ready .library-fa-icon>.library-fa-fallback{display:none}
+.library-header-title .library-header-icon .library-fa-icon{width:76px;height:76px}
+.library-header-title .library-header-icon .library-fa-icon>i{font-size:60px}
+.library-header-title .library-header-icon .library-fa-icon>.library-fa-fallback{width:60px;height:60px}
+@media(max-width:700px){
+ .library-header-title .library-header-icon .library-fa-icon{width:60px;height:60px}
+ .library-header-title .library-header-icon .library-fa-icon>i{font-size:48px}
+ .library-header-title .library-header-icon .library-fa-icon>.library-fa-fallback{width:48px;height:48px}
+}
