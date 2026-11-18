@@ -50,7 +50,10 @@ small{color:#c4c9d2}label{display:block;margin-top:16px}
    try{
      const token=document.getElementById('token').value;
      if(token.length<32)throw Error('Enter the 32+ character test token');
-     pc=new RTCPeerConnection({iceServers:[{urls:'stun:stun.l.google.com:19302'}]});
+     // A local transport check must work when CI blocks external STUN traffic.
+     // Remote HTTPS testing still needs STUN for NAT candidate discovery.
+     const loopback=['localhost','127.0.0.1','::1'].includes(location.hostname);
+     pc=new RTCPeerConnection({iceServers:loopback?[]:[{urls:'stun:stun.l.google.com:19302'}]});
      const channel=pc.createDataChannel('yarr-direct-probe-v1',{ordered:true});
      const durationStart=performance.now(), parts=[];
      let received=0, expected=0, startByte=1024;
