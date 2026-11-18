@@ -54,7 +54,7 @@ def test_derived_key_is_scoped_to_paired_tunnel():
     with patch.object(peer.yarr_pairing, "TUNNEL_TOKEN_FILE", sample), \
          patch.object(peer.yarr_pairing, "_read", lambda: {"status": "paired"}), \
          patch.dict(os.environ, {"YARR_DIRECT_PEER_ENABLED": "1"}):
-        expected = hashlib.sha256(("yarr-direct-offer-v1\\x00" + token).encode()).hexdigest()
+        expected = hashlib.sha256(("yarr-direct-offer-v1" + chr(0) + token).encode()).hexdigest()
         assert peer.shared_secret() == expected
         peer.authorized(expected)
         with pytest.raises(HTTPException) as error:
