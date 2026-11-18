@@ -502,6 +502,11 @@ function openContinueMenu(link,x=0,y=0){
    if(!response.ok)throw Error('Unable to mark as watched');
    close();await load({preserveFocus:true});
  });
+ option('Delete…',()=>{
+   close();
+   if(!window.__willieMediaOpenDelete?.(link))
+     throw Error('Delete actions are not available yet');
+ });
  option('Mark as unwatched',async()=>{
    const response=await fetch('/api/watch/'+item.media_id+'/watched',{
      method:'PUT',headers:{'Content-Type':'application/json'},
