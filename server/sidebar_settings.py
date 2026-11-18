@@ -107,6 +107,9 @@ def get_sidebar():
         hidden = set("connections" if item == "sabnzbd" else item
                      for item in old_hidden)
         hidden.update(item["id"] for item in entries if item.get("sidebar_hidden"))
+        # Discard visibility settings for removed library types or deleted libraries.
+        # Otherwise a future Settings save would submit now-invalid sidebar IDs.
+        hidden.intersection_update(by_id)
         order = list(dict.fromkeys(key for key in saved if key in by_id))
         # New libraries and newly-added destinations are appended before Settings.
         index = order.index("settings") if "settings" in order else len(order)
