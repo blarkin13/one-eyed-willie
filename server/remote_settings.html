@@ -84,14 +84,20 @@ async function yarrCheck(){
   if(!r.ok)throw Error(result.detail||'Unable to check Yarr pairing');
   if(result.status==='paired'&&result.connection_ready){
    yarrStatus.textContent='Account paired. Secure online status is enabled; remote playback is not yet available.';
-   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
+   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);yarrTimer=null;
   }else if(result.status==='paired'){
    yarrStatus.textContent='Account paired. Refresh the connection to activate online status reporting.';
    yarrStart.textContent='Refresh secure connection';
    yarrStart.hidden=false;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
   }else if(result.status==='pending'){
-   yarrStatus.textContent='Pairing pending. Enter the code in your Yarr account.';
+   yarrStatus.textContent='Pairing pending. Enter this code in your Yarr account ('+Math.ceil((result.expires_in||0)/60)+' min remaining).';
+   if(result.code){yarrCode.textContent=result.code;yarrCode.hidden=false;}
+   else {yarrCode.textContent='';yarrCode.hidden=true;}
+   if(result.claim_url)yarrClaim.href=result.claim_url;
+   yarrStart.textContent='Generate a new code';
+   yarrStart.hidden=false;
    yarrClaim.hidden=false;
+   if(!yarrTimer)yarrTimer=setInterval(yarrCheck,5000);
   }else{
    yarrStatus.textContent='Not connected. Use Connect to Yarr to create a pairing code.';
    yarrStart.hidden=false;yarrClaim.hidden=true;yarrCode.hidden=true;clearInterval(yarrTimer);
