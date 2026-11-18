@@ -493,9 +493,8 @@ class PlayerActivity : ComponentActivity() {
         return root
     }
 
-    /** TV-native playback and captions panels with predictable remote focus.
-     * Always draw our own full dialog surface instead of an Android list dialog.
-     * Focus is a single purple edge marker, not a large colored box.
+    /** Compact native TV menus shared by playback and closed captions.
+     * The focused option is marked by a slim accent, never a large focus box.
      */
     private fun showPlayerMenu(
         heading: String,
@@ -509,41 +508,29 @@ class PlayerActivity : ComponentActivity() {
         lateinit var dialog: AlertDialog
         val panel = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(dp(24), dp(21), dp(24), dp(16))
+            setPadding(dp(17), dp(14), dp(17), dp(11))
             background = GradientDrawable().apply {
-                cornerRadius = dp(22).toFloat()
-                setColor(0xF20A101B.toInt())
-                setStroke(dp(1), 0x66485970)
+                cornerRadius = dp(14).toFloat()
+                setColor(0xF00B111C.toInt())
+                setStroke(dp(1), 0x4D566579)
             }
         }
         panel.addView(TextView(this).apply {
-            text = if (heading.contains("Caption", true) ||
-                heading.contains("subtitle", true)) "SUBTITLES" else "PLAYER"
-            textSize = 11f
-            letterSpacing = 0.17f
-            setTextColor(selectedColor)
-            typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dp(3), 0, 0, dp(5))
-        })
-        panel.addView(TextView(this).apply {
             text = heading
-            textSize = 24f
-            setTextColor(0xFFF7F7FA.toInt())
+            textSize = 18f
+            setTextColor(0xFFF3F5F9.toInt())
             typeface = android.graphics.Typeface.DEFAULT_BOLD
-            setPadding(dp(3), 0, 0, dp(13))
+            setPadding(dp(6), 0, dp(6), dp(8))
         })
         if (!description.isNullOrBlank()) {
             panel.addView(TextView(this).apply {
                 text = description
-                textSize = 15f
-                setTextColor(0xFFC9D3E0.toInt())
-                setLineSpacing(dp(3).toFloat(), 1f)
-                setPadding(dp(3), 0, dp(3), dp(12))
+                textSize = 13f
+                setTextColor(0xFFB8C5D5.toInt())
+                setLineSpacing(dp(2).toFloat(), 1f)
+                setPadding(dp(6), 0, dp(6), dp(8))
             })
         }
-        panel.addView(View(this).apply {
-            setBackgroundColor(0x334B5B70)
-        }, LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)))
         fun row(label: String, chosen: Boolean = false, action: () -> Unit): LinearLayout {
             val line = LinearLayout(this).apply {
                 orientation = LinearLayout.HORIZONTAL
@@ -551,16 +538,16 @@ class PlayerActivity : ComponentActivity() {
                 isFocusable = true
                 isFocusableInTouchMode = true
                 isClickable = true
-                minimumHeight = dp(53)
+                minimumHeight = dp(45)
                 contentDescription = label + if (chosen) ", selected" else ""
             }
             val marker = View(this)
-            line.addView(marker, LinearLayout.LayoutParams(dp(3), dp(24)).apply {
-                marginEnd = dp(12)
+            line.addView(marker, LinearLayout.LayoutParams(dp(2), dp(20)).apply {
+                marginEnd = dp(9)
             })
             val title = TextView(this).apply {
                 text = label
-                textSize = 16f
+                textSize = 14.5f
                 maxLines = 2
                 ellipsize = android.text.TextUtils.TruncateAt.END
                 gravity = Gravity.CENTER_VERTICAL
@@ -569,21 +556,21 @@ class PlayerActivity : ComponentActivity() {
             if (chosen) {
                 line.addView(TextView(this).apply {
                     text = "✓"
-                    textSize = 19f
+                    textSize = 16f
                     setTextColor(selectedColor)
                     gravity = Gravity.CENTER
                     contentDescription = "Selected"
-                }, LinearLayout.LayoutParams(dp(38), dp(45)))
+                }, LinearLayout.LayoutParams(dp(27), dp(40)))
             }
             fun updateLook(focused: Boolean) {
-                title.setTextColor(if (focused) selectedColor else 0xFFE7ECF5.toInt())
+                title.setTextColor(if (focused) selectedColor else 0xFFE2E9F3.toInt())
                 marker.background = GradientDrawable().apply {
-                    cornerRadius = dp(3).toFloat()
+                    cornerRadius = dp(2).toFloat()
                     setColor(if (focused) selectedColor else Color.TRANSPARENT)
                 }
                 line.background = GradientDrawable().apply {
-                    cornerRadius = dp(8).toFloat()
-                    setColor(if (focused) 0x33222D43 else Color.TRANSPARENT)
+                    cornerRadius = dp(6).toFloat()
+                    setColor(if (focused) 0x24253140 else Color.TRANSPARENT)
                 }
             }
             updateLook(false)
@@ -595,7 +582,7 @@ class PlayerActivity : ComponentActivity() {
         if (options.isNotEmpty()) {
             val menu = LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
-                setPadding(0, dp(9), 0, dp(4))
+                setPadding(0, dp(3), 0, dp(2))
             }
             options.forEachIndexed { index, title ->
                 row(title, chosen = index == selected) { onSelect(index) }.let {
@@ -607,38 +594,36 @@ class PlayerActivity : ComponentActivity() {
             val scroll = ScrollView(this).apply {
                 isFillViewport = false
                 isVerticalScrollBarEnabled = options.size > 6
-                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLL
                 addView(menu)
             }
-            val allowedHeight = minOf(dp(410),
-                (resources.displayMetrics.heightPixels * 0.57f).toInt())
+            val allowedHeight = minOf(dp(330),
+                (resources.displayMetrics.heightPixels * 0.58f).toInt())
             panel.addView(scroll, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                minOf(allowedHeight, options.size * dp(57) + dp(13))))
+                minOf(allowedHeight, options.size * dp(47) + dp(7))))
         }
         val footer = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.END or Gravity.CENTER_VERTICAL
-            setPadding(0, dp(8), 0, 0)
+            setPadding(0, dp(2), 0, 0)
         }
         if (secondaryLabel != null && secondaryAction != null) {
             footer.addView(row(secondaryLabel) { secondaryAction() },
-                LinearLayout.LayoutParams(0, dp(48), 1f))
+                LinearLayout.LayoutParams(0, dp(43), 1f))
         }
         val close = row("Close") {}
-        footer.addView(close, LinearLayout.LayoutParams(dp(112), dp(48)))
+        footer.addView(close, LinearLayout.LayoutParams(dp(86), dp(43)))
         panel.addView(footer)
         dialog = AlertDialog.Builder(this).setView(panel).create()
         dialog.show()
         dialog.window?.apply {
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            setDimAmount(0.61f)
-            setLayout(minOf(dp(550), resources.displayMetrics.widthPixels - dp(48)),
+            setDimAmount(0.43f)
+            setLayout(minOf(dp(430), resources.displayMetrics.widthPixels - dp(44)),
                 ViewGroup.LayoutParams.WRAP_CONTENT)
         }
-        // Every popup starts with an explicitly focused choice (not the
-        // underlying player or a hidden system-dialog button).
         optionViews.getOrNull(selected.takeIf { it in optionViews.indices } ?: 0)
             ?.requestFocus() ?: close.requestFocus()
     }
