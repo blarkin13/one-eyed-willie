@@ -525,7 +525,8 @@ function openContinueMenu(link,x=0,y=0){
 }
 window.__willieTvLongSelect=()=>{
  const link=document.activeElement?.closest?.('#continue-watching .tile-button');
- return link?openContinueMenu(link):false;
+ if(link)return openContinueMenu(link);
+ return window.__willieMediaLongSelect?.()||false;
 };
 function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  const target=byId(id);target.replaceChildren();
