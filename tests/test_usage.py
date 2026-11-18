@@ -37,12 +37,22 @@ class Client:
         sent = []
 
         async def run():
+            finished, delivered = asyncio.Event(), []
+
             async def receive():
-                return {"type": "http.request", "body": b"", "more_body": False}
+                # One empty request body, then (like a real server) nothing until the
+                # client goes away. Returning instantly forever would starve the response
+                # of the event loop in frameworks that watch for a disconnect.
+                if not delivered:
+                    delivered.append(True)
+                    return {"type": "http.request", "body": b"", "more_body": False}
+                await finished.wait()
+                return {"type": "http.disconnect"}
 
             async def send(message):
                 sent.append(message)
             await self.app(scope, receive, send)
+            finished.set()
 
         asyncio.run(run())
         status = next(m["status"] for m in sent if m["type"] == "http.response.start")
