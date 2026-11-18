@@ -915,3 +915,43 @@ html body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-vis
   border-color:var(--oew-tv-select-color,#8B5CF6)!important;
   box-shadow:none!important;
 }
+
+/* Home: one cinematic screen per library shelf, shared by local and Yarr.
+   Each section owns its detail header and a single horizontal poster rail. */
+body[data-page="home"] .workspace>.content{
+  max-width:none;
+  padding-right:0;
+}
+body[data-page="home"] .shelf{
+  box-sizing:border-box;
+  margin-top:0;
+  min-height:100dvh;
+  padding-top:0;
+  padding-bottom:clamp(24px,5vh,56px);
+}
+body[data-page="home"] .shelf .section-heading{
+  padding-right:clamp(22px,3.2vw,44px);
+}
+body[data-page="home"] .shelf-track{
+  display:flex;
+  flex-flow:row nowrap;
+  align-items:flex-start;
+  width:100%;
+  max-width:none;
+  overflow-x:auto;
+  overflow-y:hidden;
+  scroll-snap-type:x proximity;
+}
+body[data-page="home"] .shelf-track>.tile{
+  flex:0 0 164px;
+  width:164px;
+  min-width:0;
+  align-self:flex-start;
+}
+@media(max-width:700px){
+ body[data-page="home"] .shelf{min-height:100dvh;margin-top:0;padding-bottom:110px}
+ body[data-page="home"] .shelf-track>.tile{
+   flex-basis:clamp(124px,34vw,156px);
+   width:clamp(124px,34vw,156px);
+ }
+}
