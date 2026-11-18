@@ -585,7 +585,8 @@ export default { async fetch(req,env) {
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
   if(u.pathname==='/'||u.pathname==='/index.html') {
    const user=await currentUser(req,env);
-   if(user)return proxyInstalledApp(req,env,'/');
+   // The public product homepage must remain visible even for signed-in users.
+   // The media UI is available explicitly at /app; account settings at /account.
    const cta=user?'<a class="btn primary" href="/app">Open App</a><a class="btn" href="/account">My Account</a>':authReady(env)?'<a class="btn primary" href="/auth/google/start">Sign in with Google</a>':'<a class="btn primary" href="/account">Account setup</a>';
    const rendered=page.replace('<a class="btn primary" href="#setup">See how it works</a>',cta+'<a class="btn" href="#setup">See how it works</a>')
      .replace('Server download & sign-in are coming.','Server downloads are coming.')
