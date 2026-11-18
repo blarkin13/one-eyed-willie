@@ -253,9 +253,15 @@ body[data-page="home"] .shelf-track {
 body[data-page="home"] .shelf-track .tile-button{
   scroll-margin-inline:48px!important;
 }
-body[data-page="home"] .shelf-track>.tile:first-child
+/* Keep the selected artwork inside the rail's real clipping bounds.
+   The global 1.07 focus scale enlarged beyond the available vertical
+   padding, cutting the rounded outline even after moving the entire row. */
+html body[data-page="home"] .shelf-track
   .tile-button:is(:focus,:focus-visible) .cover{
-  transform-origin:left center!important;
+  transform:scale(1.02)!important;
+  transform-origin:center center!important;
+  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+  filter:brightness(1.16)!important;
 }
 body[data-page="home"] .shelf {
   margin-top:13px!important;min-height:0!important;
