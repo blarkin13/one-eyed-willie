@@ -346,6 +346,51 @@ class LibraryScrollBrowserTests(unittest.TestCase):
         again = self.press(page, "down")
         self.assertEqual((again["kind"], again["top"]), ("poster", 0))
 
+    def test_sort_and_filter_remote_down_enters_and_scrolls_menu(self):
+        """Exercise the real catalog and the native injected D-pad handler."""
+        page = self.open_library()
+        page.evaluate("""() => document.getElementById('sort-toggle')
+            .focus({preventScroll:true})""")
+        page.evaluate("window.__willieTvMove('down')")
+        opened = page.evaluate("""() => ({
+          open: !document.getElementById('sort-menu').hidden,
+          focused: document.activeElement?.dataset?.menuValue
+        })""")
+        self.assertTrue(opened["open"], "Down on Sort must open the menu")
+        self.assertEqual(opened["focused"], "title")
+        page.evaluate("window.__willieTvMove('down')")
+        self.assertEqual(page.evaluate("document.activeElement?.dataset?.menuValue"), "added")
+        page.evaluate("window.__willieTvSelect()")
+        page.wait_for_function("document.getElementById('sort').value==='added'")
+        self.assertTrue(page.evaluate("document.getElementById('sort-menu').hidden"))
+
+        # Populate a long genre list to check that D-pad scrolling stays
+        # inside the Filter popup instead of moving the poster page.
+        page.evaluate("""() => {
+          const select=document.getElementById('genre');
+          for(let i=0;i<25;i++)select.add(new Option('Genre '+i, 'genre-'+i));
+          document.getElementById('genre-toggle').focus({preventScroll:true});
+        }""")
+        page.evaluate("window.__willieTvMove('down')")
+        self.assertTrue(page.evaluate("!document.getElementById('genre-menu').hidden"))
+        self.assertEqual(page.evaluate("document.activeElement?.dataset?.menuValue"), "")
+        page.evaluate("() => {for(let i=0;i<15;i++)window.__willieTvMove('down')}")
+        state=page.evaluate("""() => {
+          const menu=document.getElementById('genre-menu');
+          const item=document.activeElement,r=item.getBoundingClientRect(),
+            bounds=menu.getBoundingClientRect();
+          return {value:item.dataset.menuValue,scroll:menu.scrollTop,
+            inside:r.top>=bounds.top&&r.bottom<=bounds.bottom,
+            focused:item.closest('#genre-menu')===menu};
+        }""")
+        self.assertEqual(state["value"], "genre-14")
+        self.assertTrue(state["focused"])
+        self.assertGreater(state["scroll"], 0, "long filters must scroll within popup")
+        self.assertTrue(state["inside"], "selected genre must remain visible")
+        page.evaluate("window.__willieTvSelect()")
+        page.wait_for_function("document.getElementById('genre').value==='genre-14'")
+        self.assertTrue(page.evaluate("document.getElementById('genre-menu').hidden"))
+
     def test_down_then_up_returns_to_the_same_poster(self):
         page = self.open_library()
         self.press(page, "right"); self.press(page, "right")
