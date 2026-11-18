@@ -301,6 +301,12 @@ font-size:.86rem;line-height:1.35}
     const data=resolve(document.activeElement);
     return data ? show(data) : false;
   };
+  window.__willieMediaOpenDelete = node => {
+    const data=resolve(node);
+    if (!data) return false;
+    deleteScopeMenu(data);
+    return true;
+  };
   const previousLongSelect = window.__willieTvLongSelect;
   window.__willieTvLongSelect = () => {
     const node=document.activeElement;
