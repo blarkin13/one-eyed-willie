@@ -594,7 +594,7 @@ class PlayerActivity : ComponentActivity() {
             val scroll = ScrollView(this).apply {
                 isFillViewport = false
                 isVerticalScrollBarEnabled = options.size > 6
-                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLL
+                overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
                 addView(menu)
             }
             val allowedHeight = minOf(dp(330),
