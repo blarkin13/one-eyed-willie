@@ -56,6 +56,17 @@ class MainActivity : ComponentActivity() {
     private var heldDpadKey = -1
     private var lastDpadMoveTime = 0L
     private var playerLaunchPending = false
+    private val tvSelectHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var pendingTvSelect: Runnable? = null
+    private var tvSelectHeld = false
+    private var tvSelectLongFired = false
+
+    private fun cancelTvSelect() {
+        pendingTvSelect?.let(tvSelectHandler::removeCallbacks)
+        pendingTvSelect = null
+        tvSelectHeld = false
+        tvSelectLongFired = false
+    }
     private var tvNavigationSerial = 0L
     // Back-pressure for held D-pad repeats: a repeat is dropped while the page
     // is still busy with the previous move, so a slow TV can never build up a
@@ -793,6 +804,7 @@ class MainActivity : ComponentActivity() {
             return if (loadingFailed) super.dispatchKeyEvent(event) else true
         if (event.keyCode == KeyEvent.KEYCODE_BACK && web != null) {
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                cancelTvSelect()
                 if (tvTextEditing) finishTvTextEditing(web)
                 else navigateBackToParent(web)
             }
@@ -802,11 +814,31 @@ class MainActivity : ComponentActivity() {
             (event.keyCode == KeyEvent.KEYCODE_DPAD_CENTER ||
              event.keyCode == KeyEvent.KEYCODE_ENTER ||
              event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
-            // Select cannot activate a poster during an unfinished D-pad
-            // hold, and Android's repeated Select presses are ignored.
+            // A short OK opens details on key release; a held OK opens the
+            // Continue Watching context menu without also activating the link.
+            // Using ACTION_UP for normal selection prevents a long press from
+            // playing or navigating before the long-press event is recognized.
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0 &&
-                heldDpadKey == -1 && !playerLaunchPending)
-                web.evaluateJavascript("window.__willieTvSelect?.()", null)
+                heldDpadKey == -1 && !playerLaunchPending) {
+                cancelTvSelect()
+                tvSelectHeld = true
+                val pending = Runnable {
+                    if (tvSelectHeld && browser === web && !tvTextEditing &&
+                        !isFinishing) {
+                        tvSelectLongFired = true
+                        web.evaluateJavascript(
+                            "window.__willieTvLongSelect?.()", null)
+                    }
+                }
+                pendingTvSelect = pending
+                tvSelectHandler.postDelayed(pending, 550L)
+            } else if (event.action == KeyEvent.ACTION_UP) {
+                val shouldSelect = tvSelectHeld && !tvSelectLongFired &&
+                    heldDpadKey == -1 && !playerLaunchPending
+                cancelTvSelect()
+                if (shouldSelect && browser === web)
+                    web.evaluateJavascript("window.__willieTvSelect?.()", null)
+            }
             return true
         }
         if (direction != null && web != null) {
@@ -959,6 +991,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onPause() {
+        cancelTvSelect()
         stopTvRepeat()
         // Never hold the display awake when browsing or watching is backgrounded.
         browser?.keepScreenOn = false
@@ -969,6 +1002,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        cancelTvSelect()
         startupSounds.toList().forEach { it.release() }
         startupSounds.clear()
         ++discoveryGeneration
@@ -1185,6 +1219,8 @@ class MainActivity : ComponentActivity() {
                 const libraryParent=type=>libraryId&&/^[1-9][0-9]*$/.test(libraryId)
                   ?type+'?'+new URLSearchParams({library_id:libraryId})
                   :type;
+                if(q.get('from')==='continue' &&
+                   ['/movie','/tv/season','/tv/show'].includes(p))return '/';
                 if(p==='/movie')return libraryParent('/movies');
                 if(p==='/tv/episode')return document.querySelector(
                   'a[href^="/tv/season?"]')?.getAttribute('href')||
@@ -2657,6 +2693,10 @@ class MainActivity : ComponentActivity() {
                 const library=['/movies','/tv'].includes(location.pathname);
                 const home=location.pathname==='/';
                 if(tvUserMoved)return true;
+                // Home restored the poster the viewer opened from Continue
+                // Watching; don't replace that selection with the first row.
+                if(home && window.__willieHomeReturnFocusReady &&
+                   active?.matches?.('.shelf-track .tile-button'))return true;
                 if(!library && !home && active && !isMenu(active) &&
                    active!==document.body && active!==document.documentElement){
                   if(location.pathname==='/'&&active.matches?.('.tile-button')){

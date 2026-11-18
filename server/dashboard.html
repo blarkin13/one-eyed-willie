@@ -27,6 +27,18 @@
 .shelf-empty{margin-top:13px;min-height:156px;padding:24px 28px;border:1px dashed #35465a;border-radius:14px;background:linear-gradient(130deg,#161c26,#11161e);display:flex;flex-direction:column;justify-content:center;align-items:flex-start}
 .shelf-empty h3{font-size:1.03rem;margin:0 0 5px}.shelf-empty p{margin:0;color:var(--muted);max-width:570px;font-size:.89rem}
 .progress-time{font-size:.75rem;color:#b8d4ee;margin-top:9px;font-weight:650}
+.continue-menu{position:fixed;max-width:min(310px,calc(100vw - 24px));width:280px;
+ margin:0;padding:8px;border:1px solid #36485e;border-radius:12px;
+ background:#101b2bf5;color:#eff5ff;box-shadow:0 16px 45px #000a}
+.continue-menu::backdrop{background:#0005}
+.continue-menu h3{font-size:.9rem;margin:5px 9px 8px;line-height:1.3}
+.continue-menu button{display:flex;align-items:center;width:100%;min-height:43px;
+ text-align:left;background:none;border:0;border-radius:7px;
+ color:inherit;padding:10px 12px;font:inherit;cursor:pointer}
+.continue-menu button:is(:focus,:focus-visible,:hover){background:#23334b;
+ outline:2px solid var(--oew-tv-select-color,#8B5CF6);outline-offset:-2px}
+@media(prefers-reduced-motion:no-preference){.continue-menu[open]{animation:continue-open .15s ease-out}
+ @keyframes continue-open{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:translateY(0)}}}
 .next-episode-badge{display:inline-block;margin-top:8px;color:#b8d6f4;font-size:.75rem;font-weight:700;letter-spacing:.02em}
 .progress-track{height:4px;border-radius:4px;background:#2c394b;margin-top:9px;overflow:hidden}.progress-fill{height:100%;background:#a3d4ff;border-radius:4px}
 .shelf-action{font-size:.84rem;color:#b4d6ff;font-weight:650}.page-lead{max-width:650px;color:#9aa9bc}
@@ -322,23 +334,56 @@ function tile(item, watching=false){
   const nextEpisode=watching&&item.play_state==='next';
   const article=document.createElement('article');article.className='tile';
   const link=document.createElement('a');link.className='tile-button';
-  link.href=item.kind==='tv'&&item.library_id&&item.key
-    ?'/tv/show?'+new URLSearchParams({library_id:String(item.library_id),key:item.key})
-    :'/movie?'+new URLSearchParams({library_id:String(item.library_id),key:item.key});
+  // Continue Watching opens the correct detail page, never the player.
+  const params=new URLSearchParams({library_id:String(item.library_id),key:item.key});
+  if(watching)params.set('from','continue');
+  if(watching&&item.kind==='tv'&&item.season_number!==null&&
+     item.season_number!==undefined&&Number.isInteger(Number(item.season_number))){
+    params.set('season_number',String(item.season_number));
+    params.set('media_id',String(item.media_id));
+  }
+  link.href=item.kind==='tv'
+    ?(watching&&params.has('season_number')?'/tv/season?':'/tv/show?')+params
+    :'/movie?'+params;
   link._homeItem=item;
   link.setAttribute('aria-label',watching
-    ?(nextEpisode?'Play next episode of ':'Resume ')+item.title+' · '+(item.subtitle||'')
+    ?'Open details for '+item.title+' · '+(item.subtitle||'')
     :'Browse '+item.title);
   if(item.library_id&&item.key){
     link.dataset.hoverKind=item.kind==='movies'?'movies':'tv';
     link.dataset.hoverLibraryId=String(item.library_id);link.dataset.hoverKey=item.key;
   }
-  if(watching && item.media_id){
-    link.href='/watch/'+item.media_id;
+  if(watching&&item.media_id){
+    link.dataset.continueMediaId=String(item.media_id);
+    link.addEventListener('click',()=>{
+      // A normal select opens details; remember the exact poster and shelf
+      // position so Back returns to the same Continue Watching selection.
+      try{
+        sessionStorage.setItem('oew-continue-return',JSON.stringify({
+          href:link.getAttribute('href'),
+          x:link.closest('.shelf-track')?.scrollLeft||0,
+          y:window.scrollY
+        }));
+      }catch(_){}
+    });
+    link.addEventListener('contextmenu',event=>{
+      event.preventDefault();openContinueMenu(link,event.clientX,event.clientY);
+    });
+    // Long-press touch opens the same menu; do not navigate on release.
+    let touchTimer=null,longTouched=false;
+    link.addEventListener('pointerdown',event=>{
+      if(event.pointerType==='mouse')return;
+      longTouched=false;
+      clearTimeout(touchTimer);
+      touchTimer=setTimeout(()=>{
+        longTouched=true;openContinueMenu(link,event.clientX,event.clientY);
+      },550);
+    });
+    for(const type of ['pointerup','pointercancel','pointerleave']){
+      link.addEventListener(type,()=>clearTimeout(touchTimer));
+    }
     link.addEventListener('click',event=>{
-      if(event.metaKey||event.ctrlKey||event.shiftKey||event.altKey)return;
-      event.preventDefault();
-      WilliePlayer.open(item.media_id,item.title+' · '+(item.subtitle||''),{restart:nextEpisode});
+      if(longTouched){event.preventDefault();longTouched=false;}
     });
   }
   const cover=document.createElement('div');
@@ -399,6 +444,89 @@ function tile(item, watching=false){
   }
   article.appendChild(link);return article;
 }
+// Called by the Android remote's held OK key, and browser context menus.
+let continueMenu=null;
+function openContinueMenu(link,x=0,y=0){
+ const item=link?._homeItem;
+ if(!item?.media_id||!link.closest('#continue-watching'))return false;
+ continueMenu?.close?.();
+ const menu=document.createElement('dialog');
+ menu.className='continue-menu';menu.setAttribute('aria-label','Continue Watching options');
+ const title=document.createElement('h3');title.textContent=item.title;
+ menu.append(title);
+ const close=()=>{
+   if(menu.open)menu.close();
+   menu.remove();
+   if(continueMenu===menu)continueMenu=null;
+ };
+ menu.addEventListener('close',()=>{
+   menu.remove();if(continueMenu===menu)continueMenu=null;
+   if(link.isConnected)link.focus({preventScroll:true});
+ },{once:true});
+ const option=(label,action)=>{
+   const button=document.createElement('button');
+   button.type='button';button.textContent=label;
+   button.onclick=async()=>{
+     button.disabled=true;
+     try{
+       await action();
+       close();
+     }catch(error){
+       button.disabled=false;
+       title.textContent='Could not update: '+error.message;
+     }
+   };
+   menu.append(button);
+ };
+ option(item.play_state==='next'?'Play episode':'Resume',async()=>{
+   close();
+   WilliePlayer.open(item.media_id,item.title+' · '+(item.subtitle||''),
+     {restart:item.play_state==='next'});
+ });
+ option('Remove from Continue Watching',async()=>{
+   const response=await fetch('/api/home/continue/'+item.media_id+'/dismiss',
+     {method:'POST'});
+   if(!response.ok)throw Error('Unable to remove this title');
+   // Restore focus to a neighboring poster before rebuilding the shelf.
+   const sibling=link.closest('.tile')?.nextElementSibling?.querySelector('.tile-button')||
+     link.closest('.tile')?.previousElementSibling?.querySelector('.tile-button');
+   close();
+   sibling?.focus({preventScroll:true});
+   await load({preserveFocus:true});
+ });
+ option('Mark as watched',async()=>{
+   const response=await fetch('/api/watch/'+item.media_id+'/watched',{
+     method:'PUT',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({watched:true})
+   });
+   if(!response.ok)throw Error('Unable to mark as watched');
+   close();await load({preserveFocus:true});
+ });
+ option('Mark as unwatched',async()=>{
+   const response=await fetch('/api/watch/'+item.media_id+'/watched',{
+     method:'PUT',headers:{'Content-Type':'application/json'},
+     body:JSON.stringify({watched:false})
+   });
+   if(!response.ok)throw Error('Unable to mark as unwatched');
+   close();await load({preserveFocus:true});
+ });
+ menu.addEventListener('click',event=>{if(event.target===menu)close();});
+ document.body.append(menu);
+ menu.showModal();continueMenu=menu;
+ const bounds=link.getBoundingClientRect();
+ const width=menu.getBoundingClientRect().width;
+ const height=menu.getBoundingClientRect().height;
+ const left=x>0?x:bounds.left+bounds.width/2;
+ const top=y>0?y:bounds.bottom+4;
+ menu.style.left=Math.max(8,Math.min(innerWidth-width-8,left-width/2))+'px';
+ menu.style.top=Math.max(8,Math.min(innerHeight-height-8,top))+'px';
+ menu.querySelector('button')?.focus({preventScroll:true});
+ return true;
+}
+window.__willieTvLongSelect=()=>{
+ const link=document.activeElement?.closest?.('#continue-watching .tile-button');
+ return link?openContinueMenu(link):false;
+};
 function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  const target=byId(id);target.replaceChildren();
  const section=target.closest('.shelf');
@@ -436,6 +564,23 @@ async function load({preserveFocus=false}={}){
   shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
   shelf('recent-movies',data.recent_movies,'No movies yet','');
   shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  if(!preserveFocus){
+    try{
+      const previous=JSON.parse(sessionStorage.getItem('oew-continue-return')||'null');
+      if(previous?.href){
+        const target=[...byId('continue-watching').querySelectorAll('.tile-button')]
+          .find(card=>card.getAttribute('href')===previous.href);
+        if(target){
+          const track=byId('continue-watching').querySelector('.shelf-track');
+          if(track)track.scrollLeft=Number(previous.x)||0;
+          target.focus({preventScroll:true});
+          window.scrollTo({top:Number(previous.y)||0,behavior:'instant'});
+          window.__willieHomeReturnFocusReady=true;
+        }
+        sessionStorage.removeItem('oew-continue-return');
+      }
+    }catch(_){sessionStorage.removeItem('oew-continue-return');}
+  }
   // Native TV navigation is installed after document load. Notify it when
   // dynamically populated posters are ready for initial focus and backdrop.
   window.__oewHomeReady=true;

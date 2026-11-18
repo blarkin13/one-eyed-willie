@@ -864,7 +864,8 @@ async function renderSeason(){
     return;
   }
   // Open at the first episode that still needs watching, not the end of the list.
-  let selected=available.find(episode=>!episode.watched)||available[0];
+  let selected=available.find(episode=>episode.id===state.media_id)||
+    available.find(episode=>!episode.watched)||available[0];
   const allCards=new Map(),formatCache=new Map();
   const cinema=el('section','tv-season-cinema');
   const backdrop=image('','season-backdrop','');
