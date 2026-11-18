@@ -256,6 +256,7 @@ def home_shelves():
             "tv": len(recent["tv"]),
         },
         "playback_available": True,
+        "configured_library_kinds": sorted({row["kind"] for row in libs.values()}),
         "revision": revision,
         "progress_revision": progress_revision,
     }
