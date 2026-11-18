@@ -14,7 +14,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from threading import RLock
+from threading import Lock, RLock
 
 from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -217,25 +217,62 @@ def _movie_match(title, year, snapshot):
     return candidates[0]
 
 
-def _movie_path(library_id, key):
+_PATH_INDEX = {}          # library_id -> (signature, {key: (info, file, root)})
+_PATH_INDEX_LOCK = Lock()
+
+
+def _movie_index(library_id):
+    """Map every movie key in a library to its file with one pass over the media.
+
+    Resolving a key used to re-parse every file in the library until it hit the
+    match: ~55 ms per movie for 3,000 titles, so one 18-poster batch took ~1 s
+    and each movie page paid the same. The index is rebuilt only when the
+    library's media actually changes (the catalog revision moves on every scan
+    that adds, changes or removes files; the row count and highest id also guard
+    against changes that do not bump it, such as a deleted library).
+    """
     with db() as conn:
         lib = conn.execute(
             "SELECT id,kind,path FROM libraries WHERE id=?", (library_id,)
         ).fetchone()
         if not lib or lib["kind"] != "movies":
             raise HTTPException(404, "Movie library not found")
-        rows = conn.execute(
-            "SELECT path,source_root FROM media WHERE library_id=? ORDER BY path", (library_id,)
-        ).fetchall()
-    root = Path(lib["path"])
-    for row in rows:
-        try:
-            parsed = movie_info(row["path"], Path(row["source_root"] or lib["path"]))
-        except (ValueError, OSError):
-            continue
-        if parsed["key"] == key:
-            return parsed, Path(row["path"]), Path(row["source_root"] or lib["path"])
-    raise HTTPException(404, "Movie not found")
+        revision = conn.execute(
+            "SELECT revision FROM catalog_state WHERE id=1").fetchone()[0]
+        count, newest = conn.execute(
+            "SELECT COUNT(*),COALESCE(MAX(id),0) FROM media WHERE library_id=?",
+            (library_id,)).fetchone()
+    signature = (revision, count, newest, lib["path"])
+    cached = _PATH_INDEX.get(library_id)
+    if cached and cached[0] == signature:
+        return cached[1]
+    with _PATH_INDEX_LOCK:
+        cached = _PATH_INDEX.get(library_id)
+        if cached and cached[0] == signature:
+            return cached[1]
+        with db() as conn:
+            rows = conn.execute(
+                "SELECT path,source_root FROM media WHERE library_id=? ORDER BY path",
+                (library_id,)).fetchall()
+        index = {}
+        for row in rows:
+            root = Path(row["source_root"] or lib["path"])
+            try:
+                parsed = movie_info(row["path"], root)
+            except (ValueError, OSError):
+                continue
+            # The first file (by path) with a key wins, as the old scan did.
+            index.setdefault(parsed["key"], (parsed, Path(row["path"]), root))
+        _PATH_INDEX[library_id] = (signature, index)
+        return index
+
+
+def _movie_path(library_id, key):
+    entry = _movie_index(library_id).get(key)
+    if entry is None:
+        raise HTTPException(404, "Movie not found")
+    parsed, path, root = entry
+    return dict(parsed), path, root
 
 
 def _safe_sidecar(path, root, max_bytes=256_000):
