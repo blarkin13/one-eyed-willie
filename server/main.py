@@ -538,6 +538,12 @@ def metadata_settings_page():
 def explore_more_page():
     return TextFileResponse(Path(__file__).with_name("explore.html"), media_type="text/html")
 
+@app.get("/connections")
+def connections_hub_page():
+    return TextFileResponse(Path(__file__).with_name("connections_hub.html"), media_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
+
+
 @app.get("/services")
 def download_services_page():
     return TextFileResponse(Path(__file__).with_name("services.html"), media_type="text/html")
