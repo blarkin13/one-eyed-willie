@@ -16,6 +16,7 @@ from PIL import Image, UnidentifiedImageError
 
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media")).resolve()
 DB_PATH = Path(os.environ.get("DATABASE_PATH", "/data/library.sqlite3"))
+AUDIO_EXTENSIONS = {".mp3", ".flac", ".m4a", ".aac", ".ogg", ".opus", ".wav", ".aiff", ".alac"}
 VIDEO_EXTENSIONS = {".mkv", ".mp4", ".m4v", ".avi", ".mov", ".wmv", ".ts", ".webm", ".mpg", ".mpeg"}
 scan_lock = Lock()
 HEADER_DIRECTORY = DB_PATH.parent / 'library-headers'
@@ -40,7 +41,7 @@ LIBRARY_FONTS = (
 
 class LibraryRequest(BaseModel):
     name: str = Field(min_length=1, max_length=80)
-    kind: Literal["movies", "tv"]
+    kind: Literal["movies", "tv", "music"]
     path: str
     icon: str = "folder"
     font: str = "default"
@@ -539,7 +540,7 @@ def scan_library(library_id: int):
                 dirs[:] = [d for d in dirs if not d.startswith(".") and not Path(directory, d).is_symlink()]
                 for filename in files:
                     file_path = Path(directory, filename)
-                    if file_path.suffix.lower() not in VIDEO_EXTENSIONS or file_path.is_symlink():
+                    if file_path.suffix.lower() not in (AUDIO_EXTENSIONS if library["kind"] == "music" else VIDEO_EXTENSIONS) or file_path.is_symlink():
                         continue
                     try:
                         stat = file_path.stat()
