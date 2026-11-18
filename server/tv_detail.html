@@ -948,12 +948,16 @@ async function renderSeason(){
     const actionHadFocus=actions.contains(document.activeElement);
     const actionFocusId=actionHadFocus?document.activeElement.id:'';
     actions.replaceChildren();
+    actions.dataset.selectedEpisodeId=String(episode.id);
     const play=playbackButton(episode.id,data.show.title+' · '+epTitle.textContent);
+    play.setAttribute('aria-label','Play '+epTitle.textContent+' from beginning');
     play.id='season-play-button';
     actions.append(play);
     if(canResume(episode)){
       const resume=playbackButton(episode.id,data.show.title+' · '+epTitle.textContent,true);
-      resume.id='season-resume-button';actions.append(resume);
+      resume.id='season-resume-button';
+      resume.setAttribute('aria-label','Resume '+epTitle.textContent+' from saved position');
+      actions.append(resume);
     }
     actions.append(trailerButton(data.show.trailer_key,data.show.title));
     const more=el('button','media-icon-action season-more-button');
@@ -1106,16 +1110,19 @@ async function renderSeason(){
     allCards.set(episode.id,button);track.append(button);
   }
   selectEpisode(selected);
-  // Web keyboard parity: Down from any episode always targets Play.
+  // Down reaches the selected episode's Resume action when available,
+  // otherwise Play. Both actions stay enabled and use the current episode.
   track.addEventListener('keydown',event=>{
     if(event.key!=='ArrowDown')return;
     const episodeTile=document.activeElement?.closest('.season-episode-tile');
     if(!episodeTile)return;
-    const play=document.getElementById('season-play-button');
-    if(play){event.preventDefault();play.focus();}
+    const action=document.getElementById('season-resume-button')||
+      document.getElementById('season-play-button');
+    if(action){event.preventDefault();action.focus({preventScroll:true});}
   });
   actions.addEventListener('keydown',event=>{
-    if(event.key!=='ArrowUp'||document.activeElement?.id!=='season-play-button')return;
+    if(event.key!=='ArrowUp'||!['season-play-button','season-resume-button']
+      .includes(document.activeElement?.id))return;
     const episodeTile=allCards.get(selected.id);
     if(episodeTile){
       event.preventDefault();episodeTile.focus({preventScroll:true});

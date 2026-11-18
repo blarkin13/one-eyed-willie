@@ -254,14 +254,14 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("play.id='season-play-button'", page)
         self.assertIn("track.addEventListener('keydown',event=>", page)
         self.assertIn("if(event.key!=='ArrowDown')return", page)
-        self.assertIn("play.focus()", page)
-        self.assertIn("document.activeElement?.id!=='season-play-button'", page)
+        self.assertIn("action.focus({preventScroll:true})", page)
+        self.assertIn("['season-play-button','season-resume-button']", page)
         self.assertIn("episodeTile.focus({preventScroll:true})", page)
         android = (SERVER.parent / "google-tv" / "app" / "src" / "main" / "java" /
                    "studio" / "oneeyedwillie" / "tv" / "MainActivity.kt").read_text()
         self.assertIn("if(direction==='down'&&active?.matches?.('.season-episode-tile'))", android)
         self.assertIn("document.getElementById('season-play-button')", android)
-        self.assertIn("if(direction==='up'&&active?.id==='season-play-button')", android)
+        self.assertIn("['season-play-button','season-resume-button'].includes(active?.id)", android)
         self.assertIn("Intent.ACTION_VIEW, uri", android)
 
     def test_quality_on_selected_thumbnail_and_rating_after_duration(self):

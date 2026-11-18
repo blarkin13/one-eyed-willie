@@ -528,6 +528,10 @@ class MainActivity : ComponentActivity() {
                     result.confirm(JSONObject()
                         .put("enabled", prefs.getBoolean("enabled", false))
                         .put("language", prefs.getString("language", "en") ?: "en")
+                        .put("background", prefs.getString("background", "none") ?: "none")
+                        .put("size", prefs.getString("size", "normal") ?: "normal")
+                        .put("color", prefs.getString("color", "white") ?: "white")
+                        .put("outline", prefs.getBoolean("outline", true))
                         .toString())
                     return true
                 }
@@ -538,9 +542,21 @@ class MainActivity : ComponentActivity() {
                         val language = requested.optString("language", "en")
                         if (language !in setOf("en", "es", "fr", "de", "it", "pt", "ja", "ko"))
                             throw IllegalArgumentException("Invalid subtitle language")
+                        val background = requested.optString("background", "none")
+                        val size = requested.optString("size", "normal")
+                        val color = requested.optString("color", "white")
+                        if (background !in setOf("none", "25", "50", "75", "100") ||
+                            size !in setOf("small", "normal", "large") ||
+                            color !in setOf("white", "yellow"))
+                            throw IllegalArgumentException("Invalid subtitle appearance")
                         val saved = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
                             .edit().putBoolean("enabled", requested.optBoolean("enabled", false))
-                            .putString("language", language).commit()
+                            .putString("language", language)
+                            .putString("background", background)
+                            .putString("size", size)
+                            .putString("color", color)
+                            .putBoolean("outline", requested.optBoolean("outline", true))
+                            .commit()
                         if (saved) result.confirm("ACK") else result.cancel()
                     } catch (_: Exception) {
                         result.cancel()
@@ -1256,7 +1272,8 @@ class MainActivity : ComponentActivity() {
                   outline:0!important;box-shadow:none!important
                 }
                 .tile-button:focus-visible .cover,.tile-button:focus .cover {
-                  outline:0!important;box-shadow:none!important;
+                  outline:0!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
                   border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
@@ -1274,7 +1291,8 @@ class MainActivity : ComponentActivity() {
                   border:0!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
-                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) :is(strong,small){
@@ -1284,8 +1302,8 @@ class MainActivity : ComponentActivity() {
                 /* Episode cards are also selectable art: no text block or
                    other card chrome is included in D-pad focus. */
                 body[data-page="tv"] .season-episode-tile:is(:focus,:focus-visible){
-                  outline:3px solid #d5eaff!important;outline-offset:3px!important;
-                  box-shadow:none!important
+                  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline-offset:2px!important;box-shadow:none!important
                 }
                 /* Explore uses a full-card button. Focus ONLY its poster. */
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible,
@@ -1295,7 +1313,8 @@ class MainActivity : ComponentActivity() {
                 }
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible .cover,
                 body[data-page="explore"] .explore-card .detail-trigger:focus .cover{
-                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="explore"] .explore-card:focus-within{
@@ -1697,16 +1716,19 @@ class MainActivity : ComponentActivity() {
                 body[data-page] .detail-trigger:is(:focus,:focus-visible) .cover,
                 body[data-page] .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
                   outline:0!important;border-color:transparent!important;
-                  box-shadow:none!important;transform:scale(1.07)!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  transform:scale(1.07)!important;
                   filter:brightness(1.16)!important;position:relative;z-index:3
                 }
                 body[data-page] .season-episode-tile:is(:focus,:focus-visible){
-                  outline:0!important;border-color:transparent!important;
+                  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline-offset:2px!important;border-color:transparent!important;
                   box-shadow:none!important;transform:scale(1.07)!important;
                   filter:brightness(1.16)!important;z-index:3
                 }
-                body[data-page] .season-episode-tile.is-selected{
-                  border-color:transparent!important;box-shadow:none!important
+                body[data-page] .season-episode-tile.is-selected:not(:focus):not(:focus-visible){
+                  border-color:var(--oew-tv-select-color,#8B5CF6)!important;
+                  box-shadow:none!important
                 }
                 body[data-page] :is(.media-icon-action,.icon-only-control,.nav-link,
                   .season-tabs a):is(:focus,:focus-visible){
@@ -2265,7 +2287,7 @@ class MainActivity : ComponentActivity() {
                 if(path==='/tv/season')return [
                   {scope:'.season-tabs', first:'.season-tabs a[aria-current="page"],.season-tabs a[href]'},
                   {scope:'.season-episode-track', first:'.season-episode-tile.is-selected,.season-episode-tile'},
-                  {scope:'.season-actions-row', first:'#season-play-button'},
+                  {scope:'.season-actions-row', first:'#season-resume-button,#season-play-button'},
                   {scope:'.season-support .tv-cast', first:'.season-support .tv-cast .tv-cast-person'},
                   {scope:'.season-support .tv-reviews', first:'.season-support .tv-reviews button'}
                 ];
@@ -2519,10 +2541,12 @@ class MainActivity : ComponentActivity() {
                 // the current Play action, even when the tile is scrolled
                 // horizontally beyond the location of the action row.
                 if(direction==='down'&&active?.matches?.('.season-episode-tile')){
-                  const play=document.getElementById('season-play-button');
+                  const play=document.getElementById('season-resume-button')||
+                    document.getElementById('season-play-button');
                   if(play&&isVisible(play)){readingScroll=false;return focusNode(play)}
                 }
-                if(direction==='up'&&active?.id==='season-play-button'){
+                if(direction==='up'&&
+                   ['season-play-button','season-resume-button'].includes(active?.id)){
                   const episode=document.querySelector('.season-episode-tile.is-selected');
                   if(episode&&isVisible(episode)){readingScroll=false;return focusNode(episode)}
                 }

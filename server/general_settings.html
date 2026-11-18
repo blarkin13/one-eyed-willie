@@ -30,6 +30,28 @@
 </form></div>
 </section>
 
+<section class="settings-section" aria-labelledby="subtitle-appearance-heading">
+<h2 id="subtitle-appearance-heading">Browser subtitle appearance</h2>
+<p>Adjust subtitles in One-Eyed Willie's browser player. Each Google TV has its own subtitle controls under Playback Settings.</p>
+<div class="settings-card">
+<form id="subtitle-style-form">
+<div class="settings-two-col">
+ <div><label for="subtitle-background">Background</label><select id="subtitle-background">
+  <option value="none">None (transparent)</option><option value="25">25% black</option>
+  <option value="50">50% black</option><option value="75">75% black</option>
+  <option value="100">Solid black</option></select></div>
+ <div><label for="subtitle-size">Text size</label><select id="subtitle-size">
+  <option value="small">Small</option><option value="normal">Normal</option>
+  <option value="large">Large</option></select></div>
+ <div><label for="subtitle-color">Text color</label><select id="subtitle-color">
+  <option value="white">White</option><option value="yellow">Yellow</option></select></div>
+ <label class="setting-toggle"><input type="checkbox" id="subtitle-outline" checked> Text outline</label>
+</div>
+<p class="settings-muted">Transparent background is the default; text outline helps keep captions readable.</p>
+<div class="form-actions"><button class="primary-button" type="submit">Save subtitle appearance</button></div>
+<p id="subtitle-style-status" role="status" class="settings-muted"></p>
+</form></div></section>
+
 <section class="settings-section" aria-labelledby="maintenance-heading">
 <h2 id="maintenance-heading">Maintenance</h2>
 <p>Choose the scheduled jobs the NUC should run. Maintenance normally starts at 4:00 AM Central.</p>
@@ -114,6 +136,21 @@ el('playback-form').onsubmit=async event=>{
  catch(error){notice(error.message,true)}
 };
 el('theme-volume').oninput=()=>{el('theme-volume-label').textContent=el('theme-volume').value+'%'};
+async function loadSubtitleStyle(){
+ const style=await api('/api/settings/subtitle-appearance');
+ for(const key of ['background','size','color'])el('subtitle-'+key).value=style[key];
+ el('subtitle-outline').checked=!!style.outline;
+}
+el('subtitle-style-form').onsubmit=async event=>{
+ event.preventDefault();
+ try{
+  await api('/api/settings/subtitle-appearance',{method:'PUT',body:JSON.stringify({
+   background:el('subtitle-background').value,size:el('subtitle-size').value,
+   color:el('subtitle-color').value,outline:el('subtitle-outline').checked
+  })});
+  el('subtitle-style-status').textContent='Subtitle appearance saved for browser playback.';
+ }catch(error){el('subtitle-style-status').textContent=error.message}
+};
 async function loadMaintenance(){
  const data=await api('/api/maintenance/settings');
  const container=el('maintenance-tasks');container.replaceChildren();
@@ -165,7 +202,7 @@ el('remote-form').onsubmit=async event=>{
  })});notice('Remote access preferences saved.');await loadRemote()}
  catch(error){notice(error.message,true)}
 };
-Promise.allSettled([loadPlayback(),loadMaintenance(),loadRemote(),
+Promise.allSettled([loadPlayback(),loadSubtitleStyle(),loadMaintenance(),loadRemote(),
  api('/health').then(data=>{
   el('server-info').textContent='Server: '+(data.application||'One-Eyed Willie')+
    ' · version '+(data.version||'unknown')+' · '+(data.status||'unknown');
