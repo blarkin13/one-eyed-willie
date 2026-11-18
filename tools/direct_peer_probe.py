@@ -16,9 +16,9 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 try:
-    from aiortc import RTCPeerConnection, RTCSessionDescription
+    from aiortc import RTCPeerConnection, RTCSessionDescription, RTCConfiguration, RTCIceServer
 except ImportError:  # Keep normal production requirements unchanged.
-    RTCPeerConnection = RTCSessionDescription = None
+    RTCPeerConnection = RTCSessionDescription = RTCConfiguration = RTCIceServer = None
 
 app = FastAPI(title="One-Eyed Willie direct peer transport probe")
 PEERS = set()
@@ -76,7 +76,10 @@ async def offer(payload: Offer, x_probe_token: str | None = Header(default=None)
         raise HTTPException(503, "Install optional aiortc dependencies")
     if len(PEERS) >= SESSION_LIMIT:
         raise HTTPException(429, "Too many probe connections")
-    pc = RTCPeerConnection()
+    # Discover public-facing ICE candidates without adding a media relay.
+    # This does not guarantee connectivity through restrictive NATs.
+    pc = RTCPeerConnection(configuration=RTCConfiguration(
+        iceServers=[RTCIceServer(urls='stun:stun.l.google.com:19302')]))
     PEERS.add(pc)
     STARTED[pc] = time.monotonic()
 
