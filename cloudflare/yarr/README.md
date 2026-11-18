@@ -127,3 +127,28 @@ The `yarr` Worker has the `YARR_PRIVATE_API` VPC Service binding and `YARR_PRIVA
 This is a **single-server test** and must not be presented as a scalable multi-customer network design. The Cloudflare Tunnel is not connected until the local connector is run with its private token; the token must never be copied into GitHub or chat. Local Docker opt-in code and installation details: `compose.yarr-vpc.yaml`, `deploy/setup-yarr-vpc.sh`, `deploy/yarr-vpc-test.md` on `main`.
 
 The Workers VPC binding must be preserved during every subsequent Worker deployment. Do not use a general-purpose VPC Network binding or proxy arbitrary private paths. A scalable, per-customer security model, origin authentication, and revocation are mandatory before media access is implemented.
+
+## Hosted personal media library pilot (2026-11-18)
+
+`https://yarr.larki-brian.workers.dev/app` now renders an authenticated, read-only **Movies** and **TV Shows** browser with artwork, title search, sorting, watched indicators and a compact details panel. It loads data from the user's paired private server using:
+
+- `GET /api/private/catalog?kind=movies|tv&offset=N&sort=title|recent|added|year|length|rating&search=...`
+- `GET /api/private/artwork/thumb/<64-lowercase-hex>` (and similarly for full artwork)
+
+Both routes **authenticate the Yarr session**, check in D1 that the current account owns the pinned paired server, and verify the tunneled origin's `/api/server/info` identity matches D1 before requesting any data. The catalog route strictly accepts enumerated search, pagination and sort arguments, fetches only the existing read-only `/api/catalog` local endpoint with an enforced page size, caps the response size, and projects safe display fields. File paths, raw episode file lists, sources and integration secrets are never returned to the web client.
+
+Artwork is restricted to valid hash-based local artwork paths, approved MIME types, and a 5 MB maximum. Both routes disable shared caching; the browser also uses no-store. No arbitrary URL or path proxy exists. Browser scripts run under a strict same-origin CSP; HTML is not cached.
+
+The frontend automatically loads additional catalog pages as the user scrolls. Clicking a poster displays title, year, rating, genres, seasons and watched status. Playback controls are deliberately absent.
+
+### Test and limitations
+
+1. Confirm the paired tunnel is healthy.
+2. Sign into the Yarr app with the Google account owning Gazorpazorp.
+3. Click Movies, TV Shows, Search and Sort; verify posters render and media titles match the local One-Eyed Willie libraries.
+4. Sign out and ensure the JSON endpoints return 401; confirm the site cannot serve media without login.
+5. Ensure another account cannot list this user's server library; verify origin identity mismatch returns no data.
+
+**Pilot limitation:** `YARR_PRIVATE_SERVER_ID` and `YARR_PRIVATE_API` currently target only the test Gazorpazorp installation; this is not dynamically provisioned for other customers yet. The previous `/api/private/health` test remains available.
+
+This is a **library metadata and artwork preview only**, not remote playback. Before launch, implement scalable multi-tenant VPC routing, signed per-origin API authorization, an origin-facing revocation workflow, per-device/session controls, video transport and range/HLS/subtitle support.
