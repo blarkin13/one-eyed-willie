@@ -146,14 +146,14 @@ document.addEventListener('DOMContentLoaded', () => {
       document.head.append(script);
     });
   function libraryGlyph(appearance,library,isStandard=false){
-    if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
-      return coloredIcon(library.icon_image_url);
     const kind=library.kind==='tv'?'tv':'movies';
-    // In Clean mode, built-in Movies and TV Shows always use their clean icons.
-    // Their library-selected preset icon must not overwrite the active theme.
-    // An explicitly uploaded library image above still takes precedence.
+    // Theme selection takes precedence for the main Movies and TV Shows links.
+    // Their library image uploads and Pirate presets are used only by Pirate.
+    // Custom named libraries keep their individually selected artwork.
     if(isStandard && iconTheme()==='clean')
       return defaultIcon(kind);
+    if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
+      return coloredIcon(library.icon_image_url);
     // Pirate mode preserves the existing library appearance choices.
     if(isStandard && ['film','tv','folder'].includes(library.icon))
       return defaultIcon(kind);
