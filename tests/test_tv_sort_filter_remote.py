@@ -22,7 +22,8 @@ class TvSortFilterNavigationTests(unittest.TestCase):
         self.assertIn("const menu=document.querySelector(\n"
                       "                  'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'",
                       native)
-        self.assertIn("const options=[...menu.querySelectorAll(", native)
+        self.assertIn("const options=menu.matches('.catalog-tool-menu')", native)
+        self.assertIn("menu.querySelectorAll('.catalog-tool-option:not(:disabled)')", native)
         self.assertIn("if(direction==='up'||direction==='down'){", native)
         self.assertIn("return focusNode(options[next]);", native)
         self.assertIn("if(!options.length)return true;", native)
