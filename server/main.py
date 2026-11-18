@@ -292,11 +292,27 @@ body[data-page="home"] .home-feature {margin-bottom:8px}
    so it needs more room at the bottom than the injected 9px. Higher
    specificity than the app's injected rule, which is also !important. */
 html body[data-page="home"] .shelf-track {padding-bottom:14px!important}
-/* Each Home shelf (banner + posters) is one screen: the remote scrolls a whole
-   shelf to the top, and the next shelf must stay below the fold instead of
-   peeking in under the posters. Higher specificity than the injected
-   min-height:0 rules. */
-body[data-page="home"] .shelf:has(.shelf-track) {min-height:100vh!important;box-sizing:border-box}
+/* TV shares the viewport-based Home structure. The poster grid retains its
+   six-column sizing; the featured details expand into the space above it. */
+body[data-page="home"] .shelf:has(.shelf-track) {
+  display:flex!important;
+  flex-direction:column!important;
+  box-sizing:border-box!important;
+  height:100vh!important;
+  min-height:100vh!important;
+  max-height:100vh!important;
+  margin:0!important;
+  padding:clamp(10px,2vh,24px) 0 clamp(8px,1.5vh,16px)!important;
+  overflow:hidden!important;
+}
+body[data-page="home"] .home-feature {
+  flex:1 1 auto!important;
+  height:auto!important;
+  min-height:0!important;
+  max-height:none!important;
+}
+body[data-page="home"] .shelf .section-heading{flex:none!important}
+body[data-page="home"] .shelf-track{flex:0 0 auto!important}
 /* Home's shelf may use the screen all the way to the right edge. */
 body[data-page="home"] .workspace>.content {padding-right:0!important}
 body[data-page="home"] .shelf .section-heading {
