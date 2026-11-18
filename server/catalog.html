@@ -598,6 +598,8 @@ function createCard(item, index=0){
  button.className='tile-button';button.setAttribute('aria-label','View details for '+item.title);
   button.dataset.hoverKind=type==='movies'?'movies':'tv';
   button.dataset.hoverLibraryId=String(item.library_id);button.dataset.hoverKey=item.key;
+  if(Number.isInteger(item.media_id)&&item.media_id>0)
+    button.dataset.mediaId=String(item.media_id);
  let hash=0;for(const ch of item.title)hash=(hash*31+ch.charCodeAt(0))>>>0;
  const cover=document.createElement('div');cover.className='cover cover--'+(hash%6);
  if(index<12)cover.dataset.priorityPoster='1';
