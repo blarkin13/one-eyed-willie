@@ -1,3 +1,5 @@
+> **Superseded for normal testing.** The server now automatically launches cloudflared after pairing; use [yarr-automatic-tunnel.md](./yarr-automatic-tunnel.md). The steps below are retained only for manual diagnostic fallback.
+
 # Private connection pilot: Gazorpazorp
 
 This is an **isolated development pilot**, not multi-customer remote playback.
