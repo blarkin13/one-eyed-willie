@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Appearance & Navigation · One-Eyed Willie</title>
-<link rel="stylesheet" href="/assets/ui.css?v=fa-default-1">
+<link rel="stylesheet" href="/assets/ui.css?v=fa-compact-2">
 <script defer src="/assets/shell.js?v=fa-default-1"></script>
 <script defer src="/assets/ambient.js?v=1"></script>
 <style>
@@ -251,7 +251,7 @@ async function loadSystemIcons(){
   const drawPreview=(url,custom)=>{
     preview.replaceChildren();
     if(!custom&&activeIconTheme()==='clean'&&window.WillieCleanIcons){
-      preview.append(window.WillieCleanIcons.create(item.name,30));
+      preview.append(window.WillieCleanIcons.create(item.name,24));
     }else{
       const img=document.createElement('img');
       img.src=url;img.alt='';img.width=56;img.height=56;
