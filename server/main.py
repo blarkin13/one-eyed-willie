@@ -12,6 +12,7 @@ from server.home import router as home_router
 from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
+from server.subtitle_settings import router as subtitle_settings_router
 from server.ambient_settings import router as ambient_settings_router
 from server.theme_music import router as theme_music_router
 from server.sidebar_settings import router as sidebar_settings_router
@@ -84,6 +85,7 @@ app.include_router(home_router)
 app.include_router(media_actions_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
+app.include_router(subtitle_settings_router)
 app.include_router(ambient_settings_router)
 app.include_router(theme_music_router)
 app.include_router(sidebar_settings_router)
