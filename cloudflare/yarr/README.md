@@ -70,3 +70,27 @@ Cloudflare accepted the Worker deployment and binding. Actual Google OAuth sign-
 - Future pairing should use a one-time ownership proof initiated by the installed server and a secure outbound connection. That requires a planned backward-compatible server update.
 - Do not claim the second app hostname has authenticated independent application hosting until cross-host sign-in is implemented and verified.
 - Both Workers were accepted by Cloudflare and workers.dev routing is enabled; browser end-to-end visual testing remains outstanding.
+
+## Step 5 — account-to-server pairing foundation (2026-11-18)
+
+Cloudflare:
+- Deployed `POST /api/pairing/start` (anonymous server start, rate limited), `GET /api/pairing/status` (server polling secret), and `POST /account/pair` (Google-account-authenticated claim).
+- Each pairing code is 16 characters in a non-ambiguous alphabet, expires in ten minutes, and is single-use. D1 stores the **hash** of the code and polling secret, never their plaintext.
+- A Google-signed-in user can claim a pending code, creating an owned server record with a unique persistent server identity. The D1 account database is independent of the local media database.
+- Initial pairing tables and unique server identity index were applied to `yarr-accounts`, with the schema reflected in `schema.sql`.
+- Anonymous start and code guessing have per-source-IP rate limits. Production security review and two-user race/load testing are still required.
+
+Self-hosted server (development branch only):
+- `server/connections.py` already persists `server_id`; this ID is reused.
+- `server/yarr_pairing.py` uses a random, expiring code, random polling secret, TLS outbound calls and file permission `0600` for private state. It does not store Google credentials.
+- `server/main.py` includes optional Yarr pairing router.
+- `server/remote_settings.html` adds a **Connect to Yarr** button, displays the code, opens account claim screen and checks the status.
+- Server-side UI requires same-origin POST before initiating pairing. Local network access is not equivalent to authenticated administration; local auth and TLS configuration must be reviewed before production.
+- No existing Docker server has been updated and the new pairing code is not on `main`.
+
+Restrictions:
+- A paired server is *not remotely accessible*. No streaming, per-user library authorization, or automatic network tunneling has been enabled.
+- Existing manual Remote Access settings are preserved; pairing introduces a separate opt-in route.
+- The browser and app Worker do not proxy private media.
+- No end-to-end physical server test, automated Python tests or two-account negative tests have passed yet.
+- Before releasing: test code expiry, reuse, concurrent claims, IP limits, repeat linking, local cross-origin rejection, offline behavior, and server restart persistence.
