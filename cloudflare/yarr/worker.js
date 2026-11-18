@@ -369,6 +369,72 @@ async function privateArtwork(req,env){
  }catch(_){return json({error:'artwork_unavailable'},503);}
 }
 
+
+// Full One-Eyed Willie application pilot. Every request is authorized against the
+// Yarr session and the exact paired server; no arbitrary origins or host overrides.
+const ORIGIN_BASE='http://one-eyed-willie:8787';
+const HOP_HEADERS=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade','host','cookie','authorization','cf-connecting-ip','x-forwarded-for','x-forwarded-host','x-forwarded-proto','x-real-ip','x-yarr-proxy-auth','x-yarr-server-id']);
+const RESPONSE_HEADERS=new Set(['content-type','content-length','content-range','accept-ranges','cache-control','etag','last-modified','content-encoding','vary','content-disposition','x-content-type-options']);
+async function proxyInstalledApp(req,env,originPath) {
+ const owned=await ownedPrivateServer(req,env);
+ if(owned.error) {
+  if(req.method==='GET'&&!(new URL(req.url)).pathname.startsWith('/api/'))return redirect('/account');
+  return owned.error;
+ }
+ const method=req.method.toUpperCase();
+ if(!['GET','HEAD','POST','PUT','PATCH','DELETE'].includes(method))return json({error:'method_not_allowed'},405);
+ if(!['GET','HEAD'].includes(method)){
+  const origin=req.headers.get('origin');
+  const site=req.headers.get('sec-fetch-site');
+  if((origin&&origin!==SITE)||(site&&site!=='same-origin')||(!origin&&site!=='same-origin'))return json({error:'forbidden'},403);
+ }
+ const size=Number(req.headers.get('content-length')||0);
+ if(!Number.isFinite(size)||size>32*1024*1024)return json({error:'request_too_large'},413);
+ const source=new URL(req.url);
+ // The origin host is a compile-time constant. Browser controls only path/query.
+ const path=originPath||source.pathname;
+ if(!path.startsWith('/')||path.startsWith('//')||path.includes('\\'))return json({error:'invalid_path'},400);
+ const upstreamUrl=ORIGIN_BASE+path+source.search;
+ const headers=new Headers();
+ for(const [key,value] of req.headers){
+  const k=key.toLowerCase();
+  if(HOP_HEADERS.has(k)||k.startsWith('cf-')||k.startsWith('x-forwarded-'))continue;
+  if(['accept','accept-language','accept-encoding','content-type','content-length','range','if-range','if-none-match','if-modified-since','user-agent','x-requested-with'].includes(k))headers.set(k,value);
+ }
+ headers.set('accept-encoding','identity');
+ if(!['GET','HEAD'].includes(method)){
+  headers.set('origin',ORIGIN_BASE);
+  headers.set('referer',ORIGIN_BASE+'/');
+ }
+ const controller=AbortSignal.timeout(20000);
+ try {
+  await verifiedOrigin(env,owned.server,controller);
+  const upstream=await env.YARR_PRIVATE_API.fetch(upstreamUrl,{method,headers,body:['GET','HEAD'].includes(method)?undefined:req.body,redirect:'manual',signal:controller});
+  if(upstream.status>=300&&upstream.status<400){
+   const location=upstream.headers.get('location');
+   if(!location)return new Response(null,{status:502});
+   const target=new URL(location,upstreamUrl);
+   if(target.origin!==ORIGIN_BASE)return json({error:'external_redirect_blocked'},502);
+   return redirect(target.pathname+target.search+target.hash);
+  }
+  const responseHeaders=new Headers();
+  for(const [key,value] of upstream.headers){
+   if(RESPONSE_HEADERS.has(key.toLowerCase()))responseHeaders.set(key,value);
+  }
+  responseHeaders.set('cache-control','private, no-store');
+  responseHeaders.set('x-content-type-options','nosniff');
+  responseHeaders.set('referrer-policy','same-origin');
+  responseHeaders.set('x-frame-options','DENY');
+  const mime=(upstream.headers.get('content-type')||'').split(';')[0].toLowerCase();
+  if(mime==='text/html'){
+   // Existing local page uses inline scripts and absolute /assets and /api URLs.
+   responseHeaders.set('content-security-policy',"default-src 'self' data: blob: https:; script-src 'self' 'unsafe-inline' https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' data: blob: https:; media-src 'self' blob:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+  }
+  // Keep video, HLS, images and HTTP Range responses streamed, not buffered.
+  return new Response(method==='HEAD'||[204,205,304].includes(upstream.status)?null:upstream.body,{status:upstream.status,headers:responseHeaders});
+ }catch(_){return json({error:'private_server_unavailable'},503);}
+}
+
 function serversHTML(servers) {
  const paired=servers.some(s=>s.status==='paired'&&s.server_identity);
  const pairing='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
@@ -446,7 +512,7 @@ export default { async fetch(req,env) {
   if(req.method==='GET'&&u.pathname==='/app') {
    const user=await currentUser(req,env);
    if(!user)return redirect('/account');
-   return new Response(appHTML(user,await listServers(env,user.id)),{headers:{...HTML_HEADERS,'content-security-policy':"default-src 'none'; script-src 'self'; style-src 'unsafe-inline'; img-src 'self'; connect-src 'self'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",'cache-control':'private, no-store'}});
+   return proxyInstalledApp(req,env,'/');
   }
   if(req.method==='GET'&&u.pathname==='/account') {
    const user=await currentUser(req,env);
@@ -457,7 +523,11 @@ export default { async fetch(req,env) {
    const servers=user?await listServers(env,user.id):[];
    return html(accountHTML(user,authReady(env),message2,servers));
   }
-  if(u.pathname.startsWith('/api/')||u.pathname.startsWith('/auth/'))return json({error:'not_available',message:'Server pairing and account management are not enabled.'},503);
+  if(u.pathname.startsWith('/auth/'))return json({error:'not_found'},404);
+  if(u.pathname==='/api/private' || u.pathname.startsWith('/api/private/'))return json({error:'not_found'},404);
+  // This Worker owns account, login and pairing routes. All other application
+  // paths are served by the paired local One-Eyed Willie server.
+  if(u.pathname!=='/'&&u.pathname!=='/index.html')return proxyInstalledApp(req,env);
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
   if(u.pathname==='/'||u.pathname==='/index.html') {
    const user=await currentUser(req,env);
