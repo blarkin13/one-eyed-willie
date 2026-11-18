@@ -4,6 +4,7 @@
 <title>Title details · One-Eyed Willie</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
+<script src="/assets/media-title-logo.js?v=1"></script>
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .credit-page{max-width:none!important;padding:0 0 65px!important}
@@ -234,8 +235,8 @@ async function load(){
  $('status').textContent=detail?'':$('status').textContent;
 }
 function render(data){
- $('title').textContent=data.title||title;
- document.title=$('title').textContent+' · One-Eyed Willie';
+ YarMediaTitleLogo.set($('title'),data.title||title,data.logo_url);
+ document.title=(data.title||title)+' · One-Eyed Willie';
  const backdrop=$('backdrop');
  if(allowedImage(data.backdrop_url)){backdrop.src=data.backdrop_url;backdrop.hidden=false}
  const metadata=[data.release_date?.slice(0,4),data.runtime?data.runtime+' min':null,
