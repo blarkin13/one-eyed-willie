@@ -3,7 +3,7 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Browse</title>
-<link rel="stylesheet" href="/assets/ui.css?v=fa-lib-2">
+<link rel="stylesheet" href="/assets/ui.css?v=fa-lib-double-fix-3">
 <script src="/assets/library-appearance.js?v=fa-lib-2"></script>
 <script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script>
@@ -59,6 +59,14 @@ body[data-page=movies] :is(a,button,input,select):focus-visible,body[data-page=t
  width:76px;height:76px;max-width:100%;max-height:100%;
  object-fit:contain;background:transparent;display:block
 }
+/* The library masthead has a stronger generic SVG display rule above.
+   Override it so the Font Awesome glyph and its fallback never render together. */
+.library-header-title .library-header-icon .library-fa-icon{display:inline-flex;align-items:center;justify-content:center}
+.library-header-title .library-header-icon .library-fa-icon>.library-fa-fallback{display:block}
+.fontawesome-ready .library-header-title .library-header-icon .library-fa-icon>.library-fa-fallback{display:none!important}
+.library-header-title .library-header-icon .library-fa-icon>i{display:none}
+.fontawesome-ready .library-header-title .library-header-icon .library-fa-icon>i{display:inline-block}
+
 #page-title[class*="library-font--"]{font-family:var(--lib-font,system-ui,sans-serif)!important;
  font-weight:var(--lib-weight,700)!important;letter-spacing:var(--lib-spacing,normal)!important;
  text-transform:var(--lib-transform,none);line-height:1.15;overflow-wrap:anywhere}
