@@ -1,0 +1,50 @@
+name: Yarr remote network diagnostic
+on:
+  pull_request:
+    paths:
+      - "cloudflare/yarr/worker.js"
+      - "server/yarr_ice_probe.py"
+      - "server/main.py"
+      - "requirements.txt"
+      - "tests/test_yarr_ice_probe.py"
+      - ".github/workflows/yarr-ice-diagnostic.yml"
+  push:
+    branches: ["feature/yarr-remote-wifi-diagnostic"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  connectivity-diagnostic:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install -r requirements.txt pytest pytest-asyncio
+      - name: Compile probe and tests
+        run: python -m compileall -q server/yarr_ice_probe.py tests/test_yarr_ice_probe.py
+      - name: Verify authentication, bounded transfer and real ICE connection
+        run: python -m pytest -q tests/test_yarr_ice_probe.py
+      - name: Validate Worker and diagnostic browser script
+        run: |
+          node --input-type=module --check < cloudflare/yarr/worker.js
+          node - <<'NODE'
+          const fs = require('fs'), vm = require('vm');
+          const source = fs.readFileSync('cloudflare/yarr/worker.js', 'utf8');
+          const prefix = 'const YARR_TEST_PAGE=';
+          const start = source.indexOf(prefix) + prefix.length;
+          const end = source.indexOf(';' + String.fromCharCode(10) + 'async function yarrWifiOffer', start);
+          if (start < prefix.length || end < 0) throw Error('Diagnostic page missing');
+          const html = JSON.parse(source.slice(start, end));
+          const jsStart = html.indexOf('<script>') + 8;
+          const jsEnd = html.indexOf('</script>', jsStart);
+          if (jsStart < 8 || jsEnd < 0) throw Error('Diagnostic browser script missing');
+          new vm.Script(html.slice(jsStart, jsEnd));
+          console.log('Yarr diagnostic Worker and embedded browser script parse correctly');
+          NODE
+      - name: Build production container with WebRTC dependency
+        run: docker build -t yarr-ice-diagnostic:ci .
