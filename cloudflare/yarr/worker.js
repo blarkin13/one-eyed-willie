@@ -247,6 +247,28 @@ async function accountConnectionStatus(req,env){
  const rows=await env.ACCOUNTS.prepare("SELECT id,display_name,status,server_identity IS NOT NULL AS paired,last_seen_at,connection_secret_hash IS NOT NULL AS credential_ready,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online FROM servers WHERE owner_user_id=? ORDER BY created_at DESC").bind(user.id).all();
  return json({servers:(rows.results||[]).map(s=>({id:s.id,display_name:s.display_name,paired:!!s.paired&&s.status==='paired',online:!!s.online,last_seen_at:s.last_seen_at,credential_ready:!!s.credential_ready})),media_access:false});
 }
+
+async function privateVPCHealth(req,env) {
+ // Single-server pilot. Later versions provision isolated VPC bindings per installation.
+ const user=await currentUser(req,env);
+ if(!user)return json({error:'not_authenticated'},401);
+ if(!env.YARR_PRIVATE_API||!env.YARR_PRIVATE_SERVER_ID)return json({error:'private_connection_not_configured'},503);
+ const server=await env.ACCOUNTS.prepare(
+  "SELECT id FROM servers WHERE id=? AND owner_user_id=? AND status='paired' AND server_identity IS NOT NULL"
+ ).bind(env.YARR_PRIVATE_SERVER_ID,user.id).first();
+ if(!server)return json({error:'not_found'},404);
+ try{
+  const signal=AbortSignal.timeout(5000);
+  const remote=await env.YARR_PRIVATE_API.fetch('http://one-eyed-willie:8787/health',{method:'GET',signal,headers:{accept:'application/json'}});
+  if(!remote.ok)return json({connected:false,reason:'origin_unavailable'},502);
+  const type=remote.headers.get('content-type')||'';
+  if(!type.includes('application/json'))return json({connected:false,reason:'unexpected_response'},502);
+  const result=await remote.json();
+  if(result.application!=='one-eyed-willie'||result.status!=='ok')return json({connected:false,reason:'unexpected_origin'},502);
+  return json({connected:true,server_id:server.id,application:'one-eyed-willie',version:String(result.version||'unknown').slice(0,32),media_access:false});
+ }catch(_){return json({connected:false,reason:'tunnel_offline_or_unreachable'},503);}
+}
+
 function serversHTML(servers) {
  const paired=servers.some(s=>s.status==='paired'&&s.server_identity);
  const pairing='<section class="block"><p class="eyebrow">Secure pairing</p><h2>Pair your server</h2><p class="note">On your installed server, open Settings → General → Connect to Yarr, then enter its code.</p><form class="serverform" method="post" action="/account/pair"><label>Pairing code<input required maxlength="22" name="code" autocomplete="off" placeholder="XXXX-XXXX-XXXX-XXXX"></label><button class="btn" type="submit">Pair server</button></form></section>';
@@ -263,7 +285,7 @@ function serversHTML(servers) {
 
 function appHTML(user,servers) {
  const items=servers.length?servers.map(s=>'<div class="server"><div class="serverhead"><h3>'+escapeHTML(s.display_name)+'</h3><span class="tag">'+(s.status==='paired'&&s.server_identity?(s.online?'Online':'Offline'):'Pairing required')+'</span></div><p class="note">'+(s.status==='paired'&&s.server_identity?'Account paired. Remote playback is not enabled yet.':'Server pairing is required.')+'</p></div>').join(''):'<div class="server"><p class="note">No server connected. Generate a pairing code on your installed server, then enter it in your account.</p></div>';
- return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr App Preview</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/account" class="link">Account settings</a></nav><main class="hero"><p class="eyebrow">Your personal media space</p><h1>Welcome, '+escapeHTML(user.display_name||'aboard')+'</h1><p class="lead">Your Yarr app is linked to your Google account. Your personal libraries will appear here once your home server is securely paired.</p><p class="eyebrow">Your servers</p>'+items+'<div class="actions"><a class="btn" href="/account">Manage servers</a></div></main><footer class="note">App preview only. No media is exposed or streamed by this Worker.</footer></div></body></html>';
+ return '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Yarr App Preview</title><style>'+accountCSS+'</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR.</a><a href="/account" class="link">Account settings</a></nav><main class="hero"><p class="eyebrow">Your personal media space</p><h1>Welcome, '+escapeHTML(user.display_name||'aboard')+'</h1><p class="lead">Your Yarr app is linked to your Google account. Your personal libraries will appear here once your home server is securely paired.</p><p class="eyebrow">Your servers</p>'+items+'<div class="actions"><a class="btn" href="/account">Manage servers</a><a class="btn" href="/api/private/health">Test private connection</a></div></main><footer class="note">App preview only. No media is exposed or streamed by this Worker.</footer></div></body></html>';
 }
 
 function accountHTML(user,enabled,message='',servers=[]) {
@@ -297,6 +319,7 @@ export default { async fetch(req,env) {
   if(req.method==='POST'&&u.pathname==='/account/servers') {
    return serverMutation(req,env,await currentUser(req,env));
   }
+  if(req.method==='GET'&&u.pathname==='/api/private/health')return privateVPCHealth(req,env);
   if(req.method==='GET'&&u.pathname==='/api/servers'){
    const user=await currentUser(req,env);
    if(!user)return json({error:'not_authenticated'},401);
