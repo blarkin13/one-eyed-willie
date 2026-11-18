@@ -1,0 +1,3 @@
+# Optional development-only dependency; not installed by the production Docker image.
+# Install separately for the isolated Yarr direct-transport probe.
+aiortc>=1.13,<2

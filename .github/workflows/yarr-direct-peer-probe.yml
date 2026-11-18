@@ -1,0 +1,64 @@
+name: Yarr direct peer prototype tests
+
+on:
+  pull_request:
+    paths:
+      - 'server/yarr_direct_peer.py'
+      - 'server/yarr_direct_sw.js'
+      - 'server/yarr_direct_client.js'
+      - 'server/main.py'
+      - 'cloudflare/yarr/worker.js'
+      - 'tests/test_yarr_direct_peer.py'
+      - 'tools/direct_peer_probe.py'
+      - 'tools/test_browser_peer.py'
+      - 'tools/direct_peer_probe.html'
+      - 'tools/requirements-direct-probe.txt'
+      - 'tests/test_direct_peer_probe.py'
+      - '.github/workflows/yarr-direct-peer-probe.yml'
+  push:
+    branches:
+      - 'feature/yarr-direct-peer-probe'
+    paths:
+      - 'server/yarr_direct_peer.py'
+      - 'server/yarr_direct_sw.js'
+      - 'server/yarr_direct_client.js'
+      - 'server/main.py'
+      - 'cloudflare/yarr/worker.js'
+      - 'tests/test_yarr_direct_peer.py'
+      - 'tools/direct_peer_probe.py'
+      - 'tools/test_browser_peer.py'
+      - 'tools/direct_peer_probe.html'
+      - 'tools/requirements-direct-probe.txt'
+      - 'tests/test_direct_peer_probe.py'
+      - '.github/workflows/yarr-direct-peer-probe.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  peer-probe:
+    name: Token checks and local WebRTC data-channel transfer
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install optional prototype test dependencies
+        run: |
+          python -m pip install -r requirements.txt -r tools/requirements-direct-probe.txt
+          python -m pip install pytest pytest-asyncio httpx playwright
+          python -m playwright install --with-deps chromium
+      - name: Check code compiles
+        run: python -m compileall -q server/yarr_direct_peer.py server/main.py tools/direct_peer_probe.py tests/test_direct_peer_probe.py tests/test_yarr_direct_peer.py tools/test_browser_peer.py
+      - name: Run safety and encrypted local 1 MiB transfer tests
+        run: python -m pytest -q tests/test_direct_peer_probe.py tests/test_yarr_direct_peer.py
+      - name: Verify real Chromium WebRTC negotiation and 1 MiB data integrity
+        run: python tools/test_browser_peer.py
+      - name: Validate JavaScript syntax for Worker and browser streaming adapter
+        run: |
+          node --input-type=module --check < cloudflare/yarr/worker.js
+          node --check server/yarr_direct_sw.js
+          node --check server/yarr_direct_client.js
