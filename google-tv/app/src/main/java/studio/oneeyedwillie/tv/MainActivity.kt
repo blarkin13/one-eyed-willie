@@ -232,6 +232,8 @@ class MainActivity : ComponentActivity() {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
                 web.requestFocus()
+                // Android may replace a DOM focus when WebView gains focus.
+                web.evaluateJavascript("window.__willieTvRestoreHomeFocus?.()", null)
             }
         }?.start()
     }
@@ -1373,17 +1375,23 @@ class MainActivity : ComponentActivity() {
                 /* Home-only trial: 60% of the current poster dimensions,
                    preserving the original 2:3 artwork ratio. */
                 body[data-page="home"] .shelf-track{
-                  grid-auto-columns:clamp(87px,10.8vw,130.8px)!important;
+                  grid-auto-columns:calc((100% - 92px)/6)!important;
                   grid-template-rows:max-content!important;
                   grid-auto-rows:0!important;
                   align-items:start!important;align-content:start!important;
                   gap:14px!important;
                   padding:11px 11px 9px!important;
-                  width:calc(100% + 22px)!important;
-                  margin:0 -11px!important;
+                  width:calc(100% + 11px)!important;
+                  margin:0 0 0 -11px!important;
                   overflow-y:hidden!important;
                   min-height:0!important;
                   scroll-padding-inline:11px!important
+                }
+                body[data-page="home"] .workspace>.content{
+                  padding-right:0!important
+                }
+                body[data-page="home"] .shelf .section-heading{
+                  padding-right:clamp(36px,5vw,95px)!important
                 }
                 /* Shorter Home shelves: no reserved height from the old
                    large-card layout and adequate room for D-pad focus rings. */
@@ -2913,6 +2921,20 @@ class MainActivity : ComponentActivity() {
                 if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
                 tvUserMoved=true;
                 return move(direction);
+              };
+              // Re-establish actual DOM focus after Android activates WebView,
+              // without stealing focus after the viewer has used the remote.
+              window.__willieTvRestoreHomeFocus=()=>{
+                if(location.pathname!=='/'||tvUserMoved)return false;
+                const first=document.querySelector(
+                  '#continue-watching .shelf-track .tile-button')||
+                  document.querySelector('.content .shelf-track .tile-button');
+                if(!first)return false;
+                if(!document.activeElement?.matches?.('.shelf-track .tile-button'))
+                  first.focus({preventScroll:true});
+                initialFocusSettled=Boolean(document.activeElement?.matches?.(
+                  '.shelf-track .tile-button'));
+                return initialFocusSettled;
               };
               const tryFocus=()=>{
                 if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
