@@ -528,6 +528,10 @@ class MainActivity : ComponentActivity() {
                     result.confirm(JSONObject()
                         .put("enabled", prefs.getBoolean("enabled", false))
                         .put("language", prefs.getString("language", "en") ?: "en")
+                        .put("background", prefs.getString("background", "none") ?: "none")
+                        .put("size", prefs.getString("size", "normal") ?: "normal")
+                        .put("color", prefs.getString("color", "white") ?: "white")
+                        .put("outline", prefs.getBoolean("outline", true))
                         .toString())
                     return true
                 }
@@ -538,9 +542,21 @@ class MainActivity : ComponentActivity() {
                         val language = requested.optString("language", "en")
                         if (language !in setOf("en", "es", "fr", "de", "it", "pt", "ja", "ko"))
                             throw IllegalArgumentException("Invalid subtitle language")
+                        val background = requested.optString("background", "none")
+                        val size = requested.optString("size", "normal")
+                        val color = requested.optString("color", "white")
+                        if (background !in setOf("none", "25", "50", "75", "100") ||
+                            size !in setOf("small", "normal", "large") ||
+                            color !in setOf("white", "yellow"))
+                            throw IllegalArgumentException("Invalid subtitle appearance")
                         val saved = getSharedPreferences("oew_tv_subtitles", MODE_PRIVATE)
                             .edit().putBoolean("enabled", requested.optBoolean("enabled", false))
-                            .putString("language", language).commit()
+                            .putString("language", language)
+                            .putString("background", background)
+                            .putString("size", size)
+                            .putString("color", color)
+                            .putBoolean("outline", requested.optBoolean("outline", true))
+                            .commit()
                         if (saved) result.confirm("ACK") else result.cancel()
                     } catch (_: Exception) {
                         result.cancel()
@@ -1256,7 +1272,8 @@ class MainActivity : ComponentActivity() {
                   outline:0!important;box-shadow:none!important
                 }
                 .tile-button:focus-visible .cover,.tile-button:focus .cover {
-                  outline:0!important;box-shadow:none!important;
+                  outline:0!important;
+                  box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
                   border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
@@ -1274,7 +1291,8 @@ class MainActivity : ComponentActivity() {
                   border:0!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) .person-credit-poster{
-                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="movies"] .person-credits .person-credit-link:is(:focus,:focus-visible) :is(strong,small){
@@ -1284,8 +1302,8 @@ class MainActivity : ComponentActivity() {
                 /* Episode cards are also selectable art: no text block or
                    other card chrome is included in D-pad focus. */
                 body[data-page="tv"] .season-episode-tile:is(:focus,:focus-visible){
-                  outline:3px solid #d5eaff!important;outline-offset:3px!important;
-                  box-shadow:none!important
+                  outline:2px solid var(--oew-tv-select-color,#8B5CF6)!important;
+                  outline-offset:2px!important;box-shadow:none!important
                 }
                 /* Explore uses a full-card button. Focus ONLY its poster. */
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible,
@@ -1295,7 +1313,8 @@ class MainActivity : ComponentActivity() {
                 }
                 body[data-page="explore"] .explore-card .detail-trigger:focus-visible .cover,
                 body[data-page="explore"] .explore-card .detail-trigger:focus .cover{
-                  outline:0!important;box-shadow:none!important;border-color:transparent!important;
+                  outline:0!important;box-shadow:0 0 0 2px var(--oew-tv-select-color,#8B5CF6)!important;
+                  border-color:transparent!important;
                   transform:scale(1.07)!important;filter:brightness(1.16)!important
                 }
                 body[data-page="explore"] .explore-card:focus-within{
