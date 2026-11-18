@@ -25,12 +25,13 @@ def have_x265():
     return "libx265" in out
 
 
-def make(path, pix_fmt, extra=()):
+def make(path, pix_fmt, x265=""):
     subprocess.run(
         [FFMPEG, "-v", "error", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x360:rate=24",
          "-f", "lavfi", "-i", "sine=frequency=440:sample_rate=48000", "-t", "10",
-         "-c:v", "libx265", "-preset", "ultrafast", "-x265-params", "keyint=24:min-keyint=24:log-level=error",
-         "-pix_fmt", pix_fmt, *extra, "-c:a", "ac3", "-ac", "2", str(path)], check=True)
+         "-c:v", "libx265", "-preset", "ultrafast",
+         "-x265-params", "keyint=24:min-keyint=24:log-level=error" + x265,
+         "-pix_fmt", pix_fmt, "-c:a", "ac3", "-ac", "2", str(path)], check=True)
 
 
 @unittest.skipUnless(have_x265(), "FFmpeg with x265 is required")
@@ -44,8 +45,9 @@ class HevcFullQualityTests(unittest.TestCase):
         cls.hdr = cls.root / "hdr.mkv"
         make(cls.main, "yuv420p")
         make(cls.main10, "yuv420p10le")
-        make(cls.hdr, "yuv420p10le", ("-color_primaries", "bt2020", "-color_trc", "smpte2084",
-                                      "-colorspace", "bt2020nc"))
+        # HDR10 signalling written by the encoder itself, so it does not depend on how
+        # this FFmpeg build passes colour flags through.
+        make(cls.hdr, "yuv420p10le", ":colorprim=bt2020:transfer=smpte2084:colormatrix=bt2020nc")
         cls.db_patch = patch.object(library, "DB_PATH", cls.root / "library.sqlite3")
         cls.db_patch.start()
 
@@ -124,6 +126,8 @@ class HevcFullQualityTests(unittest.TestCase):
 
     def test_hdr_is_never_passed_through(self):
         self.movie = self.hdr
+        # Guard the fixture: it must really be signalled as HDR10.
+        self.assertEqual(hls.inspect_media(self.hdr).get("hdr_transfer"), "smpte2084")
         with self.assertRaises(HTTPException) as error:
             hls.start_hls(1, 0, "full", hevc=10)
         self.assertIn("HDR", error.exception.detail)
