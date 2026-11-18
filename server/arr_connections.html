@@ -3,16 +3,18 @@
 <head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=appearance-1"><script defer src="/assets/shell.js?v=appearance-1"></script>
+<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-layout-2"><script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
-.connection-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,350px),1fr));gap:16px}
-.connection-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:23px}
+.connection-list{display:flex;flex-direction:column;gap:20px;width:100%;min-width:0;margin-top:20px}
+.connection-grid{display:contents}
+.connection-list>.connection-card,.connection-grid>.connection-card{width:100%;max-width:none;min-width:0;box-sizing:border-box;margin:0}
+.connection-card{background:var(--panel);border:1px solid var(--line);border-radius:15px;padding:24px;min-width:0}
 .connection-head{display:flex;align-items:center;justify-content:space-between;gap:15px}
 .connection-head h2{margin:0;font-size:1.3rem;letter-spacing:-.02em}
 .connection-kind{color:var(--muted);font-size:.9rem;margin:6px 0 16px}
 .connection-state{color:#b9cadc;font-size:.84rem;padding:9px 0;overflow-wrap:anywhere}
 .connection-card label{display:block;font-size:.83rem;font-weight:650;margin:14px 0 6px}
-.connection-card input{width:100%;background:#0c1420;color:#ecf3ff;border:1px solid #374962;border-radius:10px;padding:12px;min-height:44px}
+.connection-card input{display:block;box-sizing:border-box;width:100%;max-width:780px;background:#0c1420;color:#ecf3ff;border:1px solid #374962;border-radius:10px;padding:12px;min-height:44px}
 .connection-card .form-actions{margin-top:17px}
 .connection-help{color:#9aacc2;line-height:1.65;font-size:.86rem}
 .integration-state{font-size:.78rem;color:#a1b8d0;letter-spacing:.03em}
@@ -23,33 +25,18 @@
 .sab-entry span{color:var(--muted);font-size:.8rem;text-align:right;flex-shrink:0}
 .sab-entry:focus-visible{outline:2px solid #b2cde8}
 @media(max-width:600px){.sab-entry{flex-direction:column;gap:4px}.sab-entry span{text-align:left}}
-.connection-quicklinks{display:flex;flex-wrap:wrap;gap:12px;margin:10px 0 20px}
-.connection-quicklinks a{color:#b5d4f0;text-decoration:underline;text-underline-offset:3px}
 </style></head>
 <body data-page="connections"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace">
 <main class="content">
 <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Connections</h1>
-<p>Connect your existing media managers once. They handle library management; One-Eyed Willie handles browsing.</p></div>
-<a class="primary-button" href="/explore">Explore More</a></div>
-<div class="connection-quicklinks"><a href="/radarr"><img class="integration-logo" src="/assets/brand/radarr.svg" alt="">Radarr dashboard</a><a href="/sonarr"><img class="integration-logo" src="/assets/brand/sonarr.svg" alt="">Sonarr dashboard</a><a href="/sabnzbd"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt="">SABnzbd dashboard</a></div>
-<div class="connection-grid" id="connections"></div>
-<section class="connection-card" aria-labelledby="opensubtitles-heading" style="margin-top:18px;max-width:760px">
-<div class="connection-head"><h2 id="opensubtitles-heading">OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
-<p class="connection-kind">Find, download and enable subtitles without leaving the player.</p>
-<p id="os-summary" class="connection-state" role="status">Checking connection…</p>
-<form id="os-form">
-<label for="os-key">OpenSubtitles API key</label>
-<input id="os-key" type="password" minlength="8" maxlength="300" autocomplete="off" spellcheck="false" required placeholder="Paste your OpenSubtitles API key">
-<label for="os-token">Account token (optional)</label>
-<input id="os-token" type="password" maxlength="1500" autocomplete="off" spellcheck="false" placeholder="Only if required for downloads">
-<p class="connection-help">Get your API key from <a class="text-link" href="https://www.opensubtitles.com/en/consumers" target="_blank" rel="noopener noreferrer">OpenSubtitles API Consumers</a>. Credentials are saved privately on this NUC, not in GitHub. Existing credentials are never displayed.</p>
-<div class="form-actions"><button type="submit" id="os-save" class="primary-button">Connect OpenSubtitles</button><button type="button" id="os-remove" class="danger-button">Remove saved connection</button></div>
-<p id="os-message" class="message" role="status"></p>
-</form></section>
+<p>Configure your media integrations. Each connection has its own settings and status.</p></div>
+</div>
 
-<section class="connection-card" aria-labelledby="sab-heading" style="margin-top:18px;max-width:900px">
+<div class="connection-list" aria-label="Connection configuration">
+<div class="connection-grid" id="connections"></div>
+<section class="connection-card" aria-labelledby="sab-heading">
 <div class="connection-head"><h2 id="sab-heading"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt=""> SABnzbd</h2><span id="sab-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Connect your download manager. Queue monitoring and controls are on the dedicated SABnzbd page.</p>
 <p id="sab-summary" class="connection-state" role="status">Checking connection…</p>
@@ -65,7 +52,7 @@
 <p id="sab-message" class="message" role="status"></p>
 <p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. One-Eyed Willie only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
 </section>
-<section class="connection-card" aria-labelledby="plex-heading" style="margin-top:18px;max-width:760px">
+<section class="connection-card" aria-labelledby="plex-heading">
 <div class="connection-head"><h2 id="plex-heading">Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Import watched movies and episodes from your local Plex server into One-Eyed Willie.</p>
 <p id="plex-summary" class="connection-state" role="status">Checking connection…</p>
@@ -81,6 +68,24 @@
 <p id="plex-message" class="message" role="status"></p>
 <p class="connection-help">Imports only confirmed watched items, never removes existing watch history and never changes Plex. Matches are checked by movie title/year or TV show/season/episode number. Review the preview before importing.</p>
 </section>
+<section class="connection-card" aria-labelledby="opensubtitles-heading">
+<div class="connection-head"><h2 id="opensubtitles-heading">OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
+<p class="connection-kind">Find, download and enable subtitles without leaving the player.</p>
+<p id="os-summary" class="connection-state" role="status">Checking connection…</p>
+<form id="os-form">
+<label for="os-key">OpenSubtitles API key</label>
+<input id="os-key" type="password" minlength="8" maxlength="300" autocomplete="off" spellcheck="false" required placeholder="Paste your OpenSubtitles API key">
+<label for="os-token">Account token (optional)</label>
+<input id="os-token" type="password" maxlength="1500" autocomplete="off" spellcheck="false" placeholder="Only if required for downloads">
+<p class="connection-help">Get your API key from <a class="text-link" href="https://www.opensubtitles.com/en/consumers" target="_blank" rel="noopener noreferrer">OpenSubtitles API Consumers</a>. Credentials are saved privately on this NUC, not in GitHub. Existing credentials are never displayed.</p>
+<div class="form-actions"><button type="submit" id="os-save" class="primary-button">Connect OpenSubtitles</button><button type="button" id="os-remove" class="danger-button">Remove saved connection</button></div>
+<p id="os-message" class="message" role="status"></p>
+</form></section>
+</div>
+
+
+
+
 <section class="form-card"><h2>How this works</h2>
 <p>Enter the LAN address and API key for each media manager. Credentials stay on the server; queues, history, searches, and monitoring are managed from their own Radarr, Sonarr, and SABnzbd pages.</p>
 <p>Radarr manages movies; Sonarr manages TV series. One-Eyed Willie can send a title to either service after you choose its folder and quality profile. Adding a title does not mean the media is available to play.</p>
