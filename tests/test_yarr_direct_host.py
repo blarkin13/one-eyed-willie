@@ -168,3 +168,24 @@ async def test_real_webrtc_range_transfer_over_datachannel():
         for pc in tuple(peer.ACTIVE):
             await pc.close()
             peer.ACTIVE.discard(pc)
+
+
+@pytest.mark.asyncio
+async def test_gateway_forwards_only_an_authenticated_offer_to_fixed_host():
+    offer = gateway.PeerOffer(type="offer", sdp="test-sdp")
+    seen = []
+    real_client = httpx.AsyncClient
+    def client_with_mock(**kwargs):
+        def respond(req):
+            seen.append(req)
+            assert str(req.url) == gateway.HOST_OFFER
+            assert req.headers["x-yarr-direct-secret"] == "known-secret"
+            assert json.loads(req.content) == {"type": "offer", "sdp": "test-sdp"}
+            return httpx.Response(200, json={"type": "answer", "sdp": "verified-answer"})
+        return real_client(transport=httpx.MockTransport(respond), **kwargs)
+    with (patch.dict(os.environ, {"YARR_DIRECT_PEER_ENABLED": "1"}),
+          patch.object(gateway, "shared_secret", lambda: "known-secret"),
+          patch.object(gateway.httpx, "AsyncClient", side_effect=client_with_mock)):
+        result = await gateway.offer(offer, x_yarr_direct_secret="known-secret")
+    assert result == {"type": "answer", "sdp": "verified-answer"}
+    assert len(seen) == 1
