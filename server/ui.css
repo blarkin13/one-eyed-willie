@@ -124,7 +124,8 @@ body[data-page="home"] .shelf:first-of-type{margin-top:0}
 body[data-page="home"] .shelf .section-heading{margin:0 0 16px}
 body[data-page="home"] .shelf-title{font-size:1.19rem;font-weight:700;letter-spacing:-.025em}
 body[data-page="home"] .shelf-desc{display:none}
-body[data-page="home"] .shelf-track{grid-auto-columns:minmax(140px,164px);gap:17px;padding-bottom:13px}
+body[data-page="home"] .shelf-track{display:flex;flex-flow:row nowrap;align-items:flex-start;gap:17px;padding-bottom:13px}
+body[data-page="home"] .shelf-track>.tile{flex:0 0 164px;width:164px;min-width:0}
 body[data-page="home"] .shelf-empty{min-height:82px;padding:18px 21px;background:#111a25;border-color:#2a3544}
 body[data-page="home"] .shelf-empty h3{margin:0;font-size:.89rem;font-weight:500;color:#91a3b8}
 body[data-page="home"] .shelf-empty p{display:none}
@@ -180,7 +181,8 @@ body[data-page="home"] .cover{border-color:#324257;border-radius:11px}
  .content{padding:21px 17px calc(105px + env(safe-area-inset-bottom,0px))}
  body[data-page=home] .content{padding-top:17px}
  body[data-page=home] .shelf{margin-top:29px}
- body[data-page=home] .shelf-track{grid-auto-columns:clamp(124px,34vw,156px);gap:12px}
+ body[data-page=home] .shelf-track{gap:12px}
+ body[data-page=home] .shelf-track>.tile{flex-basis:clamp(124px,34vw,156px);width:clamp(124px,34vw,156px)}
  body[data-page=home] .shelf-title{font-size:1.02rem}
  body[data-page=home] .shelf-empty{min-height:70px;padding:15px}
  .topbar-action{height:40px;width:40px}
