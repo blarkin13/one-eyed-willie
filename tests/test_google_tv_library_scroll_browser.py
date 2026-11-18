@@ -372,6 +372,10 @@ class LibraryScrollBrowserTests(unittest.TestCase):
                 # This is the reported bug: DOWN after choosing should leave
                 # Sort/Filter and select the first poster, not reopen a menu.
                 page.evaluate("window.__willieTvMove('down')")
+                # Sort/Filter fetch may finish *after* the first Down. Verify
+                # the new grid preserves focus even after that asynchronous
+                # rebuild has completed, not just before it.
+                page.wait_for_function("!loading", timeout=30000)
                 self.assertTrue(page.evaluate(
                     "document.activeElement?.matches?.('#items .tile-button')"))
                 self.assertTrue(page.evaluate(
