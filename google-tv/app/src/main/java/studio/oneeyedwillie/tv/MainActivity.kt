@@ -2693,6 +2693,10 @@ class MainActivity : ComponentActivity() {
                 const library=['/movies','/tv'].includes(location.pathname);
                 const home=location.pathname==='/';
                 if(tvUserMoved)return true;
+                // Home restored the poster the viewer opened from Continue
+                // Watching; don't replace that selection with the first row.
+                if(home && window.__willieHomeReturnFocusReady &&
+                   active?.matches?.('.shelf-track .tile-button'))return true;
                 if(!library && !home && active && !isMenu(active) &&
                    active!==document.body && active!==document.documentElement){
                   if(location.pathname==='/'&&active.matches?.('.tile-button')){
