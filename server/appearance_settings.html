@@ -12,6 +12,14 @@
 <h1>Appearance &amp; Navigation</h1>
 <p>Choose what the sidebar shows, customize its icons and set the TV remote selection color.</p></div></div>
 <p id="general-message" class="message" role="status" aria-live="polite"></p>
+<section class="settings-section" aria-labelledby="icon-theme-heading">
+<h2 id="icon-theme-heading">Icon theme</h2>
+<p>Choose the clean white icons or the original pirate artwork. Clean is the default.</p>
+<div class="settings-card">
+<label for="icon-theme">Navigation icon style</label>
+<select id="icon-theme"><option value="clean">Clean (default)</option><option value="pirate">Pirate (original icons)</option></select>
+<p class="settings-muted">Changes apply immediately to this browser or TV app. Your pirate ship logo stays the same.</p>
+</div></section>
 <section class="settings-section" aria-labelledby="tv-color-heading">
 <h2 id="tv-color-heading">TV selection color</h2>
 <p>Choose the highlight color used by Google TV remotes. Purple is the default. This preference is stored on the server and shared by TVs connected to it.</p>
@@ -75,7 +83,7 @@
 
 <section class="settings-section" aria-labelledby="sidebar-icons-heading">
 <h2 id="sidebar-icons-heading">Sidebar icons</h2>
-<p>Customize each navigation icon, including Home and download services. Upload a transparent PNG for the best result, or restore the pirate-themed default.</p>
+<p>Customize each navigation icon, including Home and download services. Upload a transparent PNG for the Pirate theme, or restore its original artwork. The Clean theme uses consistent white SVG icons.</p>
 <div class="settings-card">
   <div id="system-sidebar-icons" class="settings-list" aria-label="Sidebar icon customization">Loading icons…</div>
   <p class="settings-muted" id="system-icon-message" role="status"></p>
@@ -86,6 +94,11 @@
 </main></div></div>
 <script>
 const el=id=>document.getElementById(id);
+el('icon-theme').value=localStorage.getItem('willie-icon-theme')==='pirate'?'pirate':'clean';
+el('icon-theme').addEventListener('change',event=>{
+ localStorage.setItem('willie-icon-theme',event.target.value);
+ location.reload();
+});
 async function api(url,options={}){
  const response=await fetch(url,{cache:'no-store',...options,
   headers:{'Content-Type':'application/json',...(options.headers||{})}});
