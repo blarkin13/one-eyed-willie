@@ -34,8 +34,8 @@ unset YARR_TOKEN
 echo "Saved connector credential in local .env (not in GitHub)."
 
 if docker info >/dev/null 2>&1; then
-  docker compose -f compose.yaml -f compose.yarr-vpc.yaml up -d yarr-cloudflared
+  docker compose -f compose.yaml -f compose.yarr-vpc.yaml up -d --no-deps yarr-cloudflared
 else
-  sudo docker compose -f compose.yaml -f compose.yarr-vpc.yaml up -d yarr-cloudflared
+  sudo docker compose -f compose.yaml -f compose.yarr-vpc.yaml up -d --no-deps yarr-cloudflared
 fi
 echo "The connector has been started. Check the Yarr app's private connection test."
