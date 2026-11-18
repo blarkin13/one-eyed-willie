@@ -3,12 +3,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <title>One-Eyed Willie · Home</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
-<link rel="stylesheet" href="/assets/ui.css?v=home-shelf-alignment-1">
+<link rel="stylesheet" href="/assets/ui.css?v=home-fullscreen-shelves-2">
 <script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script>
 <script defer src="/assets/player.js?v=continue-next-1"></script>
 <style>
-.shelf{display:none;margin-top:36px}.shelf:first-of-type{margin-top:0}
+.shelf{display:none;margin:0;min-height:100dvh;box-sizing:border-box;scroll-snap-align:start;scroll-snap-stop:normal;padding:0 0 32px}
+.shelf:first-of-type{margin-top:0}
+@media(min-width:701px){html:has(body[data-page="home"]){scroll-snap-type:y proximity}}
 .shelf-title{font-size:1.24rem;letter-spacing:-.025em;margin:0}.shelf-desc{color:var(--muted);font-size:.82rem;margin:4px 0 0}
 .shelf-track{display:flex;flex-flow:row nowrap;align-items:flex-start;gap:18px;overflow-x:auto;padding:4px 2px 18px;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;scrollbar-color:#40516b transparent}
 /* Shelves remain single-row horizontal carousels, never vertically scrollable. */
@@ -43,7 +45,7 @@ max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;
 .next-episode-badge{display:inline-block;margin-top:8px;color:#b8d6f4;font-size:.75rem;font-weight:700;letter-spacing:.02em}
 .progress-track{height:4px;border-radius:4px;background:#2c394b;margin-top:9px;overflow:hidden}.progress-fill{height:100%;background:#a3d4ff;border-radius:4px}
 .shelf-action{font-size:.84rem;color:#b4d6ff;font-weight:650}.page-lead{max-width:650px;color:#9aa9bc}
-@media(max-width:620px){.shelf{margin-top:31px}.shelf-track{gap:12px}.shelf-track>.tile{flex-basis:clamp(124px,34vw,156px);width:clamp(124px,34vw,156px)}.shelf-empty{padding:19px}.shelf-title{font-size:1.1rem}}
+@media(max-width:620px){.shelf{margin-top:0;padding-bottom:24px}.shelf-track{gap:12px}.shelf-track>.tile{flex-basis:clamp(124px,34vw,156px);width:clamp(124px,34vw,156px)}.shelf-empty{padding:19px}.shelf-title{font-size:1.1rem}}
 
 /* Text-only cinematic Home details. The existing full-screen contextual
    backdrop already owns the media artwork: no second image or painted panel.
@@ -251,7 +253,7 @@ function updateHomeFeature(link,item){
 }
 function selectHomePoster(event){
  const link=event.target?.closest?.('body[data-page="home"] .shelf-track .tile-button');
- if(link?._homeItem && (HOME_TV || link.closest('#continue-watching')))updateHomeFeature(link,link._homeItem);
+ if(link?._homeItem)updateHomeFeature(link,link._homeItem);
 }
 document.addEventListener('focusin',selectHomePoster,true);
 document.addEventListener('pointerover',selectHomePoster,{passive:true});
@@ -563,11 +565,11 @@ function shelf(id,items,emptyTitle,emptyDescription,watching=false){
   const info=document.createElement('p');info.textContent=emptyDescription;
   empty.append(title,info);target.appendChild(empty);return;
  }
- if(section){section.style.display='block';if(HOME_TV||watching)makeHomeFeature(section);}
+ if(section){section.style.display='block';makeHomeFeature(section);}
  const track=document.createElement('div');track.className='shelf-track';
  for(const item of items)track.appendChild(tile(item,watching));target.appendChild(track);
  const first=track.querySelector('.tile-button');
- if(first?._homeItem&&(HOME_TV||watching))updateHomeFeature(first,first._homeItem);
+ if(first?._homeItem)updateHomeFeature(first,first._homeItem);
  fitHomeFeature();
 }
 let homeRevision=null,homeProgressRevision=null,homeRequestId=0,homePollTimer=null,homePollRunning=false;
