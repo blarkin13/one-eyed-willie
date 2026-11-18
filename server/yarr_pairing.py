@@ -2,6 +2,7 @@
 import json
 import os
 import secrets
+import subprocess
 import tempfile
 import threading
 import time
@@ -19,6 +20,13 @@ FILE = Path(os.environ.get("YARR_PAIRING_PATH", "/data/yarr-account-pairing.json
 ACCOUNT_URL = "https://yarr.larki-brian.workers.dev"
 LOCK = threading.RLock()
 ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+
+# This is an opt-in connector: nothing runs before Google-account pairing succeeds.
+TUNNEL_BIN = os.environ.get("YARR_CLOUDFLARED_BIN", "/usr/local/bin/cloudflared")
+TUNNEL_TOKEN_FILE = Path(os.environ.get("YARR_TUNNEL_TOKEN_PATH", "/data/yarr-automatic-tunnel-token"))
+TUNNEL_STATE_LOCK = threading.RLock()
+_tunnel_process = None
+_tunnel_message = "Not started"
 
 
 def _read():
@@ -115,7 +123,8 @@ def pairing_status():
             return {"status": "not_started"}
         if current.get("status") == "paired":
             return {"status": "paired", "connection_ready": bool(current.get("poll_secret")),
-                    "last_heartbeat": current.get("last_heartbeat") }
+                    "last_heartbeat": current.get("last_heartbeat"),
+                    "private_connector": tunnel_state()}
         if int(current.get("expires_at") or 0) <= time.time():
             _save({"server_id": get_server_id(), "status": "expired"})
             return {"status": "expired"}
@@ -129,7 +138,8 @@ def pairing_status():
                    "poll_secret": poll_secret,
                    "paired_at": int(time.time())})
             return {"status": "paired", "connection_ready": True,
-                    "last_heartbeat": current.get("last_heartbeat")}
+                    "last_heartbeat": current.get("last_heartbeat"),
+                    "private_connector": tunnel_state()}
         code = current.get("code", "")
         grouped_code = "-".join(code[i:i + 4] for i in range(0, len(code), 4)) if len(code) == 16 else None
         return {"status": "pending",
@@ -163,3 +173,99 @@ def heartbeat_loop(stop):
             # Loss of connectivity must never affect local media playback.
             pass
         stop.wait(60)
+
+
+def tunnel_state():
+    """Safe-to-display local connector status; never expose credentials."""
+    with TUNNEL_STATE_LOCK:
+        active = _tunnel_process is not None and _tunnel_process.poll() is None
+        return {"status": "running" if active else "offline",
+                "detail": _tunnel_message}
+
+
+def _store_tunnel_token(token):
+    # Atomic, private, and never sent to browser or application logs.
+    if not isinstance(token, str) or not (80 <= len(token) <= 4096):
+        raise RuntimeError("Invalid automatic tunnel credential")
+    TUNNEL_TOKEN_FILE.parent.mkdir(parents=True, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(prefix=".yarr-tunnel-", dir=str(TUNNEL_TOKEN_FILE.parent))
+    try:
+        with os.fdopen(fd, "w") as output:
+            output.write(token + "\\n")
+        os.chmod(temp_path, 0o600)
+        os.replace(temp_path, TUNNEL_TOKEN_FILE)
+    finally:
+        if os.path.exists(temp_path):
+            os.unlink(temp_path)
+
+
+def _stop_tunnel():
+    global _tunnel_process
+    with TUNNEL_STATE_LOCK:
+        proc = _tunnel_process
+        _tunnel_process = None
+    if proc is not None and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.wait(timeout=3)
+
+
+def automatic_tunnel_loop(stop):
+    """Fetch tunnel provisioning only with paired-server credentials and run QUIC.
+    Never depends on Docker socket, router settings, or user-provided URLs.
+    """
+    global _tunnel_process, _tunnel_message
+    while not stop.is_set():
+        try:
+            with LOCK:
+                pairing = _read()
+                secret = pairing.get("poll_secret") if pairing.get("status") == "paired" else None
+            if not secret:
+                _stop_tunnel()
+                with TUNNEL_STATE_LOCK:
+                    _tunnel_message = "Connect this server to Yarr to enable automatic tunneling"
+                stop.wait(20)
+                continue
+            if not os.path.isfile(TUNNEL_BIN) or not os.access(TUNNEL_BIN, os.X_OK):
+                with TUNNEL_STATE_LOCK:
+                    _tunnel_message = "Cloudflare connector not installed; rebuild the server image"
+                stop.wait(60)
+                continue
+            result = _cloud("/api/connection/tunnel/bootstrap",
+                            data={"server_id": get_server_id()}, secret=secret)
+            token = result.get("tunnel_token")
+            if result.get("status") != "ready" or not token:
+                raise RuntimeError("Tunnel provisioning is unavailable")
+            # Maintain the credential on private disk so the token isn't exposed via argv.
+            current = None
+            try:
+                current = TUNNEL_TOKEN_FILE.read_text().strip()
+            except FileNotFoundError:
+                pass
+            if current != token:
+                _store_tunnel_token(token)
+                _stop_tunnel()  # New tunnel credentials require a new connector process.
+            with TUNNEL_STATE_LOCK:
+                alive = _tunnel_process is not None and _tunnel_process.poll() is None
+                if not alive:
+                    _tunnel_process = subprocess.Popen(
+                        [TUNNEL_BIN, "tunnel", "--no-autoupdate", "--protocol", "quic",
+                         "run", "--token-file", str(TUNNEL_TOKEN_FILE)],
+                        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL, close_fds=True,
+                    )
+                _tunnel_message = "Automatic private connector started"
+        except HTTPException as error:
+            with TUNNEL_STATE_LOCK:
+                _tunnel_message = "Yarr provisioning: " + str(error.detail)[:110]
+            # On explicit unauthorized credentials, stop the old connector.
+            if error.status_code in (401, 403):
+                _stop_tunnel()
+        except Exception:
+            with TUNNEL_STATE_LOCK:
+                _tunnel_message = "Automatic private connector setup failed; retrying"
+        stop.wait(45)
+    _stop_tunnel()
