@@ -52,11 +52,19 @@ def main():
                 page.goto(URL, wait_until="domcontentloaded")
                 page.locator("#token").fill(token)
                 page.locator("#start").click()
-                page.locator("#result").get_by_text(
-                    "Verified: 1048576 bytes of correct data.",
-                    exact=False,
-                ).wait_for(timeout=45000)
+                try:
+                    page.wait_for_function(
+                        "() => { const text = document.querySelector('#result').textContent; "
+                        "return text.includes('Verified:') || text.includes('FAILED:'); }",
+                        timeout=45000,
+                    )
+                except Exception:
+                    print("Browser output at timeout:", page.locator("#result").inner_text(), flush=True)
+                    print("Browser JS errors:", failures, flush=True)
+                    raise
                 result = page.locator("#result").inner_text()
+                print("Browser output:", result, flush=True)
+                assert "Verified: 1048576 bytes of correct data." in result, result
                 assert "SHA-256:" in result, result
                 assert "ICE candidate types:" in result or "candidate pair not available" in result, result
                 assert "FAILED:" not in result, result
