@@ -253,7 +253,14 @@ body[data-page="home"] .shelf {
 }
 body[data-page="home"] .shelf:first-of-type {margin-top:0!important}
 body[data-page="home"] .shelf .section-heading {margin-bottom:5px!important}
-body[data-page="home"] .shelf-track .tile {min-height:0!important;align-self:start!important}
+body[data-page="home"] .shelf-track .tile {
+  width:100%!important;
+  max-width:100%!important;
+  min-width:0!important;
+  flex:none!important;
+  min-height:0!important;
+  align-self:start!important;
+}
 body[data-page="home"] .shelf-track .tile h3 {
   margin:5px 0 2px!important;line-height:1.17!important;
 }
