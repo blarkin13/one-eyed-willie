@@ -21,6 +21,7 @@ from pydantic import BaseModel
 from .media_probe import inspect_media
 from .playback import _item, probe_duration
 from .hardware import hardware_supported
+from . import usage
 
 router = APIRouter(prefix="/api/stream/hls")
 FFMPEG = "/usr/bin/ffmpeg"
@@ -89,6 +90,7 @@ class Session:
     duration: float
     start: float
     quality: str = DEFAULT_QUALITY
+    viewing: str = ""
 
 
 def hardware_available():
@@ -229,7 +231,8 @@ def _get_session(token):
 
 @router.post("/start/{media_id}")
 def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
-              quality: str = Query(DEFAULT_QUALITY)):
+              quality: str = Query(DEFAULT_QUALITY),
+              viewing: str = Query("", max_length=64)):
     quality = normalize_quality(quality)
     _, file = _item(media_id)
     if not os.path.isfile(FFMPEG):
@@ -263,7 +266,7 @@ def start_hls(media_id: int, start: float = Query(0, ge=0, le=10000000),
         session = Session(token, directory, process, now, now, media_id,
                           "Original video (no re-encode)" if quality == FULL
                           else "Intel VAAPI encode" if hardware else "CPU",
-                          probe_duration(file), start, quality)
+                          probe_duration(file), start, quality, usage.valid(viewing) or "")
         ACTIVE[token] = session
         return {"session": token,
                 "playlist": f"/api/stream/hls/{token}/index.m3u8",
@@ -328,6 +331,14 @@ def data_estimates(media_id: int):
     }
 
 
+@router.get("/usage/{viewing}")
+def viewing_usage(viewing: str):
+    """Bytes the server has sent for one viewing (direct play + HLS)."""
+    if not usage.valid(viewing):
+        raise HTTPException(404, "Invalid viewing")
+    return {"bytes": usage.total(viewing)}
+
+
 @router.get("/{token}/status")
 def stream_status(token: str):
     session = _get_session(token)
@@ -375,9 +386,10 @@ def stream_file(token: str, filename: str):
     file = session.directory / filename
     if not file.is_file() or file.is_symlink():
         raise HTTPException(404, "Segment not ready")
-    return FileResponse(
-        file, media_type=("application/vnd.apple.mpegurl"
-                          if filename.endswith(".m3u8") else "video/mp2t"),
+    return usage.CountingFileResponse(
+        file, viewing=session.viewing,
+        media_type=("application/vnd.apple.mpegurl"
+                    if filename.endswith(".m3u8") else "video/mp2t"),
         headers={"Cache-Control": "private, no-store",
                  "X-Content-Type-Options": "nosniff"},
     )

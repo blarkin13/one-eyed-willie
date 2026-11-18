@@ -131,9 +131,9 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
         page.click(row)
 
     def open_player(self, status=None, hls_start="busy", stream="hang", metered=False,
-                    estimates=ESTIMATES):
+                    estimates=ESTIMATES, viewport=None, setup=None):
         """Open /watch/7 with stubbed media APIs; returns (page, hls_start_urls, stream_urls)."""
-        context = self.browser.new_context(viewport={"width": 1280, "height": 720})
+        context = self.browser.new_context(viewport=viewport or {"width": 1280, "height": 720})
         self.addCleanup(context.close)
         page = context.new_page()
         if metered:
@@ -173,7 +173,9 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
             if estimates else route.fulfill(status=404, content_type="application/json", body="{}"))
         page.route("**/api/watch/7/status", on_status)
         page.route("**/api/stream/hls/start/7**", on_hls_start)
-        page.route("**/api/watch/7/stream", on_stream)
+        page.route("**/api/watch/7/stream*", on_stream)
+        if setup:
+            setup(page)
         page.goto(self.origin + "/watch/7", wait_until="load")
         page.click("#launch")
         page.wait_for_selector(".willie-player video", state="attached")

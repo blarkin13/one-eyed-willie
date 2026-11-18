@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 
 from .library import MEDIA_ROOT, db
 from .media_probe import inspect_media
+from . import usage
 
 router = APIRouter(prefix="/api/watch")
 TRANSCODE_SLOTS = asyncio.Semaphore(2)
@@ -131,13 +132,13 @@ def mark_watched(media_id: int, update: WatchedRequest):
 
 @router.get("/{media_id}/stream")
 @router.head("/{media_id}/stream")
-def stream_media(media_id: int):
+def stream_media(media_id: int, viewing: str = Query("", max_length=64)):
     _, file = _item(media_id)
     suffix = file.suffix.lower()
     if suffix not in DIRECT_TYPES:
         raise HTTPException(415, "This file is not supported for direct streaming")
-    return FileResponse(
-        file, media_type=DIRECT_TYPES[suffix], filename=None,
+    return usage.CountingFileResponse(
+        file, viewing=viewing, media_type=DIRECT_TYPES[suffix], filename=None,
         headers={
             "Cache-Control": "private, no-store",
             "X-Content-Type-Options": "nosniff",
