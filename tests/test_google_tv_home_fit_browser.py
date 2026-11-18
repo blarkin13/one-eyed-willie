@@ -218,13 +218,16 @@ class TvHomeFitTests(unittest.TestCase):
                 self.assertLessEqual(m["copyBottom"], m["featureBottom"] + 1, m)
                 self.assertLessEqual(m["summaryLines"], 2, m)
                 self.assertFalse(m["genresShown"])
-                self.assertLessEqual(m["featureHeight"], 350)
+                # The hero now uses the available screen height instead of
+                # stopping at 350px and leaving a blank strip underneath.
+                self.assertLessEqual(m["featureHeight"], m["innerHeight"], m)
+                self.assertGreaterEqual(m["trackBottom"], m["innerHeight"] - 55, m)
 
     def test_hero_gives_up_height_only_as_needed(self):
         small, _ = self.measure(960, 540)
         big, _ = self.measure(1920, 1080)
-        self.assertLess(small["featureHeight"], 270)      # shrunk to make room
-        self.assertGreater(big["featureHeight"], small["featureHeight"])  # not shrunk needlessly
+        self.assertGreater(big["featureHeight"], small["featureHeight"])
+        self.assertGreater(big["featureHeight"], 350)  # fill the larger viewport
 
     def test_the_fit_survives_a_resize(self):
         m, page = self.measure(1920, 1080)
