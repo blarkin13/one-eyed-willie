@@ -196,7 +196,7 @@ function build(){
      finally{disconnect.disabled=false;}
    };
    const help=document.createElement('p');help.className='connection-help';
-   help.textContent='The API key is stored privately on your server. Use the service's local LAN address, not the public forwarded address.';
+   help.textContent="The API key is stored privately on your server. Use the service's local LAN address, not the public forwarded address.";
    article.append(header,desc,summary,form,help);parent.append(article);
    statusEls[provider.id]={state,summary,url,disconnect,connect};
  }
