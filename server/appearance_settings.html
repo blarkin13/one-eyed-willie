@@ -2,9 +2,17 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Appearance & Navigation · One-Eyed Willie</title>
-<link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
-<script defer src="/assets/shell.js?v=icon-theme-restore-2"></script>
+<link rel="stylesheet" href="/assets/ui.css?v=fa-default-1">
+<script defer src="/assets/shell.js?v=fa-default-1"></script>
 <script defer src="/assets/ambient.js?v=1"></script>
+<style>
+/* Font Awesome previews match the sidebar and stay consistent when offline. */
+#system-sidebar-icons .nav-clean-icon{display:inline-flex;align-items:center;justify-content:center;color:#f7f7f7}
+#system-sidebar-icons .nav-clean-icon i{display:none;font-size:1em;line-height:1}
+#system-sidebar-icons .nav-clean-icon .fa-fallback{display:block;width:30px;height:30px}
+.fontawesome-ready #system-sidebar-icons .nav-clean-icon i{display:inline-block!important}
+.fontawesome-ready #system-sidebar-icons .nav-clean-icon .fa-fallback{display:none!important}
+</style>
 </head><body data-page="appearance">
 <div class="app-shell"><aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
@@ -14,7 +22,7 @@
 <p id="general-message" class="message" role="status" aria-live="polite"></p>
 <section class="settings-section" aria-labelledby="icon-theme-heading">
 <h2 id="icon-theme-heading">Icon theme</h2>
-<p>Choose the clean white icons or the original pirate artwork. Clean is the default.</p>
+<p>Choose Font Awesome icons or the original pirate artwork. Clean uses Font Awesome and is the default.</p>
 <div class="settings-card">
 <label for="icon-theme">Navigation icon style</label>
 <select id="icon-theme"><option value="clean">Clean (default)</option><option value="pirate">Pirate (original icons)</option></select>
@@ -83,7 +91,7 @@
 
 <section class="settings-section" aria-labelledby="sidebar-icons-heading">
 <h2 id="sidebar-icons-heading">Sidebar icons</h2>
-<p>Customize each navigation icon, including Home and Connections. Upload your own icons, or restore the selected theme's defaults. Clean uses white SVG icons; Pirate preserves the original artwork.</p>
+<p>Customize each navigation icon, including Home and Connections. Upload your own icons, or restore the selected theme's defaults. Clean uses Font Awesome icons; Pirate preserves the original artwork.</p>
 <div class="settings-card">
   <div id="system-sidebar-icons" class="settings-list" aria-label="Sidebar icon customization">Loading icons…</div>
   <p class="settings-muted" id="system-icon-message" role="status"></p>
@@ -243,7 +251,7 @@ async function loadSystemIcons(){
   const drawPreview=(url,custom)=>{
     preview.replaceChildren();
     if(!custom&&activeIconTheme()==='clean'&&window.WillieCleanIcons){
-      preview.append(window.WillieCleanIcons.create(item.name,38));
+      preview.append(window.WillieCleanIcons.create(item.name,30));
     }else{
       const img=document.createElement('img');
       img.src=url;img.alt='';img.width=56;img.height=56;
