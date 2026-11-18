@@ -1081,6 +1081,11 @@ async function renderSeason(){
   };
   for(const episode of available){
     const button=el('button','season-episode-tile');button.type='button';
+    button.dataset.mediaKind='tv';
+    button.dataset.libraryId=String(data.show.library_id);
+    button.dataset.mediaKey=data.show.key;
+    button.dataset.mediaId=String(episode.id);
+    button.dataset.seasonNumber=String(state.season_number);
     button.title=(episode.episode!=null?'Episode '+episode.episode+' · ':'')+episode.title;
     if(episode.still_url?.startsWith('/api/artwork/'))
       button.append(image(episode.still_url,'','Episode '+episode.episode+' still'));

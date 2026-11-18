@@ -96,7 +96,7 @@ def _request(name, settings, resource, *, method="GET", query=None, payload=None
     api = _version(name, settings)
     allowed = {
         "movie", "series", "movie/lookup", "series/lookup",
-        "rootfolder", "qualityprofile", "languageprofile", "tag",
+        "rootfolder", "qualityprofile", "languageprofile", "tag", "episode",
     }
     if resource not in allowed:
         raise ValueError("Unsupported API resource")

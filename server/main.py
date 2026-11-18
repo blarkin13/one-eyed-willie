@@ -9,6 +9,7 @@ from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.remote_config import router as remote_config_router
 from server.home import router as home_router
+from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
 from server.theme_music import router as theme_music_router
@@ -79,6 +80,7 @@ app.include_router(router)
 app.include_router(connections_router)
 app.include_router(remote_config_router)
 app.include_router(home_router)
+app.include_router(media_actions_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
 app.include_router(theme_music_router)
@@ -335,6 +337,13 @@ def default_library_header_image(kind: str):
 def library_appearance_js():
     return FileResponse(Path(__file__).with_name("library_appearance.js"),
                         media_type="application/javascript")
+
+
+@app.get("/assets/media-context.js")
+def media_context_script():
+    return FileResponse(Path(__file__).with_name("media_context.js"),
+                        media_type="text/javascript",
+                        headers={"Cache-Control": "no-store"})
 
 
 @app.get("/assets/shell.js")
