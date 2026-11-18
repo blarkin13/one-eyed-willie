@@ -34,6 +34,7 @@ PEER_LIFETIME = 60 * 60
 # authenticated Yarr HTTPS origin; these media bytes bypass the Worker.
 READ_ROUTES = (
     re.compile(r"^/api/watch/[1-9][0-9]*/stream$"),
+    re.compile(r"^/api/watch/[1-9][0-9]*/transcode$"),
     re.compile(r"^/api/stream/hls/[a-f0-9]{32}/(?:index\.m3u8|init\.mp4|segment_[0-9]{6}\.(?:ts|m4s))$"),
     re.compile(r"^/api/stream/subtitles/[1-9][0-9]*/(?:external|embedded)-[0-9]{1,3}\.vtt$"),
     re.compile(r"^/api/maintenance/preview/[1-9][0-9]*/0(?:0[0-9]|1[0-9]|2[0-3])\.jpg$"),
