@@ -50,7 +50,7 @@
 <select id="ambient-speed"><option value="slow">Slow</option><option value="normal">Normal</option><option value="fast">Fast</option></select>
 <label for="ambient-layer">Position</label>
 <select id="ambient-layer"><option value="foreground">Over interface</option><option value="background">Behind interface</option></select>
-<p class="settings-muted">Live preview on this page. These preferences are saved on the server and shared with connected TVs. Animation is automatically disabled when reduced motion is requested.</p>
+<p class="settings-muted">Changes save automatically and preview immediately. Preferences are shared with connected TVs. Animation is automatically disabled when reduced motion is requested.</p>
 <div class="form-actions">
 <button type="submit" class="primary-button">Save ambient effects</button>
 <button type="button" class="secondary-button" id="ambient-off">Turn off</button>
@@ -115,26 +115,51 @@ const ambientFields=['effect','intensity','speed','layer'];
 const ambientInput=()=>Object.fromEntries(ambientFields.map(key=>[
  key, key==='intensity'?Number(el('ambient-'+key).value):el('ambient-'+key).value
 ]));
+let ambientTouched=false,ambientSaveQueue=Promise.resolve(),ambientSaveVersion=0;
 async function loadAmbient(){
  const pref=await api('/api/settings/ambient');
+ if(ambientTouched)return;
  for(const key of ambientFields)el('ambient-'+key).value=pref[key];
  el('ambient-intensity-value').textContent=pref.intensity+'%';
+ window.WillieAmbient?.confirmed(pref);
 }
-for(const key of ambientFields)el('ambient-'+key).addEventListener('input',()=>{
- el('ambient-intensity-value').textContent=el('ambient-intensity').value+'%';
- window.WillieAmbient?.preview(ambientInput());
-});
-el('ambient-form').onsubmit=async event=>{
- event.preventDefault();
- try{
-  await api('/api/settings/ambient',{method:'PUT',body:JSON.stringify(ambientInput())});
-  el('ambient-status').textContent='Ambient effects saved for all devices.';
- }catch(error){el('ambient-status').textContent='Could not save: '+error.message}
+function saveAmbient(){
+ ambientTouched=true;
+ const values=ambientInput(),version=++ambientSaveVersion;
+ el('ambient-status').textContent='Saving ambient effects…';
+ // Serialize writes, including rapid TV D-pad or slider changes, so an old
+ // slower request cannot overwrite the user's newest selected effect.
+ ambientSaveQueue=ambientSaveQueue.catch(()=>{}).then(async()=>{
+  const saved=await api('/api/settings/ambient',{
+   method:'PUT',body:JSON.stringify(values)
+  });
+  if(version===ambientSaveVersion){
+   window.WillieAmbient?.confirmed(saved);
+   el('ambient-status').textContent='Saved for all devices.';
+  }
+ }).catch(error=>{
+  if(version===ambientSaveVersion)
+   el('ambient-status').textContent='Could not save: '+error.message;
+ });
+ return ambientSaveQueue;
+}
+for(const key of ambientFields){
+ const control=el('ambient-'+key);
+ control.addEventListener('input',()=>{
+  ambientTouched=true;
+  el('ambient-intensity-value').textContent=el('ambient-intensity').value+'%';
+  window.WillieAmbient?.preview(ambientInput());
+ });
+ // Changing a choice, or releasing the slider, saves automatically.
+ control.addEventListener('change',saveAmbient);
+}
+el('ambient-form').onsubmit=event=>{
+ event.preventDefault();saveAmbient();
 };
 el('ambient-off').onclick=()=>{
  el('ambient-effect').value='off';
  window.WillieAmbient?.preview(ambientInput());
- el('ambient-form').requestSubmit();
+ saveAmbient();
 };
 let sidebarItems=[];
 function renderSidebar(){
