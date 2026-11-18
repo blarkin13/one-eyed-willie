@@ -16,7 +16,18 @@
  <main class="content">
   <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Remote Access</h1><p>Manage the addresses used to reach One-Eyed Willie inside and outside your home.</p></div></div>
   <div class="status-panel" role="status"><span class="server-dot" aria-hidden="true"></span><span id="connection-status">Checking saved connection settings…</span></div>
-  <div class="remote-columns">
+  <section class="form-card" aria-labelledby="yarr-pair-heading" style="max-width:none;margin-bottom:20px">
+  <h2 id="yarr-pair-heading">Connect to Yarr</h2>
+  <p>Link this installed media server to your Yarr Google account. You won't need to enter IP addresses. Pairing alone does not enable remote playback.</p>
+  <div id="yarr-pair-status" role="status" aria-live="polite">Checking Yarr connection…</div>
+  <p id="yarr-code" style="font:700 1.6rem ui-monospace,monospace;letter-spacing:.07em;user-select:all" hidden></p>
+  <div class="form-actions">
+    <button id="yarr-start" class="primary-button" type="button">Connect to Yarr</button>
+    <a id="yarr-claim" href="https://yarr.larki-brian.workers.dev/account" target="_blank" rel="noopener noreferrer" hidden>Open Yarr Account</a>
+  </div>
+  <small>The pairing code expires after ten minutes. Keep it private. This is an opt-in connection; your existing local libraries and playback remain unchanged.</small>
+</section>
+<div class="remote-columns">
    <div>
     <form id="settings-form" class="form-card">
      <h2>Connection details</h2>
@@ -60,6 +71,43 @@
  </main>
 </div></div>
 <script>
+
+const yarrStatus=document.getElementById('yarr-pair-status');
+const yarrStart=document.getElementById('yarr-start');
+const yarrCode=document.getElementById('yarr-code');
+const yarrClaim=document.getElementById('yarr-claim');
+let yarrTimer;
+async function yarrCheck(){
+ try{
+  const r=await fetch('/api/yarr/pair/status',{cache:'no-store'});
+  const result=await r.json();
+  if(!r.ok)throw Error(result.detail||'Unable to check Yarr pairing');
+  if(result.status==='paired'){
+   yarrStatus.textContent='Connected to your Yarr account. Remote access is not yet enabled.';
+   yarrStart.hidden=true;yarrCode.hidden=true;yarrClaim.hidden=true;clearInterval(yarrTimer);
+  }else if(result.status==='pending'){
+   yarrStatus.textContent='Pairing pending. Enter the code in your Yarr account.';
+   yarrClaim.hidden=false;
+  }else{
+   yarrStatus.textContent='Not connected. Use Connect to Yarr to create a pairing code.';
+   yarrStart.hidden=false;yarrClaim.hidden=true;yarrCode.hidden=true;clearInterval(yarrTimer);
+  }
+ }catch(e){yarrStatus.textContent=e.message||'Unable to reach Yarr pairing service';}
+}
+yarrStart.addEventListener('click',async()=>{
+ yarrStart.disabled=true;yarrStatus.textContent='Creating secure pairing code…';
+ try{
+  const r=await fetch('/api/yarr/pair/start',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
+  const d=await r.json();
+  if(!r.ok)throw Error(d.detail||'Unable to start pairing');
+  yarrCode.textContent=d.code;yarrCode.hidden=false;
+  yarrClaim.href=d.claim_url;yarrClaim.hidden=false;
+  yarrStatus.textContent='Enter this code at Yarr Account within ten minutes.';
+  clearInterval(yarrTimer);yarrTimer=setInterval(yarrCheck,5000);
+ }catch(e){yarrStatus.textContent=e.message||'Unable to start pairing';}
+ finally{yarrStart.disabled=false;}
+});
+yarrCheck();
 const el=id=>document.getElementById(id);
 const ip=el('public-ip'),url=el('public-url');
 function origin(){
