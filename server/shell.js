@@ -51,6 +51,40 @@ document.addEventListener('DOMContentLoaded', () => {
       fallback.innerHTML=paths[key]||paths.settings;
       wrap.append(font,fallback);
       return wrap;
+    },
+    // Custom libraries use the Font Awesome equivalent of their selected icon.
+    // Their original icon selection and uploaded artwork are retained for Pirate.
+    libraryIcons:{
+      film:'fa-film',tv:'fa-tv',folder:'fa-folder',clapperboard:'fa-clapperboard',
+      play:'fa-play',reel:'fa-film',popcorn:'fa-bowl-food',ticket:'fa-ticket',
+      camera:'fa-camera',video:'fa-video',headphones:'fa-headphones',music:'fa-music',
+      star:'fa-star',heart:'fa-heart',ghost:'fa-ghost',skull:'fa-skull',
+      pumpkin:'fa-face-grin',flame:'fa-fire',zap:'fa-bolt',rocket:'fa-rocket',
+      planet:'fa-earth-americas',robot:'fa-robot',alien:'fa-user-astronaut',
+      wand:'fa-wand-magic-sparkles',sword:'fa-shield-halved',crown:'fa-crown',
+      shield:'fa-shield',smile:'fa-face-smile',drama:'fa-masks-theater',
+      eye:'fa-eye',fingerprint:'fa-fingerprint',trophy:'fa-trophy',
+      gamepad:'fa-gamepad',book:'fa-book',archive:'fa-box-archive',
+      layers:'fa-layer-group',grid:'fa-table-cells',bookmark:'fa-bookmark',
+      gem:'fa-gem',award:'fa-award',clock:'fa-clock',calendar:'fa-calendar',
+      hourglass:'fa-hourglass',search:'fa-magnifying-glass',map:'fa-map',
+      compass:'fa-compass',globe:'fa-globe',mountain:'fa-mountain',
+      tree:'fa-tree',leaf:'fa-leaf',paw:'fa-paw',users:'fa-users',
+      sun:'fa-sun',moon:'fa-moon',snowflake:'fa-snowflake',gift:'fa-gift',
+      plane:'fa-plane',ship:'fa-ship',car:'fa-car',sparkles:'fa-wand-magic-sparkles'
+    },
+    createLibrary(name,appearance,size=24){
+      const wrap=this.create('movies',size);
+      wrap.classList.add('library-custom-icon');
+      wrap.querySelector('i').className='fa-solid '+(this.libraryIcons[name]||'fa-folder');
+      if(appearance?.icons?.[name]){
+        const fallback=appearance.createIcon(name,size);
+        fallback.classList.add('fa-fallback');
+        fallback.setAttribute('width',String(size));
+        fallback.setAttribute('height',String(size));
+        wrap.querySelector('svg')?.replaceWith(fallback);
+      }
+      return wrap;
     }
   };
   function glyph(fa,svg){
@@ -81,7 +115,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const safe=['home','movies','tv','connections','settings'].includes(kind)?kind:'movies';
     if(iconTheme()==='pirate')
       return coloredIcon('/assets/sidebar-icon-'+(safe==='connections'?'sabnzbd':safe)+'.png?v=pirate-v3');
-    return window.WillieCleanIcons.create(safe,30);
+    return window.WillieCleanIcons.create(safe,24);
   }
   document.documentElement.dataset.iconTheme=iconTheme();
   // Logo anchors the upper-left corner on desktop and mobile.
@@ -159,8 +193,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // Theme selection takes precedence for the main Movies and TV Shows links.
     // Their library image uploads and Pirate presets are used only by Pirate.
     // Custom named libraries keep their individually selected artwork.
-    if(isStandard && iconTheme()==='clean')
-      return defaultIcon(kind);
+    if(iconTheme()==='clean'){
+      if(isStandard)return defaultIcon(kind);
+      return window.WillieCleanIcons.createLibrary(library.icon,appearance,24);
+    }
     if(library.icon_image_url && /^\/api\/libraries\/[0-9]+\/icon\.png\?v=[0-9]+$/.test(library.icon_image_url))
       return coloredIcon(library.icon_image_url);
     // Pirate mode preserves the existing library appearance choices.
