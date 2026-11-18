@@ -1,2 +1,7 @@
 __pycache__/
 *.py[cod]
+
+# Never commit local Cloudflare tunnel credentials or production environment files
+.env
+.env.*
+!.env.example
