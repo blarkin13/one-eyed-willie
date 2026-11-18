@@ -2477,10 +2477,12 @@ class MainActivity : ComponentActivity() {
                   glideTo(document.scrollingElement||document.documentElement,'top',0);
                   return true;
                 }
-                if(toolbar.includes(active) && direction==='down'){
+                if((toolbar.includes(active) ||
+                    active?.matches?.('#sort-toggle,#genre-toggle')) &&
+                   direction==='down'){
                   const layout=libraryLayout();
                   const first=layout?.rows[0];
-                  if(!first?.length)return true;
+                  if(!first?.length)return false;
                   const target=nearestInRow(first,centerX(rect(active)));
                   readingScroll=false;
                   // Returning to the first row restores the same complete
@@ -2515,24 +2517,12 @@ class MainActivity : ComponentActivity() {
                 return true;
               };
               const move=direction=>{
-                // Sort and Filter are toolbar controls, not ordinary library
-                // links. DOWN from a focused toggle must ENTER its menu; the
-                // old toolbar handler sent DOWN straight to the first poster.
-                // A live popup owns the remote's arrows until dismissed.
+                // Sort and Filter options are navigable while their popup
+                // is open. Once a choice is applied the menu closes, and DOWN
+                // from its toolbar toggle must go BACK to the poster grid.
+                // Never reopen the menu just because the viewer presses DOWN.
                 if(window.__willieCatalogRemoteNavigate?.(direction))return true;
                 const active=document.activeElement;
-                const catalogToggle=active?.matches?.('#sort-toggle,#genre-toggle');
-                if(catalogToggle && direction==='down'){
-                  const menu=document.getElementById(active.getAttribute('aria-controls'));
-                  if(menu?.hidden)active.click();
-                  const option=menu?.querySelector(
-                    '.catalog-tool-option[aria-checked="true"],.catalog-tool-option'
-                  );
-                  if(option)focusNode(option);
-                  return true;
-                }
-                // Also handle server versions without the dedicated catalog
-                // helper. Do not allow a popup to silently lose D-pad focus.
                 const menu=document.querySelector(
                   'dialog[open],.season-more-popover,.catalog-tool-menu:not([hidden])'
                 );
@@ -2546,11 +2536,21 @@ class MainActivity : ComponentActivity() {
                   if(direction==='up'||direction==='down'){
                     if(!options.length)return true;
                     const step=direction==='down'?1:-1;
-                    const next=index<0?(step>0?0:options.length-1):
-                      Math.max(0,Math.min(options.length-1,index+step));
-                    return focusNode(options[next]);
-                  }
-                  return true;
+                    if(menu.matches('.catalog-tool-menu') &&
+                       direction==='down' && index===options.length-1){
+                      menu.hidden=true;
+                      const toggle=document.querySelector(
+                        '[aria-controls="'+menu.id+'"]'
+                      );
+                      toggle?.setAttribute('aria-expanded','false');
+                      toggle?.focus({preventScroll:true});
+                      // Continue to library toolbar handling below.
+                    }else{
+                      const next=index<0?(step>0?0:options.length-1):
+                        Math.max(0,Math.min(options.length-1,index+step));
+                      return focusNode(options[next]);
+                    }
+                  }else return true;
                 }
                 if(active?.matches?.('input[type="range"]') &&
                     (direction==='left'||direction==='right')){
