@@ -70,7 +70,7 @@ class DetailEnhancementTests(unittest.TestCase):
              patch.object(metadata,"_call",return_value=data) as call:
             result=movies._movie_extras({"tmdb_id":321})
         self.assertEqual(call.call_count,1)
-        self.assertEqual(call.call_args.kwargs["query"]["append_to_response"],"credits,reviews,videos")
+        self.assertEqual(call.call_args.kwargs["query"]["append_to_response"],"credits,reviews,videos,images")
         self.assertEqual(result["cast"][0]["name"],"Actor")
         self.assertEqual(result["reviews"][0]["source"],"TMDB")
         self.assertEqual(result["tmdb_rating"],8.1)
