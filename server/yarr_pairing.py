@@ -191,7 +191,7 @@ def _store_tunnel_token(token):
     fd, temp_path = tempfile.mkstemp(prefix=".yarr-tunnel-", dir=str(TUNNEL_TOKEN_FILE.parent))
     try:
         with os.fdopen(fd, "w") as output:
-            output.write(token + "\\n")
+            output.write(token + "\n")
         os.chmod(temp_path, 0o600)
         os.replace(temp_path, TUNNEL_TOKEN_FILE)
     finally:
