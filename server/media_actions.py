@@ -199,7 +199,6 @@ def delete_media(selection: DeleteSelection):
             _delete_manager("radarr", "moviefile", file_id)
             return {"deleted": True, "provider": "radarr", "files_requested": 1,
                     "manager_record_removed": False, "rescan_required": True}
-        ids = sorted({ep for ep in _episode_file_ids(match["id"], 0)})
         # Whole-series files should be delegated to Sonarr's series delete,
         # which can safely handle all series seasons together. Refuse this
         # combination instead of quietly removing the Sonarr series record.
