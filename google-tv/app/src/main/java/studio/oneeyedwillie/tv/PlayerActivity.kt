@@ -101,7 +101,7 @@ class PlayerActivity : ComponentActivity() {
     private var endedAwaitingNext = false
     private var nextLookupInFlight = false
     private var advancingToNext = false
-    private var selectedColor = 0xFF8B5CF6.toInt()
+    private var selectedColor = 0xFFA61E1E.toInt()
     private val iconControls = mutableListOf<ImageButton>()
     // A Select key-down that toggles playback must consume its paired key-up.
     // Otherwise Android can activate a newly focused Back button and exit.
@@ -306,13 +306,13 @@ class PlayerActivity : ComponentActivity() {
         lookups.execute {
             try {
                 val settings = request("/api/settings/tv-appearance")
-                val hex = settings.optString("selection_color", "#8B5CF6")
+                val hex = settings.optString("selection_color", "#A61E1E")
                 if (!Regex("^#[0-9a-fA-F]{6}$").matches(hex)) return@execute
                 val color = Color.parseColor(hex)
                 runOnUiThread { if (!isFinishing && !shuttingDown)
                     applyPlayerSelectionColor(color) }
             } catch (_: Exception) {
-                // Older or offline servers retain the purple default.
+                // Older or offline servers retain the crimson default.
             }
         }
     }
