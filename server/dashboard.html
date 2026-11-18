@@ -116,11 +116,11 @@ max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;
         <div id="continue-watching"></div>
       </section>
       <section class="shelf" aria-labelledby="movies-heading">
-        <div class="section-heading"><div><h2 id="movies-heading" class="shelf-title">Recently Added Movies</h2></div><a href="/movies" class="shelf-action" title="All movies" aria-label="All movies"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+        <div class="section-heading"><div><h2 id="movies-heading" class="shelf-title">Recently Added Movies</h2></div></div>
         <div id="recent-movies"></div>
       </section>
       <section class="shelf" aria-labelledby="tv-heading">
-        <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2></div><a href="/tv" class="shelf-action" title="All TV shows" aria-label="All TV shows"><i class="fa-solid fa-chevron-right" aria-hidden="true"></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 5 7 7-7 7" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></a></div>
+        <div class="section-heading"><div><h2 id="tv-heading" class="shelf-title">Recently Added TV Shows</h2></div></div>
         <div id="recent-tv"></div>
       </section>
       
@@ -585,6 +585,13 @@ async function load({preserveFocus=false}={}){
         sessionStorage.removeItem('oew-continue-return');
       }
     }catch(_){sessionStorage.removeItem('oew-continue-return');}
+  }
+  // The featured artwork is not a focus target. Start the initial Home
+  // screen on the first real poster so OK and Left work immediately.
+  if(!preserveFocus && !window.__willieHomeReturnFocusReady){
+    const first=byId('continue-watching').querySelector('.shelf-track .tile-button')||
+      document.querySelector('.content .shelf-track .tile-button');
+    first?.focus({preventScroll:true});
   }
   // Native TV navigation is installed after document load. Notify it when
   // dynamically populated posters are ready for initial focus and backdrop.

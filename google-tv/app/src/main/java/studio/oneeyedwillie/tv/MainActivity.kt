@@ -232,6 +232,8 @@ class MainActivity : ComponentActivity() {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
                 web.requestFocus()
+                // Android may replace a DOM focus when WebView gains focus.
+                web.evaluateJavascript("window.__willieTvRestoreHomeFocus?.()", null)
             }
         }?.start()
     }
@@ -763,6 +765,10 @@ class MainActivity : ComponentActivity() {
             val target = try { org.json.JSONArray("[" + result + "]").optString(0, "/") }
                 catch (_: Exception) { "/" }
             if (target == "handled") return@evaluateJavascript
+            if (target == "exit") {
+                finish()
+                return@evaluateJavascript
+            }
             if (target.startsWith("/") && !target.startsWith("//")) {
                 if (web.url != origin + target) web.loadUrl(origin + target)
             } else if (web.url != origin + "/") {
@@ -1259,7 +1265,8 @@ class MainActivity : ComponentActivity() {
                    p.startsWith('/sonarr/'))return '/';
                 if(p.startsWith('/settings/'))return '/settings';
                 if(p==='/settings')return '/';
-                if(p==='/')return 'handled';
+                // Back on Home closes the Android TV app instead of being swallowed.
+                if(p==='/')return 'exit';
                 if(p==='/explore')return q.get('type')==='tv'?'/tv':'/movies';
                 return '/';
               };
@@ -1368,17 +1375,23 @@ class MainActivity : ComponentActivity() {
                 /* Home-only trial: 60% of the current poster dimensions,
                    preserving the original 2:3 artwork ratio. */
                 body[data-page="home"] .shelf-track{
-                  grid-auto-columns:clamp(87px,10.8vw,130.8px)!important;
+                  grid-auto-columns:calc((100% - 92px)/6)!important;
                   grid-template-rows:max-content!important;
                   grid-auto-rows:0!important;
                   align-items:start!important;align-content:start!important;
                   gap:14px!important;
                   padding:11px 11px 9px!important;
-                  width:calc(100% + 22px)!important;
-                  margin:0 -11px!important;
+                  width:calc(100% + 11px)!important;
+                  margin:0 0 0 -11px!important;
                   overflow-y:hidden!important;
                   min-height:0!important;
                   scroll-padding-inline:11px!important
+                }
+                body[data-page="home"] .workspace>.content{
+                  padding-right:0!important
+                }
+                body[data-page="home"] .shelf .section-heading{
+                  padding-right:clamp(36px,5vw,95px)!important
                 }
                 /* Shorter Home shelves: no reserved height from the old
                    large-card layout and adequate room for D-pad focus rings. */
@@ -2034,8 +2047,12 @@ class MainActivity : ComponentActivity() {
                     '#continue-watching .shelf-track .tile-button')||
                     document.querySelector('.content .shelf-track .tile-button');
                 if(!selected)return;
+                // Artwork and the remote's real activeElement must describe
+                // the same poster. A synthetic focus event alone cannot
+                // establish D-pad focus after async Home shelf rendering.
                 if(!focused?.matches?.('.shelf-track .tile-button'))
                   selected.focus({preventScroll:true});
+                if(document.activeElement!==selected)return;
                 setBackdropTarget(locateBackdrop(selected),true);
                 selected.dispatchEvent(new FocusEvent('focusin',{bubbles:true}));
               };
@@ -2548,10 +2565,18 @@ class MainActivity : ComponentActivity() {
                 }
                 if(direction==='right')return false;
                 if(direction!=='up'&&direction!=='down')return false;
+                // Never steal Up/Down while the remote is on the sidebar.
+                // Those keys must move among Home, TV, Movies and Settings.
+                if(!active?.closest?.('.tv-playback-settings'))return false;
                 const index=controls.indexOf(active);
                 const next=index<0?0:Math.max(0,Math.min(controls.length-1,
                   index+(direction==='down'?1:-1)));
-                return focusNode(controls[next]);
+                const focused=focusNode(controls[next]);
+                // The first control sits below the heading. Returning to it
+                // must reveal the entire Settings title, not leave it clipped.
+                if(focused&&direction==='up'&&next===0)
+                  glideTo(document.scrollingElement||document.documentElement,'top',0);
+                return focused;
               };
               const move=direction=>{
                 // Sort and Filter options are navigable while their popup
@@ -2595,6 +2620,16 @@ class MainActivity : ComponentActivity() {
                   const min=Number(active.min)||0,max=Number(active.max)||100;
                   const step=Number(active.step)||1;
                   const value=Number(active.value)||0;
+                  // A slider normally consumes Left to lower its value.
+                  // Once it is at minimum, Left exits to the sidebar so
+                  // remote users cannot become trapped in Settings.
+                  if(direction==='left'&&value<=min&&
+                     location.pathname==='/settings'){
+                    const sidebar=allMenu();
+                    const target=sidebar.find(node=>
+                      node.getAttribute('aria-current')==='page')||sidebar[0];
+                    if(target)return focusNode(target);
+                  }
                   active.value=String(Math.min(max,Math.max(min,
                     value+(direction==='right'?step:-step))));
                   active.dispatchEvent(new Event('input',{bubbles:true}));
@@ -2868,7 +2903,38 @@ class MainActivity : ComponentActivity() {
                 cancelGlide(document.scrollingElement||document.documentElement);
               };
               window.__willieTvMove=direction=>{
-                tvUserMoved=true;return move(direction);
+                // A remote key may arrive before Home finishes rendering or
+                // after an async shelf replacement detached the focused tile.
+                // Restore a real focus target BEFORE handling the direction:
+                // first Left must enter the rail, not merely select a poster.
+                if(location.pathname==='/'){
+                  const active=document.activeElement;
+                  if(!active || active===document.body ||
+                     active===document.documentElement ||
+                     !active.isConnected){
+                    const first=document.querySelector(
+                      '#continue-watching .shelf-track .tile-button')||
+                      document.querySelector('.content .shelf-track .tile-button');
+                    if(first)first.focus({preventScroll:true});
+                  }
+                }
+                if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();
+                tvUserMoved=true;
+                return move(direction);
+              };
+              // Re-establish actual DOM focus after Android activates WebView,
+              // without stealing focus after the viewer has used the remote.
+              window.__willieTvRestoreHomeFocus=()=>{
+                if(location.pathname!=='/'||tvUserMoved)return false;
+                const first=document.querySelector(
+                  '#continue-watching .shelf-track .tile-button')||
+                  document.querySelector('.content .shelf-track .tile-button');
+                if(!first)return false;
+                if(!document.activeElement?.matches?.('.shelf-track .tile-button'))
+                  first.focus({preventScroll:true});
+                initialFocusSettled=Boolean(document.activeElement?.matches?.(
+                  '.shelf-track .tile-button'));
+                return initialFocusSettled;
               };
               const tryFocus=()=>{
                 if(!initialFocusSettled)initialFocusSettled=settleInitialFocus();

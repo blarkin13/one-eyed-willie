@@ -210,15 +210,16 @@ body .workspace {margin-left:0!important}
 /* TV-only first-paint sizes. Include in CSS response so the Home shelves
    never flash at their larger desktop size before WebView JS injection. */
 body[data-page="home"] .shelf-track {
-  grid-auto-columns:clamp(87px,10.8vw,130.8px)!important;
+  /* Six whole posters fit the available TV row; overflow remains scrollable. */
+  grid-auto-columns:calc((100% - 92px)/6)!important;
   grid-template-rows:max-content!important;
   grid-auto-rows:0!important;
   align-items:start!important;
   align-content:start!important;
   gap:14px!important;
   padding:11px 11px 9px!important;
-  width:calc(100% + 22px)!important;
-  margin:0 -11px!important;
+  width:calc(100% + 11px)!important;
+  margin:0 0 0 -11px!important;
   overflow-y:hidden!important;
   min-height:0!important;
   scroll-padding-inline:11px!important;
@@ -238,6 +239,11 @@ body[data-page="movies"] .workspace>.content,
 body[data-page="tv"] .workspace>.content {
   max-width:none!important;
   padding-left:clamp(36px,5vw,95px)!important;
+  padding-right:clamp(36px,5vw,95px)!important;
+}
+/* Home's shelf may use the screen all the way to the right edge. */
+body[data-page="home"] .workspace>.content {padding-right:0!important}
+body[data-page="home"] .shelf .section-heading {
   padding-right:clamp(36px,5vw,95px)!important;
 }
 body:is([data-page="movies"],[data-page="tv"]) #items {
