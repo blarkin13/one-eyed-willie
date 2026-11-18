@@ -94,3 +94,26 @@ Restrictions:
 - The browser and app Worker do not proxy private media.
 - No end-to-end physical server test, automated Python tests or two-account negative tests have passed yet.
 - Before releasing: test code expiry, reuse, concurrent claims, IP limits, repeat linking, local cross-origin rejection, offline behavior, and server restart persistence.
+
+## Connection status stage — deployed 2026-11-18
+
+- The Yarr Worker now accepts only `POST /api/connection/heartbeat` with a 256-bit server bearer credential and exposes `GET /api/connection/status` only to a signed-in owner. The heartbeat writes `last_seen_at` to D1; online is a short freshness window (150 seconds), *not* a functioning remote media connection.
+- D1 columns `servers.connection_secret_hash` and `servers.last_seen_at` were applied and are present in the checked-in schema.
+- Initial pairing stores a SHA-256 credential hash in the corresponding owner-linked server record; plaintext remains only in the server's 0600 local pairing-state file. The old server account registration is preserved.
+- Servers paired before this update need **Refresh secure connection** in the installed server's Settings → General or Settings → Remote Access. It generates a new short-lived code that the existing owner claims. The database allows the same owner to rotate its credential, but prevents a different account from claiming that identity.
+- The installed server sends a minimal authenticated heartbeat once per minute through outbound HTTPS. Local playback is unaffected by internet or account-service outages.
+- The worker and server code are in separate git branches: web/Cloudflare code stays on `feature/yarr-multiuser-foundation`; server code was committed to `main`.
+
+### Tunnel and remote streaming boundary
+
+No tunnel was provisioned. The Cloudflare account currently has only an unrelated pre-existing tunnel, which must not be reused, and no Yarr-owned DNS zone. A future proper route needs a Yarr-owned hostname or an explicitly approved alternative, a separate customer tunnel with limited origin routing, and strict account/device authorization *before* an installed media server can be exposed.
+
+A common `app-yarr.larki-brian.workers.dev` login does not itself make a private origin reachable. Serving video from a personal server requires a separately authenticated data connection; don't route video through the Yarr account Worker or through another customer's origin.
+
+### Acceptance checks still pending
+
+- Restart the server on updated `main`; verify the reauthorization button appears for an older paired server.
+- Generate code → claim while logged into the original account → verify local code is not duplicated and the server stores the credential.
+- Verify owner-scoped status becomes online after the next heartbeat; offline after it stops for 150 seconds.
+- Negative tests: other account attempting claim, incorrect/expired codes, multiple owners, token replay after rotation, forged heartbeat, revoked/removed server and cross-origin form posts.
+- Verify restart persistence and outage behavior. GitHub CI execution/installed server verification are outstanding.
