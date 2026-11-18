@@ -108,6 +108,7 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title", library_id=N
     with db() as conn:
         libs = conn.execute("SELECT id,kind,path FROM libraries").fetchall()
         applicable = [lib for lib in libs if
+                      lib["kind"] in ("movies", "tv") and
                       (not kind or lib["kind"] == kind) and
                       (library_id is None or lib["id"] == library_id)]
         cached_metadata = _indexed_metadata(conn, [lib["id"] for lib in applicable])
