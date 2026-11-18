@@ -344,9 +344,9 @@ async function proxyInstalledApp(req,env,originPath) {
   headers.set('origin',ORIGIN_BASE);
   headers.set('referer',ORIGIN_BASE+'/');
  }
- const controller=AbortSignal.timeout(20000);
+ const identitySignal=AbortSignal.timeout(7000);
  try {
-  await verifiedOrigin(env,owned.server,controller);
+  await verifiedOrigin(env,owned.server,identitySignal);
   const upstream=await env.YARR_PRIVATE_API.fetch(upstreamUrl,{method,headers,body:['GET','HEAD'].includes(method)?undefined:req.body,redirect:'manual'});
   if(upstream.status>=300&&upstream.status<400){
    const location=upstream.headers.get('location');
