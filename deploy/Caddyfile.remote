@@ -1,11 +1,20 @@
+# Internet-facing HTTPS for the home server. Every request through here is
+# marked remote (X-Yarr-Remote, overwriting anything a client sends), so the
+# server requires a Yarr pass from yarr.media; the LAN is unaffected.
+
+# app.yarr.media: a DNS-only (grey cloud) record pointing at this home, so
+# video goes straight from here to the viewer, never through Cloudflare.
+{$YARR_APP_HOSTNAME} {
+    reverse_proxy one-eyed-willie:8787 {
+        header_up X-Yarr-Remote 1
+    }
+}
+
+# Original sslip.io address, still behind the setup password as well.
 {$WILLIE_HOSTNAME} {
     basic_auth {
         {$WILLIE_USERNAME} {$WILLIE_PASSWORD_HASH}
     }
-
-    # Marks every request from the internet as remote, so the server requires a
-    # Yarr pass (overwrites any value a client sends). Once remote access through
-    # yarr.media works, the basic_auth block above can be removed.
     reverse_proxy one-eyed-willie:8787 {
         header_up X-Yarr-Remote 1
     }
