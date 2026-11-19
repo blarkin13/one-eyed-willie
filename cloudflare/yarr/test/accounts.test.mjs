@@ -150,7 +150,9 @@ test('remote-access passes: owner only, Pro only, signed, verifiable', async()=>
  const target=new URL(open.headers.get('location'));
  assert.equal(target.origin+target.pathname,'https://home.example.net/remote/start');
  assert.equal(target.searchParams.get('return'),'/movies');
- assert.ok((await verifyPass(target.searchParams.get('pass'),keys.keys[0])).ok);
+ const browserPass=await verifyPass(target.searchParams.get('pass'),keys.keys[0]);
+ assert.ok(browserPass.ok);
+ assert.equal(browserPass.claims.exp-browserPass.claims.iat,12*3600,'browser passes outlast a movie');
 });
 
 test('passes are off until a signing key is configured', async()=>{

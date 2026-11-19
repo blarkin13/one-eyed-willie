@@ -83,6 +83,8 @@ services:
       WILLIE_HOSTNAME: ${WILLIE_HOSTNAME:?Set WILLIE_HOSTNAME}
       WILLIE_USERNAME: ${WILLIE_USERNAME:?Set WILLIE_USERNAME}
       WILLIE_PASSWORD_HASH: ${WILLIE_PASSWORD_HASH:?Set WILLIE_PASSWORD_HASH}
+      # Public app hostname served straight from this home (DNS-only record).
+      YARR_APP_HOSTNAME: ${YARR_APP_HOSTNAME:-app.yarr.media}
     volumes:
       - ./deploy/Caddyfile.remote:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

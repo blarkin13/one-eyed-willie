@@ -177,7 +177,10 @@ class WiringTests(unittest.TestCase):
         from server.main import app
         self.assertIn(ra.RemotePassMiddleware, [m.cls for m in app.user_middleware])
         caddy = (ROOT / "deploy/Caddyfile.remote").read_text()
-        self.assertIn("header_up X-Yarr-Remote 1", caddy)
+        self.assertEqual(caddy.count("header_up X-Yarr-Remote 1"), 2, "every internet-facing site is marked remote")
+        app_block = caddy.split("{$YARR_APP_HOSTNAME} {", 1)[1].split("\n}", 1)[0]
+        self.assertNotIn("basic_auth", app_block)
+        self.assertIn("YARR_APP_HOSTNAME: ${YARR_APP_HOSTNAME:-app.yarr.media}", (ROOT / "compose.remote.yaml").read_text())
 
 
 @unittest.skipUnless(shutil.which("node"), "node is needed to run the account Worker")

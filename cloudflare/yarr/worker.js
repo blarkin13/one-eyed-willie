@@ -710,6 +710,9 @@ const accountCSS = `
 const DEV_SITE = 'https://yarr-dev.larki-brian.workers.dev';
 const HOST_ONLY_SITES = new Set([SITE, DEV_SITE]);
 const PASS_SECONDS = 60*60;
+// Browser passes cover a full evening of viewing: the browser cannot renew a
+// pass in the middle of a movie. Apps ask for a fresh 1-hour pass themselves.
+const BROWSER_PASS_SECONDS = 12*60*60;
 const DEVICE_CODE_SECONDS = 10*60;
 const DEVICE_TOKEN_DAYS = 365;
 const PRO_GRACE_DAYS = 3;
@@ -933,14 +936,14 @@ async function passPublicKeys(env) {
  }
  return keys;
 }
-async function issuePass(env,user,server,device=null) {
+async function issuePass(env,user,server,device=null,lifetime=PASS_SECONDS) {
  const key=await passKey(env);
  if(!key)return {error:'passes_not_configured',status:503};
  const pro=await proStatus(env,user.id);
  if(!pro.active)return {error:'pro_required',status:402};
  const now=Math.floor(Date.now()/1000);
  const proUntil=pro.until?Math.floor(Date.parse(pro.until)/1000)+PRO_GRACE_DAYS*86400:null;
- const exp=Math.min(now+PASS_SECONDS,proUntil||Infinity);
+ const exp=Math.min(now+lifetime,proUntil||Infinity);
  const header={alg:'EdDSA',typ:'yarr-pass',kid:key.kid};
  const claims={v:1,iss:PUBLIC_SITE,aud:server.server_identity,sub:user.id,role:'owner',dev:device?.id||null,iat:now,exp,jti:random().slice(0,22)};
  const input=base64urlJSON(header)+'.'+base64urlJSON(claims);
@@ -983,7 +986,7 @@ async function remoteOpen(req,env) {
  const server=await ownedServer(env,user.id,ref);
  if(!server)return redirect(ACCOUNTS_SITE+'/?remote=not_found');
  if(!server.public_url)return redirect(ACCOUNTS_SITE+'/?remote=no_address');
- const result=await issuePass(env,user,server);
+ const result=await issuePass(env,user,server,null,BROWSER_PASS_SECONDS);
  if(result.error)return redirect(ACCOUNTS_SITE+'/?remote='+(result.error==='pro_required'?'pro_required':'unavailable'));
  const target=new URL('/remote/start',server.public_url);
  target.searchParams.set('pass',result.pass);
