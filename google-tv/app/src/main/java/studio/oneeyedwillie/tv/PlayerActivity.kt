@@ -917,11 +917,11 @@ class PlayerActivity : ComponentActivity() {
                 val weather = configs.optJSONObject("weather")
                 val news = configs.optJSONObject("news")
                 val clockOn = clock?.optBoolean("enabled", false) == true &&
-                    clock.optBoolean("pause", false)
+                    clock?.optBoolean("pause", false) == true
                 val weatherOn = weather?.optBoolean("enabled", false) == true &&
-                    weather.optBoolean("pause", false)
+                    weather?.optBoolean("pause", false) == true
                 val newsOn = news?.optBoolean("enabled", false) == true &&
-                    news.optBoolean("pause", false)
+                    news?.optBoolean("pause", false) == true
                 handler.post {
                     if (shuttingDown) return@post
                     glanceClockSettings = if (clockOn) clock else null
