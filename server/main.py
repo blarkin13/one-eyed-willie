@@ -441,9 +441,9 @@ def yarr_media_wordmark():
                         headers={"Cache-Control": "public, max-age=3600"})
 
 
-@app.get("/assets/yarr-media-og.png")
+@app.get("/assets/yarr-media-og.jpg")
 def yarr_media_open_graph_image():
-    return FileResponse(Path(__file__).with_name("yarr-media-og.png"), media_type="image/png",
+    return FileResponse(Path(__file__).with_name("yarr-media-og.jpg"), media_type="image/jpeg",
                         headers={"Cache-Control": "public, max-age=3600"})
 
 
