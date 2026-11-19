@@ -67,7 +67,7 @@ def _request(name, settings, resource, method="GET", payload=None, query=None):
         url += "?" + urllib.parse.urlencode(query)
     body = json.dumps(payload).encode("utf-8") if payload is not None else None
     headers = {"X-Api-Key": settings["api_key"], "Accept": "application/json",
-               "User-Agent": "OneEyedWillie/1.0"}
+               "User-Agent": "YarrMedia/1.0"}
     if body is not None:
         headers["Content-Type"] = "application/json"
     request = urllib.request.Request(url, data=body, headers=headers, method=method)
