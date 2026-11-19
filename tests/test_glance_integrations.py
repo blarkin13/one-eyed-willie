@@ -65,7 +65,7 @@ class GlanceSettingsTests(unittest.TestCase):
     def test_widgets_appear_in_hub_only_after_setup_and_enable(self):
         hub = (ROOT / "server/connections_hub.html").read_text()
         settings = (ROOT / "server/arr_connections.html").read_text()
-        self.assertIn("if(!connected[service.id]||visibility.visible?.[service.id]===false)continue", hub)
+        self.assertIn("service.id!=='time-adrift'&&!connected[service.id]", hub)
         self.assertIn("weather:!!glanceSettings.weather?.enabled&&/^[0-9]{5}$/.test(", hub)
         self.assertNotIn("if(glanceNames.includes(service.id)){", hub)
         self.assertIn("id:'weather'", hub)
@@ -97,7 +97,7 @@ class GlanceSettingsTests(unittest.TestCase):
         for name in ("clock", "weather", "news"):
             self.assertIn("id:'" + name + "'", hub)
             self.assertIn("'/api/glance/settings/'+id", settings)
-        self.assertIn("Turn off '+service.title", hub)
+        self.assertIn("glanceNames.includes(service.id)?'Enabled · View details'", hub)
         self.assertIn("glance.js?v=1", shell)
         self.assertIn("function createStrip(where)", widget)
         self.assertIn("async function home()", widget)
