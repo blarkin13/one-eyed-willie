@@ -143,6 +143,20 @@
 <div class="form-actions"><button type="submit" id="os-save" class="primary-button">Connect OpenSubtitles</button><button type="button" id="os-remove" class="danger-button">Remove saved connection</button></div>
 <p id="os-message" class="message" role="status"></p>
 </form></section>
+<section class="connection-card" data-connection-id="time-adrift" aria-labelledby="time-adrift-heading">
+ <div class="connection-head"><h2 id="time-adrift-heading"><i class="fa-solid fa-hourglass-half" aria-hidden="true"></i> Time Adrift</h2>
+ <span id="time-adrift-state" class="integration-state">Checking…</span></div>
+ <p class="connection-kind">Track how much time is spent paused and how much footage is rewound, separately for each movie or episode.</p>
+ <p class="connection-state">When enabled, a live Time Adrift counter appears in the upper-right corner whenever a video is paused. Totals are saved on this server and carried across viewing sessions.</p>
+ <div class="form-actions">
+  <label for="time-adrift-enabled" class="connection-visibility-label">
+   <input id="time-adrift-enabled" type="checkbox">
+   <span>Enable Time Adrift</span>
+  </label>
+ </div>
+ <p id="time-adrift-message" class="message" role="status" aria-live="polite"></p>
+ <p class="connection-help">Rewound time counts the length of deliberate backward seeks, not buffering or automatic quality changes. No media files are changed and no tracking data is sent outside this server.</p>
+</section>
 </div>
 
 
@@ -378,7 +392,32 @@ $('sab-disconnect').onclick=async()=>{
 
 sabConnection();
 
-// Convert all five existing connection forms into compact, keyboard-accessible rows.
+async function loadTimeAdrift(){
+ try{
+  const setting=await fetchJson('/api/time-adrift/settings',{cache:'no-store'});
+  $('time-adrift-enabled').checked=!!setting.enabled;
+  $('time-adrift-state').textContent=setting.enabled?'Enabled':'Disabled';
+  $('time-adrift-state').classList.toggle('on',!!setting.enabled);
+ }catch(error){
+  $('time-adrift-state').textContent='Unavailable';
+  $('time-adrift-message').textContent=error.message;
+ }
+}
+$('time-adrift-enabled').addEventListener('change',async event=>{
+ const input=event.currentTarget,enabled=input.checked;
+ input.disabled=true;$('time-adrift-message').textContent='Saving…';
+ try{
+  await fetchJson('/api/time-adrift/settings',{method:'PUT',
+   headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled})});
+  $('time-adrift-message').textContent=enabled?'Time Adrift enabled.':'Time Adrift disabled.';
+  await loadTimeAdrift();
+ }catch(error){
+  input.checked=!enabled;$('time-adrift-message').textContent='Could not save: '+error.message;
+ }finally{input.disabled=false}
+});
+loadTimeAdrift();
+
+// Convert all integration cards into compact, keyboard-accessible rows.
 // This preserves their original forms, IDs, and API handlers unchanged.
 function initConnectionDirectory(){
  const list=$('connection-list');
