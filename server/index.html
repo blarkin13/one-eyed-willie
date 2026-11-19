@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Library Settings · One-Eyed Willie</title>
+<title>Library Settings · Yarr Media</title>
 <link rel="stylesheet" href="/assets/ui.css?v=adventure-direct-svg-2">
 <script src="/assets/library-appearance.js?v=adventure-direct-svg-2"></script><script defer src="/assets/shell.js?v=adventure-direct-svg-2"></script>
 </head><body data-page="libraries">
@@ -518,7 +518,7 @@ async function removeFolder(lib,folder){
  }catch(error){notify(error.message,true)}
 }
 async function removeLibrary(lib){
- if(!confirm('Remove '+lib.name+' from One-Eyed Willie? Original media files will not be deleted; saved playback progress for this library will be removed.'))return;
+ if(!confirm('Remove '+lib.name+' from Yarr Media? Original media files will not be deleted; saved playback progress for this library will be removed.'))return;
  try{await api('/api/libraries/'+lib.id,{method:'DELETE'});
   notify('Library removed. Original media files remain untouched.');
   await load();await loadOverview();
