@@ -1049,7 +1049,12 @@ html body[data-page="home"] .shelf-track > .tile:first-child
   --line:#303030;
   background:#000000;
 }
-html,body,body[data-page],.app-shell,.workspace{background-color:#000000}
+html,body,body[data-page]{background-color:#000000}
+/* The cinematic image sits behind these surfaces; do not cover it with an opaque canvas. */
+body:has(.willie-hover-backdrop)>.app-shell,
+body:has(.willie-hover-backdrop) .workspace{background:transparent}
+body:not(:has(.willie-hover-backdrop)) .app-shell,
+body:not(:has(.willie-hover-backdrop)) .workspace{background-color:#000000}
 .sidebar{background:#000000}
 .topbar{background:rgba(0,0,0,.94)}
 .willie-hover-backdrop{background:#000000}
