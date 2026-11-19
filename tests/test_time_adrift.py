@@ -97,6 +97,26 @@ class TimeAdriftTests(unittest.TestCase):
         self.assertIn("'/api/time-adrift/settings'", hub)
 
 
+    def test_integration_hub_can_toggle_time_adrift_without_leaving_page(self):
+        hub = (ROOT / "server/connections_hub.html").read_text()
+        self.assertIn("service.id==='time-adrift'", hub)
+        self.assertIn("if(service.id==='time-adrift'){", hub)
+        self.assertIn("Turn off Time Adrift", hub)
+        self.assertIn("Turn on Time Adrift", hub)
+        self.assertIn("const requested=!enabled", hub)
+        self.assertIn("method:'PUT',headers:{'Content-Type':'application/json'}", hub)
+        self.assertIn("body:JSON.stringify({enabled:requested})", hub)
+        self.assertIn("enabled=!!result.enabled;update()", hub)
+        self.assertIn("toggle.disabled=true", hub)
+        self.assertIn("toggle.setAttribute('aria-pressed',String(enabled))", hub)
+        self.assertIn("Time Adrift disabled. Reopen any player", hub)
+        self.assertIn("root.append(card)", hub)
+        # The on/off control is rendered even when Time Adrift is disabled.
+        self.assertIn("service.id!=='time-adrift'&&!connected[service.id]", hub)
+        # The previous Settings switch continues to use the same persisted API.
+        settings = (ROOT / "server/arr_connections.html").read_text()
+        self.assertIn("'/api/time-adrift/settings'", settings)
+
     def test_native_tv_badge_is_three_bold_rows_on_black_not_literal_newlines(self):
         tv = (ROOT / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/PlayerActivity.kt").read_text()
         self.assertIn("private lateinit var adriftBadge: LinearLayout", tv)
