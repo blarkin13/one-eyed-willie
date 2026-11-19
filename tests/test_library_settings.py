@@ -119,10 +119,10 @@ class LibrarySettingsTests(unittest.TestCase):
         order.remove("library:"+str(first["id"]))
         order.insert(1,"library:"+str(first["id"]))
         result = sidebar_settings.update_sidebar(sidebar_settings.SidebarRequest(
-            order=order,hidden=["sabnzbd","library:"+str(first["id"])]
+            order=order,hidden=["connections","library:"+str(first["id"])]
         ))
         self.assertEqual(result["order"], order)
-        self.assertIn("sabnzbd", result["hidden"])
+        self.assertIn("connections", result["hidden"])
         self.assertTrue(next(x for x in library.libraries() if x["id"]==first["id"])["sidebar_hidden"])
         # The API stores library visibility with the library itself.
         # It is reflected in the GET list after committing the update.

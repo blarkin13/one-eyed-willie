@@ -68,7 +68,8 @@ class LibraryAppearanceTests(unittest.TestCase):
         self.assertIn('renderFonts()', page)
         self.assertEqual(page.count("iconCategory='All';refreshAppearance()"), 2)
         self.assertIn("sidebarPreviewIcon(35)", page)
-        self.assertIn("appearance.createIcon(id,28)", page)
+        # The gallery follows the chosen icon theme (pirate icons or the black-glass set).
+        self.assertIn("appearance.createThemeIcon(id,28)", page)
         self.assertIn("appearance.createIcon(library.icon,28)", nav)
         self.assertIn("if(library.sidebar_hidden)link.classList.add('sidebar-hidden')", nav)
         self.assertNotIn("For standard Movies and TV Shows libraries", page)

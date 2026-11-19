@@ -1,5 +1,6 @@
 """The Yarr Media logo stays consistent in the sidebar, PWA, and Android TV launcher."""
 import io
+import re
 import unittest
 from pathlib import Path
 
@@ -24,8 +25,14 @@ class BrandIconTests(unittest.TestCase):
         self.assertEqual(ico.info["sizes"], {(16, 16), (32, 32), (48, 48), (64, 64)})
 
     def test_android_launcher_uses_same_vector_art(self):
+        # Which drawable the launcher uses is pinned by test_tv_launcher_icon.
+        # Here: the manifest points at a drawable that exists, and the
+        # full-detail logo vector still matches the site's logo.
         manifest = (ROOT / "google-tv/app/src/main/AndroidManifest.xml").read_text()
-        self.assertIn('android:icon="@drawable/yarr_media_icon"', manifest)
+        icon = re.search(r'android:icon="@drawable/([a-z0-9_]+)"', manifest)
+        self.assertIsNotNone(icon)
+        drawables = ROOT / "google-tv/app/src/main/res"
+        self.assertTrue(list(drawables.glob("drawable*/" + icon.group(1) + ".*")), icon.group(1))
         android = (ROOT / "google-tv/app/src/main/res/drawable/yarr_media_icon.xml").read_text()
         svg = (ROOT / "server/logo.svg").read_text()
         self.assertIn(svg.split('d="M')[1].split('"')[0], android)

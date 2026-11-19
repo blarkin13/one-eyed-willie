@@ -9,7 +9,7 @@ import unittest
 
 from tests import test_web_player_quality_browser as base
 
-SELECT = "rgb(139, 92, 246)"      # default TV selection colour, #8B5CF6
+SELECT = "rgb(166, 30, 30)"        # default TV selection colour, crimson #A61E1E
 PLAYER = ".willie-player"
 
 
