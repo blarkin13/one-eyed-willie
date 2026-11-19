@@ -18,4 +18,6 @@ class PublicWorkerLogoTests(unittest.TestCase):
         self.assertIn('class="brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span>', worker)
         self.assertIn('.brand-dot{color:#9b9b9b}', worker)
         self.assertIn('.brand-media{color:#c62838}', worker)
+        self.assertIn("font-weight:900;letter-spacing:.01em", worker)
+        self.assertIn("font-size:clamp(18px,1.8vw,23px);font-weight:900", worker)
         self.assertIn("img-src 'self'", worker)

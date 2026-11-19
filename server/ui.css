@@ -1068,8 +1068,8 @@ body:not(:has(.willie-hover-backdrop)) .workspace{background-color:#000000}
 .sidebar .brand-wordmark{
   display:none;align-items:center;flex:0 0 auto;min-width:0;
   max-width:calc(100% - 66px);white-space:nowrap;
-  font:750 17px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  letter-spacing:0;text-transform:uppercase;
+  font:900 16px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  letter-spacing:.01em;text-transform:uppercase;
 }
 .sidebar:hover .brand-wordmark,.sidebar:focus-within .brand-wordmark{display:inline-flex}
 .sidebar .brand-wordmark-yarr{color:#f5f1e8}
