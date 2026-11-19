@@ -12,4 +12,6 @@ class PublicWorkerLogoTests(unittest.TestCase):
         self.assertIn('new%20logo.png', worker)
         self.assertNotIn('ship-float', worker)
         self.assertIn('class="hero-art"', worker)
+        self.assertIn('class="site-brand-label">YARR.MEDIA', worker)
+        self.assertIn('class="brand-label">YARR.MEDIA', worker)
         self.assertIn("img-src 'self'", worker)
