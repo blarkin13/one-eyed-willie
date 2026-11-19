@@ -18,7 +18,7 @@ class LauncherArtworkTests(unittest.TestCase):
 
     def test_round_artwork_is_original_rgba_png(self):
         data = LAUNCHER.read_bytes()
-        self.assertEqual(data[:8], b"\\x89PNG\\r\\n\\x1a\\n")
+        self.assertEqual(data[:8], bytes.fromhex("89504e470d0a1a0a"))
         self.assertEqual(struct.unpack(">II", data[16:24]), (1800, 1800))
         self.assertEqual(data[25], 6)  # RGBA with alpha: transparent corners
         self.assertLess(len(data), 100_000)
