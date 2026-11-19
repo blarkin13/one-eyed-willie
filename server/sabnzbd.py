@@ -66,7 +66,7 @@ def request(url: str, api_key: str, mode: str, **params):
             raise HTTPException(401, "SABnzbd rejected the API key or access from this server.") from None
         raise HTTPException(502, "SABnzbd returned HTTP " + str(error.code) + ". Check its address and API settings.") from None
     except (urllib.error.URLError, TimeoutError, OSError):
-        raise HTTPException(502, "One-Eyed Willie could not reach SABnzbd on your network.") from None
+        raise HTTPException(502, "Yarr Media could not reach SABnzbd on your network.") from None
     except (ValueError, TypeError):
         raise HTTPException(502, "SABnzbd returned an unreadable response.") from None
     if not isinstance(result, dict):
