@@ -390,6 +390,9 @@ body:is([data-page="movies"],[data-page="tv"]) .trivia-answer {
 body:is([data-page="movies"],[data-page="tv"]) .library-head + .section-heading {
   margin-bottom:5px!important;
 }
+/* Android TV uses an 85px icon-only rail. Never draw text outside its bounds. */
+.sidebar .brand-wordmark,.sidebar:hover .brand-wordmark,
+.sidebar:focus-within .brand-wordmark{display:none!important}
 """
 
 @app.get("/assets/ui.css")
