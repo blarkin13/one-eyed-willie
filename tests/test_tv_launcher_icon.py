@@ -1,4 +1,4 @@
-"""Verify the approved, cleaned YarrMedia logo is the shipped Android TV launcher."""
+"""Verify the precision YarrMedia launcher keeps the original user-approved lettering."""
 from pathlib import Path
 import struct
 import unittest
@@ -9,7 +9,7 @@ ANDROID = ROOT / "google-tv/app/src/main"
 MANIFEST = ANDROID / "AndroidManifest.xml"
 ICON = ANDROID / "res/drawable-nodpi/yarrmedia_launcher.png"
 ICON_SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher.svg"
-CLEAN_ICON_SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher_clean.svg"
+PRECISION_ICON_SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher_precision.svg"
 BANNER = ANDROID / "res/drawable-nodpi/yarr_tv_banner.png"
 ORIGINAL_ICON = ANDROID / "res/drawable-nodpi/yarr_media_launcher.png"
 ORIGINAL_VECTOR = ANDROID / "res/drawable/yarr_media_launcher_vector.xml"
@@ -24,7 +24,7 @@ class LauncherArtworkTests(unittest.TestCase):
         self.assertIn('android:banner="@drawable/yarr_tv_banner"', manifest)
         self.assertNotIn('android:icon="@drawable/yarr_tv_crisp_icon"', manifest)
 
-    def test_launcher_raster_from_cleaned_svg_is_rgba_and_square(self):
+    def test_launcher_raster_from_precision_svg_is_rgba_and_square(self):
         from PIL import Image
         with Image.open(ICON) as image:
             self.assertEqual(image.format, "PNG")
@@ -33,16 +33,19 @@ class LauncherArtworkTests(unittest.TestCase):
             self.assertEqual(image.getpixel((0, 0))[3], 0)
             self.assertEqual(image.getpixel((1023, 1023))[3], 0)
             self.assertEqual(image.getpixel((800, 540)), (166, 30, 30, 255))
-            self.assertEqual(image.getpixel((460, 616)), (181, 177, 177, 255))
+            self.assertEqual(image.getpixel((460, 616)), (155, 155, 155, 255))
             self.assertEqual(image.getpixel((512, 50)), (255, 255, 255, 255))
         self.assertLess(ICON.stat().st_size, 300_000)
 
-    def test_cleaned_editable_source_matches_launcher_palette(self):
-        root = ET.parse(CLEAN_ICON_SOURCE).getroot()
+    def test_precision_vector_keeps_original_lettering_and_four_colors(self):
+        root = ET.parse(PRECISION_ICON_SOURCE).getroot()
         self.assertEqual(root.attrib["viewBox"], "0 0 2048 2048")
-        fills = {part.attrib.get("fill") for part in root}
-        self.assertEqual(fills, {"#FFFFFF", "#000000", "#B5B1B1", "#A61E1E"})
+        fills = {part.attrib.get("fill") for part in root} - {None}
+        self.assertEqual(fills, {"#FFFFFF", "#000000", "#9B9B9B", "#A61E1E"})
         self.assertLess(len(list(root)), 15)
+        identifiers = {part.attrib.get("id") for part in root}
+        for required in ("sail", "wave", "yarr", "dot", "media"):
+            self.assertIn(required, identifiers)
 
     def test_original_svg_is_preserved_with_crimson_wordmark(self):
         source = ICON_SOURCE.read_text()
