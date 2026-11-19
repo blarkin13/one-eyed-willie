@@ -17,6 +17,14 @@ document.addEventListener('DOMContentLoaded', () => {
   if(!document.querySelector('link[rel="apple-touch-icon"]')){
     const icon=document.createElement('link');icon.rel='apple-touch-icon';icon.href='/assets/touch-icon.png?v=moon-sail-v1';document.head.append(icon);
   }
+  // Keep server dropdowns and connection cards in sync with the configured TV
+  // highlight color, rather than carrying a hard-coded purple focus accent.
+  fetch('/api/settings/tv-appearance',{cache:'no-store'}).then(r=>r.ok?r.json():null)
+    .then(value=>{
+      const color=value?.selection_color;
+      if(/^#[0-9a-fA-F]{6}$/.test(color||''))
+        document.documentElement.style.setProperty('--oew-tv-select-color',color);
+    }).catch(()=>{});
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
