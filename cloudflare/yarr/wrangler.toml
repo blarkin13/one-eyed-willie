@@ -3,13 +3,12 @@
 #   Development:  npx wrangler deploy --env dev     -> Worker "yarr-dev", database yarr-accounts-dev
 #   Production:   npx wrangler deploy               -> Worker "yarr",     database yarr-accounts
 #
-# Before the FIRST production deploy from this file, fill in the VPC service id
-# below (Cloudflare dashboard -> Workers -> yarr -> Settings -> Bindings ->
-# YARR_PRIVATE_API). A wrangler deploy replaces the Worker's bindings with the
-# ones listed here, so a missing binding would switch the /app pilot off.
-# Plain-text variables are listed under [vars]; secrets are set with
-# `npx wrangler secret put NAME` (add `--env dev` for the dev Worker) and are
-# never stored in this file.
+# Use ./deploy.sh (it runs `wrangler deploy --keep-vars`). The bindings, custom
+# domains and workers.dev setting below match the live Worker as of 2026-11-19;
+# --keep-vars keeps the plain-text variables set in the dashboard
+# (GOOGLE_CLIENT_ID, YARR_PRIVATE_SERVER_ID, STRIPE_PRO_PRICE_ID, ...). Secrets
+# are never touched by a deploy and never stored in this file; set them with
+# `npx wrangler secret put NAME` (add `--env dev` for the dev Worker).
 #
 # Secrets used:
 #   GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   Google sign-in
@@ -23,6 +22,13 @@ name = "yarr"
 main = "worker.js"
 compatibility_date = "2026-11-18"
 workers_dev = true
+preview_urls = false
+routes = [
+  { pattern = "yarr.media", custom_domain = true },
+  { pattern = "www.yarr.media", custom_domain = true },
+  { pattern = "app.yarr.media", custom_domain = true },
+  { pattern = "accounts.yarr.media", custom_domain = true },
+]
 
 [[d1_databases]]
 binding = "ACCOUNTS"
@@ -31,12 +37,10 @@ database_id = "db4a0ec1-ab0b-49db-b95c-e84d8cef2bf0"
 
 [[vpc_services]]
 binding = "YARR_PRIVATE_API"
-service_id = "REPLACE_WITH_VPC_SERVICE_ID"
+service_id = "01a1edf8-3ad1-7803-8e7b-dbb44af621ea"
 
-[vars]
-# STRIPE_PRO_PRICE_ID = "price_..."   # set once the Stripe product exists
-# YARR_PRIVATE_SERVER_ID = "..."      # existing pilot value; copy from the dashboard
-# YARR_DIRECT_ENABLED = "0"
+# No [vars] here on purpose: plain-text variables live in the dashboard and
+# survive deploys because deploy.sh passes --keep-vars.
 
 [triggers]
 # Daily cleanup of expired sessions, sign-in codes and rate-limit rows.
@@ -45,6 +49,7 @@ crons = ["17 9 * * *"]
 [env.dev]
 name = "yarr-dev"
 workers_dev = true
+routes = []
 
 [[env.dev.d1_databases]]
 binding = "ACCOUNTS"
