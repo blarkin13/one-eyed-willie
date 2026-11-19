@@ -5,7 +5,7 @@
     <uses-feature android:name="android.software.leanback" android:required="true"/>
     <application android:label="YarrMedia" android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="true" android:allowBackup="false"
-        android:icon="@drawable/yarrmedia_launcher" android:roundIcon="@drawable/yarrmedia_launcher"
+        android:icon="@mipmap/yarrmedia_launcher" android:roundIcon="@mipmap/yarrmedia_launcher"
         android:banner="@drawable/yarr_tv_banner">
         <activity android:name=".PlayerActivity" android:exported="false" android:screenOrientation="landscape"/>
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">

@@ -10,8 +10,8 @@ android {
         applicationId = "studio.oneeyedwillie.tv"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 6
+        versionName = "0.1.5"
     }
     buildTypes {
         // Same app, stripped for the TV: not debuggable, unused code and
