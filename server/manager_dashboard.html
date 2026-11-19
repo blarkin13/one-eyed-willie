@@ -7,6 +7,9 @@
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .manager-content{max-width:1540px}
+.manager-heading{display:flex;align-items:center;gap:13px}
+.manager-heading .integration-logo{width:42px;height:42px;object-fit:contain;flex:none}
+.manager-heading .integration-logo-fallback{width:42px;height:42px;display:grid;place-items:center;border-radius:12px;background:#242424;color:#f5f1e8;font-weight:800}
 .manager-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .manager-stat-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 28px}
 .manager-stat{padding:17px 20px;border:1px solid #354359;border-radius:13px;background:#111d2a}
@@ -84,7 +87,7 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content manager-content">
 <div class="page-head">
- <div><p class="eyebrow">Media manager</p><h1 id="manager-title">Loading…</h1>
+ <div><p class="eyebrow">Media manager</p><div class="manager-heading"><span id="manager-logo"></span><h1 id="manager-title">Loading…</h1></div>
  <p id="manager-description">Manage your connected library and activity.</p></div>
  <div class="manager-controls">
   <button id="manager-refresh" class="secondary-button" type="button">Refresh</button>
@@ -140,6 +143,17 @@ const $=id=>document.getElementById(id);
 const label=managerName==='radarr'?'Radarr':'Sonarr';
 document.title=label+' · Yarr Media';
 $('manager-title').textContent=label;
+const serviceLogo=document.createElement('img');
+serviceLogo.className='integration-logo';
+serviceLogo.alt='';
+serviceLogo.src='/assets/brand/'+managerName+'.svg';
+serviceLogo.onerror=()=>{
+ const fallback=document.createElement('span');
+ fallback.className='integration-logo-fallback';
+ fallback.textContent=label.slice(0,1);
+ serviceLogo.replaceWith(fallback);
+};
+$('manager-logo').append(serviceLogo);
 $('manager-description').textContent=managerName==='radarr'
  ?'Monitor movies, review downloads, edit quality profiles, and search for releases.'
  :'Monitor series, review downloads, edit quality profiles, and search for episodes.';

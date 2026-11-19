@@ -21,7 +21,9 @@ document.addEventListener('DOMContentLoaded', () => {
   if(!target)return;
   const page=document.body.dataset.page||'home';
   const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
-  const active=page==='connectionshub'?'connections':inSettings?'settings':page;
+  // Integration dashboards live under Connections, including on TV.
+  const active=['connectionshub','services','radarr','sonarr','sabnzbd'].includes(page)
+    ?'connections':inSettings?'settings':page;
   // The public Workers site uses / for its website and /app for the media home.
   // The locally hosted server continues to use / for its home screen.
   const homeHref=window.location.hostname==='yarr.larki-brian.workers.dev'?'/app':'/';

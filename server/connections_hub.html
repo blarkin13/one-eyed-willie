@@ -11,6 +11,43 @@
  background:#142030;border:1px solid #32455a;color:#f6f7fa;text-align:left;font:inherit;text-decoration:none}
 .connections-hub a.service-card{cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
 .connections-hub a.service-card:hover,.connections-hub a.service-card:focus-visible{background:#203249;border-color:#a78bfa;outline:2px solid #a78bfa;outline-offset:2px;transform:translateY(-2px)}
+/* Glass-black integration tiles only on the TV client; the desktop hub keeps its layout. */
+body.oew-tv-client .connections-hub .service-card{
+ background:linear-gradient(130deg,rgba(255,255,255,.075),rgba(255,255,255,.012) 70%),rgba(8,8,8,.88);
+ border:1px solid rgba(255,255,255,.16);color:#f5f1e8;
+ -webkit-backdrop-filter:blur(15px);backdrop-filter:blur(15px)
+}
+body.oew-tv-client .connections-hub :is(a.service-card,button.service-card){
+ width:100%;font:inherit;text-align:left;cursor:pointer;transition:background .19s ease,border-color .19s ease,transform .19s ease}
+html body[data-page="connectionshub"].oew-tv-client .connections-hub
+ :is(a.service-card,button.service-card):is(:focus,:focus-visible){
+ outline:2px solid var(--oew-tv-select-color,#A61E1E)!important;
+ outline-offset:3px!important;border-color:var(--oew-tv-select-color,#A61E1E)!important;
+ box-shadow:0 0 0 1px var(--oew-tv-select-color,#A61E1E)!important;
+ background:linear-gradient(135deg,rgba(255,255,255,.13),rgba(255,255,255,.035)),#101010!important;
+ filter:none!important;transform:translateY(-2px)}
+body.oew-tv-client .connections-hub .service-description{color:#c5c5c5}
+body.oew-tv-client .connections-hub .integration-logo{width:40px;height:40px;object-fit:contain}
+.integration-logo-fallback{display:inline-grid;place-items:center;width:35px;height:35px;
+ border-radius:9px;border:1px solid #777;background:#242424;font-weight:800;color:#f5f1e8}
+.connection-service-dialog{width:min(560px,90vw);padding:25px;background:rgba(12,12,12,.96);
+ -webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);
+ border:1px solid rgba(255,255,255,.22);border-radius:16px;color:#f5f1e8}
+.connection-service-dialog::backdrop{background:#000b}
+.connection-service-dialog .service-name{display:flex;align-items:center;gap:12px;
+ font-weight:750;font-size:1.55rem;margin:0 0 16px}
+.connection-service-dialog .service-name img{width:43px;height:43px;object-fit:contain}
+.connection-service-dialog p{color:#c6c6c6;line-height:1.6}
+.connection-service-dialog .service-state{color:#9ee1bb;font-weight:650}
+.connection-service-dialog button{min-height:44px;margin-top:15px;padding:10px 20px;
+ border:1px solid rgba(255,255,255,.25);border-radius:10px;background:#191919;color:#f5f1e8;
+ font:inherit;cursor:pointer}
+html body.oew-tv-client .connection-service-dialog button:is(:focus,:focus-visible){
+ border-color:var(--oew-tv-select-color,#A61E1E)!important;
+ outline:2px solid var(--oew-tv-select-color,#A61E1E)!important;outline-offset:2px!important}
+@media(prefers-reduced-motion:reduce){
+ body.oew-tv-client .connections-hub :is(a.service-card,button.service-card){transition:none}
+}
 .connections-hub .service-name{font-size:1.3rem;font-weight:700;display:flex;align-items:center;gap:12px}
 .connections-hub .service-description{color:#a9bdce;line-height:1.5}
 .connections-hub .service-state{margin-top:auto;color:#92d9b4;font-size:.9rem;font-weight:650}
@@ -21,13 +58,32 @@
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
 <div class="page-head"><div><p class="eyebrow">Media management</p><h1>Connections</h1>
-<p>View your configured media service integrations. Only configured services appear. Select a dashboard service to open it; API-only integrations display their status here.</p></div>
-<a class="secondary-button" href="/settings/connections">Manage connections</a></div>
+<p id="connections-intro">View your configured media service integrations. Only configured services appear. Select a dashboard service to open it; API-only integrations display their status here.</p></div>
+<a class="secondary-button" id="connections-manage" href="/settings/connections">Manage connections</a></div>
 <div class="connections-hub" id="connected-services" aria-label="Connected services" aria-live="polite"></div>
 <p class="connection-empty" id="connections-message" role="status">Checking configured services…</p>
+<dialog class="connection-service-dialog" id="connection-service-dialog"
+ aria-labelledby="connection-service-title">
+ <h2 class="service-name" id="connection-service-title"></h2>
+ <p id="connection-service-description"></p>
+ <p class="service-state" id="connection-service-status">Connected</p>
+ <p>Integration setup and API credentials are managed on your Yarr Media server.</p>
+ <button type="button" id="connection-service-close">Close</button>
+</dialog>
 
 </main></div></div>
 <script>
+const isTvClient=/OneEyedWillieTV\/1/.test(navigator.userAgent);
+if(isTvClient){
+ document.body.classList.add('oew-tv-client');
+ document.getElementById('connections-manage')?.remove();
+ document.getElementById('connections-intro').textContent=
+  'Connected services on this TV. Choose any service to view its dashboard or connection details. Setup is managed on your server.';
+}
+const serviceDialog=document.getElementById('connection-service-dialog');
+const serviceClose=document.getElementById('connection-service-close');
+serviceClose.addEventListener('click',()=>serviceDialog.close());
+serviceDialog.addEventListener('close',()=>document.querySelector('.connections-hub .service-card:focus')?.focus({preventScroll:true}));
 const entries=[
  {id:'radarr',title:'Radarr',dashboard:'/radarr',config:'#connections',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
  {id:'sonarr',title:'Sonarr',dashboard:'/sonarr',config:'#connections',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
@@ -36,6 +92,25 @@ const entries=[
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.',image:'/assets/brand/plex.svg'},
  {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'}
 ];
+function serviceLogo(service){
+ const image=document.createElement('img');
+ image.src=service.image;image.alt='';
+ image.className='integration-logo';image.loading='eager';
+ image.onerror=()=>{
+  const fallback=document.createElement('span');
+  fallback.className='integration-logo-fallback';
+  fallback.textContent=service.title.slice(0,1);
+  image.replaceWith(fallback);
+ };
+ return image;
+}
+function showServiceDetails(service){
+ const heading=document.getElementById('connection-service-title');
+ heading.replaceChildren(serviceLogo(service),document.createTextNode(service.title));
+ document.getElementById('connection-service-description').textContent=service.description;
+ document.getElementById('connection-service-status').textContent='Connected · API integration';
+ serviceDialog.showModal();serviceClose.focus({preventScroll:true});
+}
 async function status(url){
  const response=await fetch(url,{cache:'no-store'});
  if(!response.ok)throw Error('Unable to check connections');
@@ -58,33 +133,38 @@ async function showConnected(){
    lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
  for(const service of entries){
    if(!connected[service.id])continue;
-   const card=document.createElement(service.dashboard?'a':'article');
+   const card=document.createElement(service.dashboard?'a':isTvClient?'button':'article');
    card.className='service-card';
    if(service.dashboard){
      card.href=service.dashboard;
      card.setAttribute('aria-label','Open '+service.title+' dashboard');
+   }else if(isTvClient){
+     card.type='button';
+     card.setAttribute('aria-label','View '+service.title+' connection details');
+     card.addEventListener('click',()=>showServiceDetails(service));
    }else{
      card.classList.add('service-api-only');
    }
    const heading=document.createElement('span');heading.className='service-name';
-   if(service.image){
-     const image=document.createElement('img');image.src=service.image;image.alt='';
-     image.className='integration-logo';image.onerror=()=>image.remove();
-     heading.append(image);
-   }
+   if(service.image)heading.append(serviceLogo(service));
    heading.append(document.createTextNode(service.title));
    const description=document.createElement('span');description.className='service-description';
    description.textContent=service.description;
    const state=document.createElement('span');state.className='service-state';
-   state.textContent=service.dashboard?'Configured · Open dashboard':'Configured · API integration';
+   state.textContent=service.dashboard?'Connected · Open dashboard':
+     isTvClient?'Connected · View details':'Configured · API integration';
    card.append(heading,description,state);root.append(card);
  }
  if(root.childElementCount && settled.every(value=>value.status==='fulfilled'))
    message.textContent='';
  else if(!root.childElementCount && settled.every(value=>value.status==='fulfilled'))
-   message.textContent='No services connected yet. Add one in Settings → Connections.';
+   message.textContent=isTvClient
+     ?'No services connected. Add integrations using Settings on your Yarr Media server.'
+     :'No services connected yet. Add one in Settings → Connections.';
  else if(!root.childElementCount)
-   message.textContent='Connection status is unavailable. Check Settings → Connections.';
+   message.textContent=isTvClient
+     ?'Connection status unavailable. Check Yarr Media on your server.'
+     :'Connection status is unavailable. Check Settings → Connections.';
 }
 showConnected();
 </script></body></html>
