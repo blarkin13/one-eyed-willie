@@ -4,8 +4,8 @@
 all **disabled by default**. Each has four saved switches: enable the integration,
 display on Home, display when the player is paused, and display on Idle.
 **Ambient Display** is a fourth integration with a separate master on/off
-switch and inactivity timeout (1, 2, 5, or 10 minutes); it defaults on but
-has no effect unless a widget is enabled for Idle. Turning Ambient Display
+switch and inactivity timeout (1, 2, 5, or 10 minutes); it is also **off by
+default**, and it displays only if enabled with at least one widget on Idle. Turning Ambient Display
 off does not affect Home or Pause. The existing *Show in Integrations*
 preference hides a tile without disabling its integration.
 
@@ -18,8 +18,12 @@ preference hides a tile without disabling its integration.
 4. Clock: select 12h/24h and device-local or a named time zone.
 5. Weather: provide a five-digit **United States ZIP code**.
 6. News: choose **NPR News** or **BBC News**.
-7. You can also switch each integration on/off immediately on the
-   **Integrations** hub without changing its placement preferences.
+7. Weather: select **Save ZIP & Test Forecast** to persist the ZIP code
+   and view a real provider response. The same action works with a TV
+   remote's Enter/Done key; the saved ZIP is retained between visits.
+8. Only integrations that you explicitly enable in **Settings →
+   Integrations** appear on the main **Integrations** page. The setup,
+   enable/disable and placement controls remain in Settings.
 
 The Home screen shows a compact strip only for enabled Home widgets.
 The browser and native Android TV players display pause widgets only
