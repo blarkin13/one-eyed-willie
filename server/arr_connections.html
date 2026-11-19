@@ -620,12 +620,16 @@ function initConnectionDirectory(){
      const text=document.createElement('div');
      const title=document.createElement('strong');title.className='visibility-title';title.textContent='Integrations page';
      const note=document.createElement('p');note.className='visibility-explanation';
-     note.textContent='Hide this tile from the server and TVs without disconnecting the service.';
+     const optionalWidget=['clock','weather','news','ambient'].includes(serviceId);
+     note.textContent=optionalWidget
+       ?'This tile appears on the Integrations page only after you enable the widget above. Unchecking this hides that tile, not the widget itself.'
+       :'Hide this tile from the server and TVs without disconnecting the service.';
      text.append(title,note);
      const label=document.createElement('label');label.className='connection-visibility-label';
      const input=document.createElement('input');input.type='checkbox';input.checked=true;
      input.setAttribute('aria-label','Show '+title.textContent.replace('Integrations page',serviceId)+' in Integrations');
-     const labelText=document.createElement('span');labelText.textContent='Show in Integrations';
+     const labelText=document.createElement('span');
+     labelText.textContent=optionalWidget?'Show when enabled':'Show in Integrations';
      label.append(input,labelText);
      const feedback=document.createElement('p');feedback.className='connection-visibility-feedback';
      feedback.setAttribute('role','status');
