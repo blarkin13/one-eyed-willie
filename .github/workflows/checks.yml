@@ -11,6 +11,8 @@ jobs:
         run: python -m compileall -q server
       - name: Install test dependencies
         run: python -m pip install -r requirements.txt
+      - name: Check Yarr Media display branding and legacy identity
+        run: python -m unittest discover -s tests -p 'test_yarr_media_branding.py' -v
       - name: Test TV color persistence and configured sidebar links
         run: python -m unittest discover -s tests -p 'test_tv_selection_and_music_sidebar.py' -v
       - name: Install FFmpeg
