@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Movie · One-Eyed Willie</title>
+<title>Movie · Yarr Media</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script src="/assets/media-title-logo.js?v=1"></script>
@@ -281,7 +281,7 @@ async function loadMovie(){
    if(!response.ok)throw Error('Movie not available ('+response.status+')');
    movie=await response.json();
    YarMediaTitleLogo.set($('movie-title'),movie.title,movie.logo_url);
-   document.title=movie.title+' · One-Eyed Willie';
+   document.title=movie.title+' · Yarr Media';
    $('movie-description').textContent=movie.overview||'No description available for this movie yet.';
    const format=$('video-format');format.replaceChildren();
    for(const [label,kind] of [[movie.video_format?.resolution,'resolution'],[movie.video_format?.hdr,'hdr']]){
