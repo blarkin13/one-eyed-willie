@@ -35,7 +35,7 @@ class YarrMediaBrandingTests(unittest.TestCase):
         manifest = (ANDROID / "AndroidManifest.xml").read_text()
         activity = (ANDROID / "java/studio/oneeyedwillie/tv/MainActivity.kt").read_text()
         gradle = (ROOT / "google-tv/app/build.gradle.kts").read_text()
-        self.assertIn('android:label="Yarr Media"', manifest)
+        self.assertIn('android:label="YarrMedia"', manifest)
         self.assertIn("Yarr Media loading artwork", activity)
         self.assertIn("Could not find Yarr Media", activity)
         self.assertIn('applicationId = "studio.oneeyedwillie.tv"', gradle)
