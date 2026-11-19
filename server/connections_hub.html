@@ -200,7 +200,9 @@ function showServiceDetails(service){
  heading.replaceChildren(serviceLogo(service),document.createTextNode(service.title));
  document.getElementById('connection-service-description').textContent=service.description;
  document.getElementById('connection-service-status').textContent=
-  service.id==='time-adrift'?'Enabled · In-player tracking':'Connected · API integration';
+  service.id==='time-adrift'?'Enabled · In-player tracking':
+  ['clock','weather','news','ambient'].includes(service.id)
+   ?'Enabled · Configured in Settings → Integrations':'Connected · API integration';
  serviceDialog.showModal();serviceClose.focus({preventScroll:true});
 }
 async function status(url){
@@ -238,58 +240,13 @@ async function showConnected(){
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
    lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
    opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled,
-   clock:!!glanceSettings.clock?.enabled,weather:!!glanceSettings.weather?.enabled,
+   clock:!!glanceSettings.clock?.enabled,
+   weather:!!glanceSettings.weather?.enabled&&/^[0-9]{5}$/.test(glanceSettings.weather.zip_code||''),
    news:!!glanceSettings.news?.enabled,ambient:!!glanceSettings.ambient?.enabled};
  for(const service of entries){
-   if((service.id!=='time-adrift'&&!glanceNames.includes(service.id)&&
-       !connected[service.id])||visibility.visible?.[service.id]===false)continue;
-   if(glanceNames.includes(service.id)){
-     // Each widget remains visible when off, with independent placement
-     // configuration on the server's Integrations settings page.
-     const card=document.createElement('section');card.className='service-card time-adrift-card';
-     const heading=document.createElement('span');heading.className='service-name';
-     heading.append(serviceLogo(service),document.createTextNode(service.title));
-     const description=document.createElement('span');description.className='service-description';
-     description.textContent=service.description;
-     const control=document.createElement('div');control.className='time-adrift-control';
-     const state=document.createElement('span');state.className='service-state';
-     const toggle=document.createElement('button');toggle.type='button';toggle.className='time-adrift-toggle';
-     const configure=document.createElement('a');configure.href='/settings/integrations#glance-'+service.id+'-heading';
-     configure.className='service-config-link';configure.textContent='Configure';
-     configure.setAttribute('aria-label','Configure '+service.title+' placements');
-     const feedback=document.createElement('p');feedback.className='time-adrift-feedback';
-     feedback.hidden=true;feedback.setAttribute('role','status');
-     const available=settled[6].status==='fulfilled'&&!!glanceSettings[service.id];
-     let config=glanceSettings[service.id]||{},enabled=!!config.enabled;
-     const update=()=>{
-       state.textContent=available?(enabled?'Enabled':'Disabled'):'Status unavailable';
-       state.classList.toggle('is-disabled',!enabled);
-       toggle.textContent=enabled?'Turn off '+service.title:'Turn on '+service.title;
-       toggle.setAttribute('aria-label',toggle.textContent);
-       toggle.setAttribute('aria-pressed',String(enabled));
-     };
-     update();toggle.disabled=!available;
-     control.append(state,toggle,configure);card.append(heading,description,control,feedback);
-     root.append(card);
-     toggle.addEventListener('click',async()=>{
-       const requested=!enabled;toggle.disabled=true;
-       feedback.hidden=false;feedback.textContent='Saving…';
-       try{
-         const response=await fetch('/api/glance/settings/'+service.id,{
-           method:'PUT',headers:{'Content-Type':'application/json'},
-           body:JSON.stringify({...config,enabled:requested})
-         });
-         const result=await response.json().catch(()=>({}));
-         if(!response.ok)throw Error(result.detail||'Server returned '+response.status);
-         config=result;enabled=!!config.enabled;update();
-         feedback.textContent=enabled
-           ?service.title+' enabled for your chosen locations.'
-           :service.title+' disabled. Reopen any playing video to apply.';
-       }catch(error){feedback.textContent='Could not save '+service.title+': '+error.message}
-       finally{toggle.disabled=false}
-     });
-     continue;
-   }
+   // The Integrations window lists only services already enabled and
+   // configured in Settings → Integrations. Disabled tools belong in Settings.
+   if(!connected[service.id]||visibility.visible?.[service.id]===false)continue;
    if(service.id==='time-adrift'){
      // A standalone control is remote-friendly and avoids nesting buttons.
      // Keep the tile visible while disabled so it can be turned on again here.
@@ -356,7 +313,7 @@ async function showConnected(){
    const description=document.createElement('span');description.className='service-description';
    description.textContent=service.description;
    const state=document.createElement('span');state.className='service-state';
-   state.textContent=service.id==='time-adrift'?'Enabled · Player counter':
+   state.textContent=glanceNames.includes(service.id)?'Enabled · View details':
      service.dashboard?'Connected · Open dashboard':
      service.id==='plex'?'Connected · Clone watch history':'Connected · View details';
    card.append(heading,description,state);root.append(card);
