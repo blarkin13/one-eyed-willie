@@ -1,5 +1,22 @@
 /* Shared compact navigation and branding for every Yarr Media page. */
 document.addEventListener('DOMContentLoaded', () => {
+  // Installable Android/iOS homescreen web app metadata. No offline media caching.
+  if(!document.querySelector('link[rel="manifest"]')){
+    const manifest=document.createElement('link');manifest.rel='manifest';manifest.href='/app.webmanifest';
+    document.head.append(manifest);
+  }
+  if(!document.querySelector('meta[name="theme-color"]')){
+    const theme=document.createElement('meta');theme.name='theme-color';theme.content='#000000';document.head.append(theme);
+  }
+  if(!document.querySelector('meta[name="apple-mobile-web-app-capable"]')){
+    const capable=document.createElement('meta');capable.name='apple-mobile-web-app-capable';capable.content='yes';document.head.append(capable);
+  }
+  if(!document.querySelector('meta[name="apple-mobile-web-app-title"]')){
+    const title=document.createElement('meta');title.name='apple-mobile-web-app-title';title.content='Yarr Media';document.head.append(title);
+  }
+  if(!document.querySelector('link[rel="apple-touch-icon"]')){
+    const icon=document.createElement('link');icon.rel='apple-touch-icon';icon.href='/assets/favicon.png';document.head.append(icon);
+  }
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
