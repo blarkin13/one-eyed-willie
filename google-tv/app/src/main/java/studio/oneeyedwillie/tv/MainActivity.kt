@@ -90,8 +90,8 @@ class MainActivity : ComponentActivity() {
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
-    // The actual 1920x1080 user-supplied artwork covers the TV at its
-    // natural aspect ratio. No enlarged launcher icon, drawn waves or rocking.
+    // The user's original 7680x4320 artwork is packaged as an optimized
+    // 3840x2160 16:9 PNG. No animation, redraw or network request at startup.
     private fun createLoadingOverlay(): FrameLayout {
         val overlay = FrameLayout(this).apply {
             setBackgroundColor(Color.BLACK)
@@ -134,7 +134,7 @@ class MainActivity : ComponentActivity() {
         val settings = Button(this).apply {
             text = "Server settings"
             setTextColor(Color.WHITE)
-            backgroundTintList = ColorStateList.valueOf(0xFF263348.toInt())
+            backgroundTintList = ColorStateList.valueOf(0xFF161616.toInt())
             setOnClickListener { showConnectionSettings() }
         }
         loadingActions = LinearLayout(this).apply {
@@ -1299,7 +1299,7 @@ class MainActivity : ComponentActivity() {
                 .tile:focus-within{transform:none!important}
                 a:not(.tile-button):focus-visible,button:focus-visible,
                 input:focus-visible,select:focus-visible,[tabindex="0"]:focus-visible{
-                  outline:2px solid #b7c7d6!important;outline-offset:2px!important
+                  outline:2px solid #bcbcbc!important;outline-offset:2px!important
                 }
                 /* Cast filmography credit links wrap the title and role as well.
                    Focus only the poster, not the full text/card rectangle. */
@@ -1430,8 +1430,8 @@ class MainActivity : ComponentActivity() {
                   z-index:5!important;display:grid!important;place-items:center!important;
                   width:15px!important;height:15px!important;
                   padding:0!important;border-radius:50%!important;
-                  background:#091929e8!important;border:1px solid #7faec4!important;
-                  color:#d7edf8!important;pointer-events:none!important
+                  background:#000000e8!important;border:1px solid #8a8a8a!important;
+                  color:#f0f0f0!important;pointer-events:none!important
                 }
                 body[data-page="home"] .watched-badge svg{
                   display:block!important;width:10px!important;height:10px!important
@@ -1446,7 +1446,7 @@ class MainActivity : ComponentActivity() {
                   width:85px!important;height:100vh!important;
                   transform:translateX(-110%)!important;
                   transition:transform .16s ease!important;
-                  background:#0d1520f5!important;z-index:50!important;
+                  background:#000000!important;z-index:50!important;
                   box-shadow:none!important
                 }
                 .sidebar:focus-within{transform:translateX(0)!important;
@@ -1470,7 +1470,7 @@ class MainActivity : ComponentActivity() {
                   width:85px!important;height:100vh!important;
                   padding:18px 7px!important;border:0!important;
                   overflow:visible!important;align-items:stretch!important;
-                  background:#0d1520f5!important;z-index:50!important
+                  background:#000000!important;z-index:50!important
                 }
                 .sidebar .side-nav,.sidebar:hover .side-nav,
                 .sidebar:focus-within .side-nav{
@@ -1504,6 +1504,21 @@ class MainActivity : ComponentActivity() {
                   display:none!important
                 }
                 .mobile-settings-sheet{display:none!important}
+                /* Native TV theme: pure black surfaces, no inherited navy. */
+                :root{
+                  --bg:#000000!important;--panel:#000000!important;
+                  --panel-2:#000000!important;--accent-sub:#000000!important;
+                  --line:#303030!important;
+                }
+                body[data-page] :is(
+                  .panel,.stat,.form-card,.filter-tabs,.episode-entry,
+                  .episode-card,.media-hero,.status-panel,.metadata-notice,
+                  .search-box input,.sort-select,.form-card input,
+                  .form-card select,dialog
+                ){background-color:#000000!important;border-color:#303030!important}
+                body[data-page] :is(.sidebar,.sidebar:hover,.sidebar:focus-within){
+                  background:#000000!important
+                }
                 .workspace,.topbar,.content{background:transparent!important}
                 html,body{background:#000!important}
                 .willie-hover-backdrop{background:#000!important}
@@ -1533,8 +1548,8 @@ class MainActivity : ComponentActivity() {
                 .oew-tv-cinematic-image.is-visible{opacity:.92;transform:scale(1)}
                 .oew-tv-cinematic-backdrop::after{content:"";position:absolute;
                   inset:0;background:
-                  linear-gradient(90deg,#080d16aa 0%,#080d163d 45%,#080d1645 100%),
-                  linear-gradient(0deg,#080d16cc 0%,#080d1638 45%,#080d1654 100%)}
+                  linear-gradient(90deg,#000000aa 0%,#0000003d 45%,#00000045 100%),
+                  linear-gradient(0deg,#000000cc 0%,#00000038 45%,#00000054 100%)}
                 body>.app-shell{position:relative;z-index:2;background:transparent!important}
                 body.oew-tv-backdrop-active #items::before,
                 body.oew-tv-backdrop-active .shelf-track::before,
@@ -1576,8 +1591,8 @@ class MainActivity : ComponentActivity() {
                 body[data-page="movies"] .movie-detail-hero[hidden]{display:none!important}
                 body[data-page="movies"] .movie-detail-hero::after{
                   background:
-                    linear-gradient(90deg,#080d16f2 0%,#080d16cf 35%,#080d165a 67%,#080d1619 100%),
-                    linear-gradient(0deg,#080d16f8 0%,#080d1600 65%)!important
+                    linear-gradient(90deg,#000000f2 0%,#000000cf 35%,#0000005a 67%,#00000019 100%),
+                    linear-gradient(0deg,#000000f8 0%,#00000000 65%)!important
                 }
                 body[data-page="movies"] .movie-detail-backdrop{
                   display:block!important;position:absolute!important;
@@ -1681,7 +1696,7 @@ class MainActivity : ComponentActivity() {
                 body[data-page="movies"] .movie-facts{
                   order:2!important;gap:10px!important;
                   margin:13px 0 24px!important;padding-top:18px!important;
-                  border-top:1px solid #27364a!important
+                  border-top:1px solid #242424!important
                 }
                 body[data-page="movies"] #reviews-section{order:3!important}
                 body[data-page="movies"] .movie-block{

@@ -245,7 +245,20 @@ def tv_page(library_id: int | None = Query(None, ge=1)):
 # paint, rather than in a script injected after page load. Only requests from
 # our native app get this final CSS override; browsers keep normal navigation.
 TV_RAIL_CSS = """
-/* TV-only first paint: no navy canvas and no skull watermark while artwork loads. */
+/* TV-only first paint: pure black canvas, without skull watermark. */
+/* Native TV clients use black surfaces without any inherited navy tint. */
+:root{
+  --bg:#000000!important;--panel:#000000!important;
+  --panel-2:#000000!important;--accent-sub:#000000!important;
+  --line:#303030!important;
+}
+body[data-page] :is(.panel,.stat,.form-card,.filter-tabs,.episode-entry,
+  .episode-card,.media-hero,.status-panel,.metadata-notice,dialog,
+  .search-box input,.sort-select,.form-card input,.form-card select){
+  background-color:#000000!important;border-color:#303030!important;
+}
+body[data-page] .sidebar{background:#000000!important}
+
 :root,html,body,
 body[data-page="home"],body[data-page="movies"],
 body[data-page="tv"],body[data-page="explore"] {
