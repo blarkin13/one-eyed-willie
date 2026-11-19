@@ -5,8 +5,11 @@ document.addEventListener('DOMContentLoaded', () => {
   const page=document.body.dataset.page||'home';
   const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
   const active=page==='connectionshub'?'connections':inSettings?'settings':page;
+  // The public Workers site uses / for its website and /app for the media home.
+  // The locally hosted server continues to use / for its home screen.
+  const homeHref=window.location.hostname==='yarr.larki-brian.workers.dev'?'/app':'/';
   const navItems=[
-    {id:'home',href:'/',name:'Home',fa:'fa-house',fallback:'home'},
+    {id:'home',href:homeHref,name:'Home',fa:'fa-house',fallback:'home'},
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
     {id:'music',href:'/music',name:'Music',fa:'fa-music',fallback:'music'},
@@ -153,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   document.documentElement.dataset.iconTheme=iconTheme();
   // Logo anchors the upper-left corner on desktop and mobile.
-  const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','Yarr Media — Home');
+  const brand=document.createElement('a');brand.href=homeHref;brand.className='brand';brand.setAttribute('aria-label','Yarr Media — Home');
   brand.title='Yarr Media';
   // Pirate ship logo; the original skull artwork remains the media watermark.
   const logoFrame=document.createElement('span');logoFrame.className='brand-logo-frame';
