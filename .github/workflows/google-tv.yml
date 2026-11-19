@@ -1,5 +1,5 @@
-name: Google TV APK
-run-name: Google TV APK build · ${{ github.sha }}
+name: Yarr Media Google TV APK
+run-name: Yarr Media Google TV APK build · ${{ github.sha }}
 on:
   pull_request:
     paths:
@@ -34,6 +34,6 @@ jobs:
         run: gradle --no-daemon :app:assembleDebug
       - uses: actions/upload-artifact@v4
         with:
-          name: one-eyed-willie-google-tv-debug-apk
+          name: yarr-media-google-tv-debug-apk
           path: google-tv/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
