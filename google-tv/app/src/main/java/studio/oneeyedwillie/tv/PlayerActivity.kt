@@ -832,7 +832,7 @@ class PlayerActivity : ComponentActivity() {
         if (kind == "pause") adriftPaused += seconds else adriftRewound += seconds
         val eventId = java.util.UUID.randomUUID().toString().replace("-", "")
         val payload = JSONObject().put("event_id", eventId).put("kind", kind)
-            .put("seconds", seconds.coerceAtMost(86400.0)).toString()
+            .put("seconds", seconds.coerceAtMost(86400.0))
         // Never do network work or SQLite writes on the video rendering thread.
         try {
             network.execute {
@@ -852,7 +852,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun updateAdriftPauseState() {
         if (!adriftEnabled || shuttingDown || !visibleForPlayback || !adriftEverPlayed ||
-            completed) {
+            player?.playbackState == Player.STATE_ENDED) {
             stopAdriftPause()
             return
         }
@@ -1778,6 +1778,7 @@ class PlayerActivity : ComponentActivity() {
         super.onStart()
         visibleForPlayback = true
         updatePlaybackScreenAwake()
+        updateAdriftPauseState()
         if (player != null) {
             handler.removeCallbacks(checkpoint)
             handler.postDelayed(checkpoint, 15_000)
