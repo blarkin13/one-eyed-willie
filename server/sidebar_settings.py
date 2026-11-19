@@ -14,7 +14,7 @@ NAV = (
     ("movies", "Movies"),
     ("tv", "TV Shows"),
     ("music", "Music"),
-    ("connections", "Connections"),
+    ("connections", "Integrations"),
 )
 ALWAYS_VISIBLE = {"home", "settings"}
 ICON_NAMES = ("home", "movies", "tv", "sabnzbd", "settings")
@@ -65,7 +65,7 @@ def _settings_table(conn):
 
 
 # Per-integration display choices are independent of actual connectivity.
-# Hiding a service from Connections must never remove its credentials or disable its APIs.
+# Hiding a service from Integrations must never remove its credentials or disable its APIs.
 CONNECTION_SERVICE_IDS = ("radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles")
 CONNECTION_HIDDEN_KEY = "connections_hub_hidden"
 
@@ -134,7 +134,7 @@ def get_sidebar():
         _settings_table(conn)
         entries = _available(conn)
         by_id = {item["id"]: item for item in entries}
-        # Migrate pre-Connections layouts without losing the user's saved order.
+        # Migrate pre-Integrations layouts without losing the user's saved order.
         old_order = _read(conn, "sidebar_order")
         saved = list(dict.fromkeys(
             "connections" if item in ("sabnzbd", "services") else item
