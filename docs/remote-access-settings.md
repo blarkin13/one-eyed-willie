@@ -1,6 +1,6 @@
 # Remote Access settings
 
-Open **Settings → Remote Access** in One-Eyed Willie.
+Open **Settings → Remote Access** in Yarr Media.
 
 - Enter the public IPv4 address of the home router. This value is **stored privately on the NUC** in `/data/remote-settings.json`; it is not hardcoded in the source.
 - Enter the preferred public application URL (for example, a `workers.dev` URL). The application validates HTTPS URLs.
