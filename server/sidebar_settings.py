@@ -64,6 +64,46 @@ def _settings_table(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
 
 
+# Per-integration display choices are independent of actual connectivity.
+# Hiding a service from Connections must never remove its credentials or disable its APIs.
+CONNECTION_SERVICE_IDS = ("radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles")
+CONNECTION_HIDDEN_KEY = "connections_hub_hidden"
+
+
+class ConnectionVisibilityRequest(BaseModel):
+    service: Literal["radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles"]
+    visible: bool
+
+
+def _connection_hidden(conn):
+    return set(_read(conn, CONNECTION_HIDDEN_KEY)) & set(CONNECTION_SERVICE_IDS)
+
+
+@router.get("/connections/visibility")
+def get_connection_visibility():
+    with db() as conn:
+        _settings_table(conn)
+        hidden = _connection_hidden(conn)
+    return {"visible": {name: name not in hidden for name in CONNECTION_SERVICE_IDS}}
+
+
+@router.put("/connections/visibility")
+def save_connection_visibility(payload: ConnectionVisibilityRequest):
+    with db() as conn:
+        _settings_table(conn)
+        hidden = _connection_hidden(conn)
+        if payload.visible:
+            hidden.discard(payload.service)
+        else:
+            hidden.add(payload.service)
+        conn.execute(
+            "INSERT INTO app_settings(key,value) VALUES(?,?) "
+            "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
+            (CONNECTION_HIDDEN_KEY, json.dumps(sorted(hidden))),
+        )
+    return get_connection_visibility()
+
+
 def _available(conn):
     # Standard library destinations exist only after a corresponding library
     # has been configured. Keep Settings available for adding the first one.
