@@ -9,5 +9,7 @@ class PublicWorkerLogoTests(unittest.TestCase):
         self.assertIn("u.pathname==='/favicon.svg'", worker)
         self.assertIn('rel="icon" type="image/svg+xml"', worker)
         self.assertIn('/favicon.svg?v=moon-sail-v1', worker)
-        self.assertNotIn('new%20logo.png', worker)
+        self.assertIn('new%20logo.png', worker)
+        self.assertNotIn('ship-float', worker)
+        self.assertIn('class="hero-art"', worker)
         self.assertIn("img-src 'self'", worker)
