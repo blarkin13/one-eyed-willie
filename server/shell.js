@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
   if(!target)return;
   const page=document.body.dataset.page||'home';
   const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
-  // Integration dashboards live under Connections, including on TV.
+  // Integration dashboards live under Integrations, including on TV.
   const active=['connectionshub','services','radarr','sonarr','sabnzbd'].includes(page)
     ?'connections':inSettings?'settings':page;
   // The public Workers site uses / for its website and /app for the media home.
@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
     {id:'movies',href:'/movies',name:'Movies',fa:'fa-film',fallback:'film'},
     {id:'tv',href:'/tv',name:'TV Shows',fa:'fa-tv',fallback:'tv'},
     {id:'music',href:'/music',name:'Music',fa:'fa-music',fallback:'music'},
-    {id:'connections',href:'/connections',name:'Connections',fa:'fa-plug',fallback:'connections'},
+    {id:'connections',href:'/integrations',name:'Integrations',fa:'fa-plug',fallback:'connections'},
     {id:'settings',href:'/settings',name:'Settings',fa:'fa-gear',fallback:'settings'}
   ];
   // Inline SVG fallbacks make every control usable without an external font.
@@ -254,7 +254,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if(detail?.name)updateSystemIcon(detail.name,detail.url,Boolean(detail.custom));
   });
   // The gear is the only Settings destination in the sidebar.
-  // General, Library, Metadata and Connections live on /settings only.
+  // General, Library, Metadata and integration configuration live on /settings only.
   // The same first-party SVG set powers the editor preview and actual sidebar.
   const appearanceReady=window.WillieLibraryAppearance
     ?Promise.resolve(window.WillieLibraryAppearance)
