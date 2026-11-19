@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Title details · One-Eyed Willie</title>
+<title>Title details · Yarr Media</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script src="/assets/media-title-logo.js?v=1"></script>
@@ -192,7 +192,7 @@ async function findManagerRecord(){
 }
 async function load(){
  if(title.length<2){$('status').textContent='Choose a title from a cast profile.';return}
- $('title').textContent=title;document.title=title+' · One-Eyed Willie';
+ $('title').textContent=title;document.title=title+' · Yarr Media';
  $('hero').hidden=false;
  $('availability').textContent='Checking local library…';
  const localQ=new URLSearchParams({kind,title,year:String(year),tmdb_id:String(tmdbId)});
@@ -236,7 +236,7 @@ async function load(){
 }
 function render(data){
  YarMediaTitleLogo.set($('title'),data.title||title,data.logo_url);
- document.title=(data.title||title)+' · One-Eyed Willie';
+ document.title=(data.title||title)+' · Yarr Media';
  const backdrop=$('backdrop');
  if(allowedImage(data.backdrop_url)){backdrop.src=data.backdrop_url;backdrop.hidden=false}
  const metadata=[data.release_date?.slice(0,4),data.runtime?data.runtime+' min':null,
