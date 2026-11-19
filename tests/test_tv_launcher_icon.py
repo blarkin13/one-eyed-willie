@@ -6,7 +6,7 @@ import math
 import re
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parents[1]
 ANDROID = ROOT / "google-tv/app/src/main"
 RES = ANDROID / "res"
 MANIFEST = ANDROID / "AndroidManifest.xml"
