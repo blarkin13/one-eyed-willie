@@ -1,0 +1,19 @@
+{
+  "name": "Yarr Media",
+  "short_name": "Yarr",
+  "description": "Browse and stream your own media from your Yarr Media server.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "icons": [
+    {
+      "src": "/assets/favicon.png",
+      "sizes": "any",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
