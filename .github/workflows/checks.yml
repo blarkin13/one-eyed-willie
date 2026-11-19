@@ -1,8 +1,4 @@
 name: Checks
-# Superseded feature-branch runs should not occupy the build queue.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
-  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 on:
   push:
   pull_request:
@@ -17,8 +13,6 @@ jobs:
         run: python -m pip install -r requirements.txt
       - name: Check Yarr Media display branding and legacy identity
         run: python -m unittest discover -s tests -p 'test_yarr_media_branding.py' -v
-      - name: Test Time Adrift pause and rewind tracking
-        run: python -m unittest discover -s tests -p 'test_time_adrift.py' -v
       - name: Test TV color persistence and configured sidebar links
         run: python -m unittest discover -s tests -p 'test_tv_selection_and_music_sidebar.py' -v
       - name: Install FFmpeg
@@ -63,6 +57,8 @@ jobs:
           node-version: '22'
       - name: Test account Worker (yarr.media)
         run: node --test --no-warnings cloudflare/yarr/test/*.test.mjs
+      - name: Test Stripe one-time Checkout and signature validation
+        run: node --test tests/test_yarr_stripe_checkout.mjs
       - name: Test catalog parsing
         run: python -m unittest discover -s tests -v
       - name: Test Yarr Direct host bridge (pytest)
