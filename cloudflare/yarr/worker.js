@@ -426,7 +426,7 @@ async function verifiedOriginShared(env,server,signal){
 }
 // This single-server pilot currently streams media through the Yarr Worker;
 // production multi-tenant playback needs a separate authorized data plane.
-// Full One-Eyed Willie application pilot. Every request is authorized against the
+// Full Yarr Media application pilot. Every request is authorized against the
 // Yarr session and the exact paired server; no arbitrary origins or host overrides.
 const ORIGIN_BASE='http://one-eyed-willie:8787';
 const HOP_HEADERS=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade','host','cookie','authorization','cf-connecting-ip','x-forwarded-for','x-forwarded-host','x-forwarded-proto','x-real-ip','x-yarr-proxy-auth','x-yarr-server-id']);
@@ -715,7 +715,7 @@ export default { async fetch(req,env) {
   if(u.pathname.startsWith('/auth/'))return json({error:'not_found'},404);
   if(u.pathname==='/api/private' || u.pathname.startsWith('/api/private/'))return json({error:'not_found'},404);
   // This Worker owns account, login and pairing routes. All other application
-  // paths are served by the paired local One-Eyed Willie server.
+  // paths are served by the paired local Yarr Media server.
   if(u.pathname!=='/'&&u.pathname!=='/index.html')return proxyInstalledApp(req,env);
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
   if(u.pathname==='/'||u.pathname==='/index.html') {
