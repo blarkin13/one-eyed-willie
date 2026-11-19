@@ -66,12 +66,12 @@ def _settings_table(conn):
 
 # Per-integration display choices are independent of actual connectivity.
 # Hiding a service from Integrations must never remove its credentials or disable its APIs.
-CONNECTION_SERVICE_IDS = ("radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles", "time-adrift")
+CONNECTION_SERVICE_IDS = ("radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles", "time-adrift", "clock", "weather", "news")
 CONNECTION_HIDDEN_KEY = "connections_hub_hidden"
 
 
 class ConnectionVisibilityRequest(BaseModel):
-    service: Literal["radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles", "time-adrift"]
+    service: Literal["radarr", "sonarr", "lidarr", "sabnzbd", "plex", "opensubtitles", "time-adrift", "clock", "weather", "news"]
     visible: bool
 
 
