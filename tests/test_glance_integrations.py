@@ -67,7 +67,8 @@ class GlanceSettingsTests(unittest.TestCase):
         tv = (ROOT / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/PlayerActivity.kt").read_text()
         self.assertIn("addGlanceIntegrationCards()", settings)
         self.assertIn("saveGlanceSettings", settings)
-        self.assertIn("['home','Home']", settings) if False else None
+        for placement in ("Home", "Paused player", "Idle screen"):
+            self.assertIn(placement, settings)
         for name in ("clock", "weather", "news"):
             self.assertIn("id:'" + name + "'", hub)
             self.assertIn("'/api/glance/settings/'+id", settings)
