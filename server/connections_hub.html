@@ -8,9 +8,19 @@
 <style>
 .connections-hub{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,310px),1fr));gap:16px;margin-top:22px}
 .connections-hub .service-card{display:flex;flex-direction:column;gap:15px;padding:22px;min-height:168px;border-radius:16px;
- background:#142030;border:1px solid #32455a;color:#f6f7fa;text-align:left;font:inherit;text-decoration:none}
-.connections-hub a.service-card{cursor:pointer;transition:background .16s,border-color .16s,transform .16s}
-.connections-hub a.service-card:hover,.connections-hub a.service-card:focus-visible{background:#203249;border-color:#a78bfa;outline:2px solid #a78bfa;outline-offset:2px;transform:translateY(-2px)}
+ background:linear-gradient(130deg,rgba(255,255,255,.075),rgba(255,255,255,.015)),rgba(8,8,8,.92);
+ border:1px solid rgba(255,255,255,.17);color:#f5f1e8;text-align:left;font:inherit;text-decoration:none}
+.connections-hub :is(a.service-card,button.service-card){
+ width:100%;cursor:pointer;transition:background .18s,border-color .18s,transform .18s
+}
+html body[data-page="connectionshub"] .connections-hub
+ :is(a.service-card,button.service-card):is(:focus,:focus-visible,:hover){
+ background:linear-gradient(130deg,rgba(255,255,255,.13),rgba(255,255,255,.025)),#111!important;
+ border-color:var(--oew-tv-select-color,#A61E1E)!important;
+ outline:2px solid var(--oew-tv-select-color,#A61E1E)!important;outline-offset:2px!important;
+ box-shadow:0 0 0 1px var(--oew-tv-select-color,#A61E1E)!important;
+ transform:translateY(-2px)
+}
 /* Glass-black integration tiles only on the TV client; the desktop hub keeps its layout. */
 body.oew-tv-client .connections-hub .service-card{
  background:linear-gradient(130deg,rgba(255,255,255,.075),rgba(255,255,255,.012) 70%),rgba(8,8,8,.88);
@@ -39,6 +49,14 @@ body.oew-tv-client .connections-hub .integration-logo{width:40px;height:40px;obj
 .connection-service-dialog .service-name img{width:43px;height:43px;object-fit:contain}
 .connection-service-dialog p{color:#c6c6c6;line-height:1.6}
 .connection-service-dialog .service-state{color:#9ee1bb;font-weight:650}
+.connection-plex-actions[hidden],.connection-plex-confirm[hidden]{display:none!important}
+.connection-plex-actions{display:grid;gap:10px;padding:15px 0 0}
+.connection-plex-actions #connection-plex-feedback{color:#d7d7d7;margin:0;line-height:1.5}
+.connection-plex-actions button{margin:0;min-width:230px;justify-self:start}
+.connection-service-dialog button:is(:focus,:focus-visible){
+ border-color:var(--oew-tv-select-color,#A61E1E)!important;
+ outline:2px solid var(--oew-tv-select-color,#A61E1E)!important;outline-offset:2px!important}
+
 .connection-service-dialog button{min-height:44px;margin-top:15px;padding:10px 20px;
  border:1px solid rgba(255,255,255,.25);border-radius:10px;background:#191919;color:#f5f1e8;
  font:inherit;cursor:pointer}
@@ -68,6 +86,12 @@ html body.oew-tv-client .connection-service-dialog button:is(:focus,:focus-visib
  <p id="connection-service-description"></p>
  <p class="service-state" id="connection-service-status">Connected</p>
  <p>Integration setup and API credentials are managed on your Yarr Media server.</p>
+ <div id="connection-plex-actions" class="connection-plex-actions" hidden>
+  <p>Clone watched statuses for movies and episodes that match your current Yarr Media library. Plex itself is never changed.</p>
+  <button type="button" id="connection-plex-clone">Clone Plex watch history</button>
+  <p id="connection-plex-feedback" role="status" aria-live="polite"></p>
+  <button type="button" id="connection-plex-confirm" class="connection-plex-confirm" hidden>Confirm watched-history import</button>
+ </div>
  <button type="button" id="connection-service-close">Close</button>
 </dialog>
 
@@ -83,7 +107,46 @@ if(isTvClient){
 const serviceDialog=document.getElementById('connection-service-dialog');
 const serviceClose=document.getElementById('connection-service-close');
 serviceClose.addEventListener('click',()=>serviceDialog.close());
-serviceDialog.addEventListener('close',()=>document.querySelector('.connections-hub .service-card:focus')?.focus({preventScroll:true}));
+let previouslyFocusedCard=null;
+serviceDialog.addEventListener('close',()=>previouslyFocusedCard?.focus({preventScroll:true}));
+const cloneArea=document.getElementById('connection-plex-actions');
+const cloneButton=document.getElementById('connection-plex-clone');
+const cloneConfirm=document.getElementById('connection-plex-confirm');
+const cloneFeedback=document.getElementById('connection-plex-feedback');
+cloneButton.addEventListener('click',async()=>{
+ cloneButton.disabled=true;cloneConfirm.hidden=true;
+ cloneFeedback.textContent='Comparing your watched Plex items with the local library…';
+ try{
+  const summary=await status('/api/plex/import/preview');
+  cloneFeedback.textContent='Watched in Plex: '+summary.plex_watched+
+    ' · New local matches: '+summary.new_matches+
+    ' · Not found: '+summary.unmatched+' · Ambiguous: '+summary.ambiguous+
+    '. Preview only; nothing imported yet.';
+  if(summary.new_matches){
+   cloneConfirm.hidden=false;
+   cloneConfirm.textContent='Import '+summary.new_matches+' watched items';
+   cloneConfirm.focus({preventScroll:true});
+  }
+ }catch(error){cloneFeedback.textContent='Could not preview Plex history: '+error.message}
+ finally{cloneButton.disabled=false}
+});
+cloneConfirm.addEventListener('click',async()=>{
+ cloneConfirm.disabled=true;
+ cloneFeedback.textContent='Importing confirmed Plex watched statuses…';
+ try{
+  const result=await statusPost('/api/plex/import',{confirm:true});
+  cloneFeedback.textContent='Cloned '+result.imported+' watched statuses into Yarr Media. '+
+   result.unmatched+' unmatched and '+result.ambiguous+' ambiguous items were skipped.';
+  cloneConfirm.hidden=true;
+  cloneButton.focus({preventScroll:true});
+ }catch(error){cloneFeedback.textContent='Could not import Plex history: '+error.message}
+ finally{cloneConfirm.disabled=false}
+});
+// The same saved highlight color applies on the server and every connected TV.
+status('/api/settings/tv-appearance').then(value=>{
+ if(/^#[0-9A-Fa-f]{6}$/.test(value.selection_color||''))
+  document.documentElement.style.setProperty('--oew-tv-select-color',value.selection_color);
+}).catch(()=>{});
 const entries=[
  {id:'radarr',title:'Radarr',dashboard:'/radarr',config:'#connections',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
  {id:'sonarr',title:'Sonarr',dashboard:'/sonarr',config:'#connections',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
@@ -105,6 +168,9 @@ function serviceLogo(service){
  return image;
 }
 function showServiceDetails(service){
+ previouslyFocusedCard=document.activeElement;
+ cloneArea.hidden=service.id!=='plex';
+ cloneConfirm.hidden=true;cloneFeedback.textContent='';
  const heading=document.getElementById('connection-service-title');
  heading.replaceChildren(serviceLogo(service),document.createTextNode(service.title));
  document.getElementById('connection-service-description').textContent=service.description;
@@ -116,11 +182,22 @@ async function status(url){
  if(!response.ok)throw Error('Unable to check connections');
  return response.json();
 }
+async function statusPost(url,payload){
+ const response=await fetch(url,{method:'POST',cache:'no-store',
+  headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)});
+ const result=await response.json().catch(()=>({}));
+ if(!response.ok)throw Error(result.detail||'Request failed');
+ return result;
+}
 async function showConnected(){
  const root=document.getElementById('connected-services');
  const message=document.getElementById('connections-message');
  const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection'];
- const settled=await Promise.allSettled(urls.map(status));
+ const [settled,visibility]=await Promise.all([
+  Promise.allSettled(urls.map(status)),
+  status('/api/settings/connections/visibility').catch(()=>({visible:{}}))
+ ]);
+ root.replaceChildren();
  if(settled.some(value=>value.status==='rejected')){
    message.textContent='Some connection statuses could not be checked. Try refreshing.';
  }
@@ -132,18 +209,16 @@ async function showConnected(){
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
    lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
  for(const service of entries){
-   if(!connected[service.id])continue;
-   const card=document.createElement(service.dashboard?'a':isTvClient?'button':'article');
+   if(!connected[service.id] || visibility.visible?.[service.id]===false)continue;
+   const card=document.createElement(service.dashboard?'a':'button');
    card.className='service-card';
    if(service.dashboard){
      card.href=service.dashboard;
      card.setAttribute('aria-label','Open '+service.title+' dashboard');
-   }else if(isTvClient){
+   }else{
      card.type='button';
      card.setAttribute('aria-label','View '+service.title+' connection details');
      card.addEventListener('click',()=>showServiceDetails(service));
-   }else{
-     card.classList.add('service-api-only');
    }
    const heading=document.createElement('span');heading.className='service-name';
    if(service.image)heading.append(serviceLogo(service));
@@ -152,15 +227,16 @@ async function showConnected(){
    description.textContent=service.description;
    const state=document.createElement('span');state.className='service-state';
    state.textContent=service.dashboard?'Connected · Open dashboard':
-     isTvClient?'Connected · View details':'Configured · API integration';
+     service.id==='plex'?'Connected · Clone watch history':'Connected · View details';
    card.append(heading,description,state);root.append(card);
  }
  if(root.childElementCount && settled.every(value=>value.status==='fulfilled'))
    message.textContent='';
  else if(!root.childElementCount && settled.every(value=>value.status==='fulfilled'))
-   message.textContent=isTvClient
-     ?'No services connected. Add integrations using Settings on your Yarr Media server.'
-     :'No services connected yet. Add one in Settings → Connections.';
+   message.textContent=Object.values(connected).some(Boolean)
+     ?'All connected services are hidden. Enable Show in Connections in server settings.'
+     :isTvClient?'No services connected. Add integrations using Settings on your Yarr Media server.'
+       :'No services connected yet. Add one in Settings → Connections.';
  else if(!root.childElementCount)
    message.textContent=isTvClient
      ?'Connection status unavailable. Check Yarr Media on your server.'

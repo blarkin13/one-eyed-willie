@@ -11,8 +11,12 @@ SHELL=(SERVER/"shell.js").read_text()
 
 class TvConnectionsAndAppearanceTests(unittest.TestCase):
     def test_api_only_integrations_are_selectable_on_tv(self):
-        self.assertIn("service.dashboard?'a':isTvClient?'button':'article'", HUB)
+        self.assertIn("service.dashboard?'a':'button'", HUB)
         self.assertIn("card.addEventListener('click',()=>showServiceDetails(service))", HUB)
+        self.assertIn("visibility.visible?.[service.id]===false", HUB)
+        self.assertIn("id=\"connection-plex-clone\"", HUB)
+        self.assertIn("status('/api/plex/import/preview')", HUB)
+        self.assertIn("statusPost('/api/plex/import',{confirm:true})", HUB)
         self.assertIn("serviceDialog.showModal()", HUB)
         self.assertIn("id=\"connections-manage\"", HUB)
         self.assertIn("document.getElementById('connections-manage')?.remove()", HUB)
@@ -22,6 +26,8 @@ class TvConnectionsAndAppearanceTests(unittest.TestCase):
         self.assertIn("outline:2px solid var(--oew-tv-select-color,#A61E1E)!important", HUB)
         self.assertIn("border-color:var(--oew-tv-select-color,#A61E1E)!important", HUB)
         self.assertIn("serviceLogo(service)", HUB)
+        self.assertIn("var(--oew-tv-select-color,#A61E1E)", HUB)
+        self.assertNotIn("#a78bfa", HUB)
 
     def test_connection_dashboards_keep_active_sidebar_icon(self):
         self.assertIn("'radarr','sonarr','sabnzbd'", SHELL)
