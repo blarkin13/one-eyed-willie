@@ -16,7 +16,7 @@ from PIL import Image
 import cairosvg
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher_true_vector.svg"
+SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher_precision.svg"
 RES = ROOT / "google-tv/app/src/main/res"
 DENSITIES = {
     "mdpi": 80,
@@ -35,10 +35,9 @@ def android(name: str) -> str:
 def make_adaptive_foreground(source: Path, target: Path) -> None:
     """Convert authored SVG curves to actual Android VectorDrawable curves.
 
-    The 84% Android adaptive foreground scale keeps the wordmark legible on
-    circular Google TV launchers. The entire artwork remains on its own
-    vector layer; the system supplies the white background and round mask.
-    Some unusually tight third-party masks may crop details at this scale.
+    The 62% scale keeps all content inside the adaptive icon's 66dp safe circle on
+    Android TV. At 84% the Y and final A were cropped by Google's round mask.
+    The artwork remains on its own vector layer; the system supplies white.
     """
     svg = ET.parse(source).getroot()
     ns = "{http://www.w3.org/2000/svg}"
@@ -48,7 +47,7 @@ def make_adaptive_foreground(source: Path, target: Path) -> None:
     })
     group = ET.SubElement(parent, "group", {
         android("pivotX"): "1024", android("pivotY"): "1024",
-        android("scaleX"): "0.84", android("scaleY"): "0.84",
+        android("scaleX"): "0.62", android("scaleY"): "0.62",
     })
     seen = set()
     for shape in svg:
@@ -59,8 +58,7 @@ def make_adaptive_foreground(source: Path, target: Path) -> None:
                 android("fillColor"): fill,
                 android("pathData"): " ".join(shape.attrib["d"].split()),
             }
-            if shape.attrib.get("fill-rule") == "evenodd" or shape.attrib.get("id", "").startswith("glyph-"):
-                # Preserves the counters (holes) in A, R and D reliably.
+            if shape.attrib.get("fill-rule") == "evenodd":
                 spec[android("fillType")] = "evenOdd"
             ET.SubElement(group, "path", spec)
             seen.add(shape.attrib.get("id"))
@@ -76,12 +74,7 @@ def make_adaptive_foreground(source: Path, target: Path) -> None:
                 android("pathData"): circle_path,
             })
             seen.add("dot")
-    # The cleaner typeface has one outlined Bézier path for each glyph rather
-    # than the former straight-line approximations for the combined words.
-    # Render individual glyphs as vectors, never convert them into bitmaps.
-    expected = {"sail", "wave", "dot", "glyph-Y-52", "glyph-A-239",
-                "glyph-R-479", "glyph-R-688", "glyph-M-979", "glyph-E-1253",
-                "glyph-D-1435", "glyph-I-1657", "glyph-A-1741"}
+    expected = {"sail", "wave", "yarr", "media", "dot"}
     assert seen == expected, f"Unexpected foreground artwork: {seen}"
     target.parent.mkdir(parents=True, exist_ok=True)
     ET.ElementTree(parent).write(target, encoding="unicode", xml_declaration=True)
