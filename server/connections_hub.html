@@ -246,7 +246,8 @@ async function showConnected(){
  for(const service of entries){
    // The Integrations window lists only services already enabled and
    // configured in Settings → Integrations. Disabled tools belong in Settings.
-   if(!connected[service.id]||visibility.visible?.[service.id]===false)continue;
+   if((service.id!=='time-adrift'&&!connected[service.id])||
+       visibility.visible?.[service.id]===false)continue;
    if(service.id==='time-adrift'){
      // A standalone control is remote-friendly and avoids nesting buttons.
      // Keep the tile visible while disabled so it can be turned on again here.
