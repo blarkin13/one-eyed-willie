@@ -332,12 +332,19 @@ for(const [theme,label,description] of tvIconThemes){
  const option=document.createElement('button');option.type='button';option.dataset.theme=theme;
  option.setAttribute('aria-label',label+': '+description);
  option.style.cssText='display:flex;align-items:center;gap:12px';
- const preview=document.createElement('img');preview.alt='';preview.width=30;preview.height=30;
- preview.style.cssText='object-fit:contain;flex:none';
- preview.src=theme==='pirate'?'/assets/sidebar-icon-home.png?v=pirate-v3':
-   theme==='adventure'?'/assets/themes/action-adventure/home.svg?v=2':
-   '/assets/logo.svg?v=moon-sail-v1';
- preview.onerror=()=>preview.remove();
+ const preview=theme==='clean'
+   ?document.createElementNS('http://www.w3.org/2000/svg','svg')
+   :document.createElement('img');
+ preview.setAttribute('aria-hidden','true');
+ preview.style.cssText='width:30px;height:30px;object-fit:contain;flex:none;color:#f5f1e8';
+ if(theme==='clean'){
+  preview.setAttribute('viewBox','0 0 24 24');
+  preview.innerHTML='<path d="M3 10.5 12 3l9 7.5V21h-6v-7H9v7H3z" stroke="currentColor" stroke-width="1.7" fill="none"/>';
+ }else{
+  preview.src=theme==='pirate'?'/assets/sidebar-icon-home.png?v=pirate-v3':
+    '/assets/themes/action-adventure/home.svg?v=2';
+  preview.onerror=()=>preview.remove();
+ }
  const title=document.createElement('span');title.textContent=label+' · '+description;
  option.append(preview,title);
  option.addEventListener('click',()=>{
