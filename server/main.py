@@ -3,6 +3,7 @@ import threading
 from pathlib import Path
 from fastapi import FastAPI, Query, Request
 from fastapi.responses import FileResponse, RedirectResponse, Response
+from server.brand_icon import brand_png, brand_ico
 from server.static_text import TextFileResponse
 from server.library import router, db
 from server.catalog import catalog, start_background_scans
@@ -449,8 +450,8 @@ def yarr_media_open_graph_image():
 
 @app.get("/assets/ship-logo.png")
 def ship_logo_png():
-    return FileResponse(Path(__file__).with_name("ship-logo.png"), media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=604800"})
+    return Response(content=brand_png(512), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/assets/poster-placeholder.jpg")
@@ -461,16 +462,39 @@ def poster_placeholder():
 
 @app.get("/assets/logo.png")
 def brand_logo_png():
-    return FileResponse(Path(__file__).with_name("logo.png"), media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=604800"})
+    return Response(content=brand_png(512), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/favicon.ico")
+def favicon_ico():
+    return Response(content=brand_ico(), media_type="image/x-icon",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
 @app.get("/favicon.png")
 @app.get("/assets/favicon.png")
 def favicon_png():
-    return FileResponse(Path(__file__).with_name("favicon.png"), media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=3600"})
+    return Response(content=brand_png(128), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/assets/app-icon-192.png")
+def app_icon_192_png():
+    return Response(content=brand_png(192), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/assets/app-icon-512.png")
+def app_icon_512_png():
+    return Response(content=brand_png(512), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/assets/touch-icon.png")
+def apple_touch_icon_png():
+    return Response(content=brand_png(180), media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=3600"})
 
 
 @app.get("/assets/logo.svg")

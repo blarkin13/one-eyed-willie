@@ -15,7 +15,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const title=document.createElement('meta');title.name='apple-mobile-web-app-title';title.content='Yarr Media';document.head.append(title);
   }
   if(!document.querySelector('link[rel="apple-touch-icon"]')){
-    const icon=document.createElement('link');icon.rel='apple-touch-icon';icon.href='/assets/favicon.png';document.head.append(icon);
+    const icon=document.createElement('link');icon.rel='apple-touch-icon';icon.href='/assets/touch-icon.png?v=moon-sail-v1';document.head.append(icon);
   }
   const target=document.getElementById('app-nav');
   if(!target)return;
@@ -175,10 +175,10 @@ document.addEventListener('DOMContentLoaded', () => {
   // Logo anchors the upper-left corner on desktop and mobile.
   const brand=document.createElement('a');brand.href=homeHref;brand.className='brand';brand.setAttribute('aria-label','Yarr Media — Home');
   brand.title='Yarr Media';
-  // Pirate ship logo; the original skull artwork remains the media watermark.
+  // Moon and tattered-sail Yarr Media logo, sized as a square alongside icon-set glyphs.
   const logoFrame=document.createElement('span');logoFrame.className='brand-logo-frame';
   logoFrame.setAttribute('aria-hidden','true');
-  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/ship-logo.png';
+  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/ship-logo.png?v=moon-sail-v1';
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
   const wordmark=document.createElement('img');
@@ -383,7 +383,7 @@ document.addEventListener('DOMContentLoaded', () => {
   });
   if(!document.querySelector('link[rel~="icon"]')){
     const favicon=document.createElement('link');
-    favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=5';
+    favicon.rel='icon';favicon.type='image/png';favicon.href='/assets/favicon.png?v=moon-sail-v1';
     document.head.append(favicon);
   }
   // Use Font Awesome Free when loaded; keep local SVGs when offline.
