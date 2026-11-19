@@ -1,5 +1,5 @@
 [Unit]
-Description=Poll GitHub main for One-Eyed Willie updates
+Description=Poll GitHub main for Yarr Media updates
 
 [Timer]
 OnBootSec=1min
