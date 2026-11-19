@@ -2,7 +2,7 @@
 // Product name and public domain remain provisional. No home-server media proxy.
 const JSON_HEADERS = {'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const HTML_HEADERS = {'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=300','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https://raw.githubusercontent.com; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};
-// Public emblem and favicon use the same square artwork as the app.
+// First-party Yarr Media logo and favicon.
 const YARR_ICON_SVG = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 900 900\" role=\"img\" aria-label=\"Yarr Media moon, pirate sail and waves\"><path fill=\"#fff\" d=\"M34,808 78,809 193,798 254,798 313,805 395,823 445,832 490,837 527,838 572,835 613,829 695,809 751,800 776,798 821,798 855,801 868,804 873,803 833,790 794,782 766,779 722,779 684,784 628,797 592,803 562,806 506,806 447,797 381,779 339,770 303,765 251,763 213,766 178,772 84,797Z M285,129 246,152 216,174 194,193 162,227 140,256 122,285 108,313 92,355 82,393 77,424 77,493 83,529 89,552 103,591 120,626 147,668 173,700 198,725 232,753 288,747 313,686 337,639 363,596 401,543 455,481 521,419 574,380 598,366 634,349 667,339 683,337 683,339 668,349 653,363 640,381 630,409 628,432 609,437 589,452 558,463 587,477 620,482 618,492 618,518 621,536 626,552 635,571 648,590 660,602 672,610 665,611 633,605 613,608 602,614 596,619 596,621 609,622 624,628 608,634 596,645 596,647 608,650 624,659 637,672 627,675 650,690 673,716 670,717 620,697 565,683 521,677 467,677 440,680 410,686 370,699 352,707 331,720 317,732 307,745 392,750 451,759 559,779 623,782 657,760 683,739 711,712 737,682 761,648 775,624 791,590 804,553 811,524 816,491 817,443 815,418 811,391 803,357 790,320 776,290 755,255 736,229 706,195 687,177 656,152 632,136 593,116 561,104 531,96 494,90 462,88 426,89 383,95 354,102 329,110Z\"/></svg>";
 const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -23,7 +23,7 @@ const page = `<!doctype html>
 <meta name="twitter:title" content="Yarr Media — Your media. Your server.">
 <meta name="twitter:description" content="Your own movies and shows on your server.">
 <meta name="twitter:image" content="https://yarr.media/assets/yarr-media-og-v2.jpg">
-<meta name="robots" content="index,follow"><link rel="canonical" href="https://yarr.larki-brian.workers.dev/">
+<meta name="robots" content="index,follow"><link rel="canonical" href="https://yarr.media/">
 <style>
 :root{color-scheme:dark;--bg:#0a0a0a;--ink:#f5f1e8;--accent:#a61e1e;--bright:#eb8888;--muted:#c2bcb2;--line:#ffffff25;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% 11%,#39101055,transparent 34%),var(--bg);min-width:280px}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 30px}
@@ -60,13 +60,14 @@ const page = `<!doctype html>
 
 
 
-const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="/favicon.svg?v=moon-sail-v1" alt="" aria-hidden="true"><span class="site-brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
+const DOWNLOADS_PLACEHOLDERS = "<section id=\"downloads\" class=\"section reveal\" aria-labelledby=\"downloads-title\"><div class=\"eyebrow\">Apps</div><h2 id=\"downloads-title\">Downloads</h2><p class=\"section-intro\">Choose where you want to watch. App installation options are coming soon.</p><div class=\"features\"><article class=\"tile\"><b>GOOGLE TV</b><h3>Android TV</h3><p>Coming soon to the Google Play Store.</p></article><article class=\"tile\"><b>ANDROID</b><h3>Mobile web app</h3><p>Install from Chrome — coming soon.</p></article><article class=\"tile\"><b>IPHONE &amp; IPAD</b><h3>Mobile web app</h3><p>Add to Home Screen in Safari — coming soon.</p></article></div></section>";
+const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="/favicon.svg?v=moon-sail-v1" alt="" aria-hidden="true"><span class="site-brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a><a href="/#downloads">Downloads</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
 const SITE_FOOTER = '<footer class="site-footer" role="contentinfo"><div><div class="site-foot-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="site-foot-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a></div><div><div class="site-foot-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="site-foot-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>';
 const SITE_CHROME_CSS = `
 :root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f5f1e8}html{background:#0a0a0a}body{margin:0;min-height:100vh;background:#0a0a0a;color:#f5f1e8;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 24px}
 .site-header{max-width:100%;min-height:90px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 0;border-bottom:1px solid #ffffff29}
 .site-header .site-brand{display:flex;align-items:center;gap:12px;white-space:nowrap;text-decoration:none;color:#f5f1e8;font-size:21px;letter-spacing:.075em;font-weight:900}
-.site-brand img{height:48px;width:48px;flex:none;object-fit:contain}.site-brand strong{color:#eb8888}.site-header .site-brand .site-brand-label{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:clamp(18px,1.8vw,23px);font-weight:900;letter-spacing:.01em;line-height:1;color:#f5f1e8}
+.site-brand img{height:46px;width:46px;object-fit:contain}.site-header .site-brand .site-brand-label{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:clamp(18px,1.8vw,23px);font-weight:900;letter-spacing:.01em;line-height:1;color:#f5f1e8}.site-header .site-brand .site-wordmark{width:clamp(160px,23vw,255px);height:auto;max-height:76px;object-fit:contain}.site-brand strong{color:#eb8888}
 .site-nav{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.site-nav a{color:#d9d3c9;text-decoration:none;font-size:14px;font-weight:500}.site-nav a:hover{color:#fff}
 .site-actions{display:flex;align-items:center;gap:10px}.site-actions a{display:inline-flex;justify-content:center;align-items:center;padding:10px 14px;min-height:42px;border-radius:8px;border:1px solid #ffffff48;text-decoration:none;color:#f5f1e8;font-size:13px;font-weight:750;white-space:nowrap;transition:background .2s ease,transform .2s ease}
 .site-actions a:hover{background:#ffffff18;transform:translateY(-2px)}.site-actions .site-app-link{background:#a61e1e;color:white;border-color:#a61e1e}.site-actions .site-app-link:hover{background:#c32c2c}
@@ -77,6 +78,28 @@ const SITE_CHROME_CSS = `
 @media(max-width:1050px){.site-header{flex-wrap:wrap}.site-nav{gap:16px}.site-footer{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.site-header{gap:13px}.site-header .site-brand{font-size:18px}.site-brand img{width:38px;height:38px}.site-nav{order:3;width:100%;gap:15px}.site-nav a{font-size:13px}.site-actions{margin-left:auto}.site-actions a{padding:9px;font-size:12px}.site-footer{grid-template-columns:1fr}}
 @media(max-width:350px){.site-actions{width:100%}.site-actions a{flex:1}}
+
+/* Unified public and account chrome: same width, spacing, sizing and logo. */
+.wrap{width:100%;max-width:1440px;margin-inline:auto;padding-inline:clamp(18px,3vw,48px)}
+.site-header{box-sizing:border-box;min-height:118px;padding:18px 0;gap:24px}
+.site-header .site-brand .site-wordmark{width:245px;height:76px;max-width:100%;max-height:76px;object-fit:contain}
+.site-nav{gap:24px}.site-nav a{font-size:15px;font-weight:600}.site-actions a{font-size:14px;min-height:46px;padding:11px 17px}
+.account-main{padding-top:64px}
+@media(max-width:1050px){.site-header{min-height:104px;gap:16px}.site-header .site-brand .site-wordmark{width:205px;height:65px}}
+@media(max-width:560px){.wrap{padding-inline:16px}.site-header{min-height:88px;padding:14px 0}.site-header .site-brand .site-wordmark{width:168px;height:54px}.site-nav a{font-size:13px}.site-actions a{font-size:12px;min-height:40px;padding:9px 11px}.account-main{padding-top:42px}}
+/* Keep shared site header and buttons inside the viewport. */
+html,body{max-width:100%}
+.wrap{box-sizing:border-box;width:100%;max-width:1440px;margin-inline:auto;padding-inline:clamp(16px,3vw,48px)}
+.site-header{box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:clamp(12px,2vw,30px);width:100%;max-width:100%}
+.site-header .site-brand{min-width:0;justify-self:start}
+.site-header .site-brand .site-wordmark{display:block;width:clamp(150px,17vw,245px);max-width:100%;height:auto;max-height:76px}
+.site-nav{min-width:0;justify-content:center;gap:clamp(12px,1.5vw,24px)}
+.site-nav a{white-space:nowrap}
+.site-actions{justify-self:end;min-width:0;max-width:100%;gap:10px}
+.site-actions a{box-sizing:border-box;white-space:nowrap}
+@media(max-width:1100px){.site-header{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand actions" "nav nav";row-gap:13px;padding-block:16px}.site-header .site-brand{grid-area:brand}.site-nav{grid-area:nav;justify-content:center;width:100%;flex-wrap:wrap}.site-actions{grid-area:actions;justify-self:end}}
+@media(max-width:620px){.site-header{gap:12px}.site-header .site-brand .site-wordmark{width:clamp(130px,34vw,185px)}.site-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}.site-actions a{font-size:12px;padding:8px 10px;min-height:38px}.site-nav{gap:10px 16px;justify-content:center}}
+@media(max-width:430px){.site-header{grid-template-columns:1fr;grid-template-areas:"brand" "actions" "nav"}.site-actions{justify-self:stretch;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.site-actions a{min-width:0;white-space:normal;text-align:center}}
 @media(prefers-reduced-motion:reduce){.site-actions a{transition:none}.site-actions a:hover{transform:none}}
 `;
 function siteChrome(html) {
@@ -85,7 +108,7 @@ function siteChrome(html) {
  const footer=/<footer class="(?:footer|foot|note)">[\s\S]*?<\/footer>/;
  if(!header.test(out)||!footer.test(out)||!out.includes('</style>'))throw Error('Public site chrome missing');
  out=out.replace(header,SITE_HEADER).replace(footer,SITE_FOOTER);
- return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>');
+ return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>').replaceAll('href=\"/app\"','href=\"'+APP_SITE+'/\"').replaceAll('href=\"/account\"','href=\"'+ACCOUNTS_SITE+'/\"').replaceAll('href=\"/\"','href=\"'+PUBLIC_SITE+'/\"').replaceAll('href=\"/#downloads\"','href=\"'+PUBLIC_SITE+'/#downloads\"').replace(/href=\"\/(features|free-vs-pro|how-it-works|remote-access|terms|privacy|cookies)\"/g,(_,path)=>'href=\"'+PUBLIC_SITE+'/'+path+'\"');
 }
 
 const PUBLIC_PAGE_DATA = {
@@ -128,7 +151,7 @@ const LEGAL_PAGE_DATA = {
  ['Pro availability','Remote access is a planned Pro capability, not a generally available paid entitlement. Pricing, billing, refunds and finalized subscription or license terms have not been published.'],
  ['Changes and contact','These preview disclosures will be reviewed and updated before a paid public launch. Product questions can be raised through the Yarr Media project repository.']]}
 };
-const PUBLIC_SITE = 'https://yarr.larki-brian.workers.dev';
+const PUBLIC_SITE = 'https://yarr.media';
 const PUBLIC_URLS = ['/',...Object.keys(PUBLIC_PAGE_DATA),...Object.keys(LEGAL_PAGE_DATA)];
 const legalEscape = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function infoPage(path) {
@@ -146,6 +169,13 @@ function infoPage(path) {
 }
 
 const SITE = "https://yarr.larki-brian.workers.dev";
+const APP_SITE = "https://app.yarr.media";
+const ACCOUNTS_SITE = "https://accounts.yarr.media";
+const SHARED_SESSION_NAME = "__Secure-yarr_session";
+const sharedSessionCookie=(value,age)=>SHARED_SESSION_NAME+"="+value+"; Domain=yarr.media; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age="+age;
+// Exact-host allowlist. Never derive OAuth redirects from arbitrary forwarded hosts.
+const allowedSite=req=>{const u=new URL(req.url);return [PUBLIC_SITE,SITE,APP_SITE,ACCOUNTS_SITE].includes(u.origin)?u.origin:null;};
+const validOrigin=req=>{const site=allowedSite(req);return !!site && req.headers.get('origin')===site;};
 const SESSION_SECONDS = 7*24*60*60;
 const FLOW_SECONDS = 10*60;
 const authReady = env => Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.ACCOUNTS);
@@ -160,7 +190,8 @@ const redirect = (dest,extra={})=>new Response(null,{status:303,headers:{locatio
 const html = (text,status=200,extra={})=>new Response(text,{status,headers:{...HTML_HEADERS,'cache-control':'no-store',...extra}});
 const escapeHTML = value => String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function currentUser(req,env) {
- const raw=getCookie(req,'__Host-yarr_session');
+ const host=new URL(req.url).hostname;
+  const raw=(host==='yarr.media'||host.endsWith('.yarr.media')?getCookie(req,SHARED_SESSION_NAME):'')||getCookie(req,'__Host-yarr_session');
  if(!raw||raw.length>200)return null;
  const tokenHash=await digest(raw);
  const record=await env.ACCOUNTS.prepare(
@@ -191,15 +222,17 @@ async function validateGoogleIdToken(token,clientId,nonce) {
  if(!valid)throw Error('invalid_signature');
  return payload;
 }
-async function googleStart(env) {
+async function googleStart(req,env) {
+ const site=allowedSite(req);if(!site)return json({error:'invalid_host'},403);
  if(!authReady(env))return redirect('/account?setup=required');
  const state=random(),nonce=random(),verifier=random(),challenge=await digest(verifier);
  await env.ACCOUNTS.prepare("DELETE FROM oauth_flows WHERE expires_at < CURRENT_TIMESTAMP").run();
  await env.ACCOUNTS.prepare("INSERT INTO oauth_flows(state_hash,nonce,verifier,expires_at) VALUES(?,?,?,datetime('now','+10 minutes'))").bind(await digest(state),nonce,verifier).run();
- const p=new URLSearchParams({client_id:env.GOOGLE_CLIENT_ID,redirect_uri:SITE+'/auth/google/callback',response_type:'code',scope:'openid email profile',state,nonce,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
+ const p=new URLSearchParams({client_id:env.GOOGLE_CLIENT_ID,redirect_uri:site+'/auth/google/callback',response_type:'code',scope:'openid email profile',state,nonce,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
  return redirect('https://accounts.google.com/o/oauth2/v2/auth?'+p,{ 'set-cookie':cookie('__Host-yarr_oauth',state,FLOW_SECONDS) });
 }
 async function googleCallback(req,env) {
+ const site=allowedSite(req);if(!site)return json({error:'invalid_host'},403);
  const u=new URL(req.url),state=u.searchParams.get('state')||'',code=u.searchParams.get('code')||'';
  const stored=getCookie(req,'__Host-yarr_oauth');
  const cleared=cookie('__Host-yarr_oauth','',0);
@@ -207,7 +240,7 @@ async function googleCallback(req,env) {
  const row=await env.ACCOUNTS.prepare("DELETE FROM oauth_flows WHERE state_hash=? AND expires_at > CURRENT_TIMESTAMP RETURNING nonce,verifier").bind(await digest(state)).first();
  if(!row)return redirect('/account?login=expired',{'set-cookie':cleared});
  try {
-  const params=new URLSearchParams({code,client_id:env.GOOGLE_CLIENT_ID,client_secret:env.GOOGLE_CLIENT_SECRET,redirect_uri:SITE+'/auth/google/callback',grant_type:'authorization_code',code_verifier:row.verifier});
+  const params=new URLSearchParams({code,client_id:env.GOOGLE_CLIENT_ID,client_secret:env.GOOGLE_CLIENT_SECRET,redirect_uri:site+'/auth/google/callback',grant_type:'authorization_code',code_verifier:row.verifier});
   const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params});
   if(!response.ok)return redirect('/account?login=failed',{'set-cookie':cleared});
   const tokens=await response.json();
@@ -218,9 +251,9 @@ async function googleCallback(req,env) {
   if(!user)throw Error('user_not_saved');
   const session=random();
   await env.ACCOUNTS.prepare("INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES(?,?,?,datetime('now','+7 days'))").bind(crypto.randomUUID(),user.id,await digest(session)).run();
-  const headers=new Headers({'location':'/account','cache-control':'no-store'});
+  const headers=new Headers({'location':site===SITE?'/account':ACCOUNTS_SITE+'/account','cache-control':'no-store'});
   headers.append('set-cookie',cleared);
-  headers.append('set-cookie',cookie('__Host-yarr_session',session,SESSION_SECONDS));
+  headers.append('set-cookie',site===SITE?cookie('__Host-yarr_session',session,SESSION_SECONDS):sharedSessionCookie(session,SESSION_SECONDS));
   return new Response(null,{status:303,headers});
  }catch(_){return redirect('/account?login=failed',{'set-cookie':cleared});}
 }
@@ -261,7 +294,7 @@ async function listServers(env,userId) {
 }
 async function serverMutation(req,env,user) {
  if(!user)return json({error:'not_authenticated'},401);
- if(req.headers.get('origin')!==SITE || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
+ if(!validOrigin(req) || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
  if(req.method!=='POST')return json({error:'method_not_allowed'},405);
  const type=req.headers.get('content-type')||'';
  if(!type.startsWith('application/x-www-form-urlencoded'))return json({error:'invalid_content_type'},415);
@@ -320,7 +353,7 @@ async function pairingStatus(req,env){
 }
 async function pairingClaim(req,env,user){
  if(!user)return json({error:'not_authenticated'},401);
- if(req.headers.get('origin')!==SITE || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
+ if(!validOrigin(req) || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
  const type=req.headers.get('content-type')||'';
  if(!type.startsWith('application/x-www-form-urlencoded'))return json({error:'content_type'},415);
  const body=await req.text();if(body.length>500)return json({error:'too_large'},413);
@@ -443,7 +476,7 @@ async function verifiedOriginShared(env,server,signal){
 }
 // This single-server pilot currently streams media through the Yarr Worker;
 // production multi-tenant playback needs a separate authorized data plane.
-// Full Yarr Media application pilot. Every request is authorized against the
+// Full One-Eyed Willie application pilot. Every request is authorized against the
 // Yarr session and the exact paired server; no arbitrary origins or host overrides.
 const ORIGIN_BASE='http://one-eyed-willie:8787';
 const HOP_HEADERS=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade','host','cookie','authorization','cf-connecting-ip','x-forwarded-for','x-forwarded-host','x-forwarded-proto','x-real-ip','x-yarr-proxy-auth','x-yarr-server-id']);
@@ -459,7 +492,7 @@ async function proxyInstalledApp(req,env,originPath) {
  if(!['GET','HEAD'].includes(method)){
   const origin=req.headers.get('origin');
   const site=req.headers.get('sec-fetch-site');
-  if((origin&&origin!==SITE)||(site&&site!=='same-origin')||(!origin&&site!=='same-origin'))return json({error:'forbidden'},403);
+  if(!allowedSite(req)||(origin&&origin!==allowedSite(req))||(site&&site!=='same-origin')||(!origin&&site!=='same-origin'))return json({error:'forbidden'},403);
  }
  const size=Number(req.headers.get('content-length')||0);
  if(!Number.isFinite(size)||size>32*1024*1024)return json({error:'request_too_large'},413);
@@ -478,7 +511,7 @@ async function proxyInstalledApp(req,env,originPath) {
  // Fail closed for video from the opt-in media test page. If its scoped service
  // worker is absent, never allow the normal Worker to proxy test movie bytes.
  const ref=req.headers.get('referer')||'';
- if(method==='GET'&&ref.startsWith(SITE+'/media-test')&&
+ if(method==='GET'&&ref.startsWith(allowedSite(req)+'/media-test')&&
    (/^\/api\/watch\/[1-9][0-9]*\/(?:stream|transcode)$/.test(path)||
     /^\/api\/stream\/hls\//.test(path)))
    return json({error:'direct_test_requires_service_worker'},503);
@@ -554,7 +587,7 @@ const YARR_TEST_PAGE="<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf
 const YARR_MEDIA_TEST_PAGE="<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>Yarr Media • Direct movie playback test</title>\n<style>\nbody{font:16px system-ui,sans-serif;background:#0c101b;color:#f4f2ef;max-width:920px;padding:30px 18px;margin:auto}\nh1{font-size:30px}p,small{color:#bfc4cc;line-height:1.5}a{color:#ba9dff}\ninput{background:#1d2533;color:white;border:1px solid #64708b;padding:12px;border-radius:8px;max-width:150px;font-size:16px}\nbutton{border:0;background:#9573dc;color:#141020;padding:12px 18px;font:700 16px system-ui;border-radius:8px;cursor:pointer;margin:0 10px 10px 0}\nbutton:disabled{opacity:.4;cursor:not-allowed}video{width:100%;max-height:60vh;background:#000;border-radius:10px;margin:10px 0}\npre{white-space:pre-wrap;word-break:break-word;line-height:1.5;background:#202a3b;padding:16px;border-radius:10px}\nlabel{display:block;margin:12px 0}strong{color:#f4f2ef}\n</style>\n<script>window.YARR_DIRECT_TEST_MODE=true;</script>\n<script src=\"/assets/yarr-direct-client.js\" defer></script>\n</head><body>\n<a href=\"/app\">Back to Yarr</a>\n<h1>Direct movie playback test</h1>\n<p>This test streams video directly from your home server over WebRTC UDP 3478. The normal Yarr movie player is unchanged. Use a <strong>browser-playable MP4</strong> movie from your library to test video and seeking. Other formats will be tested separately.</p>\n<p>Find the media ID in the normal Yarr watch URL, for example <code>/watch/42</code> means ID <code>42</code>.</p>\n<label for=\"id\">Movie ID <input id=\"id\" type=\"number\" min=\"1\" step=\"1\" placeholder=\"42\" inputmode=\"numeric\"></label>\n<button id=\"play\" disabled>Play direct</button>\n<button id=\"seek\" disabled>Seek +60 seconds</button>\n<button id=\"stop\" disabled>Stop</button>\n<video id=\"video\" controls preload=\"none\" playsinline></video>\n<pre id=\"status\" role=\"status\" aria-live=\"polite\">Connecting direct peer…</pre>\n<small>Only use this test when your home server is running the experimental direct-media pilot. No normal video playback is changed.</small>\n<script>\n(()=>{'use strict';\nconst video=document.getElementById('video'),out=document.getElementById('status'),id=document.getElementById('id'),\n play=document.getElementById('play'),seek=document.getElementById('seek'),stop=document.getElementById('stop');\nconst log=txt=>{out.textContent+='\\n'+txt};\nfunction status(msg){log('Peer: '+msg);play.disabled=msg!=='connected';}\nwindow.addEventListener('yarr:peer:status',event=>status(event.detail));\nwindow.addEventListener('yarr:peer:bytes',event=>{document.title='Direct test: '+Math.round(event.detail/1024)+' KiB received';});\nif(window.YarrDirectPeerStatus)status(window.YarrDirectPeerStatus);\nplay.onclick=()=>{\n const number=Number(id.value);\n if(!Number.isSafeInteger(number)||number<1){log('Enter the numeric media ID from your /watch/<id> URL');return}\n window.YarrDirectTestBytes=0;\n video.src='/api/watch/'+number+'/stream?viewing=direct-pilot';\n video.load();\n video.play().then(()=>log('Video playing directly through peer')).catch(e=>log('Play: '+e.message));\n stop.disabled=false;seek.disabled=true;log('Opening movie '+number+' over direct WebRTC; watching for video bytes…');\n};\nseek.onclick=()=>{\n if(!Number.isFinite(video.duration)){log('Duration unavailable; cannot seek yet');return}\n const from=video.currentTime,to=Math.min(Math.max(0,video.duration-1),from+60);\n if(to<=from){log('Already near the end');return}\n video.currentTime=to;log('Seeking '+Math.round(from)+'s → '+Math.round(to)+'s over WebRTC');\n};\nstop.onclick=()=>{video.pause();video.removeAttribute('src');video.load();seek.disabled=true;stop.disabled=true;log('Stopped');};\nvideo.addEventListener('loadedmetadata',()=>{log('Metadata received; duration '+Math.round(video.duration)+'s');seek.disabled=!Number.isFinite(video.duration)});\nvideo.addEventListener('seeking',()=>log('Video seeking…'));\nvideo.addEventListener('seeked',()=>log('Seek completed at '+Math.round(video.currentTime)+'s'));\nvideo.addEventListener('playing',()=>log('Video playing; '+(window.YarrDirectTestBytes||0)+' direct peer bytes received so far'));\nvideo.addEventListener('error',()=>log('Video failed: '+(video.error?.message||'unsupported codec or media request failed')+'; peer bytes '+(window.YarrDirectTestBytes||0)));\nsetInterval(()=>{if(!video.paused&&video.readyState>0)out.dataset.bytes=String(window.YarrDirectTestBytes||0)},1000);\n})();\n</script></body></html>";
 async function directPeerOffer(req,env){
  if(env.YARR_DIRECT_ENABLED!=='1'&&(new URL(req.url)).pathname!=='/api/yarr/direct/test-offer')return json({error:'direct_media_disabled'},404);
- if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
+ if(!validOrigin(req))return json({error:'forbidden'},403);
  const owned=await ownedPrivateServer(req,env);
  if(owned.error)return owned.error;
  if(!env.YARR_PILOT_TUNNEL_TOKEN)return json({error:'direct_peer_not_configured'},503);
@@ -586,7 +619,7 @@ async function directPeerOffer(req,env){
  }catch(_){return json({error:'direct_peer_origin_unreachable'},503)}
 }
 async function yarrWifiOffer(req,env){
- if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
+ if(!validOrigin(req))return json({error:'forbidden'},403);
  const owned=await ownedPrivateServer(req,env);if(owned.error)return owned.error;
  if(!env.YARR_PILOT_TUNNEL_TOKEN)return json({error:'not_configured'},503);
  const size=Number(req.headers.get('content-length')||0);
@@ -658,26 +691,58 @@ const accountCSS = `
 export default { async fetch(req,env) {
  const u=new URL(req.url);
  try {
-  // Public social preview: versioned to avoid stale crawler thumbnails.
-  if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/assets/yarr-media-og-v2.jpg'){
-    const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/yarr-media-og-v2.jpg');
-    if(!upstream.ok)return new Response('Social image unavailable',{status:502,headers:{'cache-control':'no-store'}});
-    return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':'image/jpeg','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
-  }
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.svg')return new Response(req.method==='HEAD'?null:YARR_ICON_SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.ico')return redirect('/favicon.svg?v=moon-sail-v1');
+  if(u.hostname==='www.yarr.media')return new Response(null,{status:301,headers:{location:'https://yarr.media'+u.pathname+u.search,'cache-control':'public, max-age=3600'}});
+  // Dedicated app and account hosts share an authenticated first-party session.
+  if(u.hostname==='app.yarr.media'){
+    if(u.pathname==='/app')return redirect('/');
+    if(u.pathname==='/account'||u.pathname.startsWith('/account/')||u.pathname.startsWith('/auth/'))return redirect(ACCOUNTS_SITE+u.pathname+u.search);
+    if((req.method==='GET'||req.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html')){
+      if(!await currentUser(req,env))return redirect(ACCOUNTS_SITE+'/account');
+      return proxyInstalledApp(req,env,'/');
+    }
+  }
+  if(u.hostname==='accounts.yarr.media'){
+    if(req.method==='GET'&&u.pathname==='/account')return redirect('/'+u.search);
+    // The account dashboard is the homepage of the accounts subdomain.
+    if(u.pathname==='/auth/google/start')return redirect(PUBLIC_SITE+'/auth/google/start');
+    if(u.pathname==='/auth/google/callback')return redirect('/account?login=failed');
+    if(u.pathname==='/app')return redirect(APP_SITE+'/');
+  }
+  if(u.hostname==='yarr.media'&&(u.pathname==='/app'||u.pathname==='/account'))return redirect((u.pathname==='/app'?APP_SITE+'/':ACCOUNTS_SITE+'/account')+u.search);
+  // Both authorized hosts now serve their own first-party account sessions.
+  // Public brand assets are fetched from the existing GitHub release source,
+  // rather than through the account-gated private server proxy.
+  const publicAssetPaths={
+   '/assets/yarr-media-wordmark.png':'yarr-media-wordmark.png',
+   '/assets/yarr-media-og.jpg':'yarr-media-og.jpg',
+   '/assets/yarr-media-og-v2.jpg':'yarr-media-og-v2.jpg',
+   '/assets/yarr-anchor.png':'yarr-anchor.png'
+  };
+  if((req.method==='GET'||req.method==='HEAD')&&publicAssetPaths[u.pathname]){
+   const name=publicAssetPaths[u.pathname];
+   const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/'+name);
+   if(!upstream.ok)return new Response('Asset unavailable',{status:502,headers:{'cache-control':'no-store'}});
+   return new Response(req.method==='HEAD'?null:upstream.body,{status:200,headers:{
+    'content-type':name.endsWith('.jpg')?'image/jpeg':'image/png',
+    'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'
+   }});
+  }
   if(req.method==='GET'&&(u.pathname==='/health'||u.pathname==='/__edge/health')) {
    let database='unavailable';try{await env.ACCOUNTS.prepare('SELECT 1 AS ok').first();database='ready'}catch(_){}
    return json({service:'yarr',status:'staging',database,authentication:authReady(env)?'configured':'not_configured',media_proxy:false},database==='ready'?200:503);
   }
   if(req.method==='GET'&&u.pathname==='/robots.txt')return new Response('User-agent: *\nDisallow: /\n',{headers:{'content-type':'text/plain; charset=utf-8'}});
-  if(req.method==='GET'&&u.pathname==='/auth/google/start')return googleStart(env);
+  if(req.method==='GET'&&u.pathname==='/auth/google/start')return googleStart(req,env);
   if(req.method==='GET'&&u.pathname==='/auth/google/callback')return googleCallback(req,env);
   if(req.method==='POST'&&u.pathname==='/auth/logout') {
-   if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
-   const token=getCookie(req,'__Host-yarr_session');
+   if(!validOrigin(req))return json({error:'forbidden'},403);
+   const token=getCookie(req,SHARED_SESSION_NAME)||getCookie(req,'__Host-yarr_session');
    if(token)await env.ACCOUNTS.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(token)).run();
-   return redirect('/account',{'set-cookie':cookie('__Host-yarr_session','',0)});
+   const cleared=new Headers({'location':new URL(req.url).hostname==='accounts.yarr.media'?'/account':ACCOUNTS_SITE+'/account','cache-control':'no-store'});
+   cleared.append('set-cookie',new URL(req.url).hostname.endsWith('yarr.media')?sharedSessionCookie('',0):cookie('__Host-yarr_session','',0));
+   return new Response(null,{status:303,headers:cleared});
   }
   if(req.method==='POST'&&u.pathname==='/api/connection/heartbeat')return connectionHeartbeat(req,env);
   if(req.method==='GET'&&u.pathname==='/api/connection/status')return accountConnectionStatus(req,env);
@@ -717,12 +782,19 @@ export default { async fetch(req,env) {
    if(!user)return json({authenticated:false},401);
    return json({authenticated:true,user});
   }
+  if((req.method==='GET'||req.method==='HEAD') && (u.pathname==='/assets/yarr-media-wordmark.png'||u.pathname==='/assets/yarr-media-og.jpg')) {
+   const isLogo=u.pathname.endsWith('wordmark.png');
+   const target='https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/'+(isLogo?'yarr-media-wordmark.png':'yarr-media-og.jpg');
+   const upstream=await fetch(target,{cf:{cacheTtl:3600,cacheEverything:true}});
+   if(!upstream.ok)return new Response('Image unavailable',{status:502,headers:{'cache-control':'no-store'}});
+   return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':isLogo?'image/png':'image/jpeg','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
+  }
   if(req.method==='GET'&&u.pathname==='/app') {
    const user=await currentUser(req,env);
-   if(!user)return redirect('/account');
+   if(!user)return redirect(new URL(req.url).hostname==='yarr.larki-brian.workers.dev'?'/account':ACCOUNTS_SITE+'/account');
    return proxyInstalledApp(req,env,'/');
   }
-  if(req.method==='GET'&&u.pathname==='/account') {
+  if(req.method==='GET'&&(u.pathname==='/account'||(u.hostname==='accounts.yarr.media'&&(u.pathname==='/'||u.pathname==='/index.html')))) {
    const user=await currentUser(req,env);
    const message=u.searchParams.get('login')?'Sign-in was not completed. Please try again.':'';
    const statuses={renamed:'Server name saved.',deleted:'Unused registration removed.',protected:'Paired servers require a secure unpair flow before removal.',invalid:'Check the server name and try again.'};
@@ -740,7 +812,7 @@ export default { async fetch(req,env) {
   if(u.pathname.startsWith('/auth/'))return json({error:'not_found'},404);
   if(u.pathname==='/api/private' || u.pathname.startsWith('/api/private/'))return json({error:'not_found'},404);
   // This Worker owns account, login and pairing routes. All other application
-  // paths are served by the paired local Yarr Media server.
+  // paths are served by the paired local One-Eyed Willie server.
   if(u.pathname!=='/'&&u.pathname!=='/index.html')return proxyInstalledApp(req,env);
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
   if(u.pathname==='/'||u.pathname==='/index.html') {
@@ -751,7 +823,7 @@ export default { async fetch(req,env) {
    const rendered=page.replace('<a class="btn primary" href="#setup">See how it works</a>',cta+'<a class="btn" href="#setup">See how it works</a>')
      .replace('Server download & sign-in are coming.','Server downloads are coming.')
      .replace('Public downloads, Google Sign-In, and account-based pairing are not available yet.','Public downloads and account-based server pairing are not available yet.');
-   return new Response(req.method==='HEAD'?null:siteChrome(rendered),{headers:{...HTML_HEADERS,'cache-control':'private, no-store'}});
+   return new Response(req.method==='HEAD'?null:siteChrome(rendered.replace('</main>',DOWNLOADS_PLACEHOLDERS+'</main>')).replace('<body>','<body class="yarr-home">').replace('</head>',"<style>/* Anchor artwork sits behind homepage content, never intercepts interaction. */body.yarr-home{position:relative}body.yarr-home::before{content:\"\";position:absolute;bottom:0;right:clamp(120px,21vw,320px);width:min(32vw,430px);height:560px;background:url(\"/assets/yarr-anchor.png\") right bottom/contain no-repeat;z-index:0;pointer-events:none;opacity:.85}body.yarr-home>.wrap{position:relative;z-index:1}@media(max-width:850px){body.yarr-home::before{right:20px;width:min(52vw,400px);opacity:.65}}@media(max-width:560px){body.yarr-home::before{right:8px;width:55vw;opacity:.45}}</style>"+'</head>').replace('</head>',"<meta property=\"og:type\" content=\"website\"><meta property=\"og:site_name\" content=\"Yarr.media\"><meta property=\"og:title\" content=\"Yarr.media — Your media. Your rules.\"><meta property=\"og:description\" content=\"Your own movies, television and music in one self-hosted media server.\"><meta property=\"og:image\" content=\"https://yarr.media/assets/yarr-media-og-v2.jpg\"><meta property=\"og:image:width\" content=\"1200\"><meta property=\"og:image:height\" content=\"630\"><meta property=\"og:image:type\" content=\"image/jpeg\"><meta name=\"twitter:card\" content=\"summary_large_image\"><meta name=\"twitter:image\" content=\"https://yarr.media/assets/yarr-media-og-v2.jpg\">"+'</head>'),{headers:{...HTML_HEADERS,'cache-control':'private, no-store'}});
   }
   return json({error:'not_found'},404);
  }catch(_) {return json({error:'temporarily_unavailable'},503);}
