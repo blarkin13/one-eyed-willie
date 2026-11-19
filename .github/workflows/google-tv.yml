@@ -32,8 +32,26 @@ jobs:
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: Build debug APK
         run: gradle --no-daemon :app:assembleDebug
+      - name: Build lean APK
+        # Not debuggable, unused code and resources removed (R8 shrink only).
+        run: gradle --no-daemon :app:assembleLean
       - uses: actions/upload-artifact@v4
         with:
           name: yarr-media-google-tv-debug-apk
           path: google-tv/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yarr-media-google-tv-lean-apk
+          path: google-tv/app/build/outputs/apk/lean/app-lean.apk
+          if-no-files-found: error
+      - name: Report APK sizes
+        run: |
+          ls -l app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/lean/app-lean.apk
+          {
+            echo "### APK sizes"
+            echo "| build | bytes |"
+            echo "|---|---|"
+            echo "| debug | $(stat -c %s app/build/outputs/apk/debug/app-debug.apk) |"
+            echo "| lean | $(stat -c %s app/build/outputs/apk/lean/app-lean.apk) |"
+          } >> "$GITHUB_STEP_SUMMARY"

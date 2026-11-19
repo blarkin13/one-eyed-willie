@@ -79,7 +79,10 @@ class MainActivity : ComponentActivity() {
     private var loadingErrorPanel: LinearLayout? = null
     private var loadingActions: LinearLayout? = null
     private var loadingRetry: Button? = null
-    private val startupSounds = mutableListOf<MediaPlayer>()
+    // Written from the sound thread and read on the main thread.
+    private val startupSounds = java.util.concurrent.CopyOnWriteArrayList<MediaPlayer>()
+    // The 4K splash is ~31 MB once decoded; it is released when the splash ends.
+    private var loadingArt: ImageView? = null
     private var loadingFailed = false
     private var pageLoadSerial = 0
     private var initialPageLoaded = false
@@ -103,6 +106,7 @@ class MainActivity : ComponentActivity() {
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "Yarr Media loading artwork"
         }
+        loadingArt = art
         overlay.addView(art, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
@@ -162,23 +166,40 @@ class MainActivity : ComponentActivity() {
     private fun playStartupSoundOnce() {
         if (playedStartupSound) return
         playedStartupSound = true
-        intArrayOf(R.raw.loading_boat_creak, R.raw.loading_wood_creak)
-            .forEachIndexed { index, resource ->
-                try {
-                    val sound = MediaPlayer.create(this, resource) ?: return@forEachIndexed
-                    startupSounds.add(sound)
-                    val volume = if (index == 0) 0.20f else 0.14f
-                    sound.setVolume(volume, volume)
-                    sound.setOnCompletionListener { completed ->
-                        startupSounds.remove(completed)
-                        completed.release()
+        // MediaPlayer.create() decodes and prepares synchronously. Doing that on
+        // the main thread held up the very first frame, so it runs on its own
+        // thread; the sounds still start as soon as each one is ready.
+        Thread({
+            intArrayOf(R.raw.loading_boat_creak, R.raw.loading_wood_creak)
+                .forEachIndexed { index, resource ->
+                    try {
+                        if (isDestroyed) return@forEachIndexed
+                        val sound = MediaPlayer.create(this, resource) ?: return@forEachIndexed
+                        if (isDestroyed) {
+                            sound.release()
+                            return@forEachIndexed
+                        }
+                        startupSounds.add(sound)
+                        val volume = if (index == 0) 0.20f else 0.14f
+                        sound.setVolume(volume, volume)
+                        sound.setOnCompletionListener { completed ->
+                            startupSounds.remove(completed)
+                            completed.release()
+                        }
+                        sound.start()
+                    } catch (_: Exception) {
+                        // Audio is optional. Playback/connection must never fail
+                        // because a sound effect cannot be decoded.
                     }
-                    sound.start()
-                } catch (_: Exception) {
-                    // Audio is optional. Playback/connection must never fail
-                    // because a sound effect cannot be decoded.
                 }
-            }
+        }, "startup-sounds").start()
+    }
+
+    // The splash art is dropped once Home is showing. If the overlay is ever
+    // shown again, put the same picture back first.
+    private fun restoreSplashArt() {
+        val art = loadingArt ?: return
+        if (art.drawable == null) art.setImageResource(R.drawable.tv_loading_screen)
     }
 
     private fun showLoading() {
@@ -190,6 +211,7 @@ class MainActivity : ComponentActivity() {
         loadingCaption?.visibility = View.GONE
         loadingActions?.visibility = View.GONE
         loadingErrorPanel?.visibility = View.GONE
+        restoreSplashArt()
         loadingOverlay?.apply {
             animate().cancel()
             alpha = 1f
@@ -210,6 +232,7 @@ class MainActivity : ComponentActivity() {
         loadingCaption?.visibility = View.VISIBLE
         loadingActions?.visibility = View.VISIBLE
         loadingErrorPanel?.visibility = View.VISIBLE
+        restoreSplashArt()
         loadingOverlay?.apply {
             animate().cancel()
             alpha = 1f
@@ -231,6 +254,7 @@ class MainActivity : ComponentActivity() {
         loadingOverlay?.animate()?.alpha(0f)?.setDuration(240L)?.withEndAction {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
+                loadingArt?.setImageDrawable(null)
                 web.requestFocus()
                 // Android may replace a DOM focus when WebView gains focus.
                 web.evaluateJavascript("window.__willieTvRestoreHomeFocus?.()", null)
@@ -303,6 +327,7 @@ class MainActivity : ComponentActivity() {
         // reveal an error message and recovery controls.
         loadingCaption?.visibility = View.GONE
         loadingErrorPanel?.visibility = View.GONE
+        restoreSplashArt()
         loadingOverlay?.visibility = View.VISIBLE
         discoveryWorker.execute {
             val candidates = linkedSetOf<String>()
@@ -1038,6 +1063,7 @@ class MainActivity : ComponentActivity() {
         cancelTvSelect()
         startupSounds.toList().forEach { it.release() }
         startupSounds.clear()
+        loadingArt = null
         ++discoveryGeneration
         discoveryWorker.shutdownNow()
         loadingOverlay?.animate()?.cancel()

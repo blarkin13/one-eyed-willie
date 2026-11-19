@@ -1,7 +1,6 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
@@ -14,7 +13,19 @@ android {
         versionCode = 2
         versionName = "0.1.1"
     }
-    buildFeatures { compose = true }
+    buildTypes {
+        // Same app, stripped for the TV: not debuggable, unused code and
+        // resources removed. Signed with the debug key like the debug build, so
+        // it installs the same way. "debug" stays traceable (OEWNav logcat).
+        create("lean") {
+            initWith(getByName("debug"))
+            isDebuggable = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
+            matchingFallbacks += "debug"
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -22,15 +33,11 @@ android {
     kotlinOptions { jvmTarget = "17" }
 }
 dependencies {
-    implementation("androidx.activity:activity-compose:1.10.1")
-    implementation(platform("androidx.compose:compose-bom:2025.04.01"))
-    implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.tv:tv-material:1.1.0")
+    // ComponentActivity and OnBackPressedCallback are all the app takes from
+    // AndroidX Activity; nothing uses Compose, Material3, tv-material or Coil.
+    implementation("androidx.activity:activity:1.10.1")
     implementation("androidx.media3:media3-exoplayer:1.11.1")
     implementation("androidx.media3:media3-exoplayer-hls:1.11.1")
     implementation("androidx.media3:media3-ui:1.11.1")
-    implementation("io.coil-kt:coil-compose:2.7.0")
     testImplementation("junit:junit:4.13.2")
 }
