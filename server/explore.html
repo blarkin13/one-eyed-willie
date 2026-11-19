@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Explore More</title>
+<title>Yarr Media · Explore More</title>
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script src="/assets/media-title-logo.js?v=1"></script><script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
 <style>
@@ -145,7 +145,7 @@ async function fetchJson(path,opts={}){
 }
 function setProvider(id){
  provider=id;
- document.title='One-Eyed Willie · Explore '+(id==='radarr'?'Movies':'TV Shows');
+ document.title='Yarr Media · Explore '+(id==='radarr'?'Movies':'TV Shows');
  document.querySelector('.page-head h1').textContent='Explore '+(id==='radarr'?'Movies':'TV Shows');
  $('explore-description').textContent=id==='radarr'?'Discover movies for Radarr.':'Discover TV shows for Sonarr.';
  $('query').placeholder=id==='radarr'?'Search for a movie…':'Search for a TV show…';
@@ -203,7 +203,7 @@ function addSection(parent,title,body){
 function restoreExplore(){
  document.dispatchEvent(new CustomEvent('willie:explore-backdrop',{detail:{url:null}}));
  $('explore-detail').hidden=true;$('browse-area').hidden=false;
- detailSelection=null;document.title='One-Eyed Willie · Explore '+(provider==='radarr'?'Movies':'TV Shows');
+ detailSelection=null;document.title='Yarr Media · Explore '+(provider==='radarr'?'Movies':'TV Shows');
  window.scrollTo({top:0,behavior:'instant'});
  if(previousDetailFocus?.isConnected)previousDetailFocus.focus({preventScroll:true});
 }
@@ -223,7 +223,7 @@ async function showDetail(item,isDiscovery){
  if(!detailSelection||detailSelection.item!==item)return;
  const data=extra.available?extra:{};
  const title=data.title||item.title;
- document.title=title+' · Explore · One-Eyed Willie';
+ document.title=title+' · Explore · Yarr Media';
  $('detail-status').textContent=extra.available?'':(extra.message||'Additional information is not currently available.');
  const root=$('detail-body');
  const hero=node('div','explore-hero');
