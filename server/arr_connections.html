@@ -440,7 +440,7 @@ function addGlanceIntegrationCards(){
  const list=$('connection-list');
  for(const def of glanceDefinitions){
   const card=document.createElement('section');card.className='connection-card';
-  card.dataset.connectionId='glance-'+def.id;card.id='glance-'+def.id+'-heading';
+  card.dataset.connectionId=def.id;card.id='glance-'+def.id+'-heading';
   const head=document.createElement('div');head.className='connection-head';
   const title=document.createElement('h2');title.textContent=def.name;
   const state=document.createElement('span');state.className='integration-state';
