@@ -566,6 +566,8 @@ async function saveWeatherAndTest(){
  const feedback=controls.weatherResult;
  if(!/^[0-9]{5}$/.test(zip)){
    feedback.textContent='Enter a valid five-digit US ZIP code, then select Save ZIP & Test Forecast.';
+   // A failed enable must never leave the switch visually enabled.
+   if(controls.saved)controls.switches.enabled.checked=!!controls.saved.enabled;
    controls.options.zip_code?.focus();
    return;
  }
