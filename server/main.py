@@ -429,6 +429,18 @@ def opensubtitles_brand_png():
     )
 
 
+@app.get("/assets/yarr-media-wordmark.png")
+def yarr_media_wordmark():
+    return FileResponse(Path(__file__).with_name("yarr-media-wordmark.png"), media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
+@app.get("/assets/yarr-media-og.png")
+def yarr_media_open_graph_image():
+    return FileResponse(Path(__file__).with_name("yarr-media-og.png"), media_type="image/png",
+                        headers={"Cache-Control": "public, max-age=3600"})
+
+
 @app.get("/assets/ship-logo.png")
 def ship_logo_png():
     return FileResponse(Path(__file__).with_name("ship-logo.png"), media_type="image/png",
