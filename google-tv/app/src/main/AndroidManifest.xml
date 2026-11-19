@@ -3,9 +3,9 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <uses-feature android:name="android.software.leanback" android:required="true"/>
-    <application android:label="Yarr Media" android:theme="@android:style/Theme.Material.NoActionBar"
+    <application android:label="YarrMedia" android:theme="@android:style/Theme.Material.NoActionBar"
         android:usesCleartextTraffic="true" android:allowBackup="false"
-        android:icon="@drawable/yarr_tv_crisp_icon" android:roundIcon="@drawable/yarr_tv_crisp_icon"
+        android:icon="@drawable/yarrmedia_launcher" android:roundIcon="@drawable/yarrmedia_launcher"
         android:banner="@drawable/yarr_tv_banner">
         <activity android:name=".PlayerActivity" android:exported="false" android:screenOrientation="landscape"/>
         <activity android:name=".MainActivity" android:exported="true" android:screenOrientation="landscape">
