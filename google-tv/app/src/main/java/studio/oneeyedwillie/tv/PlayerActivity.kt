@@ -102,6 +102,15 @@ class PlayerActivity : ComponentActivity() {
     private var nextLookupInFlight = false
     private var advancingToNext = false
     private var selectedColor = 0xFFA61E1E.toInt()
+    // Time Adrift is enabled per server, not by Android preferences. Counters
+    // are recorded only for videos and for deliberate backwards seeks.
+    @Volatile private var adriftEnabled = false
+    private var adriftPaused = 0.0
+    private var adriftRewound = 0.0
+    private var adriftPauseSince = 0L
+    private var adriftSeekOrigin: Double? = null
+    private var adriftEverPlayed = false
+    private lateinit var adriftBadge: TextView
     private val iconControls = mutableListOf<ImageButton>()
     // A Select key-down that toggles playback must consume its paired key-up.
     // Otherwise Android can activate a newly focused Back button and exit.
@@ -220,6 +229,24 @@ class PlayerActivity : ComponentActivity() {
         surface.addView(chrome, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
+        adriftBadge = TextView(this).apply {
+            textSize = 15f
+            setTextColor(0xFFF4F0E8.toInt())
+            setPadding(dp(18), dp(12), dp(18), dp(12))
+            setBackgroundDrawable(GradientDrawable().apply {
+                setColor(0xE60B121B.toInt())
+                cornerRadius = dp(12).toFloat()
+                setStroke(dp(1), 0x665F7081)
+            })
+            gravity = Gravity.END
+            visibility = View.GONE
+            isFocusable = false
+            isClickable = false
+        }
+        surface.addView(adriftBadge, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.RIGHT
+        ).apply { topMargin = dp(88); rightMargin = dp(32) })
         thumbnailPreview = PlayerScrubPreview(this, server, mediaId) { currentDuration() }
         surface.addView(thumbnailPreview.view, FrameLayout.LayoutParams(
             dp(280), dp(190), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -270,6 +297,11 @@ class PlayerActivity : ComponentActivity() {
                 }
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                     updatePlaybackScreenAwake()
+                    updateAdriftPauseState()
+                }
+                override fun onIsPlayingChanged(isPlaying: Boolean) {
+                    if (isPlaying) adriftEverPlayed = true
+                    updateAdriftPauseState()
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     updatePlaybackScreenAwake()
@@ -277,6 +309,7 @@ class PlayerActivity : ComponentActivity() {
                 }
             })
         }
+        loadTimeAdrift()
         openMedia()
         applyDefaultSubtitlesForThisTv()
         loadNextEpisode()
@@ -778,7 +811,78 @@ class PlayerActivity : ComponentActivity() {
                else "%d:%02d".format(m,sec)
     }
 
+    private fun adriftLivePause(): Double =
+        if (adriftPauseSince > 0L)
+            ((android.os.SystemClock.elapsedRealtime() - adriftPauseSince).coerceAtLeast(0L) / 1000.0)
+        else 0.0
+
+    private fun renderTimeAdrift() {
+        if (!::adriftBadge.isInitialized) return
+        val display = adriftEnabled && adriftPauseSince > 0L && !shuttingDown
+        adriftBadge.visibility = if (display) View.VISIBLE else View.GONE
+        if (!display) return
+        val paused = adriftPaused + adriftLivePause()
+        val total = paused + adriftRewound
+        adriftBadge.text = "TIME ADRIFT\\n" + fmt(total) +
+            "\\nPaused " + fmt(paused) + " · Rewound " + fmt(adriftRewound)
+    }
+
+    private fun saveAdriftEvent(kind: String, seconds: Double) {
+        if (!adriftEnabled || seconds <= 0.01 || !seconds.isFinite()) return
+        if (kind == "pause") adriftPaused += seconds else adriftRewound += seconds
+        val eventId = java.util.UUID.randomUUID().toString().replace("-", "")
+        val payload = JSONObject().put("event_id", eventId).put("kind", kind)
+            .put("seconds", seconds.coerceAtMost(86400.0))
+        // Never do network work or SQLite writes on the video rendering thread.
+        try {
+            network.execute {
+                try { request("/api/time-adrift/media/$mediaId/events", "POST", payload) }
+                catch (error: Exception) { Log.w("TimeAdrift", "Event sync failed", error) }
+            }
+        } catch (_: java.util.concurrent.RejectedExecutionException) { }
+    }
+
+    private fun stopAdriftPause() {
+        if (adriftPauseSince <= 0L) return
+        val seconds = adriftLivePause()
+        adriftPauseSince = 0L
+        saveAdriftEvent("pause", seconds)
+        renderTimeAdrift()
+    }
+
+    private fun updateAdriftPauseState() {
+        if (!adriftEnabled || shuttingDown || !visibleForPlayback || !adriftEverPlayed ||
+            player?.playbackState == Player.STATE_ENDED) {
+            stopAdriftPause()
+            return
+        }
+        val active = player
+        if (active?.isPlaying == true) stopAdriftPause()
+        else if (active?.playbackState == Player.STATE_READY && !active.playWhenReady &&
+                 adriftPauseSince == 0L)
+            adriftPauseSince = android.os.SystemClock.elapsedRealtime()
+        renderTimeAdrift()
+    }
+
+    private fun loadTimeAdrift() {
+        lookups.execute {
+            try {
+                val response = request("/api/time-adrift/media/$mediaId")
+                handler.post {
+                    if (shuttingDown) return@post
+                    adriftEnabled = response.optBoolean("enabled", false)
+                    adriftPaused = response.optDouble("paused_seconds", 0.0)
+                    adriftRewound = response.optDouble("rewound_seconds", 0.0)
+                    updateAdriftPauseState()
+                }
+            } catch (_: Exception) {
+                handler.post { adriftEnabled = false; renderTimeAdrift() }
+            }
+        }
+    }
+
     private fun refreshControls() {
+        renderTimeAdrift()
         if(!::timeline.isInitialized) return
         val duration = currentDuration()
         val position = currentPosition().coerceAtMost(if(duration>0)duration else Double.MAX_VALUE)
@@ -811,6 +915,7 @@ class PlayerActivity : ComponentActivity() {
      */
     private fun scheduleSeekCommit(generation: Long) {
         val target = seek.pendingTarget() ?: return
+        if (adriftEnabled && adriftSeekOrigin == null) adriftSeekOrigin = currentPosition()
         showScrubAt(target)
         thumbnailPreview.hideSoon()
         refreshControls()
@@ -825,9 +930,13 @@ class PlayerActivity : ComponentActivity() {
 
     private fun commitSeek(generation: Long) {
         val target = seek.beginCommit(generation) ?: return   // superseded
+        val before = adriftSeekOrigin
+        adriftSeekOrigin = null
         val p = player
         NavTrace.log { "SEEK_COMMIT gen=$generation target=$target hls=$hlsMode" }
         if (p == null) { seek.settle(generation); return }
+        if (before != null && target < before - 0.5)
+            saveAdriftEvent("rewind", before - target)
         if (hlsMode) {
             val relative = target - hlsOffset
             val buffered = p.bufferedPosition / 1000.0
@@ -1659,6 +1768,7 @@ class PlayerActivity : ComponentActivity() {
         seekCommit?.let(handler::removeCallbacks)
         seekCommit = null
         if (::thumbnailPreview.isInitialized) thumbnailPreview.hide()
+        stopAdriftPause()
         saveProgress(false)
         player?.pause()
         super.onStop()
@@ -1668,6 +1778,7 @@ class PlayerActivity : ComponentActivity() {
         super.onStart()
         visibleForPlayback = true
         updatePlaybackScreenAwake()
+        updateAdriftPauseState()
         if (player != null) {
             handler.removeCallbacks(checkpoint)
             handler.postDelayed(checkpoint, 15_000)
@@ -1678,6 +1789,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onDestroy() {
         NavTrace.log { "PLAYER_DESTROY" }
+        stopAdriftPause()
         shuttingDown = true
         visibleForPlayback = false
         window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)

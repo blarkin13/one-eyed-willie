@@ -1,4 +1,8 @@
 name: Yarr Media Google TV APK
+# Superseded feature-branch runs should not occupy the build queue.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 run-name: Yarr Media Google TV APK build · ${{ github.sha }}
 on:
   pull_request:

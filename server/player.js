@@ -183,6 +183,17 @@
 display:flex;align-items:center;justify-content:center;font:16px system-ui,sans-serif}
 .willie-player:fullscreen{width:100vw;height:100vh}
 .willie-video{width:100%;height:100%;object-fit:contain;background:#000}
+.time-adrift-overlay{position:absolute;z-index:12;right:clamp(14px,3vw,50px);top:clamp(72px,12vh,115px);
+ min-width:195px;max-width:calc(100vw - 28px);background:rgba(9,13,19,.88);
+ color:#f6f3ec;border:1px solid rgba(255,255,255,.22);border-radius:12px;
+ padding:12px 17px;text-align:right;pointer-events:none;
+ box-shadow:0 10px 25px #0008;font-variant-numeric:tabular-nums}
+.time-adrift-overlay[hidden]{display:none!important}
+.time-adrift-name{font-size:.76rem;letter-spacing:.1em;text-transform:uppercase;color:#c4cbd7}
+.time-adrift-total{display:block;font-size:1.65rem;font-weight:750;letter-spacing:.02em}
+.time-adrift-breakdown{display:block;font-size:.75rem;color:#b4becd;white-space:nowrap}
+@media(max-width:620px){.time-adrift-overlay{top:62px;padding:8px 12px}
+ .time-adrift-total{font-size:1.25rem}}
 .willie-player{--sel:var(--oew-tv-select-color,#8B5CF6);--sel-soft:#ffffff1f}
 @supports(color:color-mix(in srgb,red 20%,transparent)){.willie-player{--sel-soft:color-mix(in srgb,var(--sel) 20%,transparent)}}
 .willie-controls{position:absolute;top:0;left:0;right:0;z-index:5;padding:18px 32px 40px;
@@ -379,6 +390,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     if(document.visibilityState==='hidden')saveProgress(true);
   }
   function onPageHide(){
+    current?._timeAdriftClose?.();
     // Beacon is not canceled when a viewer navigates away or closes a tab.
     const payload=progressSnapshot();
     if(payload&&navigator.sendBeacon){
@@ -392,6 +404,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
   function close(){
     if(!current)return;
     const node=current,video=node.querySelector('video');
+    node._timeAdriftClose?.();
     node.dispatchEvent(new Event('willie:closing'));
     const finalSave=saveProgress(true);
     document.removeEventListener('visibilitychange',onVisibilityChange);
@@ -584,6 +597,47 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       .then(pref=>{if(current===surface)applySubtitleStyle(pref)})
       .catch(()=>{});
     const video=document.createElement('video');video.className='willie-video';
+    const adrift=document.createElement('div');adrift.className='time-adrift-overlay';adrift.hidden=true;
+    adrift.setAttribute('role','status');adrift.setAttribute('aria-label','Time Adrift pause and rewind totals');
+    const adriftName=document.createElement('span');adriftName.className='time-adrift-name';
+    adriftName.textContent='Time Adrift';
+    const adriftTotal=document.createElement('strong');adriftTotal.className='time-adrift-total';
+    const adriftBreakdown=document.createElement('span');adriftBreakdown.className='time-adrift-breakdown';
+    adrift.append(adriftName,adriftTotal,adriftBreakdown);
+    let adriftEnabled=false,adriftPaused=0,adriftRewound=0,adriftPauseAt=0,adriftSeekStart=null;
+    const adriftClock=()=>adriftPauseAt?Math.max(0,(Date.now()-adriftPauseAt)/1000):0;
+    const paintAdrift=()=>{
+      const visible=adriftEnabled&&adriftPauseAt>0&&current===surface;
+      adrift.hidden=!visible;
+      if(!visible)return;
+      const paused=adriftPaused+adriftClock();
+      adriftTotal.textContent=formatTime(paused+adriftRewound);
+      adriftBreakdown.textContent='Paused '+formatTime(paused)+' · Rewound '+formatTime(adriftRewound);
+    };
+    const sendAdrift=(kind,seconds)=>{
+      if(!adriftEnabled||!(seconds>0.01))return;
+      if(kind==='pause')adriftPaused+=seconds;
+      else adriftRewound+=seconds;
+      const body=JSON.stringify({event_id:newViewingId(),kind,seconds:Math.min(86400,seconds)});
+      fetch('/api/time-adrift/media/'+id+'/events',{method:'POST',keepalive:true,
+        headers:{'Content-Type':'application/json'},body}).catch(()=>{});
+    };
+    const stopAdriftPause=()=>{
+      if(!adriftPauseAt)return;
+      const elapsed=adriftClock();adriftPauseAt=0;
+      sendAdrift('pause',elapsed);paintAdrift();
+    };
+    const closeAdrift=()=>{stopAdriftPause();adriftEnabled=false;};
+    surface._timeAdriftClose=closeAdrift;
+    requestJson('/api/time-adrift/media/'+id).then(data=>{
+      if(current!==surface)return;
+      adriftEnabled=!!data.enabled;
+      adriftPaused=Number(data.paused_seconds)||0;
+      adriftRewound=Number(data.rewound_seconds)||0;
+      if(adriftEnabled&&started&&video.paused&&!switching)adriftPauseAt=Date.now();
+      paintAdrift();
+    }).catch(()=>{});
+
     hevcDepth=hevcSupport(video);
     video.controls=false;video.autoplay=true;video.playsInline=true;video.preload='metadata';
     const controls=document.createElement('div');controls.className='willie-controls';
@@ -626,12 +680,17 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       if(!status)return;
       const duration=Number(status.duration_seconds)||1e7;
       const target=Math.max(0,Math.min(duration,seconds));
+      if(!forceRestart&&adriftEnabled&&adriftSeekStart===null)
+        adriftSeekStart=playerPosition(video);
       queuedSeek=target;
       clearTimeout(seekTimer);
       seekTimer=setTimeout(()=>{
         if(current!==surface)return;
         if(switching){queueSeek(queuedSeek,forceRestart);return;}
         const desired=queuedSeek;queuedSeek=null;
+        const before=adriftSeekStart;adriftSeekStart=null;
+        if(!forceRestart&&before!==null&&desired<before-0.5)
+          sendAdrift('rewind',before-desired);
         if(playbackMode!=='hls'){
           video.currentTime=desired;
           return;
@@ -921,7 +980,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     loadPreviews();
     timeline.append(preview);
     timeline.append(elapsed,slider,total);
-    bottom.prepend(timeline);surface.append(video,controls,info,bottom,slowPrompt);
+    bottom.prepend(timeline);surface.append(video,controls,info,bottom,slowPrompt,adrift);
     document.body.append(surface);current=surface;mediaId=id;started=false;saveAt=0;offset=0;captionsSelect=cc;
     surface.focus({preventScroll:true});
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
@@ -983,7 +1042,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       if(duration>0&&document.activeElement!==slider){
         slider.value=String(Math.round(1000*Math.min(duration,now)/duration));
       }
-      paintSlider();
+      paintSlider();paintAdrift();
       // A regular heartbeat protects streams that do not emit timeupdate
       // events, including some native HLS implementations.
       if(!video.paused&&!video.ended&&started)saveProgress();
@@ -991,6 +1050,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     },500);
     usageTimer=setInterval(()=>{if(current===surface&&!document.hidden)refreshUsage()},5000);
     video.addEventListener('playing',()=>{
+      stopAdriftPause();
       started=true;clearTimeout(stallTimer);stallTimer=null;
       if(Date.now()-hlsRecoverAt>30000)hlsRecover={network:0,media:0};
       if(Date.now()-hlsRecoverAt>30000)directRetries=0;
@@ -1001,7 +1061,12 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       clearTimeout(stallTimer);
       stallTimer=setTimeout(()=>{if(current===surface&&!video.paused)recoverStream()},15000);
     });
-    video.addEventListener('pause',()=>{clearTimeout(stallTimer);stallTimer=null;setIcon(playPause,'play','Play');revealChrome()});
+    video.addEventListener('pause',()=>{
+      if(adriftEnabled&&started&&!switching&&!video.ended&&!adriftPauseAt)
+        adriftPauseAt=Date.now();
+      paintAdrift();
+      clearTimeout(stallTimer);stallTimer=null;setIcon(playPause,'play','Play');revealChrome()
+    });
     /* Buffering stalls drive the "slow connection" offer. Start-up buffering
      * (before the first frame), seeks and quality switches do not count. */
     video.addEventListener('waiting',()=>{
@@ -1063,6 +1128,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     video.addEventListener('timeupdate',()=>saveProgress());
     video.addEventListener('pause',()=>saveProgress(true));
     video.addEventListener('ended',()=>{
+      stopAdriftPause();
       const finalSave=saveProgress(true,true);
       if(status)status.watched=true;
       watch.setAttribute('aria-pressed','true');watch.title='Mark unwatched';watch.setAttribute('aria-label',watch.title);
