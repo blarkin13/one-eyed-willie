@@ -71,12 +71,25 @@ html body.oew-tv-client .connection-service-dialog button:is(:focus,:focus-visib
 .connections-hub .service-state{margin-top:auto;color:#92d9b4;font-size:.9rem;font-weight:650}
 .connections-hub .integration-logo{width:35px;height:35px}
 .connection-empty{padding:25px 0;color:#b8c9dc}
+.connections-hub .time-adrift-card{min-height:168px}
+.time-adrift-card .time-adrift-control{display:flex;align-items:center;justify-content:space-between;gap:12px;
+ margin-top:auto;flex-wrap:wrap}
+.time-adrift-card .service-state{margin-top:0}
+.time-adrift-card .service-state.is-disabled{color:#c0c0c0}
+.time-adrift-card .time-adrift-toggle{min-height:46px;padding:11px 18px;border:1px solid #7a7a7a;
+ border-radius:10px;background:#171717;color:#f6f3ed;font:inherit;font-weight:700;cursor:pointer;
+ transition:background .15s,border-color .15s}
+.time-adrift-card .time-adrift-toggle:is(:focus,:focus-visible,:hover){outline:2px solid var(--oew-tv-select-color,#A61E1E);
+ outline-offset:3px;border-color:var(--oew-tv-select-color,#A61E1E);background:#242424}
+.time-adrift-card .time-adrift-toggle:disabled{opacity:.5;cursor:wait}
+.time-adrift-card .time-adrift-feedback{margin:0;color:#c4d0dd;font-size:.85rem;line-height:1.35}
+.time-adrift-card .time-adrift-feedback[hidden]{display:none}
 </style></head>
 <body data-page="connectionshub"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
 <div class="page-head"><div><p class="eyebrow">Media management</p><h1>Integrations</h1>
-<p id="connections-intro">View your configured media service integrations. Only configured services appear. Select a dashboard service to open it; API-only integrations display their status here.</p></div>
+<p id="connections-intro">View your connected media services and built-in tools. Open a service or enable and disable Time Adrift directly here.</p></div>
 <a class="secondary-button" id="connections-manage" href="/settings/connections">Manage integrations</a></div>
 <div class="connections-hub" id="connected-services" aria-label="Connected services" aria-live="polite"></div>
 <p class="connection-empty" id="connections-message" role="status">Checking configured services…</p>
@@ -102,7 +115,7 @@ if(isTvClient){
  document.body.classList.add('oew-tv-client');
  document.getElementById('connections-manage')?.remove();
  document.getElementById('connections-intro').textContent=
-  'Connected services on this TV. Choose any service to view its dashboard or connection details. Setup is managed on your server.';
+  'Media services and built-in tools on this TV. Time Adrift can be switched on or off here; other service setup is managed on your server.';
 }
 const serviceDialog=document.getElementById('connection-service-dialog');
 const serviceClose=document.getElementById('connection-service-close');
@@ -217,7 +230,58 @@ async function showConnected(){
    lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
    opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled};
  for(const service of entries){
-   if(!connected[service.id] || visibility.visible?.[service.id]===false)continue;
+   if((service.id!=='time-adrift'&&!connected[service.id])||
+      visibility.visible?.[service.id]===false)continue;
+   if(service.id==='time-adrift'){
+     // A standalone control is remote-friendly and avoids nesting buttons.
+     // Keep the tile visible while disabled so it can be turned on again here.
+     const card=document.createElement('section');card.className='service-card time-adrift-card';
+     const heading=document.createElement('span');heading.className='service-name';
+     heading.append(serviceLogo(service),document.createTextNode(service.title));
+     const description=document.createElement('span');description.className='service-description';
+     description.textContent='Track time paused and footage rewound for each movie or episode.';
+     const control=document.createElement('div');control.className='time-adrift-control';
+     const state=document.createElement('span');state.className='service-state';
+     const toggle=document.createElement('button');toggle.type='button';
+     toggle.className='time-adrift-toggle';
+     const feedback=document.createElement('p');feedback.className='time-adrift-feedback';
+     feedback.hidden=true;feedback.setAttribute('role','status');
+     const available=settled[5].status==='fulfilled';
+     let enabled=!!timeAdrift.enabled;
+     const update=()=>{
+       state.textContent=available?(enabled?'Enabled':'Disabled'):'Status unavailable';
+       state.classList.toggle('is-disabled',!enabled);
+       toggle.textContent=enabled?'Turn off Time Adrift':'Turn on Time Adrift';
+       toggle.setAttribute('aria-label',toggle.textContent);
+       toggle.setAttribute('aria-pressed',String(enabled));
+     };
+     update();toggle.disabled=!available;
+     control.append(state,toggle);
+     card.append(heading,description,control,feedback);
+     root.append(card);
+     if(!available){
+       feedback.hidden=false;feedback.textContent='Could not load Time Adrift settings.';
+     }
+     toggle.addEventListener('click',async()=>{
+       const requested=!enabled;toggle.disabled=true;
+       feedback.hidden=false;feedback.textContent='Saving Time Adrift setting…';
+       try{
+         const response=await fetch('/api/time-adrift/settings',{
+           method:'PUT',headers:{'Content-Type':'application/json'},
+           body:JSON.stringify({enabled:requested})
+         });
+         const result=await response.json().catch(()=>({}));
+         if(!response.ok)throw Error(result.detail||'Server returned '+response.status);
+         enabled=!!result.enabled;update();
+         feedback.textContent=enabled
+           ?'Time Adrift enabled. It will appear in newly opened players.'
+           :'Time Adrift disabled. Reopen any player already running to apply.';
+       }catch(error){
+         feedback.textContent='Could not save Time Adrift: '+error.message;
+       }finally{toggle.disabled=false;}
+     });
+     continue;
+   }
    const card=document.createElement(service.dashboard?'a':'button');
    card.className='service-card';
    if(service.dashboard){
