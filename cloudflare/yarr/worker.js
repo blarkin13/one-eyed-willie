@@ -62,7 +62,8 @@ const page = `<!doctype html>
 
 
 
-const DOWNLOADS_PLACEHOLDERS = "<section id=\"downloads\" class=\"section reveal\" aria-labelledby=\"downloads-title\"><div class=\"eyebrow\">Apps</div><h2 id=\"downloads-title\">Downloads</h2><p class=\"section-intro\">Choose where you want to watch. App installation options are coming soon.</p><div class=\"features\"><article class=\"tile\"><b>GOOGLE TV</b><h3>Android TV</h3><p>Coming soon to the Google Play Store.</p></article><article class=\"tile\"><b>ANDROID</b><h3>Mobile web app</h3><p>Install from Chrome — coming soon.</p></article><article class=\"tile\"><b>IPHONE &amp; IPAD</b><h3>Mobile web app</h3><p>Add to Home Screen in Safari — coming soon.</p></article></div></section>";
+const APK_URL = "https://github.com/blarkin13/one-eyed-willie/releases/latest/download/yarr-media-google-tv.apk";
+const DOWNLOADS_PLACEHOLDERS = '<section id="downloads" class="section reveal" aria-labelledby="downloads-title"><div class="eyebrow">Get Yarr Media</div><h2 id="downloads-title">Downloads</h2><p class="section-intro">Install the server on the computer that holds your media, then watch on your TV or in any browser.</p><div class="features"><article class="tile"><b>SERVER · LINUX</b><h3>One-line install</h3><p>On Ubuntu, Debian or another Linux computer (Intel or ARM), run:</p><p><code style="display:block;margin:12px 0;padding:12px;border-radius:8px;background:#0a0a0a;border:1px solid #ffffff2a;color:#f5f1e8;font:13px ui-monospace,monospace;overflow-wrap:anywhere;user-select:all">curl -fsSL https://yarr.media/install.sh | sudo bash</code></p><p>It sets up Docker if needed, keeps itself updated, and prepares remote access. Or with apt: <a href="/apt">add the Yarr Media repository</a>.</p></article><article class="tile"><b>GOOGLE TV</b><h3>Android TV app</h3><p><a href="'+APK_URL+'">Download the APK</a>, or on the TV open the free Downloader app and enter <strong>yarr.media/tv</strong>. Sign in from Settings → Yarr account.</p></article><article class="tile"><b>ANY BROWSER</b><h3>app.yarr.media</h3><p>Open <a href="https://app.yarr.media/">app.yarr.media</a> on a phone, tablet or computer. At home it is free; away from home it needs Pro.</p></article></div></section>';
 const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="/favicon.svg?v=moon-sail-v1" alt="" aria-hidden="true"><span class="site-brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a><a href="/#downloads">Downloads</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
 const SITE_FOOTER = '<footer class="site-footer" role="contentinfo"><div><div class="site-foot-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="site-foot-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a></div><div><div class="site-foot-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="site-foot-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>';
 const SITE_CHROME_CSS = `
@@ -126,6 +127,12 @@ const PUBLIC_PAGE_DATA = {
  ['Designed around your own server','Your media files remain on your server. Remote connections depend on authentication, device compatibility and your home internet connection.'],
  ['Secure account-linked access','Account-based server pairing and remote playback are being developed. Availability, networking requirements and performance will vary.'],
  ['Free stays local','The Free tier is intended for watching within your home network; external remote access is a Pro benefit.']]},
+ '/apt': {title:'Install with apt',description:'Install the Yarr Media server on Ubuntu or Debian from the signed Yarr Media apt repository.',eyebrow:'Downloads',heading:'Install with apt',body:'For Ubuntu, Debian and other apt-based Linux. The package sets up the Yarr Media server in Docker and updates it nightly.',sections:[
+ ['1. Trust the Yarr Media signing key','curl -fsSL https://yarr.media/apt/yarr-media.gpg | sudo tee /usr/share/keyrings/yarr-media.gpg > /dev/null'],
+ ['2. Add the repository','echo "deb [signed-by=/usr/share/keyrings/yarr-media.gpg] https://yarr.media/apt stable main" | sudo tee /etc/apt/sources.list.d/yarr-media.list'],
+ ['3. Install','sudo apt update && sudo apt install yarr-media'],
+ ['4. Choose your media folder','sudo yarr-media-setup'],
+ ['Prefer one command?','curl -fsSL https://yarr.media/install.sh | sudo bash does the same without adding a repository.']]},
  '/how-it-works': {title:'How It Works',description:'Understand how to self-host Yarr Media, add your own libraries and watch locally.',eyebrow:'Getting started',heading:'Your server. Your movies. Your control.',body:'Yarr Media is a self-hosted product. Public installers and finalized setup documentation are being prepared.',sections:[
  ['1. Run a compatible server','Install the Yarr Media server on supported home hardware when public packages become available.'],
  ['2. Add your own media folders','Point the server at media you own or are authorized to use. It organizes titles and fetches available information from connected metadata services.'],
@@ -409,7 +416,7 @@ async function connectionHeartbeat(req,env){
   ?await env.ACCOUNTS.prepare("UPDATE servers SET last_seen_at=CURRENT_TIMESTAMP,public_ip=?,public_ip_seen_at=CURRENT_TIMESTAMP WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(ip,hash).run()
   :await env.ACCOUNTS.prepare("UPDATE servers SET last_seen_at=CURRENT_TIMESTAMP WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(hash).run();
  if(result.meta.changes!==1)return json({error:'unauthorized'},401);
- return json({status:'accepted',media_access:false});
+ return json({status:'accepted',media_access:false,public_ip:ip||null});
 }
 async function accountConnectionStatus(req,env){
  const user=await currentUser(req,env);
@@ -1160,6 +1167,35 @@ async function accountRemoteAddress(req,env) {
  const r=await env.ACCOUNTS.prepare("UPDATE servers SET public_url=? WHERE id=? AND owner_user_id=?").bind(address||null,id,user.id).run();
  return redirect('/account?server='+(r.meta.changes?'address_saved':'invalid'));
 }
+// Can the internet reach this server's HTTPS address? Checked from Cloudflare,
+// so it answers "would remote viewers get through?" without guessing.
+async function accountReachability(req,env,u) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ const server=await ownedServer(env,user.id,u.searchParams.get('id'));
+ if(!server)return redirect('/account?server=invalid');
+ const origin=serverOrigin(env,server);
+ if(!origin)return redirect('/account?server=reach_noaddress');
+ try{
+  const r=await fetch(origin+'/health',{signal:AbortSignal.timeout(6000),headers:{accept:'application/json'}});
+  const body=await r.json().catch(()=>({}));
+  return redirect('/account?server='+(r.ok&&body.status==='ok'?'reach_ok':'reach_fail'));
+ }catch(_){return redirect('/account?server=reach_fail');}
+}
+// The signed apt repository lives on the apt-repo branch (written by the
+// release workflow); this serves it at https://yarr.media/apt.
+async function aptFile(req,path) {
+ if(!/^(?:yarr-media\.(?:gpg|asc)|dists\/stable\/(?:InRelease|Release(?:\.gpg)?|main\/binary-(?:amd64|arm64)\/Packages(?:\.gz)?)|pool\/main\/y\/yarr-media\/yarr-media_[0-9A-Za-z.+~-]+_all\.deb)$/.test(path))return new Response('Not found',{status:404});
+ const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/apt-repo/'+path,{cf:{cacheTtl:300,cacheEverything:true}});
+ if(!upstream.ok)return new Response('Not found',{status:upstream.status===404?404:502});
+ const type=path.endsWith('.deb')?'application/vnd.debian.binary-package':path.endsWith('.gz')?'application/gzip':path.endsWith('.gpg')?'application/pgp-keys':'text/plain; charset=utf-8';
+ return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':type,'cache-control':'public, max-age=300','x-content-type-options':'nosniff'}});
+}
+async function installScript(req,env,path,type) {
+ const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/'+path,{cf:{cacheTtl:300,cacheEverything:true}});
+ if(!upstream.ok)return new Response('echo "Yarr Media installer is temporarily unavailable" >&2; exit 1\n',{status:503,headers:{'content-type':'text/plain; charset=utf-8'}});
+ return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':type+'; charset=utf-8','cache-control':'public, max-age=300','x-content-type-options':'nosniff'}});
+}
 async function accountDelete(req,env) {
  const user=await currentUser(req,env);
  if(!user)return redirect('/account');
@@ -1226,6 +1262,7 @@ function devicesPanelHTML(extra) {
 function remoteAddressFormHTML(s) {
  const detected=s.public_ip?'https://'+s.public_ip.replaceAll('.','-')+'.sslip.io':'';
  return '<p class="account-small">'+(s.public_url?'Using your custom address.':detected?'Reached at '+escapeHTML(detected)+' (found automatically).':'Address not found yet; it appears after the server checks in.')+' <a href="'+APP_SITE+'/">Open app.yarr.media</a></p>'+
+  '<p class="account-small"><a href="/account/servers/check?id='+escapeHTML(s.id)+'">Check remote access</a></p>'+
   '<form method="post" action="/account/servers/address" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-address-'+escapeHTML(s.id)+'">Custom HTTPS address (optional)</label><div class="account-form-row"><input id="server-address-'+escapeHTML(s.id)+'" maxlength="260" name="address" placeholder="Leave empty to use the automatic address" value="'+escapeHTML(s.public_url||'')+'"><button class="account-secondary" type="submit">Save address</button></div></form>';
 }
 const DANGER_HTML='<section class="account-panel" id="delete-account"><p class="account-kicker">Danger zone</p><h2>Delete account</h2><p class="account-note">Permanently deletes your account, revokes any one-time Pro license without a refund or transfer, signs out devices, and unlinks servers. Media on your own server is not touched. Required purchase and tax records are retained without your Yarr user ID.</p><details class="account-manage"><summary>Delete my account</summary><div class="account-manage-body"><form method="post" action="/account/delete" class="account-form"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" name="confirm" required autocomplete="off" pattern="DELETE"><button class="account-secondary" type="submit">Permanently delete</button></form></div></details></section>';
@@ -1235,7 +1272,10 @@ const ACCOUNT_MESSAGES={
  device:{revoked:'That device has been signed out.',invalid:'That device could not be found.'},
  delete:{confirm:'Type DELETE to confirm account deletion.',billing:'Your subscription could not be cancelled, so the account was not deleted. Please try again.'},
  remote:{pro_required:'Remote access needs Pro.',no_address:'Add a remote HTTPS address for that server first.',not_found:'That server is not linked to your account.',unavailable:'Remote access is not available yet.'},
- server:{address_saved:'Remote address saved.',bad_address:'Use a public https:// address on port 443, without a path.'}
+ server:{address_saved:'Remote address saved.',bad_address:'Use a public https:// address on port 443, without a path.',
+  reach_ok:'Remote access works: yarr.media reached your server from the internet.',
+  reach_fail:'yarr.media could not reach your server from the internet. Forward TCP port 443 on your router to this server, then check again.',
+  reach_noaddress:'Your server has not reported its address yet. Make sure it is on and paired.'}
 };
 function accountMessage(u) {
  for(const [key,table] of Object.entries(ACCOUNT_MESSAGES)){const v=u.searchParams.get(key);if(v&&table[v])return table[v];}
@@ -1404,6 +1444,10 @@ async function accountsV2Routes(req,env,u) {
  if(m==='POST'&&p==='/account/billing/portal')return billingPortal(req,env);
  if(m==='POST'&&p==='/account/devices')return accountDevicesAction(req,env);
  if(m==='POST'&&p==='/account/servers/address')return accountRemoteAddress(req,env);
+ if(m==='GET'&&p==='/account/servers/check')return accountReachability(req,env,u);
+ if((m==='GET'||m==='HEAD')&&p==='/install.sh'&&!u.hostname.startsWith('app.'))return installScript(req,env,'deploy/install.sh','text/x-shellscript');
+ if((m==='GET'||m==='HEAD')&&p==='/tv'&&!u.hostname.startsWith('app.'))return redirect(APK_URL);
+ if((m==='GET'||m==='HEAD')&&p.startsWith('/apt/')&&!u.hostname.startsWith('app.'))return aptFile(req,p.slice(5));
  if(m==='POST'&&p==='/account/delete')return accountDelete(req,env);
  return null;
 }

@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+if [ "$1" = configure ]; then
+  if [ -f /opt/yarr-media/.env ]; then
+    # Already set up: refresh the configuration and keep the chosen folder.
+    /usr/share/yarr-media/install.sh </dev/null || echo "Yarr Media: run 'sudo yarr-media-setup' to finish updating." >&2
+  else
+    echo
+    echo "Yarr Media is installed. Choose your media folder and start it with:"
+    echo "    sudo yarr-media-setup"
+    echo
+  fi
+fi
+exit 0

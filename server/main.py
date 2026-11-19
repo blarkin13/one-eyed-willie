@@ -15,7 +15,7 @@ from server.remote_config import router as remote_config_router
 from server.yarr_pairing import router as yarr_pairing_router
 from server.yarr_ice_probe import router as yarr_ice_probe_router
 from server.yarr_direct_gateway import router as yarr_direct_gateway_router
-from server.remote_access import RemotePassMiddleware
+from server.remote_access import RemotePassMiddleware, tls_router as remote_tls_router
 from server.yarr_pairing import heartbeat_loop as yarr_heartbeat_loop
 from server.yarr_pairing import automatic_tunnel_loop as yarr_automatic_tunnel_loop
 from server.home import router as home_router
@@ -105,7 +105,7 @@ async def lifespan(app: FastAPI):
         cleanup_stop.set()
         cleanup_thread.join(timeout=3)
 
-app = FastAPI(title="Yarr Media", version="0.14.2", lifespan=lifespan)
+app = FastAPI(title="Yarr Media", version="0.15.0", lifespan=lifespan)
 # Requests from outside the home (marked by the internet-facing proxy) need a
 # Yarr pass; the LAN is unaffected. See server/remote_access.py.
 app.add_middleware(RemotePassMiddleware)
@@ -117,6 +117,7 @@ app.include_router(remote_config_router)
 app.include_router(yarr_pairing_router)
 app.include_router(yarr_ice_probe_router)
 app.include_router(yarr_direct_gateway_router)
+app.include_router(remote_tls_router)
 app.include_router(home_router)
 app.include_router(media_actions_router)
 app.include_router(playback_router)

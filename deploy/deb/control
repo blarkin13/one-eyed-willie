@@ -1,0 +1,13 @@
+Package: yarr-media
+Version: @VERSION@
+Section: video
+Priority: optional
+Architecture: all
+Depends: curl, docker.io | docker-ce, docker-compose-v2 | docker-compose-plugin
+Recommends: miniupnpc
+Maintainer: Yarr Media <support@yarr.media>
+Homepage: https://yarr.media
+Description: Self-hosted movie, TV and music server
+ Yarr Media organizes your own media and streams it to your TV, phone and
+ browser. The server runs in Docker and updates itself nightly. After
+ installing, run "sudo yarr-media-setup" to choose your media folder.

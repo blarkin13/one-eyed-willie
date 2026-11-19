@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ]; then
+  systemctl disable --now yarr-media-update.timer >/dev/null 2>&1 || true
+  if [ -f /opt/yarr-media/compose.yaml ]; then
+    (cd /opt/yarr-media && docker compose down) || true
+  fi
+fi
+exit 0

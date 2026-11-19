@@ -20,6 +20,7 @@ Apps send ``Authorization: Yarr-Pass <pass>`` instead.
 """
 import asyncio
 import base64
+import re
 import json
 import os
 import threading
@@ -30,6 +31,8 @@ from urllib.parse import parse_qs, quote, urlencode
 
 from cryptography.exceptions import InvalidSignature
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+
+from fastapi import APIRouter, HTTPException
 
 from .connections import get_server_id
 
@@ -322,3 +325,20 @@ class _NonBlocking:
 
     def get(self, kid):
         return self.store._keys.get(kid) if isinstance(self.store, KeyStore) else self.store.get(kid)
+
+
+# Caddy's on-demand TLS asks here before getting a certificate for a hostname
+# (deploy/Caddyfile.installer). Only this server's own IP-based address is
+# approved, so nobody can make it request certificates for other names.
+tls_router = APIRouter()
+SSLIP = re.compile(r"^(\d{1,3})-(\d{1,3})-(\d{1,3})-(\d{1,3})\.sslip\.io$")
+
+
+@tls_router.get("/api/remote/tls-check")
+def tls_check(domain: str = ""):
+    from .yarr_pairing import public_ip
+    match = SSLIP.match(domain.strip().lower())
+    ip = public_ip()
+    if not match or not ip or ".".join(match.groups()) != ip:
+        raise HTTPException(404, "Not this server's address")
+    return {"ok": True}

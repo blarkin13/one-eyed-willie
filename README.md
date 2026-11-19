@@ -2,6 +2,27 @@
 
 Lightweight, self-hosted Movies, TV and Music media server. Modern interface, with pirate identity limited to the name and logo.
 
+## Install the server
+
+On any 64-bit Linux computer (Intel/AMD or ARM) that can see your media:
+
+```bash
+curl -fsSL https://yarr.media/install.sh | sudo bash
+```
+
+It installs Docker if needed, runs the prebuilt server image
+(`ghcr.io/blarkin13/yarr-media:stable`) plus an HTTPS front door for Pro remote
+access, updates nightly, and asks the router (UPnP) to forward port 443.
+Settings: `YARR_MEDIA_DIR`, `YARR_CHANNEL=stable|edge`, `YARR_NO_REMOTE=1`.
+
+On Ubuntu/Debian you can use apt instead; see https://yarr.media/apt.
+The Google TV app is attached to each GitHub Release (`yarr.media/tv`).
+
+Releases: pushing a `vX.Y.Z` tag publishes the `stable` image, the APK, the
+installer and the `.deb` (`.github/workflows/release.yml`); every change to
+main publishes the `edge` image. The apt repository needs the
+`APT_SIGNING_KEY` secret, created once with `deploy/deb/create-apt-key.sh`.
+
 ## Music library (initial web implementation)
 
 Music is a separate media type; it is not included in Movies/TV grouping or Continue Watching.

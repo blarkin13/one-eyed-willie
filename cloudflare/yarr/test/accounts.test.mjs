@@ -363,3 +363,51 @@ test('app.yarr.media: starter page, service worker and connection', async()=>{
  assert.equal(anon.status,401);
  assert.match((await anon.json()).redirect,/\/auth\/google\/start\?return=%2Fopen-app/);
 });
+
+test('downloads: installer, TV shortcut, apt repository and page', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
+ const home=await (await request(worker,env,'GET',PUB+'/')).text();
+ assert.match(home,/curl -fsSL https:\/\/yarr\.media\/install\.sh \| sudo bash/);
+ assert.match(home,/yarr\.media\/tv/);
+ assert.doesNotMatch(home,/coming soon/i);
+ const tv=await request(worker,env,'GET',PUB+'/tv');
+ assert.equal(tv.headers.get('location'),'https://github.com/blarkin13/one-eyed-willie/releases/latest/download/yarr-media-google-tv.apk');
+ const apt=await request(worker,env,'GET',PUB+'/apt');
+ assert.match(await apt.text(),/signed-by=\/usr\/share\/keyrings\/yarr-media\.gpg/);
+ const mock=mockFetch(url=>{
+  if(url.endsWith('/main/deploy/install.sh'))return new Response('#!/usr/bin/env bash\necho hi\n');
+  if(url.endsWith('/apt-repo/dists/stable/InRelease'))return new Response('signed');
+  if(url.endsWith('/apt-repo/pool/main/y/yarr-media/yarr-media_1.2.3_all.deb'))return new Response('deb');
+ });
+ try{
+  const sh=await request(worker,env,'GET',PUB+'/install.sh');
+  assert.equal(sh.headers.get('content-type'),'text/x-shellscript; charset=utf-8');
+  assert.match(await sh.text(),/echo hi/);
+  assert.equal(await (await request(worker,env,'GET',PUB+'/apt/dists/stable/InRelease')).text(),'signed');
+  const deb=await request(worker,env,'GET',PUB+'/apt/pool/main/y/yarr-media/yarr-media_1.2.3_all.deb');
+  assert.equal(deb.headers.get('content-type'),'application/vnd.debian.binary-package');
+  assert.equal((await request(worker,env,'GET',PUB+'/apt/secrets.txt')).status,404,'only repository files');
+ }finally{mock.restore();}
+});
+
+test('servers learn their public IP and owners can check remote reachability', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
+ const user=await signedInUser(env);
+ const server=pairedServer(env,user.id);
+ const secret='t'.repeat(48);
+ env.ACCOUNTS.raw.prepare("UPDATE servers SET connection_secret_hash=? WHERE id=?").run(await digest(secret),server.id);
+ const beat=await request(worker,env,'POST',PUB+'/api/connection/heartbeat',{headers:{authorization:'Bearer '+secret,'cf-connecting-ip':'76.183.183.204'}});
+ assert.equal((await beat.json()).public_ip,'76.183.183.204');
+ let up=true;
+ const mock=mockFetch(url=>url==='https://76-183-183-204.sslip.io/health'?(up?jsonResponse({status:'ok'}):jsonResponse({},502)):null);
+ try{
+  const ok=await request(worker,env,'GET',ACC+'/account/servers/check?id='+server.id,{headers:{cookie:user.cookie}});
+  assert.equal(ok.headers.get('location'),'/account?server=reach_ok');
+  up=false;
+  const bad=await request(worker,env,'GET',ACC+'/account/servers/check?id='+server.id,{headers:{cookie:user.cookie}});
+  assert.equal(bad.headers.get('location'),'/account?server=reach_fail');
+ }finally{mock.restore();}
+ const page=await (await request(worker,env,'GET',ACC+'/?server=reach_fail',{headers:{cookie:user.cookie}})).text();
+ assert.match(page,/Forward TCP port 443/);
+ assert.match(page,/Check remote access/);
+});

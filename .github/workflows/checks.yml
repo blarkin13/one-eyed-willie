@@ -50,7 +50,12 @@ jobs:
       - name: Install browser test dependencies
         # The Google TV navigation tests drive the runner's preinstalled Chrome.
         # tests/test_yarr_direct_host.py is written for pytest (async tests).
-        run: python -m pip install playwright pytest pytest-asyncio
+        run: python -m pip install playwright pytest pytest-asyncio pyyaml
+      - name: Install Caddy (validates the installer's HTTPS config)
+        run: |
+          curl -fsSL --retry 3 -o /tmp/caddy "https://caddyserver.com/api/download?os=linux&arch=amd64"
+          sudo install -m 0755 /tmp/caddy /usr/local/bin/caddy
+          caddy version
       - name: Check first Home poster focus at left edge
         run: PYTHONPATH=tests python -m unittest test_google_tv_home_fit_browser.TvHomeFitTests.test_first_selected_poster_is_not_clipped_at_left_edge -v
       - name: Set up Node for the account Worker tests

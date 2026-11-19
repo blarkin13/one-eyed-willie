@@ -258,3 +258,29 @@ class WorkerInteropTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TlsCheckTests(unittest.TestCase):
+    """Caddy only gets certificates for this server's own sslip.io address."""
+
+    def test_only_the_reported_ip_address_is_approved(self):
+        from fastapi import FastAPI
+        app = FastAPI()
+        app.include_router(ra.tls_router)
+        client = TestClient(app)
+        with patch("server.yarr_pairing.public_ip", return_value="76.183.183.204"):
+            self.assertEqual(client.get("/api/remote/tls-check", params={"domain": "76-183-183-204.sslip.io"}).status_code, 200)
+            for other in ("1-2-3-4.sslip.io", "76-183-183-204.sslip.io.evil.com", "app.yarr.media", ""):
+                self.assertEqual(client.get("/api/remote/tls-check", params={"domain": other}).status_code, 404, other)
+        with patch("server.yarr_pairing.public_ip", return_value=None):
+            self.assertEqual(client.get("/api/remote/tls-check", params={"domain": "76-183-183-204.sslip.io"}).status_code, 404)
+
+    def test_heartbeat_reply_ip_is_remembered_while_paired(self):
+        from server import yarr_pairing as yp
+        with tempfile.TemporaryDirectory() as folder:
+            with patch.object(yp, "FILE", Path(folder) / "pair.json"), \
+                 patch.object(yp, "_cloud", return_value={"status": "accepted", "public_ip": "76.183.183.204"}):
+                self.assertIsNone(yp.public_ip())
+                yp._save({"status": "paired", "poll_secret": "s" * 48})
+                self.assertTrue(yp.report_heartbeat())
+                self.assertEqual(yp.public_ip(), "76.183.183.204")
