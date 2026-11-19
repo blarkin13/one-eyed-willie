@@ -228,7 +228,7 @@ class PlayerActivity : ComponentActivity() {
             text = "Preparing video…"
             textSize = 16f
             setTextColor(Color.WHITE)
-            setBackgroundColor(0xDD101820.toInt())
+            setBackgroundColor(0xDD000000.toInt())
             setPadding(24, 15, 24, 15)
             gravity = Gravity.CENTER
         }
@@ -403,7 +403,7 @@ class PlayerActivity : ComponentActivity() {
             setPadding(dp(50), dp(64), dp(50), dp(23))
             background = GradientDrawable(
                 GradientDrawable.Orientation.BOTTOM_TOP,
-                intArrayOf(0xF2000000.toInt(), 0xDB090B10.toInt(), 0x00000000)
+                intArrayOf(0xF2000000.toInt(), 0xDB000000.toInt(), 0x00000000)
             )
         }
         val progressRow = LinearLayout(this).apply {
@@ -523,8 +523,8 @@ class PlayerActivity : ComponentActivity() {
             setPadding(dp(17), dp(14), dp(17), dp(11))
             background = GradientDrawable().apply {
                 cornerRadius = dp(14).toFloat()
-                setColor(0xF00B111C.toInt())
-                setStroke(dp(1), 0x4D566579)
+                setColor(0xF0000000.toInt())
+                setStroke(dp(1), 0x4D666666)
             }
         }
         panel.addView(TextView(this).apply {
@@ -538,7 +538,7 @@ class PlayerActivity : ComponentActivity() {
             panel.addView(TextView(this).apply {
                 text = description
                 textSize = 13f
-                setTextColor(0xFFB8C5D5.toInt())
+                setTextColor(0xFFBDBDBD.toInt())
                 setLineSpacing(dp(2).toFloat(), 1f)
                 setPadding(dp(6), 0, dp(6), dp(8))
             })
@@ -575,14 +575,14 @@ class PlayerActivity : ComponentActivity() {
                 }, LinearLayout.LayoutParams(dp(27), dp(40)))
             }
             fun updateLook(focused: Boolean) {
-                title.setTextColor(if (focused) selectedColor else 0xFFE2E9F3.toInt())
+                title.setTextColor(if (focused) selectedColor else 0xFFF1F1F1.toInt())
                 marker.background = GradientDrawable().apply {
                     cornerRadius = dp(2).toFloat()
                     setColor(if (focused) selectedColor else Color.TRANSPARENT)
                 }
                 line.background = GradientDrawable().apply {
                     cornerRadius = dp(6).toFloat()
-                    setColor(if (focused) 0x24253140 else Color.TRANSPARENT)
+                    setColor(if (focused) 0x24242424 else Color.TRANSPARENT)
                 }
             }
             updateLook(false)
