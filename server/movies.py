@@ -108,7 +108,7 @@ def _call(url, key, endpoint):
     request = urllib.request.Request(
         _base_url(url) + endpoint,
         headers={"X-Api-Key": key, "Accept": "application/json",
-                 "User-Agent": "OneEyedWillie/0.8"},
+                 "User-Agent": "YarrMedia/0.8"},
     )
     try:
         opener = urllib.request.build_opener(_NoRedirect())
