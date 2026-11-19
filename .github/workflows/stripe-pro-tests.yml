@@ -1,0 +1,40 @@
+name: Stripe Pro tests
+
+on:
+  push:
+    paths:
+      - '.github/workflows/stripe-pro-tests.yml'
+      - 'cloudflare/yarr/stripe-checkout.js'
+      - 'cloudflare/yarr/entitlements.js'
+      - 'cloudflare/yarr/migrations/0010_stripe_one_time_pro.sql'
+      - 'cloudflare/yarr/migrations/0011_stripe_purchase_archive.sql'
+      - 'cloudflare/yarr/worker.js'
+      - 'cloudflare/yarr/test/pro-one-time.test.mjs'
+      - 'tests/test_yarr_stripe_checkout.mjs'
+      - 'tests/test_stripe_one_time_schema.py'
+  pull_request:
+    paths:
+      - '.github/workflows/stripe-pro-tests.yml'
+      - 'cloudflare/yarr/stripe-checkout.js'
+      - 'cloudflare/yarr/entitlements.js'
+      - 'cloudflare/yarr/migrations/**'
+      - 'cloudflare/yarr/worker.js'
+      - 'cloudflare/yarr/test/pro-one-time.test.mjs'
+      - 'tests/test_yarr_stripe_checkout.mjs'
+      - 'tests/test_stripe_one_time_schema.py'
+
+jobs:
+  stripe-pro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test Stripe signatures, refunds, dispute ordering and Pro entitlements
+        run: node --test tests/test_yarr_stripe_checkout.mjs
+      - name: Test signed-in account, TV and remote-access Pro integration
+        run: node --test --no-warnings cloudflare/yarr/test/pro-one-time.test.mjs
+      - name: Test one-time licensing and anonymous purchase archive migrations
+        run: python -m unittest discover -s tests -p 'test_stripe_one_time_schema.py' -v

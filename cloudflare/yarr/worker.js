@@ -1,3 +1,5 @@
+import {createProCheckout,proStripeWebhook,proCheckoutAvailable} from './stripe-checkout.js';
+import {oneTimeProEnabled,oneTimeProActive} from './entitlements.js';
 // Yarr staging: public product landing page plus isolated, disabled account APIs.
 // Product name and public domain remain provisional. No home-server media proxy.
 const JSON_HEADERS = {'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
@@ -710,8 +712,7 @@ const accountCSS = `
 const DEV_SITE = 'https://yarr-dev.larki-brian.workers.dev';
 const HOST_ONLY_SITES = new Set([SITE, DEV_SITE]);
 const PASS_SECONDS = 60*60;
-// Browser passes cover a full evening of viewing: the browser cannot renew a
-// pass in the middle of a movie. Apps ask for a fresh 1-hour pass themselves.
+// Browser passes cover an evening of viewing; apps request fresh 1-hour passes.
 const BROWSER_PASS_SECONDS = 12*60*60;
 const DEVICE_CODE_SECONDS = 10*60;
 const DEVICE_TOKEN_DAYS = 365;
@@ -770,6 +771,9 @@ const sameSiteForm = req => validOrigin(req) && req.headers.get('sec-fetch-site'
 // days for a late renewal webhook) or past_due within the grace period. A
 // 'manual' row with no end date is Pro indefinitely (used for testing/comps).
 async function proStatus(env,userId) {
+ // One-time entitlements are the authority for the new $29 Pro license.
+ // The flag keeps the existing production schema compatible until migration approval.
+ const oneTime=await oneTimeProActive(env,userId);
  const rows=(await env.ACCOUNTS.prepare("SELECT status,provider,current_period_end,cancel_at_period_end,provider_customer_id FROM subscriptions WHERE user_id=?").bind(userId).all()).results||[];
  const now=Date.now(),grace=PRO_GRACE_DAYS*86400000;
  let active=false,until=null,forever=false,stripeCustomer=null,cancelling=false;
@@ -784,7 +788,7 @@ async function proStatus(env,userId) {
   if(!r.current_period_end)forever=true;
   else if(!until||end>until){until=end;cancelling=!!r.cancel_at_period_end;}
  }
- return {active,until:forever?null:(until?new Date(until).toISOString():null),forever,stripe_customer:stripeCustomer,cancelling};
+ return {active:active||oneTime,until:(forever||oneTime)?null:(until?new Date(until).toISOString():null),forever:forever||oneTime,one_time:oneTime,stripe_customer:stripeCustomer,cancelling:oneTime?false:cancelling};
 }
 
 // ---- Device (TV/app) credentials --------------------------------------------
@@ -995,7 +999,7 @@ async function remoteOpen(req,env) {
 }
 
 // ---- Stripe ------------------------------------------------------------------
-const billingReady = env => Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PRO_PRICE_ID);
+const billingReady = env => Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PRO_PRICE_ID) && env.YARR_STRIPE_TEST_ENABLED!=='1' && env.YARR_ONE_TIME_PRO_ENABLED!=='1' && env.YARR_STRIPE_MODE!=='live';
 function stripeForm(params,prefix='',out=new URLSearchParams()) {
  for(const [k,v] of Object.entries(params)){
   if(v===undefined||v===null)continue;
@@ -1148,10 +1152,18 @@ async function accountDelete(req,env) {
   catch(e){if(e.status!==404)return redirect('/account?delete=billing');}
  }
  await audit(env,null,'account_deleted',await digest('user\0'+user.id),req);
- await env.ACCOUNTS.batch([
-  env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE owner_user_id=?").bind(user.id),
-  env.ACCOUNTS.prepare("DELETE FROM users WHERE id=?").bind(user.id)
- ]);
+ const cleanupStatements=[env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE owner_user_id=?").bind(user.id)];
+ if(env.YARR_STRIPE_TEST_ENABLED==='1'||env.YARR_ONE_TIME_PRO_ENABLED==='1'){
+  // Delete account identity and its usable Pro license while retaining a
+  // non-identifying purchase record needed for reconciliation and tax records.
+  cleanupStatements.push(
+   env.ACCOUNTS.prepare("INSERT OR IGNORE INTO stripe_purchase_archive(checkout_session_id,price_id,status,amount_total,currency,payment_intent_id,purchased_at,updated_at) SELECT id,price_id,status,amount_total,currency,payment_intent_id,created_at,updated_at FROM stripe_checkout_sessions WHERE user_id=?").bind(user.id),
+   env.ACCOUNTS.prepare("DELETE FROM one_time_pro_entitlements WHERE user_id=?").bind(user.id),
+   env.ACCOUNTS.prepare("DELETE FROM stripe_checkout_sessions WHERE user_id=?").bind(user.id)
+  );
+ }
+ cleanupStatements.push(env.ACCOUNTS.prepare("DELETE FROM users WHERE id=?").bind(user.id));
+ await env.ACCOUNTS.batch(cleanupStatements);
  const headers=new Headers({location:PUBLIC_SITE+'/?account=deleted','cache-control':'no-store'});
  const host=new URL(req.url).hostname;
  headers.append('set-cookie',host==='yarr.media'||host.endsWith('.yarr.media')?sharedSessionCookie('',0):cookie('__Host-yarr_session','',0));
@@ -1162,15 +1174,18 @@ async function accountExtras(env,user) {
   proStatus(env,user.id),
   env.ACCOUNTS.prepare("SELECT id,device_name,device_type,created_at,last_seen_at FROM devices WHERE owner_user_id=? AND revoked_at IS NULL AND token_hash IS NOT NULL ORDER BY created_at DESC").bind(user.id).all().then(r=>r.results||[])
  ]);
- return {pro,devices,billing:billingReady(env)};
+ return {pro,devices,billing:billingReady(env),one_time_checkout:proCheckoutAvailable(env),live_checkout:env.YARR_STRIPE_MODE==='live'};
 }
 function planPanelHTML(extra) {
  const p=extra.pro;
  let body;
  if(p.active){
   const until=p.forever?'No end date':(p.cancelling?'Ends ':'Renews ')+new Date(p.until).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});
-  body='<h2>Yarr Media Pro</h2><p class="account-note">Remote access is included. '+escapeHTML(until)+'.</p>'+
+  body='<h2>Yarr Media Pro</h2><p class="account-note">'+(p.one_time?'One-time Pro license active; no recurring payments. Remote-access availability depends on the installed server and app.':'Pro license active. '+escapeHTML(until)+'. Remote-access availability depends on the installed server and app.')+'</p>'+
    (extra.billing&&p.stripe_customer?'<form method="post" action="/account/billing/portal"><button class="account-secondary" type="submit">Manage billing</button></form>':'');
+ }else if(extra.one_time_checkout){
+  body='<h2>Free</h2><p class="account-note">Yarr Media Pro — $29 one-time purchase, plus applicable tax. '+(extra.live_checkout?'Access your own media remotely.':'Sandbox checkout for test accounts only; remote access is still in development.')+'</p>'+
+   '<form method="post" action="/api/stripe/checkout"><input type="hidden" name="product" value="pro"><button class="account-submit" type="submit">'+(extra.live_checkout?'Buy Pro — $29':'Test Pro checkout')+'</button></form>';
  }else if(extra.billing){
   body='<h2>Free</h2><p class="account-note">Upgrade to Pro to watch your own library away from home.</p><form method="post" action="/account/billing/checkout"><button class="account-submit" type="submit">Upgrade to Pro</button></form>'+
    (p.stripe_customer?'<form method="post" action="/account/billing/portal"><button class="account-text-button" type="submit">Billing history</button></form>':'');
@@ -1190,8 +1205,9 @@ function remoteAddressFormHTML(s) {
  return '<form method="post" action="/account/servers/address" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-address-'+escapeHTML(s.id)+'">Remote HTTPS address</label><div class="account-form-row"><input id="server-address-'+escapeHTML(s.id)+'" maxlength="260" name="address" placeholder="https://media.example.com" value="'+escapeHTML(s.public_url||'')+'"><button class="account-secondary" type="submit">Save address</button></div></form>'+
   (s.public_url?'<p class="account-small"><a href="/remote/open?server='+escapeHTML(s.id)+'">Open remotely</a></p>':'');
 }
-const DANGER_HTML='<section class="account-panel" id="delete-account"><p class="account-kicker">Danger zone</p><h2>Delete account</h2><p class="account-note">Deletes your account, signs out every device, unlinks your servers and cancels Pro. Media on your server is not touched.</p><details class="account-manage"><summary>Delete my account</summary><div class="account-manage-body"><form method="post" action="/account/delete" class="account-form"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" name="confirm" required autocomplete="off" pattern="DELETE"><button class="account-secondary" type="submit">Permanently delete</button></form></div></details></section>';
+const DANGER_HTML='<section class="account-panel" id="delete-account"><p class="account-kicker">Danger zone</p><h2>Delete account</h2><p class="account-note">Permanently deletes your account, revokes any one-time Pro license without a refund or transfer, signs out devices, and unlinks servers. Media on your own server is not touched. Required purchase and tax records are retained without your Yarr user ID.</p><details class="account-manage"><summary>Delete my account</summary><div class="account-manage-body"><form method="post" action="/account/delete" class="account-form"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" name="confirm" required autocomplete="off" pattern="DELETE"><button class="account-secondary" type="submit">Permanently delete</button></form></div></details></section>';
 const ACCOUNT_MESSAGES={
+ checkout:{success:'Stripe has received your test purchase. Your Pro status will update when the payment is confirmed.',cancel:'Checkout was cancelled; no test payment was made.'},
  billing:{success:'Thanks! Pro will show here as soon as Stripe confirms the payment.',cancelled:'Checkout was cancelled. You have not been charged.',unavailable:'Pro is not on sale yet.',already:'You already have Pro.',none:'No billing history yet.',error:'Billing is temporarily unavailable. Please try again.'},
  device:{revoked:'That device has been signed out.',invalid:'That device could not be found.'},
  delete:{confirm:'Type DELETE to confirm account deletion.',billing:'Your subscription could not be cancelled, so the account was not deleted. Please try again.'},
@@ -1249,6 +1265,18 @@ export default { async fetch(req,env) {
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.svg')return new Response(req.method==='HEAD'?null:YARR_ICON_SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.ico')return redirect('/favicon.svg?v=moon-sail-v1');
   if(u.hostname==='www.yarr.media')return new Response(null,{status:301,headers:{location:'https://yarr.media'+u.pathname+u.search,'cache-control':'public, max-age=3600'}});
+  // Yarr Pro test-mode routes; independent of media playback, disabled by default.
+  if(u.hostname==='accounts.yarr.media'&&u.pathname==='/api/stripe/webhook')
+    return proStripeWebhook(req,env);
+  if(u.hostname==='accounts.yarr.media'&&u.pathname==='/api/stripe/checkout')
+    return createProCheckout(req,env,await currentUser(req,env));
+  if(u.hostname==='accounts.yarr.media'&&u.pathname==='/api/stripe/entitlement'){
+    if(req.method!=='GET')return json({error:'method_not_allowed'},405);
+    const member=await currentUser(req,env);
+    if(!member)return json({error:'sign_in_required'},401);
+    const status=await proStatus(env,member.id);
+    return json({pro:status.active,checkout_enabled:proCheckoutAvailable(env)});
+  }
   const accountsV2=await accountsV2Routes(req,env,u);
   if(accountsV2)return accountsV2;
   // Dedicated app and account hosts share an authenticated first-party session.
