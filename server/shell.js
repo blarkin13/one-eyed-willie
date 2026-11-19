@@ -164,8 +164,18 @@ document.addEventListener('DOMContentLoaded', () => {
   const image=document.createElement('img');image.className='brand-logo';image.src='/assets/ship-logo.png';
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
-  const words=document.createElement('span');words.className='brand-name';words.textContent='Yarr Media';
-  brand.append(logoFrame,words);target.append(brand);
+  const wordmark=document.createElement('img');
+  wordmark.className='brand-wordmark';
+  wordmark.src='/assets/yarr-media-wordmark.png';
+  wordmark.alt='Yarr.media';
+  wordmark.width=220;wordmark.height=90;
+  // Keep navigation labelled if the brand asset has not been deployed yet.
+  wordmark.onerror=()=>{
+    const fallback=document.createElement('span');
+    fallback.className='brand-name';fallback.textContent='Yarr Media';
+    wordmark.replaceWith(fallback);
+  };
+  brand.append(logoFrame,wordmark);target.append(brand);
 
   // Greet once when the desktop rail opens, not on each navigation focus step.
   // Hover and keyboard focus both open the existing CSS-driven sidebar.
