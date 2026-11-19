@@ -71,7 +71,12 @@ def _read(conn, name):
     if not row:
         return _default(name)
     try:
-        return _valid_config(WidgetConfig.model_validate_json(row["value"]))
+        saved = _valid_config(WidgetConfig.model_validate_json(row["value"]))
+        # Migrate older saved states that could enable Weather without a ZIP.
+        # Keep the saved settings, but do not advertise an unusable widget.
+        if name == "weather" and saved.enabled and not saved.zip_code:
+            return saved.model_copy(update={"enabled": False})
+        return saved
     except Exception:
         return _default(name)
 
