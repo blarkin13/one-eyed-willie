@@ -13,7 +13,7 @@ from urllib.parse import urlparse
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import httpx
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel, Field
 from typing import Literal
 from .library import db
@@ -61,9 +61,8 @@ def _settings_table(conn):
 
 
 def _default(name):
-    # Ambient is simply a location for other individually opted-in widgets;
-    # leave its master enabled so selecting Idle on a widget works immediately.
-    return WidgetConfig(enabled=(name == "ambient"))
+    # Every integration must be explicitly enabled in Settings → Integrations.
+    return WidgetConfig()
 
 
 def _read(conn, name):
@@ -92,6 +91,8 @@ def one_setting(name: Literal["clock", "weather", "news", "ambient"]):
 @router.put("/settings/{name}")
 def save_setting(name: Literal["clock", "weather", "news", "ambient"], config: WidgetConfig):
     config = _valid_config(config)
+    if name == "weather" and config.enabled and not config.zip_code:
+        raise HTTPException(422, "Enter a five-digit US ZIP code before enabling Weather")
     with db() as conn:
         _settings_table(conn)
         conn.execute(
@@ -131,12 +132,23 @@ async def weather():
         raise HTTPException(404, "Weather integration is disabled")
     if not config.zip_code:
         raise HTTPException(422, "Enter a US ZIP code in Weather integration settings")
-    key = ("weather", config.zip_code)
+    return await _forecast(config.zip_code)
+
+
+@router.get("/weather/preview")
+async def preview_weather(zip_code: str = Query(pattern=r"^[0-9]{5}$")):
+    # The settings page may verify its saved location before enabling weather.
+    # ZIP validation and fixed upstream hosts prevent arbitrary URL fetching.
+    return await _forecast(zip_code)
+
+
+async def _forecast(zip_code: str):
+    key = ("weather", zip_code)
     cached = _CACHE.get(key)
     if cached and cached[0] > time.monotonic():
         return cached[1]
     try:
-        place = await _json_from("https://api.zippopotam.us/us/" + config.zip_code)
+        place = await _json_from("https://api.zippopotam.us/us/" + zip_code)
         location = place["places"][0]
         latitude, longitude = float(location["latitude"]), float(location["longitude"])
         if not (18 <= latitude <= 72 and -180 <= longitude <= -65):
@@ -166,8 +178,12 @@ async def weather():
         }
         _CACHE[key] = (time.monotonic() + 900, result)
         return result
+    except httpx.HTTPStatusError as error:
+        if error.response.status_code == 404 and error.request.url.host == "api.zippopotam.us":
+            raise HTTPException(422, "ZIP code not found. Check the five digits and try again") from error
+        raise HTTPException(503, "Weather provider is not responding. ZIP saved; try the forecast again later") from error
     except (httpx.HTTPError, ValueError, TypeError, KeyError, IndexError) as error:
-        raise HTTPException(503, "Weather forecast is unavailable right now") from error
+        raise HTTPException(503, "Weather provider is unavailable. ZIP saved; try the forecast again later") from error
 
 
 @router.get("/news")
