@@ -3,8 +3,9 @@
 #   Development:  npx wrangler deploy --env dev     -> Worker "yarr-dev", database yarr-accounts-dev
 #   Production:   npx wrangler deploy               -> Worker "yarr",     database yarr-accounts
 #
-# app.yarr.media is NOT a Worker domain: it is a DNS-only record pointing at the
-# home server, so the app and its media go straight there (deploy/Caddyfile.remote).
+# app.yarr.media is served by this Worker, but only as a starter page and a
+# service worker: the app and its video then come straight from each owner's
+# own server (its address is derived from the IP it checks in from).
 # Use ./deploy.sh (it runs `wrangler deploy --keep-vars`). The bindings, custom
 # domains and workers.dev setting below match the live Worker as of 2026-11-19;
 # --keep-vars keeps the plain-text variables set in the dashboard
@@ -28,6 +29,7 @@ preview_urls = false
 routes = [
   { pattern = "yarr.media", custom_domain = true },
   { pattern = "www.yarr.media", custom_domain = true },
+  { pattern = "app.yarr.media", custom_domain = true },
   { pattern = "accounts.yarr.media", custom_domain = true },
 ]
 

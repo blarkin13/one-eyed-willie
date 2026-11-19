@@ -172,6 +172,41 @@ class KeyStoreTests(unittest.TestCase):
             self.assertEqual(reloaded._keys["k9"].public_bytes_raw(), raw)
 
 
+APP = "https://app.yarr.media"
+
+
+class AppCorsTests(unittest.TestCase):
+    """app.yarr.media runs in the browser and talks to this server directly."""
+
+    def setUp(self):
+        self.key = Ed25519PrivateKey.generate()
+        self.client = app_with(Keys({"k1": self.key.public_key()}))
+
+    def test_preflight_is_answered_without_a_pass(self):
+        r = self.client.options("/api/watch/1/stream", headers={**REMOTE, "Origin": APP,
+                                "Access-Control-Request-Method": "GET",
+                                "Access-Control-Request-Headers": "authorization, range"})
+        self.assertEqual(r.status_code, 204)
+        self.assertEqual(r.headers["access-control-allow-origin"], APP)
+        self.assertIn("authorization", r.headers["access-control-allow-headers"])
+        self.assertIn("range", r.headers["access-control-allow-headers"])
+
+    def test_responses_and_refusals_carry_cors_headers_for_the_app_only(self):
+        ok = self.client.get("/api/watch/1/stream", headers={**REMOTE, "Origin": APP,
+                             "Authorization": "Yarr-Pass " + make_pass(self.key)})
+        self.assertEqual(ok.status_code, 200)
+        self.assertEqual(ok.content, b"abcdef")
+        self.assertEqual(ok.headers["access-control-allow-origin"], APP)
+        self.assertIn("content-range", ok.headers["access-control-expose-headers"])
+        refused = self.client.get("/", headers={**REMOTE, "Origin": APP, "Accept": "text/html"}, follow_redirects=False)
+        self.assertEqual(refused.status_code, 401, "the app gets a status it can read, not a redirect")
+        self.assertEqual(refused.headers["access-control-allow-origin"], APP)
+        other = self.client.options("/", headers={**REMOTE, "Origin": "https://evil.example",
+                                    "Access-Control-Request-Method": "GET"})
+        self.assertNotIn("access-control-allow-origin", other.headers)
+        self.assertEqual(other.status_code, 401, "other sites still need a pass and get no CORS")
+
+
 class KeyRefreshRaceTests(unittest.TestCase):
     def test_a_pass_on_first_visit_waits_for_the_running_download(self):
         """A fresh server starts a background key download; the pass check that
@@ -202,10 +237,9 @@ class WiringTests(unittest.TestCase):
         from server.main import app
         self.assertIn(ra.RemotePassMiddleware, [m.cls for m in app.user_middleware])
         caddy = (ROOT / "deploy/Caddyfile.remote").read_text()
-        self.assertEqual(caddy.count("header_up X-Yarr-Remote 1"), 2, "every internet-facing site is marked remote")
-        app_block = caddy.split("{$YARR_APP_HOSTNAME} {", 1)[1].split("\n}", 1)[0]
-        self.assertNotIn("basic_auth", app_block)
-        self.assertIn("YARR_APP_HOSTNAME: ${YARR_APP_HOSTNAME:-app.yarr.media}", (ROOT / "compose.remote.yaml").read_text())
+        self.assertIn("header_up X-Yarr-Remote 1", caddy)
+        self.assertNotIn("basic_auth", caddy, "the Yarr pass replaces the setup password")
+        self.assertNotIn("app.yarr.media", "".join(l for l in caddy.splitlines() if not l.strip().startswith("#")))
 
 
 @unittest.skipUnless(shutil.which("node"), "node is needed to run the account Worker")

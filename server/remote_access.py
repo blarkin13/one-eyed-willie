@@ -42,6 +42,16 @@ MAX_LIFETIME = 13 * 60 * 60  # browser passes last 12 hours
 KEY_REFRESH_SECONDS = 6 * 60 * 60
 KEY_RETRY_SECONDS = 60
 OPEN_PATHS = {"/remote/start", "/health"}
+# The yarr.media app runs in the browser at these origins and talks to this
+# server directly (see the service worker in cloudflare/yarr/worker.js).
+APP_ORIGINS = {o.strip().rstrip("/") for o in os.environ.get("YARR_APP_ORIGINS", "https://app.yarr.media").split(",") if o.strip()}
+CORS_ALLOW_HEADERS = "authorization, content-type, range, if-range, if-none-match, if-modified-since, accept, accept-language, x-requested-with"
+CORS_EXPOSE_HEADERS = "content-length, content-range, accept-ranges, etag, last-modified, content-disposition, location"
+
+
+def _cors_headers(origin):
+    return [("access-control-allow-origin", origin), ("vary", "Origin"),
+            ("access-control-expose-headers", CORS_EXPOSE_HEADERS)]
 
 
 class PassError(Exception):
@@ -184,7 +194,9 @@ def _safe_return(value):
     return value
 
 
-async def _send(send, status, headers, body=b""):
+async def _send(send, status, headers, body=b"", origin=None):
+    if origin:
+        headers = list(headers) + _cors_headers(origin)
     await send({"type": "http.response.start", "status": status,
                 "headers": [(k.encode("latin-1"), v.encode("latin-1")) for k, v in headers]})
     await send({"type": "http.response.body", "body": body})
@@ -231,10 +243,18 @@ class RemotePassMiddleware:
             return await self.app(scope, receive, send)
         path = scope.get("path", "")
         query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
+        origin = headers.get("origin", "").rstrip("/")
+        origin = origin if origin in APP_ORIGINS else None
+        if origin and scope.get("method") == "OPTIONS":
+            # CORS preflight carries no credentials; answer it without a pass.
+            return await _send(send, 204, [
+                ("access-control-allow-methods", "GET, HEAD, POST, PUT, PATCH, DELETE"),
+                ("access-control-allow-headers", CORS_ALLOW_HEADERS),
+                ("access-control-max-age", "7200"), ("cache-control", "no-store")], origin=origin)
         if path == "/remote/start":
             return await self._start(query, send)
         if path in OPEN_PATHS:
-            return await self.app(scope, receive, send)
+            return await self.app(scope, receive, self._with_cors(send, origin))
         token = None
         auth = headers.get("authorization", "")
         if auth.startswith("Yarr-Pass "):
@@ -249,10 +269,24 @@ class RemotePassMiddleware:
                 raise PassError("missing")
             claims = await self._verify(token)
         except PassError as error:
-            return await self._refuse(scope, headers, str(error), send)
+            return await self._refuse(scope, headers, str(error), send, origin)
         scope = dict(scope)
         scope["yarr_pass"] = claims
-        return await self.app(scope, receive, send)
+        return await self.app(scope, receive, self._with_cors(send, origin))
+
+    @staticmethod
+    def _with_cors(send, origin):
+        if not origin:
+            return send
+
+        async def wrapped(message):
+            if message["type"] == "http.response.start":
+                message = dict(message)
+                kept = [(k, v) for k, v in message.get("headers", [])
+                        if k.lower() not in (b"access-control-allow-origin", b"access-control-expose-headers")]
+                message["headers"] = kept + [(k.encode("latin-1"), v.encode("latin-1")) for k, v in _cors_headers(origin)]
+            await send(message)
+        return wrapped
 
     async def _start(self, query, send):
         token = (query.get("pass") or [""])[0]
@@ -268,8 +302,8 @@ class RemotePassMiddleware:
         return await _send(send, 303, [("location", back), ("set-cookie", cookie),
                                        ("cache-control", "no-store"), ("referrer-policy", "no-referrer")])
 
-    async def _refuse(self, scope, headers, reason, send):
-        wants_page = scope.get("method") == "GET" and "text/html" in headers.get("accept", "")
+    async def _refuse(self, scope, headers, reason, send, origin=None):
+        wants_page = not origin and scope.get("method") == "GET" and "text/html" in headers.get("accept", "")
         if wants_page:
             back = scope.get("path", "/") + ("?" + scope["query_string"].decode("latin-1") if scope.get("query_string") else "")
             server = self._server()
@@ -277,7 +311,7 @@ class RemotePassMiddleware:
             return await _send(send, 303, [("location", target), ("cache-control", "no-store")])
         return await _send(send, 401, [("content-type", "application/json"), ("cache-control", "no-store"),
                                        ("www-authenticate", "Yarr-Pass")],
-                           json.dumps({"error": "remote_pass_required", "reason": reason}).encode())
+                           json.dumps({"error": "remote_pass_required", "reason": reason}).encode(), origin=origin)
 
 
 class _NonBlocking:
