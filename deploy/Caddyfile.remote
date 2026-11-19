@@ -3,5 +3,10 @@
         {$WILLIE_USERNAME} {$WILLIE_PASSWORD_HASH}
     }
 
-    reverse_proxy one-eyed-willie:8787
+    # Marks every request from the internet as remote, so the server requires a
+    # Yarr pass (overwrites any value a client sends). Once remote access through
+    # yarr.media works, the basic_auth block above can be removed.
+    reverse_proxy one-eyed-willie:8787 {
+        header_up X-Yarr-Remote 1
+    }
 }

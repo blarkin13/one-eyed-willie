@@ -11,3 +11,6 @@ httpx>=0.27,<1
 
 # Read embedded audio tags and cover art for Music libraries
 mutagen>=1.47,<2
+
+# Verify Yarr remote-access passes (Ed25519)
+cryptography>=42
