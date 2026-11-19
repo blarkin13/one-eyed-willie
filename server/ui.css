@@ -1062,3 +1062,9 @@ body:not(:has(.willie-hover-backdrop)) .workspace{background-color:#000000}
 /* Neutral surfaces instead of navy-tinted UI panels. */
 .panel,.stat,.form-card,.filter-tabs{background:#111111}
 .search-box input,.sort-select,dialog,.form-card input,.form-card select{background:#161616}
+
+
+/* Responsive Yarr.media wordmark, replacing the expanded sidebar brand text. */
+.sidebar .brand-wordmark{display:none;width:160px;max-width:calc(100% - 72px);height:auto;max-height:66px;object-fit:contain;flex:0 1 auto}
+.sidebar:hover .brand-wordmark,.sidebar:focus-within .brand-wordmark{display:block}
+@media(max-width:700px){.sidebar .brand-wordmark{display:none}}
