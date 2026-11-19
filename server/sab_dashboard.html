@@ -124,7 +124,7 @@ async function refresh(){
   say('Connected. Queue refreshed.');
  }catch(error){
   if(!connected){$('sab-body').hidden=true;$('sab-pause').disabled=true;$('sab-resume').disabled=true}
-  say(error.message+' Check Settings → Connections.');
+  say(error.message+' Check Settings → Integrations.');
  }finally{pending=false;$('sab-reload').disabled=false}
 }
 $('sab-reload').onclick=refresh;
