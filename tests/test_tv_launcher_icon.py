@@ -1,36 +1,35 @@
-"""Google TV launcher: clean native glyph outlines and adaptive/density assets."""
+"""Google TV launcher keeps the entire wordmark within adaptive icon safe zone."""
 from pathlib import Path
 import struct
 import unittest
+import math
+import re
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 ANDROID = ROOT / "google-tv/app/src/main"
 RES = ANDROID / "res"
 MANIFEST = ANDROID / "AndroidManifest.xml"
-MASTER = ROOT / "google-tv/artwork/yarrmedia_launcher_true_vector.svg"
+MASTER = ROOT / "google-tv/artwork/yarrmedia_launcher_precision.svg"
 ADAPTIVE = RES / "mipmap-anydpi-v26/yarrmedia_launcher.xml"
 FOREGROUND = RES / "drawable/yarrmedia_launcher_foreground.xml"
 BACKGROUND = RES / "values/yarrmedia_launcher_colors.xml"
 BANNER = RES / "drawable-nodpi/yarr_tv_banner.png"
 ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
-SVG_NS = "{http://www.w3.org/2000/svg}"
 DENSITIES = {"mdpi": 80, "hdpi": 120, "xhdpi": 160,
              "xxhdpi": 240, "xxxhdpi": 320}
-LETTERS = {"glyph-Y-52", "glyph-A-239", "glyph-R-479", "glyph-R-688",
-           "glyph-M-979", "glyph-E-1253", "glyph-D-1435", "glyph-I-1657",
-           "glyph-A-1741"}
 
 
 class GoogleTvLauncherTests(unittest.TestCase):
-    def test_manifest_keeps_yarrmedia_name_and_mipmap_adaptive_icon(self):
+    def test_manifest_uses_android_standard_launcher_resources(self):
         manifest = MANIFEST.read_text()
         self.assertIn('android:label="YarrMedia"', manifest)
         self.assertIn('android:icon="@mipmap/yarrmedia_launcher"', manifest)
         self.assertIn('android:roundIcon="@mipmap/yarrmedia_launcher"', manifest)
         self.assertIn('android:banner="@drawable/yarr_tv_banner"', manifest)
+        self.assertNotIn('android:icon="@drawable/yarrmedia_launcher"', manifest)
 
-    def test_adaptive_icon_layers_are_valid(self):
+    def test_adaptive_icon_has_independent_foreground_background(self):
         root = ET.parse(ADAPTIVE).getroot()
         self.assertEqual(root.tag, "adaptive-icon")
         children = {child.tag: child.attrib[ANDROID_NS + "drawable"] for child in root}
@@ -39,63 +38,80 @@ class GoogleTvLauncherTests(unittest.TestCase):
             "foreground": "@drawable/yarrmedia_launcher_foreground",
         })
         background = ET.parse(BACKGROUND).getroot()
+        self.assertEqual(background.find("color").attrib["name"], "yarrmedia_launcher_background")
         self.assertEqual(background.find("color").text, "#FFFFFF")
 
-    def test_android_foreground_uses_clean_glyphs_not_old_angular_word_shapes(self):
+    def test_foreground_keeps_the_original_four_color_brand(self):
         vector = ET.parse(FOREGROUND).getroot()
         self.assertEqual(vector.tag, "vector")
         self.assertEqual(vector.attrib[ANDROID_NS + "viewportWidth"], "2048")
         self.assertEqual(vector.attrib[ANDROID_NS + "viewportHeight"], "2048")
         group = vector.find("group")
         self.assertIsNotNone(group)
-        self.assertEqual(group.attrib[ANDROID_NS + "scaleX"], "0.84")
-        self.assertEqual(group.attrib[ANDROID_NS + "scaleY"], "0.84")
+        self.assertEqual(group.attrib[ANDROID_NS + "scaleX"], "0.62")
+        self.assertEqual(group.attrib[ANDROID_NS + "scaleY"], "0.62")
         paths = {p.attrib[ANDROID_NS + "name"]: p for p in group.findall("path")}
-        self.assertEqual(set(paths), LETTERS | {"sail", "wave", "dot"})
+        self.assertEqual(set(paths), {"sail", "wave", "yarr", "dot", "media"})
         self.assertEqual({p.attrib[ANDROID_NS + "fillColor"] for p in paths.values()},
                          {"#000000", "#9B9B9B", "#A61E1E"})
-        for glyph in LETTERS:
-            self.assertEqual(paths[glyph].attrib[ANDROID_NS + "fillType"], "evenOdd")
-        for glyph in ("glyph-R-479", "glyph-R-688", "glyph-D-1435",
-                      "glyph-M-979"):
-            self.assertIn("C", paths[glyph].attrib[ANDROID_NS + "pathData"])
-        self.assertNotIn("yarr", paths)
-        self.assertNotIn("media", paths)
+        for name in ("yarr", "media"):
+            self.assertEqual(paths[name].attrib[ANDROID_NS + "fillType"], "evenOdd")
+        self.assertGreater(len(paths["sail"].attrib[ANDROID_NS + "pathData"]), 300)
 
-    def test_generated_android_curves_match_the_master(self):
-        source_root = ET.parse(MASTER).getroot()
-        source_paths = {p.attrib["id"]: " ".join(p.attrib["d"].split())
-                        for p in source_root.findall(SVG_NS + "path")}
+    def test_complete_logo_is_inside_the_google_tv_safe_zone(self):
+        # Adaptive foreground is 108dp; central 66dp diameter is guaranteed
+        # to survive any Android launcher shape, including the round TV mask.
+        # Cubic Bezier paths stay within the convex hull of their controls.
+        root = ET.parse(MASTER).getroot()
         foreground = ET.parse(FOREGROUND).getroot().find("group")
-        rendered_paths = {p.attrib[ANDROID_NS + "name"]: p.attrib[ANDROID_NS + "pathData"]
-                          for p in foreground.findall("path")}
-        for name, curve in source_paths.items():
-            self.assertEqual(curve, rendered_paths[name], name)
+        scale = float(foreground.attrib[ANDROID_NS + "scaleX"])
+        safe_radius = 1024 * 66 / 108
+        svg_ns = "{http://www.w3.org/2000/svg}"
+        for path in root.findall(svg_ns + "path"):
+            commands = set(re.findall("[A-Za-z]", path.attrib["d"]))
+            self.assertTrue(commands <= set("MLCZ"), path.attrib.get("id"))
+            vals = [float(v) for v in re.findall(
+                r"[-+]?(?:[0-9]*[.][0-9]+|[0-9]+[.]?[0-9]*)",
+                path.attrib["d"])]
+            self.assertEqual(len(vals) % 2, 0)
+            for x, y in zip(vals[::2], vals[1::2]):
+                self.assertLessEqual(
+                    math.hypot((x - 1024) * scale, (y - 1024) * scale),
+                    safe_radius,
+                    f"{path.attrib.get('id')} crosses adaptive mask safe zone",
+                )
+        dot = next(x for x in root.findall(svg_ns + "circle")
+                   if x.attrib.get("id") == "dot")
+        dot_radius = math.hypot(
+            (float(dot.attrib["cx"]) - 1024) * scale,
+            (float(dot.attrib["cy"]) - 1024) * scale,
+        ) + float(dot.attrib["r"]) * scale
+        self.assertLessEqual(dot_radius, safe_radius)
 
-    def test_density_assets_and_antialiased_edges(self):
+    def test_density_assets_render_directly_from_vector_and_are_transparent(self):
         from PIL import Image
         for density, pixels in DENSITIES.items():
             with self.subTest(density=density):
-                with Image.open(RES / f"mipmap-{density}/yarrmedia_launcher.png") as image:
+                path = RES / f"mipmap-{density}/yarrmedia_launcher.png"
+                with Image.open(path) as image:
                     self.assertEqual(image.size, (pixels, pixels))
                     self.assertEqual(image.mode, "RGBA")
                     self.assertEqual(image.getpixel((0, 0))[3], 0)
                     self.assertEqual(image.getpixel((pixels-1, pixels-1))[3], 0)
                     self.assertEqual(image.getpixel((pixels//2, pixels//4)),
                                      (255, 255, 255, 255))
-                    pixels_flat = list(image.getdata())
-                    self.assertTrue(any(r > 110 and r-g > 70 and b < 90 and a >= 170
-                                        for r, g, b, a in pixels_flat))
-                    self.assertTrue(any(0 < a < 255 for _, _, _, a in pixels_flat))
+                    # Text's red is opaque in each device-density icon.
+                    self.assertTrue(any(r > 110 and r - g > 70 and b < 90 and a >= 170
+                                        for _, (r, g, b, a) in image.getcolors(pixels*pixels) or []))
 
-    def test_full_original_artwork_and_banner_are_unchanged(self):
+    def test_source_and_tv_banner_are_preserved(self):
         svg = MASTER.read_text()
         self.assertIn('id="sail"', svg)
-        self.assertIn('id="wave"', svg)
+        self.assertIn('id="media"', svg)
         self.assertIn('fill="#A61E1E"', svg)
-        data = BANNER.read_bytes()
-        self.assertTrue(data.startswith(bytes.fromhex("89504e470d0a1a0a")))
-        self.assertEqual(struct.unpack(">II", data[16:24]), (1280, 720))
+        banner_bytes = BANNER.read_bytes()
+        self.assertTrue(banner_bytes.startswith(bytes.fromhex("89504e470d0a1a0a")))
+        self.assertEqual(struct.unpack(">II", banner_bytes[16:24]), (1280, 720))
         self.assertTrue((RES / "drawable-nodpi/tv_loading_screen.png").is_file())
 
 
