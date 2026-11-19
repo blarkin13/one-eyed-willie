@@ -8,6 +8,21 @@ const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yarr Media — Your media. Your server.</title>
 <meta name="description" content="Yarr Media organizes your personal movies and shows. Free local streaming; Pro remote access is in development.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Yarr Media">
+<meta property="og:title" content="Yarr Media — Your media. Your server.">
+<meta property="og:description" content="Your own movies and television on a media server you control.">
+<meta property="og:url" content="https://yarr.media/">
+<meta property="og:image" content="https://yarr.media/assets/yarr-media-og-v2.jpg">
+<meta property="og:image:secure_url" content="https://yarr.media/assets/yarr-media-og-v2.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Yarr Media moon and sail above an off-white and crimson YARR.MEDIA wordmark on black">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Yarr Media — Your media. Your server.">
+<meta name="twitter:description" content="Your own movies and shows on your server.">
+<meta name="twitter:image" content="https://yarr.media/assets/yarr-media-og-v2.jpg">
 <meta name="robots" content="index,follow"><link rel="canonical" href="https://yarr.larki-brian.workers.dev/">
 <style>
 :root{color-scheme:dark;--bg:#0a0a0a;--ink:#f5f1e8;--accent:#a61e1e;--bright:#eb8888;--muted:#c2bcb2;--line:#ffffff25;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
@@ -643,6 +658,12 @@ const accountCSS = `
 export default { async fetch(req,env) {
  const u=new URL(req.url);
  try {
+  // Public social preview: versioned to avoid stale crawler thumbnails.
+  if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/assets/yarr-media-og-v2.jpg'){
+    const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/yarr-media-og-v2.jpg');
+    if(!upstream.ok)return new Response('Social image unavailable',{status:502,headers:{'cache-control':'no-store'}});
+    return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':'image/jpeg','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
+  }
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.svg')return new Response(req.method==='HEAD'?null:YARR_ICON_SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.ico')return redirect('/favicon.svg?v=moon-sail-v1');
   if(req.method==='GET'&&(u.pathname==='/health'||u.pathname==='/__edge/health')) {
