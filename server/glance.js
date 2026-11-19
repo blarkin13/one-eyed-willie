@@ -160,6 +160,10 @@
   }
   async function idle(){
     if(!document.querySelector('body[data-page] .app-shell'))return;
+    const config=await getSettings();
+    if(config.ambient?.enabled===false)return;
+    const delayMs=Math.max(60000,Math.min(600000,
+      Number(config.ambient?.idle_timeout_seconds||120)*1000));
     const strip=await createStrip('idle');
     if(!strip)return;
     const overlay=document.createElement('div');
@@ -182,7 +186,7 @@
         if(shouldSkip()){schedule();return;}
         overlay.hidden=false;
         for(const card of strip.children){card._glanceUpdate?.();card._glanceLoad?.();}
-      },120000);
+      },delayMs);
     }
     function activity(event){
       if(!overlay.hidden){
