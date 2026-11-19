@@ -64,7 +64,7 @@ def _plex_get(url, token, path, params=None):
         "Accept": "application/json",
         "X-Plex-Token": token,
         "X-Plex-Client-Identifier": "one-eyed-willie-plex-import",
-        "User-Agent": "YarrMedia/1.0",
+        "User-Agent": "OneEyedWillie/1.0",
     }
     if start is not None:
         headers["X-Plex-Container-Start"] = str(start)
