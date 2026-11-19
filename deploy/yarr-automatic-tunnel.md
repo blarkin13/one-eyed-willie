@@ -1,6 +1,6 @@
 # Automatic Yarr tunnel — paired Gazorpazorp test
 
-This replaces the old manual Docker sidecar test. The existing One-Eyed Willie server now packages the official Cloudflare `cloudflared` connector in its Docker image.
+This replaces the old manual Docker sidecar test. The existing Yarr Media server now packages the official Cloudflare `cloudflared` connector in its Docker image.
 
 ## What happens automatically
 
@@ -22,7 +22,7 @@ sudo docker compose up -d --build one-eyed-willie
 
 Do **not** use `deploy/setup-yarr-vpc.sh`, paste a token, or start `compose.yarr-vpc.yaml`. Those were the older manual test method.
 
-After the app starts, open One-Eyed Willie → Settings → General → Yarr Account. The server should report that its automatic private connector is running, if the Cloudflare service is reachable. You can then visit `https://yarr.larki-brian.workers.dev/app` while signed in and select **Test private connection**.
+After the app starts, open Yarr Media → Settings → General → Yarr Account. The server should report that its automatic private connector is running, if the Cloudflare service is reachable. You can then visit `https://yarr.larki-brian.workers.dev/app` while signed in and select **Test private connection**.
 
 ### If the test fails
 
