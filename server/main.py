@@ -429,6 +429,12 @@ def opensubtitles_brand_png():
     )
 
 
+@app.get("/app.webmanifest")
+def app_manifest():
+    return TextFileResponse(Path(__file__).with_name("app.webmanifest"), media_type="application/manifest+json",
+                            headers={"Cache-Control": "public, max-age=3600"})
+
+
 @app.get("/assets/yarr-media-wordmark.png")
 def yarr_media_wordmark():
     return FileResponse(Path(__file__).with_name("yarr-media-wordmark.png"), media_type="image/png",
