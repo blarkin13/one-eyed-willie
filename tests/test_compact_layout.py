@@ -1,4 +1,4 @@
-"""Static regressions for the content-first One-Eyed Willie layout."""
+"""Static regressions for the content-first Yarr Media layout."""
 import shutil
 import subprocess
 import unittest
@@ -146,7 +146,7 @@ class CompactLayoutTests(unittest.TestCase):
         css = (SERVER / "ui.css").read_text()
         self.assertIn("image.src='/assets/ship-logo.png'", shell)
         self.assertNotIn("image.src='/assets/favicon.png'", shell)
-        self.assertIn("words.textContent='One-eyed Willie'", shell)
+        self.assertIn("words.textContent='Yarr Media'", shell)
         self.assertIn('font-family:"Snell Roundhand"', css)
         self.assertIn(".sidebar:hover,.sidebar:focus-within{width:min(240px", css)
         self.assertNotIn("width:440px", css)
@@ -219,7 +219,7 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("function playbackButton(", tv)
         self.assertIn("Resume from saved position", tv)
         self.assertIn("WilliePlayer.open", home)
-        self.assertIn("One-Eyed Willie", (SERVER / "watch.html").read_text())
+        self.assertIn("Yarr Media", (SERVER / "watch.html").read_text())
 
     def test_season_focus_selects_and_click_plays_first_unwatched(self):
         tv = (SERVER / "tv_detail.html").read_text()
