@@ -301,7 +301,7 @@ function remoteAddress(input) {
  return url.origin;
 }
 async function listServers(env,userId) {
- const result=await env.ACCOUNTS.prepare("SELECT id,display_name,local_url,public_url,status,server_identity,connection_secret_hash,last_seen_at,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC").bind(userId).all();
+ const result=await env.ACCOUNTS.prepare("SELECT id,display_name,local_url,public_url,public_ip,status,server_identity,connection_secret_hash,last_seen_at,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC").bind(userId).all();
  return result.results||[];
 }
 async function serverMutation(req,env,user) {
@@ -404,7 +404,10 @@ async function connectionHeartbeat(req,env){
  const credential=token.slice(7);
  if(!/^[A-Za-z0-9_-]{40,100}$/.test(credential))return json({error:'unauthorized'},401);
  const hash=await digest(credential);
- const result=await env.ACCOUNTS.prepare("UPDATE servers SET last_seen_at=CURRENT_TIMESTAMP WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(hash).run();
+ const ip=publicIPv4(req.headers.get('cf-connecting-ip'));
+ const result=ip
+  ?await env.ACCOUNTS.prepare("UPDATE servers SET last_seen_at=CURRENT_TIMESTAMP,public_ip=?,public_ip_seen_at=CURRENT_TIMESTAMP WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(ip,hash).run()
+  :await env.ACCOUNTS.prepare("UPDATE servers SET last_seen_at=CURRENT_TIMESTAMP WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(hash).run();
  if(result.meta.changes!==1)return json({error:'unauthorized'},401);
  return json({status:'accepted',media_access:false});
 }
@@ -728,6 +731,7 @@ const formatUserCode = code => code.slice(0,4)+'-'+code.slice(4);
 // Paths a sign-in may return to. Anything else goes to the account page.
 function safeReturnPath(value) {
  const v=String(value||'');
+ if(/^\/open-app(?:\?path=%2F[A-Za-z0-9%._~-]{0,300})?$/.test(v))return v;
  if(/^\/activate(?:\?code=[A-Z0-9-]{1,12})?$/.test(v))return v;
  if(/^\/remote\/open\?server=[A-Za-z0-9-]{1,64}(?:&return=%2F[A-Za-z0-9%._~-]{0,300})?$/.test(v))return v;
  return '';
@@ -858,7 +862,7 @@ async function deviceMe(req,env) {
  if(!auth)return json({error:'unauthorized'},401);
  const pro=await proStatus(env,auth.user.id);
  const servers=(await listServers(env,auth.user.id)).filter(s=>s.status==='paired'&&s.server_identity)
-  .map(s=>({id:s.id,display_name:s.display_name,online:!!s.online,remote_address:s.public_url||null}));
+  .map(s=>({id:s.id,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s)}));
  return json({user:auth.user,device:auth.device,pro:{active:pro.active,until:pro.until},servers});
 }
 
@@ -952,13 +956,30 @@ async function issuePass(env,user,server,device=null,lifetime=PASS_SECONDS) {
  const claims={v:1,iss:PUBLIC_SITE,aud:server.server_identity,sub:user.id,role:'owner',dev:device?.id||null,iat:now,exp,jti:random().slice(0,22)};
  const input=base64urlJSON(header)+'.'+base64urlJSON(claims);
  const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key.key,new TextEncoder().encode(input)));
- return {pass:input+'.'+encoded(sig),expires_at:new Date(exp*1000).toISOString(),remote_address:server.public_url||null};
+ return {pass:input+'.'+encoded(sig),expires_at:new Date(exp*1000).toISOString(),remote_address:serverOrigin(env,server)};
+}
+// A server's HTTPS address: the owner's own address if they set one, otherwise
+// one derived from the public IP it checks in from (a-b-c-d.<suffix>, which the
+// server's Caddy has a certificate for). Server addresses are never under
+// yarr.media, so customer servers never receive yarr.media sign-in cookies.
+function publicIPv4(value) {
+ const v=String(value||'').trim();
+ const p=v.split('.');
+ if(p.length!==4||!p.every(x=>/^(0|[1-9][0-9]{0,2})$/.test(x)&&Number(x)<=255))return null;
+ const [a,b]=p.map(Number);
+ if(a===0||a===10||a===127||a>=224||(a===169&&b===254)||(a===172&&b>=16&&b<=31)||(a===192&&b===168)||(a===100&&b>=64&&b<=127))return null;
+ return v;
+}
+function serverOrigin(env,s) {
+ if(s?.public_url)return s.public_url;
+ if(s?.public_ip&&publicIPv4(s.public_ip))return 'https://'+s.public_ip.replaceAll('.','-')+'.'+(env.SERVER_HOST_SUFFIX||'sslip.io');
+ return null;
 }
 async function ownedServer(env,userId,ref) {
  const id=String(ref||'');
  if(!/^[A-Za-z0-9-]{8,64}$/.test(id))return null;
  // Owner-only for now. Shared access will add a server_members table and check it here.
- return env.ACCOUNTS.prepare("SELECT id,server_identity,public_url,display_name FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL AND (id=? OR server_identity=?)").bind(userId,id,id).first();
+ return env.ACCOUNTS.prepare("SELECT id,server_identity,public_url,public_ip,display_name FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL AND (id=? OR server_identity=?)").bind(userId,id,id).first();
 }
 async function passRequest(req,env) {
  let who=await deviceFromRequest(req,env);
@@ -989,10 +1010,11 @@ async function remoteOpen(req,env) {
  }
  const server=await ownedServer(env,user.id,ref);
  if(!server)return redirect(ACCOUNTS_SITE+'/?remote=not_found');
- if(!server.public_url)return redirect(ACCOUNTS_SITE+'/?remote=no_address');
+ const origin=serverOrigin(env,server);
+ if(!origin)return redirect(ACCOUNTS_SITE+'/?remote=no_address');
  const result=await issuePass(env,user,server,null,BROWSER_PASS_SECONDS);
  if(result.error)return redirect(ACCOUNTS_SITE+'/?remote='+(result.error==='pro_required'?'pro_required':'unavailable'));
- const target=new URL('/remote/start',server.public_url);
+ const target=new URL('/remote/start',origin);
  target.searchParams.set('pass',result.pass);
  target.searchParams.set('return',back);
  return new Response(null,{status:303,headers:{location:target.toString(),'cache-control':'no-store','referrer-policy':'no-referrer'}});
@@ -1202,8 +1224,9 @@ function devicesPanelHTML(extra) {
  return '<section class="account-panel" id="devices"><div class="panel-top"><div><p class="account-kicker">Devices</p><h2>Signed-in devices</h2></div><span class="account-count">'+extra.devices.length+'</span></div>'+list+'</section>';
 }
 function remoteAddressFormHTML(s) {
- return '<form method="post" action="/account/servers/address" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-address-'+escapeHTML(s.id)+'">Remote HTTPS address</label><div class="account-form-row"><input id="server-address-'+escapeHTML(s.id)+'" maxlength="260" name="address" placeholder="https://media.example.com" value="'+escapeHTML(s.public_url||'')+'"><button class="account-secondary" type="submit">Save address</button></div></form>'+
-  (s.public_url?'<p class="account-small"><a href="/remote/open?server='+escapeHTML(s.id)+'">Open remotely</a></p>':'');
+ const detected=s.public_ip?'https://'+s.public_ip.replaceAll('.','-')+'.sslip.io':'';
+ return '<p class="account-small">'+(s.public_url?'Using your custom address.':detected?'Reached at '+escapeHTML(detected)+' (found automatically).':'Address not found yet; it appears after the server checks in.')+' <a href="'+APP_SITE+'/">Open app.yarr.media</a></p>'+
+  '<form method="post" action="/account/servers/address" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-address-'+escapeHTML(s.id)+'">Custom HTTPS address (optional)</label><div class="account-form-row"><input id="server-address-'+escapeHTML(s.id)+'" maxlength="260" name="address" placeholder="Leave empty to use the automatic address" value="'+escapeHTML(s.public_url||'')+'"><button class="account-secondary" type="submit">Save address</button></div></form>';
 }
 const DANGER_HTML='<section class="account-panel" id="delete-account"><p class="account-kicker">Danger zone</p><h2>Delete account</h2><p class="account-note">Permanently deletes your account, revokes any one-time Pro license without a refund or transfer, signs out devices, and unlinks servers. Media on your own server is not touched. Required purchase and tax records are retained without your Yarr user ID.</p><details class="account-manage"><summary>Delete my account</summary><div class="account-manage-body"><form method="post" action="/account/delete" class="account-form"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" name="confirm" required autocomplete="off" pattern="DELETE"><button class="account-secondary" type="submit">Permanently delete</button></form></div></details></section>';
 const ACCOUNT_MESSAGES={
@@ -1234,10 +1257,136 @@ async function cleanup(env) {
  ]);
 }
 
+// ---- app.yarr.media -----------------------------------------------------------
+// Everyone opens app.yarr.media. The Worker only serves a starter page and a
+// service worker; after that, every request the app makes is sent by the
+// browser straight to the signed-in owner's own server (its HTTPS address is
+// derived from the public IP the server checks in from), carrying a Yarr pass.
+// Library pages and video therefore travel home -> viewer, never through
+// Cloudflare, and the address bar stays app.yarr.media.
+const APP_SW_SOURCE = String.raw`/* Yarr Media app service worker (served by yarr.media). */
+'use strict';
+const OWN = ['/__yarr/'];
+const COPY = ['accept','accept-language','content-type','range','if-range','if-none-match','if-modified-since','x-requested-with'];
+let conn = null, pending = null;
+self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
+self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
+async function connection(force) {
+  if (!force && conn && conn.exp - Date.now() > 10 * 60 * 1000) return conn;
+  if (!pending) pending = (async () => {
+    try {
+      const r = await fetch('/__yarr/connection', {credentials: 'same-origin', cache: 'no-store'});
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) throw Object.assign(new Error(body.message || 'connection ' + r.status), {status: r.status, body});
+      conn = {origin: body.server_origin, pass: body.pass, exp: Date.parse(body.expires_at)};
+      return conn;
+    } finally { pending = null; }
+  })();
+  return pending;
+}
+function page(title, message, status) {
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+  return new Response('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yarr Media</title>' +
+    '<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#f5f1e8;font:16px system-ui,sans-serif;text-align:center">' +
+    '<div style="max-width:520px;padding:24px"><h1 style="font-size:26px">' + esc(title) + '</h1><p style="color:#c2bcb2;line-height:1.6">' + esc(message) + '</p>' +
+    '<p><a style="color:#eb8888" href="/">Try again</a> &middot; <a style="color:#eb8888" href="https://accounts.yarr.media/">My Account</a></p></div></body>',
+    {status: status || 503, headers: {'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store'}});
+}
+async function send(req, c, body) {
+  const url = new URL(req.url);
+  const headers = new Headers();
+  for (const name of COPY) { const v = req.headers.get(name); if (v) headers.set(name, v); }
+  headers.set('authorization', 'Yarr-Pass ' + c.pass);
+  return fetch(c.origin + url.pathname + url.search, {method: req.method, headers, body, mode: 'cors', credentials: 'omit', redirect: 'follow', cache: 'no-store'});
+}
+async function forward(req) {
+  const url = new URL(req.url);
+  const navigate = req.mode === 'navigate';
+  let c;
+  try { c = await connection(false); }
+  catch (e) {
+    const target = e.body && e.body.redirect;
+    if (navigate && target) return Response.redirect(target, 303);
+    if (navigate) return page('Your server is not available', e.message, e.status || 503);
+    return new Response(JSON.stringify({error: 'yarr_connection', message: e.message}), {status: e.status || 503, headers: {'content-type': 'application/json'}});
+  }
+  const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await req.arrayBuffer();
+  let res;
+  try {
+    res = await send(req, c, body);
+    if (res.status === 401) { c = await connection(true); res = await send(req, c, body); }
+  } catch (e) {
+    if (navigate) return page('Your server could not be reached', 'Yarr Media could not connect to your home server. Check that it is on and reachable from the internet.', 502);
+    return new Response(JSON.stringify({error: 'server_unreachable'}), {status: 502, headers: {'content-type': 'application/json'}});
+  }
+  if (res.redirected && navigate) {
+    const moved = new URL(res.url);
+    return Response.redirect(moved.pathname + moved.search, 303);
+  }
+  const nullBody = [101, 204, 205, 304].includes(res.status) || req.method === 'HEAD';
+  return new Response(nullBody ? null : res.body, {status: res.status, statusText: res.statusText, headers: res.headers});
+}
+self.addEventListener('fetch', event => {
+  const url = new URL(event.request.url);
+  if (url.origin !== self.location.origin || OWN.some(p => url.pathname.startsWith(p))) return;
+  event.respondWith(forward(event.request));
+});
+`;
+const APP_START_PAGE = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Yarr Media</title>'+
+ '<link rel="icon" type="image/svg+xml" href="https://yarr.media/favicon.svg?v=moon-sail-v1"></head>'+
+ '<body style="margin:0;min-height:100vh;display:grid;place-items:center;background:#0a0a0a;color:#f5f1e8;font:16px system-ui,sans-serif;text-align:center">'+
+ '<p id="status">Connecting to your server…</p><script>'+
+ "(async()=>{const say=t=>{document.getElementById('status').textContent=t};"+
+ "if(!('serviceWorker' in navigator)){say('This browser cannot open Yarr Media. Try Chrome, Edge, Firefox or Safari (not a private window).');return}"+
+ "try{const r=await fetch('/__yarr/connection',{cache:'no-store'});const j=await r.json().catch(()=>({}));"+
+ "if(!r.ok){if(j.redirect){location.replace(j.redirect);return}say(j.message||'Your server is not available right now.');return}"+
+ "await navigator.serviceWorker.register('/__yarr/sw.js',{scope:'/'});await navigator.serviceWorker.ready;"+
+ "const tries=Number(sessionStorage.getItem('yarr-sw-tries')||0);if(tries>2){say('Could not start the app in this browser.');return}sessionStorage.setItem('yarr-sw-tries',String(tries+1));"+
+ "if(navigator.serviceWorker.controller)location.reload();else navigator.serviceWorker.addEventListener('controllerchange',()=>location.reload(),{once:true});"+
+ "}catch(e){say('Could not connect: '+(e&&e.message||e))}})();"+
+ '</script></body></html>';
+const APP_START_HEADERS = {'content-type':'text/html; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'same-origin',
+ 'content-security-policy':"default-src 'none'; script-src 'unsafe-inline'; connect-src 'self'; worker-src 'self'; img-src https://yarr.media; base-uri 'none'; frame-ancestors 'none'"};
+
+async function appServerFor(env,user) {
+ // Owner-only for now: the most recently seen paired server on the account.
+ return env.ACCOUNTS.prepare("SELECT id,server_identity,public_url,public_ip,display_name FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL ORDER BY (last_seen_at IS NULL),last_seen_at DESC,created_at DESC LIMIT 1").bind(user.id).first();
+}
+async function appConnection(req,env,u) {
+ const user=await currentUser(req,env);
+ const back=u.searchParams.get('path')||'/';
+ if(!user)return json({error:'signin',redirect:ACCOUNTS_SITE+'/auth/google/start?return='+encodeURIComponent('/open-app'+(back!=='/'?'?path='+encodeURIComponent(back):''))},401);
+ const server=await appServerFor(env,user);
+ if(!server)return json({error:'no_server',message:'No server is linked to this account yet.',redirect:ACCOUNTS_SITE+'/'},404);
+ const origin=serverOrigin(env,server);
+ if(!origin)return json({error:'no_address',message:'Your server has not reported its address yet. Make sure it is on and paired, then try again in a minute.'},409);
+ const result=await issuePass(env,user,server);
+ if(result.error==='pro_required')return json({error:'pro_required',message:'Watching away from home needs Pro.',redirect:ACCOUNTS_SITE+'/?remote=pro_required'},402);
+ if(result.error)return json({error:result.error,message:'Remote access is not available right now.'},result.status);
+ return json({server_origin:origin,server_name:server.display_name,pass:result.pass,expires_at:result.expires_at});
+}
+async function appHostRoutes(req,env,u) {
+ const p=u.pathname,m=req.method;
+ if(p==='/__yarr/sw.js'&&m==='GET')return new Response(APP_SW_SOURCE,{headers:{'content-type':'text/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
+ if(p==='/__yarr/connection'&&m==='GET')return appConnection(req,env,u);
+ if(p.startsWith('/__yarr/'))return json({error:'not_found'},404);
+ if(p==='/account'||p.startsWith('/account/')||p.startsWith('/auth/'))return redirect(ACCOUNTS_SITE+p+u.search);
+ // Without the service worker yet (first visit, or a cleared browser): start it.
+ if(m==='GET'||m==='HEAD'){
+  if(!await currentUser(req,env))return redirect(ACCOUNTS_SITE+'/auth/google/start?return='+encodeURIComponent('/open-app'+(p!=='/'?'?path='+encodeURIComponent(p+u.search):'')));
+  return new Response(m==='HEAD'?null:APP_START_PAGE,{headers:APP_START_HEADERS});
+ }
+ return json({error:'app_not_started'},409);
+}
+
 // Routes added by this section. Returns null when the request is not ours.
 async function accountsV2Routes(req,env,u) {
  const m=req.method,p=u.pathname;
  if(p==='/activate'&&u.hostname!=='accounts.yarr.media'&&!HOST_ONLY_SITES.has(u.origin))return redirect(ACCOUNTS_SITE+'/activate'+u.search);
+ if(m==='GET'&&p==='/open-app'&&!HOST_ONLY_SITES.has(u.origin)){
+  const path=u.searchParams.get('path')||'/';
+  return redirect(APP_SITE+(/^\/[A-Za-z0-9/._~%?=&-]{0,300}$/.test(path)&&!path.startsWith('//')?path:'/'));
+ }
  if(m==='GET'&&p==='/activate')return activatePage(req,env);
  if(m==='POST'&&p==='/activate')return activateDecision(req,env);
  if(m==='POST'&&p==='/api/device/code')return deviceCodeStart(req,env);
@@ -1280,14 +1429,9 @@ export default { async fetch(req,env) {
   const accountsV2=await accountsV2Routes(req,env,u);
   if(accountsV2)return accountsV2;
   // Dedicated app and account hosts share an authenticated first-party session.
-  if(u.hostname==='app.yarr.media'){
-    if(u.pathname==='/app')return redirect('/');
-    if(u.pathname==='/account'||u.pathname.startsWith('/account/')||u.pathname.startsWith('/auth/'))return redirect(ACCOUNTS_SITE+u.pathname+u.search);
-    if((req.method==='GET'||req.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html')){
-      if(!await currentUser(req,env))return redirect(ACCOUNTS_SITE+'/account');
-      return proxyInstalledApp(req,env,'/');
-    }
-  }
+  // app.yarr.media: starter page + service worker; the app itself comes from
+  // the owner's own server (see appHostRoutes).
+  if(u.hostname==='app.yarr.media')return appHostRoutes(req,env,u);
   if(u.hostname==='accounts.yarr.media'){
     if(req.method==='GET'&&u.pathname==='/account')return redirect('/'+u.search);
     // The account dashboard is the homepage of the accounts subdomain.

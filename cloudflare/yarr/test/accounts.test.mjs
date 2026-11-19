@@ -303,3 +303,63 @@ test('daily cleanup removes only expired rows', async()=>{
  assert.equal(db.prepare("SELECT device_code_hash FROM device_login_requests").get().device_code_hash,'c');
  assert.equal(db.prepare("SELECT ip_hash FROM pairing_rate_limits").get().ip_hash,'y');
 });
+
+test('servers record the public IP they check in from', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
+ const user=await signedInUser(env);
+ const server=pairedServer(env,user.id);
+ const secret='s'.repeat(48);
+ env.ACCOUNTS.raw.prepare("UPDATE servers SET connection_secret_hash=? WHERE id=?").run(await digest(secret),server.id);
+ const beat=ip=>request(worker,env,'POST',PUB+'/api/connection/heartbeat',{headers:{authorization:'Bearer '+secret,'cf-connecting-ip':ip}});
+ assert.equal((await beat('76.183.183.204')).status,200);
+ assert.equal(env.ACCOUNTS.raw.prepare("SELECT public_ip FROM servers").get().public_ip,'76.183.183.204');
+ await beat('192.168.1.20');
+ await beat('2001:db8::1');
+ assert.equal(env.ACCOUNTS.raw.prepare("SELECT public_ip FROM servers").get().public_ip,'76.183.183.204','private and IPv6 addresses are not stored');
+});
+
+test('app.yarr.media: starter page, service worker and connection', async()=>{
+ const worker=await loadWorker();
+ const env=makeEnv({PASS_SIGNING_KEY:JSON.stringify(await newPassKey('k-app'))});
+ const APP='https://app.yarr.media';
+ // Signed out: sent to sign-in, and back to the same page afterwards.
+ const out=await request(worker,env,'GET',APP+'/movies?x=1');
+ assert.equal(out.headers.get('location'),ACC+'/auth/google/start?return='+encodeURIComponent('/open-app?path='+encodeURIComponent('/movies?x=1')));
+ const back=await request(worker,env,'GET',ACC+'/open-app?path='+encodeURIComponent('/movies?x=1'));
+ assert.equal(back.headers.get('location'),APP+'/movies?x=1');
+ assert.equal((await request(worker,env,'GET',ACC+'/open-app?path=//evil.example')).headers.get('location'),APP+'/');
+
+ const user=await signedInUser(env);
+ const page=await request(worker,env,'GET',APP+'/',{headers:{cookie:user.cookie}});
+ assert.equal(page.status,200);
+ assert.match(await page.text(),/serviceWorker\.register\('\/__yarr\/sw\.js'/);
+ assert.match(page.headers.get('content-security-policy'),/worker-src 'self'/);
+ const sw=await request(worker,env,'GET',APP+'/__yarr/sw.js');
+ assert.equal(sw.headers.get('service-worker-allowed'),'/');
+ const swText=await sw.text();
+ assert.match(swText,/Yarr-Pass/);
+ new Function(swText); // valid JavaScript
+
+ const conn=()=>request(worker,env,'GET',APP+'/__yarr/connection',{headers:{cookie:user.cookie}});
+ assert.equal((await conn()).status,404,'no server yet');
+ const server=pairedServer(env,user.id);
+ assert.equal((await conn()).status,409,'no address yet');
+ env.ACCOUNTS.raw.prepare("UPDATE servers SET public_ip='76.183.183.204'").run();
+ const noPro=await conn();
+ assert.equal(noPro.status,402);
+ assert.equal((await noPro.json()).redirect,ACC+'/?remote=pro_required');
+ env.ACCOUNTS.raw.prepare("INSERT INTO subscriptions(id,user_id,status,provider) VALUES('m',?,'active','manual')").run(user.id);
+ const ok=await (await conn()).json();
+ assert.equal(ok.server_origin,'https://76-183-183-204.sslip.io');
+ const keys=await (await request(worker,env,'GET',PUB+'/api/passes/keys')).json();
+ const {ok:valid,claims}=await verifyPass(ok.pass,keys.keys[0]);
+ assert.ok(valid);
+ assert.equal(claims.aud,server.identity);
+ // A custom address wins over the automatic one.
+ env.ACCOUNTS.raw.prepare("UPDATE servers SET public_url='https://media.example.net'").run();
+ assert.equal((await (await conn()).json()).server_origin,'https://media.example.net');
+ // Signed-out connection requests explain where to sign in.
+ const anon=await request(worker,env,'GET',APP+'/__yarr/connection');
+ assert.equal(anon.status,401);
+ assert.match((await anon.json()).redirect,/\/auth\/google\/start\?return=%2Fopen-app/);
+});
