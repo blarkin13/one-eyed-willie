@@ -1,70 +1,86 @@
-"""Verify the precision YarrMedia launcher keeps the original user-approved lettering."""
+"""Google TV uses the approved YarrMedia SVG via adaptive and density-aware icons."""
 from pathlib import Path
 import struct
 import unittest
 import xml.etree.ElementTree as ET
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parent
 ANDROID = ROOT / "google-tv/app/src/main"
+RES = ANDROID / "res"
 MANIFEST = ANDROID / "AndroidManifest.xml"
-ICON = ANDROID / "res/drawable-nodpi/yarrmedia_launcher.png"
-ICON_SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher.svg"
-PRECISION_ICON_SOURCE = ROOT / "google-tv/artwork/yarrmedia_launcher_precision.svg"
-BANNER = ANDROID / "res/drawable-nodpi/yarr_tv_banner.png"
-ORIGINAL_ICON = ANDROID / "res/drawable-nodpi/yarr_media_launcher.png"
-ORIGINAL_VECTOR = ANDROID / "res/drawable/yarr_media_launcher_vector.xml"
+MASTER = ROOT / "google-tv/artwork/yarrmedia_launcher_precision.svg"
+ADAPTIVE = RES / "mipmap-anydpi-v26/yarrmedia_launcher.xml"
+FOREGROUND = RES / "drawable/yarrmedia_launcher_foreground.xml"
+BACKGROUND = RES / "values/yarrmedia_launcher_colors.xml"
+BANNER = RES / "drawable-nodpi/yarr_tv_banner.png"
+ANDROID_NS = "{http://schemas.android.com/apk/res/android}"
+DENSITIES = {"mdpi": 80, "hdpi": 120, "xhdpi": 160,
+             "xxhdpi": 240, "xxxhdpi": 320}
 
 
-class LauncherArtworkTests(unittest.TestCase):
-    def test_tv_launcher_uses_approved_image_and_exact_name(self):
+class GoogleTvLauncherTests(unittest.TestCase):
+    def test_manifest_uses_android_standard_launcher_resources(self):
         manifest = MANIFEST.read_text()
         self.assertIn('android:label="YarrMedia"', manifest)
-        self.assertIn('android:icon="@drawable/yarrmedia_launcher"', manifest)
-        self.assertIn('android:roundIcon="@drawable/yarrmedia_launcher"', manifest)
+        self.assertIn('android:icon="@mipmap/yarrmedia_launcher"', manifest)
+        self.assertIn('android:roundIcon="@mipmap/yarrmedia_launcher"', manifest)
         self.assertIn('android:banner="@drawable/yarr_tv_banner"', manifest)
-        self.assertNotIn('android:icon="@drawable/yarr_tv_crisp_icon"', manifest)
+        self.assertNotIn('android:icon="@drawable/yarrmedia_launcher"', manifest)
 
-    def test_launcher_raster_from_precision_svg_is_rgba_and_square(self):
+    def test_adaptive_icon_has_independent_foreground_background(self):
+        root = ET.parse(ADAPTIVE).getroot()
+        self.assertEqual(root.tag, "adaptive-icon")
+        children = {child.tag: child.attrib[ANDROID_NS + "drawable"] for child in root}
+        self.assertEqual(children, {
+            "background": "@color/yarrmedia_launcher_background",
+            "foreground": "@drawable/yarrmedia_launcher_foreground",
+        })
+        background = ET.parse(BACKGROUND).getroot()
+        self.assertEqual(background.find("color").attrib["name"], "yarrmedia_launcher_background")
+        self.assertEqual(background.find("color").text, "#FFFFFF")
+
+    def test_foreground_keeps_the_original_four_color_brand(self):
+        vector = ET.parse(FOREGROUND).getroot()
+        self.assertEqual(vector.tag, "vector")
+        self.assertEqual(vector.attrib[ANDROID_NS + "viewportWidth"], "2048")
+        self.assertEqual(vector.attrib[ANDROID_NS + "viewportHeight"], "2048")
+        group = vector.find("group")
+        self.assertIsNotNone(group)
+        self.assertEqual(group.attrib[ANDROID_NS + "scaleX"], "0.84")
+        self.assertEqual(group.attrib[ANDROID_NS + "scaleY"], "0.84")
+        paths = {p.attrib[ANDROID_NS + "name"]: p for p in group.findall("path")}
+        self.assertEqual(set(paths), {"sail", "wave", "yarr", "dot", "media"})
+        self.assertEqual({p.attrib[ANDROID_NS + "fillColor"] for p in paths.values()},
+                         {"#000000", "#9B9B9B", "#A61E1E"})
+        for name in ("yarr", "media"):
+            self.assertEqual(paths[name].attrib[ANDROID_NS + "fillType"], "evenOdd")
+        self.assertGreater(len(paths["sail"].attrib[ANDROID_NS + "pathData"]), 300)
+
+    def test_density_assets_render_directly_from_vector_and_are_transparent(self):
         from PIL import Image
-        with Image.open(ICON) as image:
-            self.assertEqual(image.format, "PNG")
-            self.assertEqual(image.size, (1024, 1024))
-            self.assertEqual(image.mode, "RGBA")
-            self.assertEqual(image.getpixel((0, 0))[3], 0)
-            self.assertEqual(image.getpixel((1023, 1023))[3], 0)
-            self.assertEqual(image.getpixel((800, 540)), (166, 30, 30, 255))
-            self.assertEqual(image.getpixel((460, 616)), (155, 155, 155, 255))
-            self.assertEqual(image.getpixel((512, 50)), (255, 255, 255, 255))
-        self.assertLess(ICON.stat().st_size, 300_000)
+        for density, pixels in DENSITIES.items():
+            with self.subTest(density=density):
+                path = RES / f"mipmap-{density}/yarrmedia_launcher.png"
+                with Image.open(path) as image:
+                    self.assertEqual(image.size, (pixels, pixels))
+                    self.assertEqual(image.mode, "RGBA")
+                    self.assertEqual(image.getpixel((0, 0))[3], 0)
+                    self.assertEqual(image.getpixel((pixels-1, pixels-1))[3], 0)
+                    self.assertEqual(image.getpixel((pixels//2, pixels//4)),
+                                     (255, 255, 255, 255))
+                    # Text's red is opaque in each device-density icon.
+                    self.assertTrue(any(r > 110 and r - g > 70 and b < 90 and a >= 170
+                                        for _, (r, g, b, a) in image.getcolors(pixels*pixels) or []))
 
-    def test_precision_vector_keeps_original_lettering_and_four_colors(self):
-        root = ET.parse(PRECISION_ICON_SOURCE).getroot()
-        self.assertEqual(root.attrib["viewBox"], "0 0 2048 2048")
-        fills = {part.attrib.get("fill") for part in root} - {None}
-        self.assertEqual(fills, {"#FFFFFF", "#000000", "#9B9B9B", "#A61E1E"})
-        self.assertLess(len(list(root)), 15)
-        identifiers = {part.attrib.get("id") for part in root}
-        for required in ("sail", "wave", "yarr", "dot", "media"):
-            self.assertIn(required, identifiers)
-
-    def test_original_svg_is_preserved_with_crimson_wordmark(self):
-        source = ICON_SOURCE.read_text()
-        root = ET.fromstring(source)
-        self.assertEqual(root.attrib["viewBox"], "0 0 3600 3600")
-        colors = {path.attrib.get("fill") for path in root}
-        self.assertEqual(
-            colors,
-            {"rgb(181,177,177)", "#A61E1E", "rgb(255,255,255)", "rgb(0,0,0)"},
-        )
-        self.assertGreater(source.count('fill="#A61E1E"'), 70)
-
-    def test_banner_and_loading_screen_unchanged(self):
-        data = BANNER.read_bytes()
-        self.assertTrue(data.startswith(bytes.fromhex("89504e470d0a1a0a")))
-        self.assertEqual(struct.unpack(">II", data[16:24]), (1280, 720))
-        self.assertTrue(ORIGINAL_ICON.exists())
-        self.assertTrue(ORIGINAL_VECTOR.exists())
-        self.assertTrue((ANDROID / "res/drawable-nodpi/tv_loading_screen.png").exists())
+    def test_source_and_tv_banner_are_preserved(self):
+        svg = MASTER.read_text()
+        self.assertIn('id="sail"', svg)
+        self.assertIn('id="media"', svg)
+        self.assertIn('fill="#A61E1E"', svg)
+        banner_bytes = BANNER.read_bytes()
+        self.assertTrue(banner_bytes.startswith(bytes.fromhex("89504e470d0a1a0a")))
+        self.assertEqual(struct.unpack(">II", banner_bytes[16:24]), (1280, 720))
+        self.assertTrue((RES / "drawable-nodpi/tv_loading_screen.png").is_file())
 
 
 if __name__ == "__main__":
