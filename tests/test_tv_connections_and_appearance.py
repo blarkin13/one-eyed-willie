@@ -6,6 +6,7 @@ SERVER=Path(__file__).resolve().parents[1]/"server"
 HUB=(SERVER/"connections_hub.html").read_text()
 TV=(SERVER/"tv_settings.html").read_text()
 MANAGER=(SERVER/"manager_dashboard.html").read_text()
+SHELL=(SERVER/"shell.js").read_text()
 
 
 class TvConnectionsAndAppearanceTests(unittest.TestCase):
@@ -21,6 +22,10 @@ class TvConnectionsAndAppearanceTests(unittest.TestCase):
         self.assertIn("outline:2px solid var(--oew-tv-select-color,#A61E1E)!important", HUB)
         self.assertIn("border-color:var(--oew-tv-select-color,#A61E1E)!important", HUB)
         self.assertIn("serviceLogo(service)", HUB)
+
+    def test_connection_dashboards_keep_active_sidebar_icon(self):
+        self.assertIn("'radarr','sonarr','sabnzbd'", SHELL)
+        self.assertIn("?'connections':inSettings?'settings':page", SHELL)
 
     def test_manager_dashboard_has_service_brand_logo(self):
         self.assertIn('id="manager-logo"', MANAGER)
