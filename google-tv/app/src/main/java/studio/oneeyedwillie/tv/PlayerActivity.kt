@@ -197,7 +197,7 @@ class PlayerActivity : ComponentActivity() {
             try {
                 request("/api/home/continue/$mediaId/start", "POST")
             } catch (error: Exception) {
-                Log.w("YarrMedia", "Could not restore Continue Watching entry", error)
+                Log.w("OneEyedWillie", "Could not restore Continue Watching entry", error)
             }
         }
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
@@ -717,7 +717,7 @@ class PlayerActivity : ComponentActivity() {
         val position = currentPosition()
         val action = PlaybackRecovery.decide(error.errorCode, hlsMode, recoveryAttempts, fallbackStarted)
         NavTrace.log { "PLAYER_ERROR code=${error.errorCodeName} hls=$hlsMode attempts=$recoveryAttempts action=$action" }
-        Log.w("YarrMedia", "Player error ${error.errorCodeName} (hls=$hlsMode): ${error.message}")
+        Log.w("OneEyedWillie", "Player error ${error.errorCodeName} (hls=$hlsMode): ${error.message}")
         when (action) {
             RecoveryAction.RETRY_SAME_SOURCE -> {
                 val attempt = ++recoveryAttempts
@@ -1601,7 +1601,7 @@ class PlayerActivity : ComponentActivity() {
                 // request body or the user's server URL.
                 val kind = error.javaClass.simpleName
                 lastFailure = if (kind.isNotEmpty()) kind else "Network error"
-                Log.w("YarrMedia", "Progress POST attempt ${attempt + 1} failed: $lastFailure: ${error.message}", error)
+                Log.w("OneEyedWillie", "Progress POST attempt ${attempt + 1} failed: $lastFailure: ${error.message}", error)
                 if (error !is java.io.IOException) break
             }
         }
@@ -1637,7 +1637,7 @@ class PlayerActivity : ComponentActivity() {
             } else {
                 // Network failures should not cover a still-playing video.
                 // The next heartbeat (or next launch) retries the saved point.
-                Log.w("YarrMedia", "Playback checkpoint queued locally: $failure")
+                Log.w("OneEyedWillie", "Playback checkpoint queued locally: $failure")
             }
         }
     }
