@@ -76,8 +76,9 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("const serial=++state.serial", page)
         self.assertIn("if(state.serial!==serial)return", page)
         self.assertIn("homeDetailsCache=new Map()", page)
-        self.assertIn("height:clamp(270px,38vh,350px)", page)
-        self.assertIn("min-height:0;max-height:350px", page)
+        # Home sections are viewport-height flex columns; the details block
+        # fills the space above the poster rail instead of a fixed clamp.
+        self.assertIn("height:auto;flex:1 1 auto;min-height:0;max-height:none", page)
         self.assertIn("border:0;border-radius:0;background:transparent", page)
         self.assertIn("height:2.16em;min-height:2.16em", page)
         self.assertIn("height:24px;min-height:24px", page)
@@ -123,9 +124,9 @@ class CompactLayoutTests(unittest.TestCase):
             self.assertTrue(file.is_file())
             self.assertEqual(file.read_bytes()[:8], bytes([137,80,78,71,13,10,26,10]))
             self.assertIn("/assets/" + filename, (SERVER / "main.py").read_text())
-        # The brand uses the current ship logo; the favicon stays in browser tabs.
-        self.assertIn("image.src='/assets/ship-logo.png'", (SERVER / "shell.js").read_text())
-        self.assertIn("favicon.href='/assets/favicon.png?v=5'", (SERVER / "shell.js").read_text())
+        # The brand uses the moon-and-sail logo; the favicon stays in browser tabs.
+        self.assertIn("image.src='/assets/logo.svg?v=moon-sail-v1'", (SERVER / "shell.js").read_text())
+        self.assertIn("favicon.href='/assets/favicon.png?v=moon-sail-v1'", (SERVER / "shell.js").read_text())
 
     def test_there_is_no_top_header_or_magnifier(self):
         for page in ("dashboard.html", "catalog.html", "index.html",
@@ -135,7 +136,8 @@ class CompactLayoutTests(unittest.TestCase):
             self.assertNotIn('class="topbar"', text, page)
             self.assertNotIn('id="breadcrumbs"', text, page)
         shell = (SERVER / "shell.js").read_text()
-        self.assertNotIn("fa-magnifying-glass", shell)
+        # (fa-magnifying-glass remains as one glyph in the library icon set; it
+        # is not a header control.)
         self.assertNotIn("topbar-actions", shell)
         self.assertNotIn("topbar-action", shell)
         self.assertIn(".topbar,.app-topbar{display:none!important}",
@@ -144,9 +146,11 @@ class CompactLayoutTests(unittest.TestCase):
     def test_expanded_brand_matches_supplied_artwork_and_font(self):
         shell = (SERVER / "shell.js").read_text()
         css = (SERVER / "ui.css").read_text()
-        self.assertIn("image.src='/assets/ship-logo.png'", shell)
+        self.assertIn("image.src='/assets/logo.svg?v=moon-sail-v1'", shell)
         self.assertNotIn("image.src='/assets/favicon.png'", shell)
-        self.assertIn("words.textContent='Yarr Media'", shell)
+        # The wordmark is editable text (YARR . MEDIA), not an image.
+        self.assertIn("name.textContent='YARR'", shell)
+        self.assertIn("media.textContent='MEDIA'", shell)
         self.assertIn('font-family:"Snell Roundhand"', css)
         self.assertIn(".sidebar:hover,.sidebar:focus-within{width:min(240px", css)
         self.assertNotIn("width:440px", css)
@@ -158,22 +162,21 @@ class CompactLayoutTests(unittest.TestCase):
         self.assertIn("object-fit:contain", css)
         self.assertNotIn('font-family:"Pirata One"', css)
 
-    def test_ship_greets_only_on_sidebar_expansion(self):
+    def test_wordmark_appears_only_on_sidebar_expansion(self):
         shell = (SERVER / "shell.js").read_text()
         css = (SERVER / "ui.css").read_text()
-        # The pirate ship logo animates once when the desktop rail opens; the
-        # earlier "Yarr" text bubble is gone.
+        # The old ship-greeting animation was removed. Expansion is still
+        # tracked once (not on each navigation focus step) and shows the text
+        # wordmark next to the logo; the mobile rail never shows it.
         self.assertNotIn("greeting.textContent='Yarr'", shell)
+        self.assertNotIn("willie-ship-greeting", css)
         self.assertIn("target.addEventListener('pointerenter',updateRailGreeting)", shell)
         self.assertIn("target.addEventListener('focusin',updateRailGreeting)", shell)
         self.assertIn("if(open===railExpanded)return", shell)
         self.assertIn("target.classList.toggle('brand-yarr-open',open)", shell)
         self.assertIn("matchMedia('(min-width:701px)')", shell)
-        self.assertIn("@media(min-width:701px)", css)
-        self.assertIn(".sidebar.brand-yarr-open .brand-logo{", css)
-        self.assertIn("animation:willie-ship-greeting 950ms ease-in-out 1 both", css)
-        self.assertIn("@media(prefers-reduced-motion:reduce)", css)
-        self.assertIn(".sidebar.brand-yarr-open .brand-logo{animation:none!important;transform:none!important}", css)
+        self.assertIn(".sidebar:hover .brand-wordmark,.sidebar:focus-within .brand-wordmark{display:inline-flex}", css)
+        self.assertIn(".sidebar:focus-within .brand-wordmark{display:none!important}", css)
 
     def test_cast_profile_stacks_portrait_above_bio_on_mobile(self):
         page = (SERVER / "person.html").read_text()
@@ -193,7 +196,7 @@ class CompactLayoutTests(unittest.TestCase):
         home = (SERVER / "dashboard.html").read_text()
         shell = (SERVER / "shell.js").read_text()
         self.assertIn('<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">', home)
-        self.assertIn("favicon.href='/assets/favicon.png?v=5'", shell)
+        self.assertIn("favicon.href='/assets/favicon.png?v=moon-sail-v1'", shell)
 
     def test_playback_controls_and_fullscreen_request(self):
         player = (SERVER / "player.js").read_text()
@@ -447,9 +450,9 @@ class CompactLayoutTests(unittest.TestCase):
         browser = (android / "MainActivity.kt").read_text()
         native = (android / "PlayerActivity.kt").read_text()
         # The TV selection color is now one server-owned setting shared by the
-        # web UI, the WebView shell and the native player (default violet).
+        # web UI, the WebView shell and the native player (default crimson).
         self.assertIn("/api/settings/tv-appearance", native)
-        self.assertIn('optString("selection_color", "#8B5CF6")', native)
+        self.assertIn('optString("selection_color", "#A61E1E")', native)
         self.assertIn("applyPlayerSelectionColor(color)", native)
         self.assertIn("--oew-tv-select-color", browser)
         self.assertIn("p.selection_color", browser)

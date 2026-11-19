@@ -41,19 +41,15 @@ class IntegrationLogoTests(unittest.TestCase):
                 if tag == "nav":
                     self.in_nav = False
 
+        # The SABnzbd/Radarr/Sonarr tab row was removed from the manager
+        # dashboards: they are reached from Integrations instead.
         for filename in ("manager_dashboard.html", "sab_dashboard.html"):
             content = (ROOT / filename).read_text()
             parsed = ServiceTabs()
             parsed.feed(content)
-            self.assertEqual(parsed.links, ["/sabnzbd", "/radarr", "/sonarr"], filename)
-            self.assertEqual(parsed.logos, [
-                "/assets/brand/sabnzbd.svg",
-                "/assets/brand/radarr.svg",
-                "/assets/brand/sonarr.svg",
-            ], filename)
+            self.assertEqual(parsed.links, [], filename)
+            self.assertEqual(parsed.logos, [], filename)
             self.assertNotIn("Manage connections", content)
-        css = (ROOT / "ui.css").read_text()
-        self.assertIn(".service-switcher", css)
 
     def test_logo_route_cannot_access_other_files(self):
         for bad in ("../../config", "radarr.svg", "other", "Radarr"):
@@ -62,14 +58,17 @@ class IntegrationLogoTests(unittest.TestCase):
 
     def test_sidebar_and_manager_actions_use_real_logos(self):
         shell = (ROOT / "shell.js").read_text()
-        # The sidebar offers only SABnzbd among the integrations (Radarr and
-        # Sonarr are managed from Settings), drawn with the shared sidebar icon
-        # set; the real brand logos are used on the manager pages below.
-        self.assertIn("{id:'sabnzbd',href:'/sabnzbd',name:'SABnzbd'", shell)
+        # The sidebar has a single Integrations entry (SABnzbd, Radarr and
+        # Sonarr are opened from there); the real brand logos are used on the
+        # integration pages below.
+        self.assertIn("{id:'connections',href:'/integrations',name:'Integrations'", shell)
+        self.assertNotIn("{id:'sabnzbd'", shell)
         self.assertNotIn("{id:'radarr'", shell)
         self.assertNotIn("{id:'sonarr'", shell)
-        for filename in ("manager_dashboard.html", "arr_connections.html",
-                         "services.html"):
+        # The manager dashboard picks its logo by service name at runtime.
+        self.assertIn("assets/brand/", (ROOT / "manager_dashboard.html").read_text())
+        for filename in ("arr_connections.html", "services.html",
+                         "connections_hub.html"):
             page = (ROOT / filename).read_text()
             for brand in ("radarr", "sonarr", "sabnzbd"):
                 self.assertIn(f"/assets/brand/{brand}.svg", page, filename)

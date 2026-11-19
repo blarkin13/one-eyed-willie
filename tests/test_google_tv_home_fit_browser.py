@@ -58,6 +58,8 @@ HOME = dict(
     continue_watching=[item(i, "tv", long=i % 2 == 0, watching=True) for i in range(8)],
     recent_movies=[item(20 + i, "movies", long=i % 3 == 0) for i in range(10)],
     recent_tv=[item(40 + i, "tv") for i in range(10)],
+    # Recent shelves only show for library kinds that are set up.
+    configured_library_kinds=["movies", "tv"],
     revision=1, progress_revision=[])
 DETAILS = dict(title=LONG % 0, summary=SUMMARY, overview=SUMMARY, plot=SUMMARY,
                genres=["Drama", "Thriller", "Crime"], cast=["A. Actor", "B. Actress"],

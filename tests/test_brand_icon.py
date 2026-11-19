@@ -24,8 +24,11 @@ class BrandIconTests(unittest.TestCase):
         self.assertEqual(ico.info["sizes"], {(16, 16), (32, 32), (48, 48), (64, 64)})
 
     def test_android_launcher_uses_same_vector_art(self):
+        # The TV launcher now uses a simplified, crisp icon (see
+        # test_tv_launcher_icon); the full-detail logo vector is kept as a
+        # resource and must still match the site's logo.
         manifest = (ROOT / "google-tv/app/src/main/AndroidManifest.xml").read_text()
-        self.assertIn('android:icon="@drawable/yarr_media_icon"', manifest)
+        self.assertIn('android:icon="@drawable/yarr_tv_crisp_icon"', manifest)
         android = (ROOT / "google-tv/app/src/main/res/drawable/yarr_media_icon.xml").read_text()
         svg = (ROOT / "server/logo.svg").read_text()
         self.assertIn(svg.split('d="M')[1].split('"')[0], android)

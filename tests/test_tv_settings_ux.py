@@ -16,7 +16,7 @@ class TvSettingsUxTests(unittest.TestCase):
     def test_focus_uses_configured_selection_color_not_brightness_alone(self):
         page = self.page
         self.assertIn('html body[data-page="settings"] .tv-playback-settings', page)
-        self.assertIn('outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important',page)
+        self.assertIn('outline:3px solid var(--oew-tv-select-color,#A61E1E)!important',page)
         self.assertIn('.setting-toggle:focus-within',page)
         self.assertIn('grid-template-columns:minmax(0,1fr)',page)
 
@@ -55,7 +55,7 @@ class TvSettingsUxTests(unittest.TestCase):
         self.assertIn('.tv-inline-setting', page)
         self.assertIn('min-height:43px', page)
         self.assertIn('background:linear-gradient', page)
-        self.assertIn('outline:3px solid var(--oew-tv-select-color,#8B5CF6)!important',page)
+        self.assertIn('outline:3px solid var(--oew-tv-select-color,#A61E1E)!important',page)
         self.assertIn('id="tv-save-toast"',page)
 
 
