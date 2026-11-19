@@ -178,20 +178,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Moon and tattered-sail Yarr Media logo, sized as a square alongside icon-set glyphs.
   const logoFrame=document.createElement('span');logoFrame.className='brand-logo-frame';
   logoFrame.setAttribute('aria-hidden','true');
-  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/ship-logo.png?v=moon-sail-v1';
+  const image=document.createElement('img');image.className='brand-logo';image.src='/assets/logo.svg?v=moon-sail-v1';
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
-  const wordmark=document.createElement('img');
+  // Match the public site: editable text, not the legacy decorative image.
+  const wordmark=document.createElement('span');
   wordmark.className='brand-wordmark';
-  wordmark.src='/assets/yarr-media-wordmark.png';
-  wordmark.alt='Yarr.media';
-  wordmark.width=220;wordmark.height=90;
-  // Keep navigation labelled if the brand asset has not been deployed yet.
-  wordmark.onerror=()=>{
-    const fallback=document.createElement('span');
-    fallback.className='brand-name';fallback.textContent='Yarr Media';
-    wordmark.replaceWith(fallback);
-  };
+  wordmark.setAttribute('aria-hidden','true');
+  const name=document.createElement('span');name.className='brand-wordmark-yarr';name.textContent='YARR';
+  const dot=document.createElement('span');dot.className='brand-wordmark-dot';dot.textContent='.';
+  const media=document.createElement('span');media.className='brand-wordmark-media';media.textContent='MEDIA';
+  wordmark.append(name,dot,media);
   brand.append(logoFrame,wordmark);target.append(brand);
 
   // Greet once when the desktop rail opens, not on each navigation focus step.
