@@ -113,6 +113,13 @@ class PlayerActivity : ComponentActivity() {
     private lateinit var adriftBadge: LinearLayout
     private lateinit var adriftTimer: TextView
     private lateinit var adriftBreakdown: TextView
+    // Native Media3 player cannot use the WebView widgets; it reads the same
+    // server settings and data using a small non-focusable overlay.
+    private lateinit var glancePause: LinearLayout
+    private lateinit var glanceClock: TextView
+    private lateinit var glanceWeather: TextView
+    private lateinit var glanceNews: TextView
+    private var glanceClockSettings: JSONObject? = null
     private val iconControls = mutableListOf<ImageButton>()
     // A Select key-down that toggles playback must consume its paired key-up.
     // Otherwise Android can activate a newly focused Back button and exit.
@@ -282,6 +289,40 @@ class PlayerActivity : ComponentActivity() {
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.TOP or Gravity.RIGHT
         ).apply { topMargin = dp(88); rightMargin = dp(32) })
+        glancePause = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(18), dp(13), dp(18), dp(13))
+            background = GradientDrawable().apply {
+                setColor(Color.BLACK)
+                cornerRadius = dp(14).toFloat()
+                setStroke(dp(1), 0x66FFFFFF)
+            }
+            visibility = View.GONE
+            isFocusable = false
+            isClickable = false
+        }
+        fun glanceRow(label: String): TextView = TextView(this).apply {
+            text = label
+            textSize = 16f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(0xFFF0F0F0.toInt())
+            setPadding(0, dp(7), 0, dp(7))
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            visibility = View.GONE
+            isFocusable = false
+            isClickable = false
+        }
+        glanceClock = glanceRow("Clock")
+        glanceWeather = glanceRow("Weather")
+        glanceNews = glanceRow("News")
+        glancePause.addView(glanceClock)
+        glancePause.addView(glanceWeather)
+        glancePause.addView(glanceNews)
+        surface.addView(glancePause, FrameLayout.LayoutParams(
+            dp(390), ViewGroup.LayoutParams.WRAP_CONTENT,
+            Gravity.TOP or Gravity.RIGHT
+        ).apply { topMargin = dp(235); rightMargin = dp(32) })
         thumbnailPreview = PlayerScrubPreview(this, server, mediaId) { currentDuration() }
         surface.addView(thumbnailPreview.view, FrameLayout.LayoutParams(
             dp(280), dp(190), Gravity.BOTTOM or Gravity.CENTER_HORIZONTAL
@@ -333,10 +374,12 @@ class PlayerActivity : ComponentActivity() {
                 override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
                     updatePlaybackScreenAwake()
                     updateAdriftPauseState()
+                    refreshGlancePause()
                 }
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     if (isPlaying) adriftEverPlayed = true
                     updateAdriftPauseState()
+                    refreshGlancePause()
                 }
                 override fun onPlayerError(error: PlaybackException) {
                     updatePlaybackScreenAwake()
@@ -345,6 +388,7 @@ class PlayerActivity : ComponentActivity() {
             })
         }
         loadTimeAdrift()
+        loadGlancePause()
         openMedia()
         applyDefaultSubtitlesForThisTv()
         loadNextEpisode()
@@ -846,6 +890,77 @@ class PlayerActivity : ComponentActivity() {
                else "%d:%02d".format(m,sec)
     }
 
+    private fun refreshGlancePause() {
+        if (!::glancePause.isInitialized) return
+        val shouldShow = visibleForPlayback && adriftEverPlayed && !shuttingDown &&
+            player?.playbackState == Player.STATE_READY && player?.playWhenReady == false &&
+            listOf(glanceClock, glanceWeather, glanceNews).any { it.visibility == View.VISIBLE }
+        glancePause.visibility = if (shouldShow) View.VISIBLE else View.GONE
+        val prefs = glanceClockSettings
+        if (shouldShow && prefs != null && glanceClock.visibility == View.VISIBLE) {
+            val format = if (prefs.optString("clock_format", "12h") == "24h")
+                "HH:mm:ss" else "h:mm:ss a"
+            val zone = prefs.optString("clock_zone", "local")
+            val date = java.text.SimpleDateFormat(format, java.util.Locale.US).apply {
+                if (zone != "local") timeZone = java.util.TimeZone.getTimeZone(zone)
+            }
+            glanceClock.text = "CLOCK  ·  " + date.format(java.util.Date())
+        }
+    }
+
+    private fun loadGlancePause() {
+        lookups.execute {
+            try {
+                val configs = request("/api/glance/settings").optJSONObject("integrations")
+                    ?: return@execute
+                val clock = configs.optJSONObject("clock")
+                val weather = configs.optJSONObject("weather")
+                val news = configs.optJSONObject("news")
+                val clockOn = clock?.optBoolean("enabled", false) == true &&
+                    clock.optBoolean("pause", false)
+                val weatherOn = weather?.optBoolean("enabled", false) == true &&
+                    weather.optBoolean("pause", false)
+                val newsOn = news?.optBoolean("enabled", false) == true &&
+                    news.optBoolean("pause", false)
+                handler.post {
+                    if (shuttingDown) return@post
+                    glanceClockSettings = if (clockOn) clock else null
+                    glanceClock.visibility = if (clockOn) View.VISIBLE else View.GONE
+                    glanceWeather.visibility = if (weatherOn) View.VISIBLE else View.GONE
+                    glanceNews.visibility = if (newsOn) View.VISIBLE else View.GONE
+                    if (weatherOn) glanceWeather.text = "WEATHER  ·  Loading forecast…"
+                    if (newsOn) glanceNews.text = "NEWS  ·  Loading headlines…"
+                    refreshGlancePause()
+                }
+                if (weatherOn) {
+                    val summary = try {
+                        val data = request("/api/glance/weather")
+                        "WEATHER  ·  " + data.optString("period", "Forecast").take(35) +
+                            "  " + data.optInt("temperature") + "°" +
+                            data.optString("unit", "F") + "\n" +
+                            data.optString("conditions").take(80)
+                    } catch (_: Exception) { "WEATHER  ·  Forecast unavailable or ZIP not set" }
+                    handler.post {
+                        if (!shuttingDown) { glanceWeather.text = summary; refreshGlancePause() }
+                    }
+                }
+                if (newsOn) {
+                    val summary = try {
+                        val data = request("/api/glance/news")
+                        "NEWS · " + data.optString("source", "Headlines") + "\n" +
+                            (data.optJSONArray("headlines")?.optJSONObject(0)
+                                ?.optString("title", "") ?: "No headlines").take(125)
+                    } catch (_: Exception) { "NEWS  ·  Headlines unavailable" }
+                    handler.post {
+                        if (!shuttingDown) { glanceNews.text = summary; refreshGlancePause() }
+                    }
+                }
+            } catch (_: Exception) {
+                // Failure must never interfere with playback.
+            }
+        }
+    }
+
     private fun adriftLivePause(): Double =
         if (adriftPauseSince > 0L)
             ((android.os.SystemClock.elapsedRealtime() - adriftPauseSince).coerceAtLeast(0L) / 1000.0)
@@ -924,6 +1039,7 @@ class PlayerActivity : ComponentActivity() {
 
     private fun refreshControls() {
         renderTimeAdrift()
+        refreshGlancePause()
         if(!::timeline.isInitialized) return
         val duration = currentDuration()
         val position = currentPosition().coerceAtMost(if(duration>0)duration else Double.MAX_VALUE)
@@ -1810,6 +1926,7 @@ class PlayerActivity : ComponentActivity() {
         seekCommit = null
         if (::thumbnailPreview.isInitialized) thumbnailPreview.hide()
         stopAdriftPause()
+        if (::glancePause.isInitialized) glancePause.visibility = View.GONE
         saveProgress(false)
         player?.pause()
         super.onStop()
@@ -1820,6 +1937,7 @@ class PlayerActivity : ComponentActivity() {
         visibleForPlayback = true
         updatePlaybackScreenAwake()
         updateAdriftPauseState()
+        refreshGlancePause()
         if (player != null) {
             handler.removeCallbacks(checkpoint)
             handler.postDelayed(checkpoint, 15_000)
