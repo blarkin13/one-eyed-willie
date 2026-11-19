@@ -56,7 +56,7 @@ def _call(path, *, token=None, query=None):
     request = urllib.request.Request(
         url,
         headers={"Authorization": "Bearer " + bearer,
-                 "Accept": "application/json", "User-Agent": "OneEyedWillie/0.6"},
+                 "Accept": "application/json", "User-Agent": "YarrMedia/0.6"},
     )
     try:
         with urllib.request.urlopen(request, timeout=6) as response:
@@ -242,7 +242,7 @@ def imdb_details(imdb_id):
         {"apikey": key, "i": imdb_id, "type": "series", "r": "json"}
     )
     try:
-        request = urllib.request.Request(url, headers={"User-Agent": "OneEyedWillie/0.6"})
+        request = urllib.request.Request(url, headers={"User-Agent": "YarrMedia/0.6"})
         with urllib.request.urlopen(request, timeout=4) as response:
             data = json.loads(response.read(100_000))
     except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError, OSError, ValueError):
