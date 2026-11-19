@@ -64,7 +64,7 @@ def _plex_get(url, token, path, params=None):
         "Accept": "application/json",
         "X-Plex-Token": token,
         "X-Plex-Client-Identifier": "one-eyed-willie-plex-import",
-        "User-Agent": "OneEyedWillie/1.0",
+        "User-Agent": "YarrMedia/1.0",
     }
     if start is not None:
         headers["X-Plex-Container-Start"] = str(start)
@@ -94,7 +94,7 @@ def _plex_get(url, token, path, params=None):
             raise HTTPException(502, "Plex redirected the local connection. Check Plex Settings → Network → Secure connections and whether the local server address is correct.") from None
         raise HTTPException(502, "Plex responded with HTTP " + str(error.code) + " while reading its library.") from None
     except (urllib.error.URLError, TimeoutError, OSError) as error:
-        raise HTTPException(502, "Cannot reach Plex from the One-Eyed Willie server. Check that Plex is running, its LAN address and port 32400, and Docker network access.") from None
+        raise HTTPException(502, "Cannot reach Plex from the Yarr Media server. Check that Plex is running, its LAN address and port 32400, and Docker network access.") from None
     except (ValueError, ET.ParseError, KeyError, TypeError):
         raise HTTPException(502, "Plex returned an unreadable library response. Check that the address points to your Plex Media Server.") from None
 
