@@ -1,6 +1,6 @@
-# One-Eyed Willie for Android TV / Google TV
+# Yarr Media for Android TV / Google TV
 
-This is the **actual One-Eyed Willie server interface** running inside a TV-optimized Android WebView—not a separately designed Android catalog. Home, Movies, TV Shows, Explore, details, matching, and Settings are rendered by the server. Layout and branding changes shipped to the server appear in the Android TV app without reimplementing screens.
+This is the **actual Yarr Media server interface** running inside a TV-optimized Android WebView—not a separately designed Android catalog. Home, Movies, TV Shows, Explore, details, matching, and Settings are rendered by the server. Layout and branding changes shipped to the server appear in the Android TV app without reimplementing screens.
 
 The TV launcher icon is derived from the user-provided black-and-white pirate ship PNG. The image is bundled locally so the launcher works offline.
 
