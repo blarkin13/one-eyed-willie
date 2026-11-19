@@ -1,27 +1,30 @@
 # At a Glance – optional Yarr Media integrations
 
-**Clock**, **Weather**, and **News** are independent first-party integrations.
-All three are **disabled by default**. Each has four saved switches:
-Enable integration, display on Home, display when the player is paused,
-and display on the idle screen. Turning a widget off does not change the
-other widgets. The existing *Show in Integrations* preference hides its
-tile without disabling the widget.
+**Clock**, **Weather**, and **News** are independent first-party integrations,
+all **disabled by default**. Each has four saved switches: enable the integration,
+display on Home, display when the player is paused, and display on Idle.
+**Ambient Display** is a fourth integration with a separate master on/off
+switch and inactivity timeout (1, 2, 5, or 10 minutes); it defaults on but
+has no effect unless a widget is enabled for Idle. Turning Ambient Display
+off does not affect Home or Pause. The existing *Show in Integrations*
+preference hides a tile without disabling its integration.
 
 ## Setup
 
 1. Open **Settings → Integrations** on the Yarr Media server.
 2. Expand Clock, Weather or News and enable it. Choose Home, Paused player
    and/or Idle screen independently.
-3. Clock: select 12h/24h and device-local or a named time zone.
-4. Weather: provide a five-digit **United States ZIP code**.
-5. News: choose **NPR News** or **BBC News**.
-6. You can also switch each widget on/off immediately on the
+3. Ambient Display: optionally disable the screensaver or choose its timeout.
+4. Clock: select 12h/24h and device-local or a named time zone.
+5. Weather: provide a five-digit **United States ZIP code**.
+6. News: choose **NPR News** or **BBC News**.
+7. You can also switch each integration on/off immediately on the
    **Integrations** hub without changing its placement preferences.
 
 The Home screen shows a compact strip only for enabled Home widgets.
 The browser and native Android TV players display pause widgets only
-while the video is paused. The idle display appears after 120 seconds of
-inactivity, can be dismissed with a key or pointer, and does not appear
+while the video is paused. The idle display appears after the configured inactivity timeout
+(default: 120 seconds), can be dismissed with a key or pointer, and does not appear
 while a video is playing, a dialog is open or a text field is being edited.
 The TV native player reads settings on opening a video; reopen it for changes.
 
