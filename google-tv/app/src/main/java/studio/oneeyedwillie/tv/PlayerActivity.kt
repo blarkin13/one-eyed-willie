@@ -110,7 +110,9 @@ class PlayerActivity : ComponentActivity() {
     private var adriftPauseSince = 0L
     private var adriftSeekOrigin: Double? = null
     private var adriftEverPlayed = false
-    private lateinit var adriftBadge: TextView
+    private lateinit var adriftBadge: LinearLayout
+    private lateinit var adriftTimer: TextView
+    private lateinit var adriftBreakdown: TextView
     private val iconControls = mutableListOf<ImageButton>()
     // A Select key-down that toggles playback must consume its paired key-up.
     // Otherwise Android can activate a newly focused Back button and exit.
@@ -229,20 +231,53 @@ class PlayerActivity : ComponentActivity() {
         surface.addView(chrome, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
-        adriftBadge = TextView(this).apply {
-            textSize = 15f
-            setTextColor(0xFFF4F0E8.toInt())
-            setPadding(dp(18), dp(12), dp(18), dp(12))
-            setBackgroundDrawable(GradientDrawable().apply {
-                setColor(0xE60B121B.toInt())
-                cornerRadius = dp(12).toFloat()
-                setStroke(dp(1), 0x665F7081)
-            })
+        // Three separate text views keep the hierarchy readable at TV distance.
+        // Do not build this badge with escaped newline text: Android will display
+        // literal backslash-n in the native player.
+        adriftBadge = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
             gravity = Gravity.END
+            setPadding(dp(20), dp(14), dp(20), dp(14))
+            minimumWidth = dp(295)
+            background = GradientDrawable().apply {
+                setColor(Color.BLACK)
+                cornerRadius = dp(16).toFloat()
+                setStroke(dp(1), 0x66FFFFFF)
+            }
             visibility = View.GONE
             isFocusable = false
             isClickable = false
         }
+        val adriftHeading = TextView(this).apply {
+            text = "TIME ADRIFT"
+            textSize = 15f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            letterSpacing = 0.12f
+            setTextColor(0xFFF1F1F1.toInt())
+            gravity = Gravity.END
+            includeFontPadding = false
+        }
+        adriftTimer = TextView(this).apply {
+            text = "0:00:00"
+            textSize = 34f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(Color.WHITE)
+            gravity = Gravity.END
+            includeFontPadding = false
+        }
+        adriftBreakdown = TextView(this).apply {
+            textSize = 14f
+            typeface = android.graphics.Typeface.DEFAULT_BOLD
+            setTextColor(0xFFD0D0D0.toInt())
+            gravity = Gravity.END
+            includeFontPadding = false
+            maxLines = 1
+        }
+        adriftBadge.addView(adriftHeading)
+        adriftBadge.addView(adriftTimer,
+            LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(4) })
+        adriftBadge.addView(adriftBreakdown,
+            LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(5) })
         surface.addView(adriftBadge, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
             Gravity.TOP or Gravity.RIGHT
@@ -816,6 +851,11 @@ class PlayerActivity : ComponentActivity() {
             ((android.os.SystemClock.elapsedRealtime() - adriftPauseSince).coerceAtLeast(0L) / 1000.0)
         else 0.0
 
+    private fun fmtAdrift(seconds: Double): String {
+        val value = seconds.toLong().coerceAtLeast(0L)
+        return "%d:%02d:%02d".format(value / 3600, value % 3600 / 60, value % 60)
+    }
+
     private fun renderTimeAdrift() {
         if (!::adriftBadge.isInitialized) return
         val display = adriftEnabled && adriftPauseSince > 0L && !shuttingDown
@@ -823,8 +863,9 @@ class PlayerActivity : ComponentActivity() {
         if (!display) return
         val paused = adriftPaused + adriftLivePause()
         val total = paused + adriftRewound
-        adriftBadge.text = "TIME ADRIFT\\n" + fmt(total) +
-            "\\nPaused " + fmt(paused) + " · Rewound " + fmt(adriftRewound)
+        adriftTimer.text = fmtAdrift(total)
+        adriftBreakdown.text = "Paused " + fmtAdrift(paused) +
+            "  ·  Rewound " + fmtAdrift(adriftRewound)
     }
 
     private fun saveAdriftEvent(kind: String, seconds: Double) {

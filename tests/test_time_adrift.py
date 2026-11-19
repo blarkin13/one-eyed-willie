@@ -97,5 +97,19 @@ class TimeAdriftTests(unittest.TestCase):
         self.assertIn("'/api/time-adrift/settings'", hub)
 
 
+    def test_native_tv_badge_is_three_bold_rows_on_black_not_literal_newlines(self):
+        tv = (ROOT / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/PlayerActivity.kt").read_text()
+        self.assertIn("private lateinit var adriftBadge: LinearLayout", tv)
+        self.assertIn("private lateinit var adriftTimer: TextView", tv)
+        self.assertIn("private lateinit var adriftBreakdown: TextView", tv)
+        self.assertIn('text = "TIME ADRIFT"', tv)
+        self.assertIn("setColor(Color.BLACK)", tv)
+        self.assertGreaterEqual(tv.count("typeface = android.graphics.Typeface.DEFAULT_BOLD"), 3)
+        self.assertIn("adriftTimer.text = fmtAdrift(total)", tv)
+        self.assertIn('adriftBreakdown.text = "Paused " + fmtAdrift(paused)', tv)
+        self.assertIn('return "%d:%02d:%02d".format(', tv)
+        self.assertNotIn("adriftBadge.text =", tv)
+
+
 if __name__ == "__main__":
     unittest.main()
