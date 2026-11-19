@@ -19,7 +19,7 @@ from typing import Literal
 from .library import db
 
 router = APIRouter(prefix="/api/glance", tags=["integrations"])
-NAMES = ("clock", "weather", "news")
+NAMES = ("clock", "weather", "news", "ambient")
 FEEDS = {
     "npr": ("NPR News", "https://feeds.npr.org/1001/rss.xml", "npr.org"),
     "bbc": ("BBC News", "https://feeds.bbci.co.uk/news/rss.xml", "bbc.co.uk"),
@@ -44,6 +44,7 @@ class WidgetConfig(BaseModel):
     clock_format: Literal["12h", "24h"] = "12h"
     clock_zone: str = Field(default="local", min_length=1, max_length=64)
     news_source: Literal["npr", "bbc"] = "npr"
+    idle_timeout_seconds: int = Field(default=120, ge=60, le=600)
 
 
 def _valid_config(config):
@@ -59,15 +60,21 @@ def _settings_table(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY,value TEXT NOT NULL)")
 
 
+def _default(name):
+    # Ambient is simply a location for other individually opted-in widgets;
+    # leave its master enabled so selecting Idle on a widget works immediately.
+    return WidgetConfig(enabled=(name == "ambient"))
+
+
 def _read(conn, name):
     _settings_table(conn)
     row = conn.execute("SELECT value FROM app_settings WHERE key=?", ("glance_" + name,)).fetchone()
     if not row:
-        return WidgetConfig()
+        return _default(name)
     try:
         return _valid_config(WidgetConfig.model_validate_json(row["value"]))
     except Exception:
-        return WidgetConfig()
+        return _default(name)
 
 
 @router.get("/settings")
@@ -77,13 +84,13 @@ def all_settings():
 
 
 @router.get("/settings/{name}")
-def one_setting(name: Literal["clock", "weather", "news"]):
+def one_setting(name: Literal["clock", "weather", "news", "ambient"]):
     with db() as conn:
         return _read(conn, name).model_dump()
 
 
 @router.put("/settings/{name}")
-def save_setting(name: Literal["clock", "weather", "news"], config: WidgetConfig):
+def save_setting(name: Literal["clock", "weather", "news", "ambient"], config: WidgetConfig):
     config = _valid_config(config)
     with db() as conn:
         _settings_table(conn)
