@@ -101,7 +101,7 @@ async def lifespan(app: FastAPI):
         cleanup_stop.set()
         cleanup_thread.join(timeout=3)
 
-app = FastAPI(title="One-Eyed Willie", version="0.14.2", lifespan=lifespan)
+app = FastAPI(title="Yarr Media", version="0.14.2", lifespan=lifespan)
 app.include_router(router)
 app.include_router(connections_router)
 app.include_router(music_router)
@@ -136,7 +136,7 @@ app.include_router(catalog_metadata_router)
 
 @app.get("/health")
 def health():
-    return {"status": "ok", "application": "one-eyed-willie", "version": "0.14.2"}
+    return {"status": "ok", "application": "one-eyed-willie", "name": "Yarr Media", "version": "0.14.2"}
 
 @app.get("/api/catalog/revision")
 def catalog_revision():

@@ -1,4 +1,4 @@
-# One-Eyed Willie
+# Yarr Media
 
 Lightweight, self-hosted Movies, TV and Music media server. Modern interface, with pirate identity limited to the name and logo.
 
@@ -113,7 +113,7 @@ batches; the task cursor advances across the library.
 
 All task enable/disable settings, completion times and cursor positions persist
 in SQLite. **Run maintenance now** executes enabled jobs without waiting for
-the maintenance window. Only directories managed by One-Eyed Willie are
+the maintenance window. Only directories managed by Yarr Media are
 eligible for cleanup. Downloaded subtitle files, playback history, manual metadata
 matches, and the read-only media drive are never deleted. The generated
 maintenance-bundles directory is currently empty in a normal installation;

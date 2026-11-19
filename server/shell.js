@@ -1,4 +1,4 @@
-/* Shared compact navigation and branding for every One-Eyed Willie page. */
+/* Shared compact navigation and branding for every Yarr Media page. */
 document.addEventListener('DOMContentLoaded', () => {
   const target=document.getElementById('app-nav');
   if(!target)return;
@@ -153,15 +153,15 @@ document.addEventListener('DOMContentLoaded', () => {
   }
   document.documentElement.dataset.iconTheme=iconTheme();
   // Logo anchors the upper-left corner on desktop and mobile.
-  const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','One-Eyed Willie — Home');
-  brand.title='One-Eyed Willie';
+  const brand=document.createElement('a');brand.href='/';brand.className='brand';brand.setAttribute('aria-label','Yarr Media — Home');
+  brand.title='Yarr Media';
   // Pirate ship logo; the original skull artwork remains the media watermark.
   const logoFrame=document.createElement('span');logoFrame.className='brand-logo-frame';
   logoFrame.setAttribute('aria-hidden','true');
   const image=document.createElement('img');image.className='brand-logo';image.src='/assets/ship-logo.png';
   image.alt='';image.width=90;image.height=90;
   logoFrame.append(image);
-  const words=document.createElement('span');words.className='brand-name';words.textContent='One-eyed Willie';
+  const words=document.createElement('span');words.className='brand-name';words.textContent='Yarr Media';
   brand.append(logoFrame,words);target.append(brand);
 
   // Greet once when the desktop rail opens, not on each navigation focus step.

@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Remote Access</title>
+<title>Yarr Media · Remote Access</title>
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1"><script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
 .remote-columns{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(280px,1fr);gap:20px;align-items:start}.remote-columns .form-card{margin:0 0 20px;max-width:none}
@@ -14,7 +14,7 @@
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace">
  <main class="content">
-  <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Remote Access</h1><p>Manage the addresses used to reach One-Eyed Willie inside and outside your home.</p></div></div>
+  <div class="page-head"><div><p class="eyebrow">Settings</p><h1>Remote Access</h1><p>Manage the addresses used to reach Yarr Media inside and outside your home.</p></div></div>
   <div class="status-panel" role="status"><span class="server-dot" aria-hidden="true"></span><span id="connection-status">Checking saved connection settings…</span></div>
   <section class="form-card" aria-labelledby="yarr-pair-heading" style="max-width:none;margin-bottom:20px">
   <h2 id="yarr-pair-heading">Connect to Yarr</h2>
@@ -36,7 +36,7 @@
      <input id="public-ip" type="text" inputmode="decimal" maxlength="45" placeholder="Your router's public IPv4" autocomplete="off" spellcheck="false">
      <small>Your ISP may change this address. Changing it here does not automatically reconfigure your router or Worker.</small>
      <label for="public-url">Remote web address</label>
-     <input id="public-url" type="url" maxlength="300" placeholder="https://one-eyed-willie.example.workers.dev" spellcheck="false">
+     <input id="public-url" type="url" maxlength="300" placeholder="https://your-subdomain.example.workers.dev" spellcheck="false">
      <small>This is the public browser address; the secure origin still needs HTTPS and authentication.</small>
      <div class="form-actions"><button id="save" type="submit" class="primary-button">Save settings</button><span id="message" role="status"></span></div>
     </form>
@@ -62,9 +62,9 @@
      <details>
       <summary>Google Nest Wifi / Google Wifi — test UDP port 3478</summary>
       <ol class="note-list">
-       <li>Make sure the One-Eyed Willie server has a reserved home-network IP address in Google Home.</li>
+       <li>Make sure the Yarr Media server has a reserved home-network IP address in Google Home.</li>
        <li>Open <strong>Google Home → Wi-Fi → Settings → Advanced networking → Port management</strong>.</li>
-       <li>Choose <strong>Add</strong> and select the device running One-Eyed Willie (your Ubuntu server / NUC).</li>
+       <li>Choose <strong>Add</strong> and select the device running Yarr Media (your Ubuntu server / NUC).</li>
        <li>Set protocol to <strong>UDP only</strong>. Enter <strong>3478</strong> for both the external and internal ports, then save.</li>
        <li>From a separate network, sign in to <a href="https://yarr.larki-brian.workers.dev/network-test" target="_blank" rel="noopener noreferrer">Yarr's direct connection test</a>. Look for <strong>PASS</strong> and the <strong>host-network-sidecar</strong> diagnostic backend.</li>
       </ol>

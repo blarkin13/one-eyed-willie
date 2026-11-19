@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
-<title>Media Manager · One-Eyed Willie</title>
+<title>Media Manager · Yarr Media</title>
 <link rel="stylesheet" href="/assets/ui.css?v=service-switcher-20261117-2">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 <style>
@@ -138,7 +138,7 @@ const managerName=location.pathname==='/sonarr'?'sonarr':'radarr';
 document.body.dataset.page=managerName;
 const $=id=>document.getElementById(id);
 const label=managerName==='radarr'?'Radarr':'Sonarr';
-document.title=label+' · One-Eyed Willie';
+document.title=label+' · Yarr Media';
 $('manager-title').textContent=label;
 $('manager-description').textContent=managerName==='radarr'
  ?'Monitor movies, review downloads, edit quality profiles, and search for releases.'

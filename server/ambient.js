@@ -1,4 +1,4 @@
-/* One-Eyed Willie ambient particles: browser and Google TV WebView.
+/* Yarr Media ambient particles: browser and Google TV WebView.
  * No library dependency, no hit testing, bounded canvas work and no playback.
  */
 (() => {

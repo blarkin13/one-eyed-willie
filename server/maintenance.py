@@ -1,4 +1,4 @@
-"""Scheduled, bounded local maintenance for One-Eyed Willie.
+"""Scheduled, bounded local maintenance for Yarr Media.
 
 Nothing in the mounted media library is modified. Video previews and analyses are
 opt-in; retained metadata, manually fixed matches and playback history are safe.

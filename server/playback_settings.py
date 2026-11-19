@@ -1,4 +1,4 @@
-"""Shared playback preferences, persisted on the One-Eyed Willie server."""
+"""Shared playback preferences, persisted on the Yarr Media server."""
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from .library import db

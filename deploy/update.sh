@@ -42,11 +42,11 @@ unset GH_TOKEN
 current="$(git -c safe.directory="$APP_DIR" rev-parse HEAD)"
 target="$(git -c safe.directory="$APP_DIR" rev-parse origin/main)"
 if [[ "$current" == "$target" ]]; then
-  echo "One-Eyed Willie: no update ($current)"
+  echo "Yarr Media: no update ($current)"
   exit 0
 fi
 
-echo "One-Eyed Willie: updating $current -> $target"
+echo "Yarr Media: updating $current -> $target"
 # This directory is a deployment checkout; do not make local code edits here.
 git -c safe.directory="$APP_DIR" reset --hard "$target"
 if ! compose config --quiet || ! compose build; then
@@ -71,7 +71,7 @@ for i in $(seq 1 24); do
 done
 
 if [[ "$healthy" == true ]]; then
-  echo "One-Eyed Willie: deployed $target"
+  echo "Yarr Media: deployed $target"
 else
   echo "Health check failed; restoring $current"
   git -c safe.directory="$APP_DIR" reset --hard "$current"

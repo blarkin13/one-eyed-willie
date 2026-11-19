@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Series episodes · One-Eyed Willie</title>
+<title>Series episodes · Yarr Media</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
@@ -179,7 +179,7 @@ function render(){
  if(!data)return;
  $('series-title').textContent=data.title||'Unnamed series';
  $('breadcrumb-title').textContent=data.title||'Series';
- document.title=(data.title||'Series')+' · Sonarr · One-Eyed Willie';
+ document.title=(data.title||'Series')+' · Sonarr · Yarr Media';
  $('series-meta').textContent=[data.year,data.status,data.network,data.series_type].filter(Boolean).join(' · ');
  $('series-overview').textContent=data.overview||'';
  $('stat-seasons').textContent=String(data.seasons.length);

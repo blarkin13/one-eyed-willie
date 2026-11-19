@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Cast · One-Eyed Willie</title>
+<title>Cast · Yarr Media</title>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
@@ -100,7 +100,7 @@ async function load(){
   if(!response.ok)throw Error('Unable to load this cast profile');
   const data=await response.json();
   byId('person-name').textContent=data.name;
-  document.title=data.name+' · One-Eyed Willie';
+  document.title=data.name+' · Yarr Media';
   byId('person-bio').textContent=data.biography||'A verified biography is not currently available for this cast member.';
   const photo=byId('person-photo');
   const fallback=byId('person-photo-fallback');

@@ -1,5 +1,5 @@
 [Unit]
-Description=Update One-Eyed Willie from every new main commit
+Description=Update Yarr Media from every new main commit
 Wants=network-online.target
 After=network-online.target docker.service
 Requires=docker.service

@@ -1,6 +1,6 @@
 # Official integration logos
 
-One-Eyed Willie includes the unmodified Radarr and Sonarr SVG logos as local UI resources, solely to identify their integrations. Logos are not replacements for One-Eyed Willie's own branding.
+Yarr Media includes the unmodified Radarr and Sonarr SVG logos as local UI resources, solely to identify their integrations. Logos are not replacements for Yarr Media's own branding.
 
 - Radarr source: https://github.com/Radarr/Radarr/blob/develop/Logo/Radarr.svg
 - Sonarr source: https://github.com/Sonarr/Sonarr/blob/develop/Logo/Sonarr.svg

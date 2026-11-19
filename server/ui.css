@@ -21,7 +21,7 @@ dialog{background:#151b24;color:var(--ink);border:1px solid #405069;border-radiu
 .form-card .primary-button,.form-card .secondary-button{cursor:pointer}
 @media(max-width:620px){.filter-link{padding:9px 8px}}
 
-/* One-Eyed Willie 0.6: maritime ink palette, and display typography ONLY for the brand. */
+/* Yarr Media 0.6: maritime ink palette, and display typography ONLY for the brand. */
 :root{--bg:#080d16;--panel:#111a27;--panel-2:#182331;--line:#2a3545;--ink:#e6ebf2;--muted:#9ba8b6;--accent:#a5c5e1;--accent-sub:#1d3047;background:#080d16;color:#e6ebf2}
 .sidebar{background:#0b111c;border-color:#263342}
 .topbar{background:rgba(8,13,22,.94);border-color:#243143}

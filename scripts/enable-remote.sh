@@ -8,7 +8,7 @@ if [[ "$EUID" -ne 0 ]]; then
   exit 1
 fi
 if [[ ! -r "$SETTINGS" ]]; then
-  echo "First save your public IP at One-Eyed Willie → Settings → Remote Access." >&2
+  echo "First save your public IP at Yarr Media → Settings → Remote Access." >&2
   exit 1
 fi
 HOSTNAME="$(python3 - "$SETTINGS" <<'PY'
@@ -22,7 +22,7 @@ print(str(ip).replace(".", "-") + ".sslip.io")
 PY
 )"
 echo "Secure origin: https://${HOSTNAME}"
-echo "This will restart One-Eyed Willie with an HTTPS reverse proxy."
+echo "This will restart Yarr Media with an HTTPS reverse proxy."
 echo "Before remote testing, forward Google Wifi TCP 443 → vogsphere TCP 443."
 echo "Do not forward port 8787."
 read -r -s -p "Choose a remote-access password (14+ characters): " PASSWORD </dev/tty

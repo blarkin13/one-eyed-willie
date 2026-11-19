@@ -40,7 +40,7 @@ import android.util.Log
 import android.webkit.JavascriptInterface
 
 /**
- * The same One-Eyed Willie UI served to desktop browsers is the TV UI.
+ * The same Yarr Media UI served to desktop browsers is the TV UI.
  * It is deliberately NOT a second independently maintained Compose screen set.
  * Native Media3 playback handles codecs that Android WebView cannot reliably play.
  */
@@ -101,7 +101,7 @@ class MainActivity : ComponentActivity() {
         val art = ImageView(this).apply {
             setImageResource(R.drawable.tv_loading_screen)
             scaleType = ImageView.ScaleType.FIT_CENTER
-            contentDescription = "One-Eyed Willie loading artwork"
+            contentDescription = "Yarr Media loading artwork"
         }
         overlay.addView(art, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
@@ -372,7 +372,7 @@ class MainActivity : ComponentActivity() {
                     prefs.edit().putString("url", discovered).apply()
                     showServer(discovered)
                 } else {
-                    showLoadingFailure("Could not find One-Eyed Willie on this network. Retry or open Server settings.")
+                    showLoadingFailure("Could not find Yarr Media on this network. Retry or open Server settings.")
                 }
             }
         }

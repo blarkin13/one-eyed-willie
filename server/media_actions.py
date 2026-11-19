@@ -1,6 +1,6 @@
 """Explicitly confirmed Radarr/Sonarr deletion actions for local media.
 
-One-Eyed Willie's /media mount is intentionally read-only. These actions do
+Yarr Media's /media mount is intentionally read-only. These actions do
 not unlink local files or change Docker mounts. Manager operations happen only
 when the selected title is uniquely matched to a connected manager.
 """
@@ -151,7 +151,7 @@ def media_action_preview(kind: str, library_id: int = Query(ge=1),
             "manager_title": match.get("title") if match else None,
             "media_files_writable": False,
             "explanation": ("Files are managed through Radarr or Sonarr; "
-                            "One-Eyed Willie's media mount is read-only.")}
+                            "Yarr Media's media mount is read-only.")}
 
 
 @router.post("/delete")

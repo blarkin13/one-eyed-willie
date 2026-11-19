@@ -1,6 +1,6 @@
 # Playback, movie pages, and HLS
 
-One-Eyed Willie 0.13.0 opens each movie on `/movie?library_id=…&key=…` with a poster, description, backdrop, watched state, and fullscreen Play button. It does not change the media files.
+Yarr Media 0.13.0 opens each movie on `/movie?library_id=…&key=…` with a poster, description, backdrop, watched state, and fullscreen Play button. It does not change the media files.
 
 ## Playback modes
 
@@ -29,7 +29,7 @@ Subtitle endpoints are located under `/api/stream/subtitles/`, which the Cloudfl
 
 ## Optional Intel graphics acceleration
 
-Standard Docker Compose continues to work with **CPU transcoding**. The updater now preserves the remote/HTTPS Compose profile and enables the Intel GPU overlay when /dev/dri/renderD128 is present. Inside the container, One-Eyed Willie tests that VAAPI actually encodes before using it; an unusable GPU falls back to software. GPU mode decodes in software and encodes H.264 on VAAPI so that unsupported source hardware decoders do not force full CPU encoding.
+Standard Docker Compose continues to work with **CPU transcoding**. The updater now preserves the remote/HTTPS Compose profile and enables the Intel GPU overlay when /dev/dri/renderD128 is present. Inside the container, Yarr Media tests that VAAPI actually encodes before using it; an unusable GPU falls back to software. GPU mode decodes in software and encodes H.264 on VAAPI so that unsupported source hardware decoders do not force full CPU encoding.
 
 On an Intel NUC with Intel VAAPI hardware encoding, run on the NUC:
 

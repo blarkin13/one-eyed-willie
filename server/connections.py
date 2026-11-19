@@ -39,7 +39,7 @@ def get_server_id():
 def server_info():
     return {
         "server_id": get_server_id(),
-        "name": "One-Eyed Willie",
+        "name": "Yarr Media",
         "api_version": 1,
         "capabilities": {
             "libraries": True,
