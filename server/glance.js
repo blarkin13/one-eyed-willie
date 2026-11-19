@@ -136,6 +136,16 @@
     const status=main.querySelector('#status');
     if(status)status.after(strip);else main.prepend(strip);
     activate(strip);
+    // The Home clock stays live; refreshed headlines/forecasts never require
+    // reloading the page or disturb poster focus.
+    const clockTick=setInterval(()=>{
+      if(!strip.isConnected){clearInterval(clockTick);return}
+      if(!document.hidden)for(const card of strip.children)card._glanceUpdate?.();
+    },1000);
+    const dataTick=setInterval(()=>{
+      if(!strip.isConnected){clearInterval(dataTick);return}
+      if(!document.hidden)for(const card of strip.children)card._glanceLoad?.();
+    },300000);
   }
   async function pause(surface){
     const video=surface.querySelector('video');
