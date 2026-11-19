@@ -1,9 +1,9 @@
-// One-Eyed Willie control-plane proxy. Media streams must never flow through Workers.
+// Yarr Media control-plane proxy. Media streams must never flow through Workers.
 // Set ORIGIN_URL in Cloudflare as an environment binding (HTTPS hostname only).
 const NO_CACHE = { "cache-control": "no-store", "x-content-type-options": "nosniff" };
 
 function unavailable() {
-  return new Response("One-Eyed Willie: secure origin is not reachable yet. Finish HTTPS and router setup on vogsphere.", {
+  return new Response("Yarr Media: secure origin is not reachable yet. Finish HTTPS and router setup on vogsphere.", {
     status: 503, headers: { ...NO_CACHE, "content-type": "text/plain; charset=utf-8" }
   });
 }
