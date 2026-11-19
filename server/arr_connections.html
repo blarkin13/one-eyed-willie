@@ -32,15 +32,18 @@
 .connection-search-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 #connection-search{flex:1 1 300px;min-width:0;max-width:720px;background:#111d2a;color:#f2f6ff;
  border:1px solid #425974;border-radius:10px;padding:10px 14px;min-height:44px;font:inherit}
-#connection-search:focus-visible{outline:2px solid #b59aff;outline-offset:2px}
+#connection-search:focus-visible{outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:2px}
 #connections-count{font-size:.83rem;color:#a9bbce;margin:9px 0 0}
 .connection-item{width:100%;min-width:0;border:1px solid var(--line);border-radius:12px;background:var(--panel);overflow:hidden}
 .connection-item[hidden]{display:none}
 .connection-item>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:13px;
  padding:15px 19px;min-height:59px;color:#eef4ff}
 .connection-item>summary::-webkit-details-marker{display:none}
-.connection-item>summary:hover,.connection-item>summary:focus-visible{background:#213149}
-.connection-item>summary:focus-visible{outline:2px solid #b59aff;outline-offset:-3px}
+.connection-item>summary:hover,.connection-item>summary:focus-visible{background:rgba(255,255,255,.07)}
+.connection-item>summary:focus-visible{
+ outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:-3px;
+ border-color:var(--oew-tv-select-color,#A61E1E)
+}
 .connection-item>summary .summary-logo{width:29px;height:29px;object-fit:contain;flex:none}
 .connection-item .summary-title{font-weight:720;font-size:1.05rem;min-width:125px}
 .connection-item .summary-desc{color:#a8b9cc;font-size:.87rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;min-width:0}
@@ -54,6 +57,19 @@
 .connection-item>.connection-card .connection-head{display:none}
 .connection-item>.connection-card .connection-kind{margin-top:0}
 .connection-item>.connection-card form{max-width:860px}
+.connection-visibility-row{display:flex;align-items:center;justify-content:space-between;
+ gap:18px;flex-wrap:wrap;margin:21px 0 3px;padding:15px 17px;
+ border:1px solid rgba(255,255,255,.15);border-radius:12px;
+ background:linear-gradient(125deg,rgba(255,255,255,.065),rgba(255,255,255,.015)),rgba(7,7,7,.94)}
+.connection-visibility-row .visibility-explanation{margin:0;color:#c3c3c3;font-size:.86rem;line-height:1.4}
+.connection-visibility-row .visibility-title{display:block;color:#f5f1e8;font-weight:700;margin-bottom:5px}
+.connection-visibility-label{display:flex!important;align-items:center;gap:11px;cursor:pointer;margin:0!important;white-space:nowrap}
+.connection-visibility-label input[type="checkbox"]{width:22px!important;height:22px!important;
+ min-height:22px!important;accent-color:var(--oew-tv-select-color,#A61E1E);cursor:pointer}
+.connection-visibility-label input[type="checkbox"]:focus-visible{
+ outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:3px}
+.connection-visibility-feedback{width:100%;margin:0;color:#c9c9c9;font-size:.82rem}
+.connection-visibility-feedback:empty{display:none}
 @media(max-width:700px){
  .connection-item>summary{padding:13px;gap:10px;flex-wrap:wrap}
  .connection-item .summary-title{min-width:0}
@@ -82,7 +98,7 @@
 </div>
 <div class="connection-list" id="connection-list" aria-label="Connection configuration">
 <div class="connection-grid" id="connections"></div>
-<section class="connection-card" aria-labelledby="sab-heading">
+<section class="connection-card" data-connection-id="sabnzbd" aria-labelledby="sab-heading">
 <div class="connection-head"><h2 id="sab-heading"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt=""> SABnzbd</h2><span id="sab-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Connect your download manager. Queue monitoring and controls are on the dedicated SABnzbd page.</p>
 <p id="sab-summary" class="connection-state" role="status">Checking connection…</p>
@@ -98,7 +114,7 @@
 <p id="sab-message" class="message" role="status"></p>
 <p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. Yarr Media only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
 </section>
-<section class="connection-card" aria-labelledby="plex-heading">
+<section class="connection-card" data-connection-id="plex" aria-labelledby="plex-heading">
 <div class="connection-head"><h2 id="plex-heading"><img class="integration-logo" src="/assets/brand/plex.svg" alt=""> Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Import watched movies and episodes from your local Plex server into Yarr Media.</p>
 <p id="plex-summary" class="connection-state" role="status">Checking connection…</p>
@@ -110,11 +126,11 @@
 <p class="connection-help">Use a Plex token for the Plex user whose watched history you want. Plex must be reachable from the Yarr Media server on port 32400. The token is saved locally and is never shown again.</p>
 <div class="form-actions"><button type="submit" class="primary-button" id="plex-connect">Connect Plex</button><button type="button" id="plex-disconnect" class="danger-button">Disconnect</button></div>
 </form>
-<div class="form-actions" style="margin-top:14px"><button type="button" class="secondary-button" id="plex-preview" disabled>Preview watched import</button><button type="button" class="primary-button" id="plex-import" hidden>Import matched watched items</button></div>
+<div class="form-actions" style="margin-top:14px"><button type="button" class="secondary-button" id="plex-preview" disabled>Clone Plex watch history · Preview</button><button type="button" class="primary-button" id="plex-import" hidden>Confirm clone to Yarr Media</button></div>
 <p id="plex-message" class="message" role="status"></p>
 <p class="connection-help">Imports only confirmed watched items, never removes existing watch history and never changes Plex. Matches are checked by movie title/year or TV show/season/episode number. Review the preview before importing.</p>
 </section>
-<section class="connection-card" aria-labelledby="opensubtitles-heading">
+<section class="connection-card" data-connection-id="opensubtitles" aria-labelledby="opensubtitles-heading">
 <div class="connection-head"><h2 id="opensubtitles-heading"><img class="integration-logo" src="/assets/brand/opensubtitles.png" alt=""> OpenSubtitles</h2><span id="os-state" class="integration-state">Checking…</span></div>
 <p class="connection-kind">Find, download and enable subtitles without leaving the player.</p>
 <p id="os-summary" class="connection-state" role="status">Checking connection…</p>
@@ -148,6 +164,12 @@ const providers=[
 ];
 const $=id=>document.getElementById(id);
 const statusEls={};
+const visibilityControls=new Map();
+// Focus color matches the TV setting on the server as well.
+fetch('/api/settings/tv-appearance',{cache:'no-store'}).then(r=>r.ok?r.json():null)
+ .then(data=>{if(/^#[0-9A-Fa-f]{6}$/.test(data?.selection_color||''))
+   document.documentElement.style.setProperty('--oew-tv-select-color',data.selection_color);})
+ .catch(()=>{});
 async function fetchJson(url,opts){
  const r=await fetch(url,opts);
  const data=await r.json().catch(()=>({}));
@@ -157,7 +179,7 @@ async function fetchJson(url,opts){
 function build(){
  const parent=$('connections');
  for(const provider of providers){
-   const article=document.createElement('article');article.className='connection-card';
+   const article=document.createElement('article');article.className='connection-card';article.dataset.connectionId=provider.id;
    const header=document.createElement('div');header.className='connection-head';
    const name=document.createElement('h2');
    const icon=document.createElement('img');
@@ -384,6 +406,37 @@ function initConnectionDirectory(){
    details.append(summary);
    card.replaceWith(details);
    details.append(card);
+   const serviceId=card.dataset.connectionId;
+   if(serviceId){
+     const row=document.createElement('div');row.className='connection-visibility-row';
+     const text=document.createElement('div');
+     const title=document.createElement('strong');title.className='visibility-title';title.textContent='Connections page';
+     const note=document.createElement('p');note.className='visibility-explanation';
+     note.textContent='Hide this tile from the server and TVs without disconnecting the service.';
+     text.append(title,note);
+     const label=document.createElement('label');label.className='connection-visibility-label';
+     const input=document.createElement('input');input.type='checkbox';input.checked=true;
+     input.setAttribute('aria-label','Show '+title.textContent.replace('Connections page',serviceId)+' in Connections');
+     const labelText=document.createElement('span');labelText.textContent='Show in Connections';
+     label.append(input,labelText);
+     const feedback=document.createElement('p');feedback.className='connection-visibility-feedback';
+     feedback.setAttribute('role','status');
+     row.append(text,label,feedback);card.append(row);
+     visibilityControls.set(serviceId,{input,feedback});
+     input.addEventListener('change',async()=>{
+       const requested=input.checked;input.disabled=true;feedback.textContent='Saving…';
+       try{
+         await fetchJson('/api/settings/connections/visibility',{
+           method:'PUT',headers:{'Content-Type':'application/json'},
+           body:JSON.stringify({service:serviceId,visible:requested})
+         });
+         feedback.textContent=requested?'Shown in Connections.':'Hidden in Connections; still connected.';
+       }catch(error){
+         input.checked=!requested;
+         feedback.textContent='Could not save: '+error.message;
+       }finally{input.disabled=false}
+     });
+   }
    function syncStatus(){
      status.textContent=sourceStatus?.textContent.trim()||'Checking…';
      status.classList.toggle('on',sourceStatus?.classList.contains('on')||false);
@@ -414,5 +467,16 @@ function initConnectionDirectory(){
  const selected=target?.closest('.connection-item');
  if(selected){selected.hidden=false;selected.open=true;selected.scrollIntoView({block:'start'});}
 }
-build();initConnectionDirectory();refresh();
+async function loadConnectionVisibility(){
+ try{
+  const current=await fetchJson('/api/settings/connections/visibility',{cache:'no-store'});
+  for(const [id,controls] of visibilityControls)
+   controls.input.checked=current.visible?.[id]!==false;
+ }catch(error){
+  // Keep all tiles visible if preferences are unavailable; never disconnect.
+  for(const controls of visibilityControls)
+   controls.feedback.textContent='Could not load visibility settings: '+error.message;
+ }
+}
+build();initConnectionDirectory();refresh();loadConnectionVisibility();
 </script></body></html>
