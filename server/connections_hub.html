@@ -153,9 +153,14 @@ const entries=[
  {id:'lidarr',title:'Lidarr',config:'#connections',description:'Manage music artists and albums through Lidarr.',image:'/assets/brand/lidarr.svg'},
  {id:'sabnzbd',title:'SABnzbd',dashboard:'/sabnzbd',config:'#sab-heading',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.',image:'/assets/brand/plex.svg'},
- {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'}
+ {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'},
+ {id:'time-adrift',title:'Time Adrift',config:'#time-adrift-heading',description:'Per-video pause and rewind time counter.',image:null}
 ];
 function serviceLogo(service){
+ if(!service.image){
+   const icon=document.createElement('span');icon.className='integration-logo-fallback';
+   icon.textContent='⌛';icon.setAttribute('aria-hidden','true');return icon;
+ }
  const image=document.createElement('img');
  image.src=service.image;image.alt='';
  image.className='integration-logo';image.loading='eager';
@@ -174,7 +179,8 @@ function showServiceDetails(service){
  const heading=document.getElementById('connection-service-title');
  heading.replaceChildren(serviceLogo(service),document.createTextNode(service.title));
  document.getElementById('connection-service-description').textContent=service.description;
- document.getElementById('connection-service-status').textContent='Connected · API integration';
+ document.getElementById('connection-service-status').textContent=
+  service.id==='time-adrift'?'Enabled · In-player tracking':'Connected · API integration';
  serviceDialog.showModal();serviceClose.focus({preventScroll:true});
 }
 async function status(url){
@@ -192,7 +198,7 @@ async function statusPost(url,payload){
 async function showConnected(){
  const root=document.getElementById('connected-services');
  const message=document.getElementById('connections-message');
- const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection'];
+ const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings'];
  const [settled,visibility]=await Promise.all([
   Promise.allSettled(urls.map(status)),
   status('/api/settings/connections/visibility').catch(()=>({visible:{}}))
@@ -206,8 +212,10 @@ async function showConnected(){
  const plex=settled[2].status==='fulfilled'?settled[2].value:{};
  const subs=settled[3].status==='fulfilled'?settled[3].value:{};
  const lidarr=settled[4].status==='fulfilled'?settled[4].value:{};
+ const timeAdrift=settled[5].status==='fulfilled'?settled[5].value:{};
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
-   lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,opensubtitles:!!subs.configured};
+   lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
+   opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled};
  for(const service of entries){
    if(!connected[service.id] || visibility.visible?.[service.id]===false)continue;
    const card=document.createElement(service.dashboard?'a':'button');
@@ -226,7 +234,8 @@ async function showConnected(){
    const description=document.createElement('span');description.className='service-description';
    description.textContent=service.description;
    const state=document.createElement('span');state.className='service-state';
-   state.textContent=service.dashboard?'Connected · Open dashboard':
+   state.textContent=service.id==='time-adrift'?'Enabled · Player counter':
+     service.dashboard?'Connected · Open dashboard':
      service.id==='plex'?'Connected · Clone watch history':'Connected · View details';
    card.append(heading,description,state);root.append(card);
  }
