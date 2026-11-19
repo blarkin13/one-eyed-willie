@@ -13,5 +13,7 @@ class PublicWorkerLogoTests(unittest.TestCase):
         self.assertNotIn('ship-float', worker)
         self.assertIn('class="hero-art"', worker)
         self.assertIn('class="site-brand-label">YARR.MEDIA', worker)
+        self.assertIn('src="/favicon.svg?v=moon-sail-v1"', worker)
+        self.assertIn('class="hero-art" src="https://raw.githubusercontent.com/', worker)
         self.assertIn('class="brand-label">YARR.MEDIA', worker)
         self.assertIn("img-src 'self'", worker)
