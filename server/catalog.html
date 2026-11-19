@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>One-Eyed Willie · Browse</title>
+<title>Yarr Media · Browse</title>
 <link rel="stylesheet" href="/assets/ui.css?v=adventure-direct-svg-2">
 <script src="/assets/library-appearance.js?v=adventure-direct-svg-2"></script>
 <script defer src="/assets/shell.js?v=adventure-direct-svg-2"></script>
@@ -266,7 +266,7 @@ $('explore-library').setAttribute('aria-label','Explore more '+(type==='movies'?
 $('page-title').textContent=type==='movies'?'Movies':'TV Shows';
 // Trivia starts with the question; the answer is revealed after a pause.
 $('section-title').textContent=type==='movies'?'All Movies':'All TV Shows';
-document.title='One-Eyed Willie · '+(type==='movies'?'Movies':'TV Shows');
+document.title='Yarr Media · '+(type==='movies'?'Movies':'TV Shows');
 const selectedLibraryId=Number(query.get('library_id'));
 const libraryAppearance=window.WillieLibraryAppearance;
 function applyLibraryAppearance(lib){
@@ -312,7 +312,7 @@ fetch('/api/libraries',{cache:'no-store'})
      const name=String(library.name||'Library');
      $('page-title').textContent=name;
      $('section-title').textContent='All '+name;
-     document.title='One-Eyed Willie · '+name;
+     document.title='Yarr Media · '+name;
    }
  }).catch(()=>{});
 
