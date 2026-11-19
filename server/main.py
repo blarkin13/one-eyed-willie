@@ -25,6 +25,7 @@ from server.playback_settings import router as playback_settings_router
 from server.time_adrift import router as time_adrift_router
 from server.subtitle_settings import router as subtitle_settings_router
 from server.ambient_settings import router as ambient_settings_router
+from server.glance import router as glance_router
 from server.theme_music import router as theme_music_router
 from server.sidebar_settings import router as sidebar_settings_router
 from server.plex_import import router as plex_router
@@ -123,6 +124,7 @@ app.include_router(playback_settings_router)
 app.include_router(time_adrift_router)
 app.include_router(subtitle_settings_router)
 app.include_router(ambient_settings_router)
+app.include_router(glance_router)
 app.include_router(theme_music_router)
 app.include_router(sidebar_settings_router)
 app.include_router(plex_router)
@@ -422,6 +424,13 @@ def ui_stylesheet(request: Request):
     stylesheet = Path(__file__).with_name("ui.css").read_text(encoding="utf-8")
     return Response(stylesheet + "\n" + TV_RAIL_CSS, media_type="text/css",
                     headers={"Cache-Control": "no-store", "Vary": "User-Agent"})
+
+@app.get("/assets/glance.js")
+def glance_script():
+    return TextFileResponse(Path(__file__).with_name("glance.js"),
+                            media_type="text/javascript",
+                            headers={"Cache-Control": "no-store"})
+
 
 @app.get("/assets/media-title-logo.js")
 def media_title_logo_script():
