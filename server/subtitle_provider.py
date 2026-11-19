@@ -53,7 +53,7 @@ def _credentials():
 
 
 def _auth_headers(key, token=""):
-    headers = {"Api-Key": key, "User-Agent": "OneEyedWillie v0.14.2",
+    headers = {"Api-Key": key, "User-Agent": "YarrMedia v0.14.2",
                "Accept": "application/json"}
     if token:
         headers["Authorization"] = "Bearer " + token
@@ -217,7 +217,7 @@ def download_subtitle(media_id: int, request: DownloadRequest, language: str = Q
         link = _json(BASE + "/download", {**headers, "Content-Type": "application/json"}, body).get("link")
         if not isinstance(link, str):
             raise HTTPException(502, "OpenSubtitles did not return a download link")
-        raw = _read(link, {"User-Agent": "OneEyedWillie v0.14.2"}, max_bytes=MAX_DOWNLOAD)
+        raw = _read(link, {"User-Agent": "YarrMedia v0.14.2"}, max_bytes=MAX_DOWNLOAD)
         if not raw or b"\x00" in raw[:1024] or raw[:2] == b"PK":
             raise HTTPException(422, "Unsupported subtitle download format")
         directory.mkdir(parents=True, exist_ok=True)
