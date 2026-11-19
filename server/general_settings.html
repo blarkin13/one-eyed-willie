@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Playback & Server Settings · One-Eyed Willie</title>
+<title>Playback & Server Settings · Yarr Media</title>
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script defer src="/assets/shell.js?v=appearance-1"></script>
 </head><body data-page="general">
@@ -32,7 +32,7 @@
 
 <section class="settings-section" aria-labelledby="subtitle-appearance-heading">
 <h2 id="subtitle-appearance-heading">Browser subtitle appearance</h2>
-<p>Adjust subtitles in One-Eyed Willie's browser player. Each Google TV has its own subtitle controls under Playback Settings.</p>
+<p>Adjust subtitles in Yarr Media's browser player. Each Google TV has its own subtitle controls under Playback Settings.</p>
 <div class="settings-card">
 <form id="subtitle-style-form">
 <div class="settings-two-col">
@@ -273,7 +273,7 @@ el('remote-form').onsubmit=async event=>{
 };
 Promise.allSettled([loadPlayback(),loadSubtitleStyle(),loadMaintenance(),loadRemote(),
  api('/health').then(data=>{
-  el('server-info').textContent='Server: '+(data.application||'One-Eyed Willie')+
+  el('server-info').textContent='Server: '+(data.name||'Yarr Media')+
    ' · version '+(data.version||'unknown')+' · '+(data.status||'unknown');
  })]).then(results=>{
  const failed=results.filter(x=>x.status==='rejected');
