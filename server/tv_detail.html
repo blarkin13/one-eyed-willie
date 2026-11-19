@@ -2,7 +2,7 @@
 <html lang="en"><head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · TV Shows</title>
+<title>Yarr Media · TV Shows</title>
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script src="/assets/media-title-logo.js?v=1"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script><script defer src="/assets/player.js?v=continue-next-1"></script><script defer src="/assets/theme-music.js?v=5"></script>
@@ -793,7 +793,7 @@ function seriesControls(data){
 async function renderShow(){
  if(!Number.isInteger(state.library_id)||!state.library_id||!state.key)throw Error('Select a TV show from the library.');
  const data=await loadJson('/api/tv/show?'+new URLSearchParams({library_id:state.library_id,key:state.key}));
- document.title=data.title+' · One-Eyed Willie';
+ document.title=data.title+' · Yarr Media';
  state.show_title=data.title;
  const showHero=hero(data.title,data.overview,data.poster_url,data.backdrop_url,data.year,'TV SERIES',data.logo_url);
  showHero.append(seriesControls(data));
@@ -876,7 +876,7 @@ async function renderSeason(){
     library_id:state.library_id,key:state.key,season_number:state.season_number
   }));
   document.body.classList.add('tv-season-mode');
-  document.title=data.season.name+' · '+data.show.title+' · One-Eyed Willie';
+  document.title=data.season.name+' · '+data.show.title+' · Yarr Media';
   state.show_title=data.show.title;
   const available=(data.episodes||[]).slice().sort((a,b)=>(a.episode??1e5)-(b.episode??1e5));
   if(!available.length){
