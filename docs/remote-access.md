@@ -9,7 +9,7 @@ This configuration provides secure remote web browsing without a VPN, Cloudflare
 - The public app must be tested from outside the LAN before marking it operational.
 
 ## One-time NUC setup
-1. In One-Eyed Willie **Settings → Remote Access**, save your home public IP and the preferred Worker URL.
+1. In Yarr Media **Settings → Remote Access**, save your home public IP and the preferred Worker URL.
 2. In a terminal on `vogsphere`, execute:
 
 ```bash
