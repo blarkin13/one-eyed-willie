@@ -2,7 +2,7 @@
 
 The browser never receives API keys. Only private LAN endpoints and fixed *arr
 API routes are used. Adding titles changes the connected *arr library, not files
-in One-Eyed Willie's read-only media mount.
+in Yarr Media's read-only media mount.
 """
 import json
 from datetime import date, timedelta
@@ -472,7 +472,7 @@ def add(name: str, selection: AddInput):
     return {
         "added": True, "verified": True, "provider": name, "title": result.get("title") or payload["title"],
         "id": result.get("id"), "search_requested": selection.search_now,
-        "note": "Added to the media manager. Files appear in One-Eyed Willie only after they're obtained and indexed.",
+        "note": "Added to the media manager. Files appear in Yarr Media only after they're obtained and indexed.",
     }
 
 
