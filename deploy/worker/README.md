@@ -1,4 +1,4 @@
-# One-Eyed Willie Worker (optional, free web control-plane)
+# Yarr Media Worker (optional, free web control-plane)
 
 Public endpoint: `https://one-eyed-willie.larki-brian.workers.dev` when deployed to this account.
 
