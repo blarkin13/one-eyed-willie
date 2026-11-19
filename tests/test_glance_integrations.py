@@ -23,8 +23,9 @@ class GlanceSettingsTests(unittest.TestCase):
 
     def test_each_integration_is_independent_and_disabled_by_default(self):
         all_configs = glance.all_settings()["integrations"]
-        self.assertEqual(set(all_configs), {"clock", "weather", "news"})
-        for cfg in all_configs.values():
+        self.assertEqual(set(all_configs), {"clock", "weather", "news", "ambient"})
+        for name in ("clock", "weather", "news"):
+            cfg = all_configs[name]
             self.assertFalse(cfg["enabled"])
             self.assertTrue(cfg["home"])
             self.assertTrue(cfg["pause"])
@@ -32,6 +33,8 @@ class GlanceSettingsTests(unittest.TestCase):
         updated = glance.save_setting("clock", glance.WidgetConfig(
             enabled=True, home=False, pause=True, idle=False,
             clock_zone="America/Chicago", clock_format="24h"))
+        self.assertTrue(all_configs["ambient"]["enabled"])
+        self.assertEqual(all_configs["ambient"]["idle_timeout_seconds"], 120)
         self.assertTrue(updated["enabled"])
         self.assertFalse(updated["home"])
         self.assertEqual(updated["clock_format"], "24h")
@@ -49,6 +52,15 @@ class GlanceSettingsTests(unittest.TestCase):
         self.assertEqual(news["news_source"], "bbc")
         self.assertFalse(glance.one_setting("weather")["pause"])
         self.assertTrue(glance.one_setting("news")["pause"])
+
+    def test_ambient_display_can_be_disabled_without_mutating_widget_placements(self):
+        glance.save_setting("weather", glance.WidgetConfig(
+            enabled=True, home=True, pause=True, idle=True, zip_code="75001"))
+        ambient = glance.save_setting("ambient", glance.WidgetConfig(
+            enabled=False, idle_timeout_seconds=300))
+        self.assertFalse(ambient["enabled"])
+        self.assertEqual(ambient["idle_timeout_seconds"], 300)
+        self.assertTrue(glance.one_setting("weather")["idle"])
 
     def test_bad_zip_timezone_or_news_source_rejected(self):
         with self.assertRaises(ValidationError):
@@ -78,6 +90,9 @@ class GlanceSettingsTests(unittest.TestCase):
         self.assertIn("async function home()", widget)
         self.assertIn("async function pause(surface)", widget)
         self.assertIn("async function idle()", widget)
+        self.assertIn("if(config.ambient?.enabled===false)return", widget)
+        self.assertIn("idle_timeout_seconds", widget)
+        self.assertIn("Ambient Display", settings)
         self.assertIn("document.addEventListener(type,activity,true)", widget)
         self.assertIn("window.YarrGlance.mountPause(surface)", player)
         self.assertIn("private fun loadGlancePause()", tv)
