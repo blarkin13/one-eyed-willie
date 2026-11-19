@@ -84,6 +84,9 @@ html body.oew-tv-client .connection-service-dialog button:is(:focus,:focus-visib
 .time-adrift-card .time-adrift-toggle:disabled{opacity:.5;cursor:wait}
 .time-adrift-card .time-adrift-feedback{margin:0;color:#c4d0dd;font-size:.85rem;line-height:1.35}
 .time-adrift-card .time-adrift-feedback[hidden]{display:none}
+.time-adrift-card .service-config-link{min-height:42px;display:inline-flex;align-items:center;
+ color:#eaeaea;font-weight:650;text-decoration:underline;text-underline-offset:3px}
+.time-adrift-card .service-config-link:focus-visible{outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:3px}
 </style></head>
 <body data-page="connectionshub"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
@@ -167,12 +170,16 @@ const entries=[
  {id:'sabnzbd',title:'SABnzbd',dashboard:'/sabnzbd',config:'#sab-heading',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.',image:'/assets/brand/plex.svg'},
  {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'},
- {id:'time-adrift',title:'Time Adrift',config:'#time-adrift-heading',description:'Per-video pause and rewind time counter.',image:null}
+ {id:'time-adrift',title:'Time Adrift',config:'#time-adrift-heading',description:'Per-video pause and rewind time counter.',image:null},
+ {id:'clock',title:'Clock',description:'Live digital clock with optional 12/24-hour format.',image:null,icon:'◷'},
+ {id:'weather',title:'Weather',description:'US National Weather Service forecasts by ZIP code.',image:null,icon:'☀'},
+ {id:'news',title:'News',description:'News headlines with links and source attribution.',image:null,icon:'≡'},
+ {id:'ambient',title:'Ambient Display',description:'Idle screensaver for enabled widgets.',image:null,icon:'◫'}
 ];
 function serviceLogo(service){
  if(!service.image){
    const icon=document.createElement('span');icon.className='integration-logo-fallback';
-   icon.textContent='⌛';icon.setAttribute('aria-hidden','true');return icon;
+   icon.textContent=service.icon||'⌛';icon.setAttribute('aria-hidden','true');return icon;
  }
  const image=document.createElement('img');
  image.src=service.image;image.alt='';
@@ -211,7 +218,7 @@ async function statusPost(url,payload){
 async function showConnected(){
  const root=document.getElementById('connected-services');
  const message=document.getElementById('connections-message');
- const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings'];
+ const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings','/api/glance/settings'];
  const [settled,visibility]=await Promise.all([
   Promise.allSettled(urls.map(status)),
   status('/api/settings/connections/visibility').catch(()=>({visible:{}}))
@@ -226,12 +233,63 @@ async function showConnected(){
  const subs=settled[3].status==='fulfilled'?settled[3].value:{};
  const lidarr=settled[4].status==='fulfilled'?settled[4].value:{};
  const timeAdrift=settled[5].status==='fulfilled'?settled[5].value:{};
+ const glanceSettings=settled[6].status==='fulfilled'?settled[6].value.integrations||{}:{};
+ const glanceNames=['clock','weather','news','ambient'];
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
    lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
-   opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled};
+   opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled,
+   clock:!!glanceSettings.clock?.enabled,weather:!!glanceSettings.weather?.enabled,
+   news:!!glanceSettings.news?.enabled,ambient:!!glanceSettings.ambient?.enabled};
  for(const service of entries){
-   if((service.id!=='time-adrift'&&!connected[service.id])||
-      visibility.visible?.[service.id]===false)continue;
+   if((service.id!=='time-adrift'&&!glanceNames.includes(service.id)&&
+       !connected[service.id])||visibility.visible?.[service.id]===false)continue;
+   if(glanceNames.includes(service.id)){
+     // Each widget remains visible when off, with independent placement
+     // configuration on the server's Integrations settings page.
+     const card=document.createElement('section');card.className='service-card time-adrift-card';
+     const heading=document.createElement('span');heading.className='service-name';
+     heading.append(serviceLogo(service),document.createTextNode(service.title));
+     const description=document.createElement('span');description.className='service-description';
+     description.textContent=service.description;
+     const control=document.createElement('div');control.className='time-adrift-control';
+     const state=document.createElement('span');state.className='service-state';
+     const toggle=document.createElement('button');toggle.type='button';toggle.className='time-adrift-toggle';
+     const configure=document.createElement('a');configure.href='/settings/integrations#glance-'+service.id+'-heading';
+     configure.className='service-config-link';configure.textContent='Configure';
+     configure.setAttribute('aria-label','Configure '+service.title+' placements');
+     const feedback=document.createElement('p');feedback.className='time-adrift-feedback';
+     feedback.hidden=true;feedback.setAttribute('role','status');
+     const available=settled[6].status==='fulfilled'&&!!glanceSettings[service.id];
+     let config=glanceSettings[service.id]||{},enabled=!!config.enabled;
+     const update=()=>{
+       state.textContent=available?(enabled?'Enabled':'Disabled'):'Status unavailable';
+       state.classList.toggle('is-disabled',!enabled);
+       toggle.textContent=enabled?'Turn off '+service.title:'Turn on '+service.title;
+       toggle.setAttribute('aria-label',toggle.textContent);
+       toggle.setAttribute('aria-pressed',String(enabled));
+     };
+     update();toggle.disabled=!available;
+     control.append(state,toggle,configure);card.append(heading,description,control,feedback);
+     root.append(card);
+     toggle.addEventListener('click',async()=>{
+       const requested=!enabled;toggle.disabled=true;
+       feedback.hidden=false;feedback.textContent='Saving…';
+       try{
+         const response=await fetch('/api/glance/settings/'+service.id,{
+           method:'PUT',headers:{'Content-Type':'application/json'},
+           body:JSON.stringify({...config,enabled:requested})
+         });
+         const result=await response.json().catch(()=>({}));
+         if(!response.ok)throw Error(result.detail||'Server returned '+response.status);
+         config=result;enabled=!!config.enabled;update();
+         feedback.textContent=enabled
+           ?service.title+' enabled for your chosen locations.'
+           :service.title+' disabled. Reopen any playing video to apply.';
+       }catch(error){feedback.textContent='Could not save '+service.title+': '+error.message}
+       finally{toggle.disabled=false}
+     });
+     continue;
+   }
    if(service.id==='time-adrift'){
      // A standalone control is remote-friendly and avoids nesting buttons.
      // Keep the tile visible while disabled so it can be turned on again here.

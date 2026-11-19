@@ -70,6 +70,17 @@
  outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:3px}
 .connection-visibility-feedback{width:100%;margin:0;color:#c9c9c9;font-size:.82rem}
 .connection-visibility-feedback:empty{display:none}
+.glance-config-grid{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;margin:10px 0}
+.connection-card .glance-switch-label{display:inline-flex;align-items:center;gap:9px;
+ margin:0;padding:10px 0;min-height:42px;cursor:pointer}
+.connection-card input.glance-checkbox{display:inline-block;width:22px;height:22px;min-height:22px;
+ max-width:none;margin:0;accent-color:var(--oew-tv-select-color,#A61E1E);cursor:pointer}
+.glance-config-detail{display:flex;flex-wrap:wrap;gap:12px;align-items:center;margin-top:12px}
+.glance-config-detail label{margin:0;display:flex;flex-wrap:wrap;gap:7px;align-items:center}
+.glance-config-detail input,.glance-config-detail select{max-width:280px;min-height:44px;
+ background:#111;color:#eee;border:1px solid #555;border-radius:9px;padding:9px}
+.glance-config-grid :focus-visible,.glance-config-detail :focus-visible{outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:3px}
+
 @media(max-width:700px){
  .connection-item>summary{padding:13px;gap:10px;flex-wrap:wrap}
  .connection-item .summary-title{min-width:0}
@@ -417,6 +428,109 @@ $('time-adrift-enabled').addEventListener('change',async event=>{
 });
 loadTimeAdrift();
 
+// First-party optional widgets: independent enable switches and placement
+// controls for Home, Pause and Idle. Each change persists immediately.
+const glanceDefinitions=[
+ {id:'clock',name:'Clock',description:'Live local or selected-zone time. No external provider.'},
+ {id:'weather',name:'Weather',description:'US forecasts from the National Weather Service. A ZIP is required.'},
+ {id:'news',name:'News',description:'Attributed headlines linking to the original publishers.'},
+ {id:'ambient',name:'Ambient Display',description:'Full-screen idle view with the widgets selected for Idle.'}
+];
+const glanceControls={};
+function addGlanceIntegrationCards(){
+ const list=$('connection-list');
+ for(const def of glanceDefinitions){
+  const card=document.createElement('section');card.className='connection-card';
+  card.dataset.connectionId=def.id;card.id='glance-'+def.id+'-heading';
+  const head=document.createElement('div');head.className='connection-head';
+  const title=document.createElement('h2');title.textContent=def.name;
+  const state=document.createElement('span');state.className='integration-state';
+  state.textContent='Checking…';head.append(title,state);
+  const note=document.createElement('p');note.className='connection-kind';
+  note.textContent=def.description;
+  const form=document.createElement('form');form.className='glance-config-form';
+  const flags=document.createElement('div');flags.className='glance-config-grid';
+  const switches={};
+  const flagsForCard=def.id==='ambient'?[['enabled','Enable Ambient Display']]:
+    [['enabled','Enable '+def.name],['home','Home'],
+     ['pause','Paused player'],['idle','Idle screen']];
+  for(const [key,label] of flagsForCard){
+    const wrapper=document.createElement('label');wrapper.className='glance-switch-label';
+    const input=document.createElement('input');input.type='checkbox';
+    input.className='glance-checkbox';input.name=key;
+    input.setAttribute('aria-label',label);
+    wrapper.append(input,document.createTextNode(label));flags.append(wrapper);switches[key]=input;
+  }
+  const settings=document.createElement('div');settings.className='glance-config-detail';
+  const options={};
+  const makeInput=(key,label,kind,items)=>{
+    const wrapper=document.createElement('label');wrapper.textContent=label;
+    const input=kind==='select'?document.createElement('select'):document.createElement('input');
+    input.name=key;input.setAttribute('aria-label',label);
+    if(kind==='select')for(const [value,text] of items){
+      const option=document.createElement('option');option.value=value;option.textContent=text;input.append(option);
+    }
+    else{input.type='text';input.maxLength=5;input.placeholder='75001';input.inputMode='numeric';}
+    wrapper.append(input);settings.append(wrapper);options[key]=input;
+  };
+  if(def.id==='weather')makeInput('zip_code','US ZIP code','text');
+  if(def.id==='clock'){
+    makeInput('clock_format','Time format','select',[['12h','12 hour'],['24h','24 hour']]);
+    makeInput('clock_zone','Time zone','select',[
+      ['local','Device local'],['UTC','UTC'],['America/New_York','Eastern'],
+      ['America/Chicago','Central'],['America/Denver','Mountain'],
+      ['America/Los_Angeles','Pacific'],['America/Anchorage','Alaska'],
+      ['Pacific/Honolulu','Hawaii']
+    ]);
+  }
+  if(def.id==='news')makeInput('news_source','News provider','select',
+    [['npr','NPR News'],['bbc','BBC News']]);
+  if(def.id==='ambient')makeInput('idle_timeout_seconds','Show after','select',
+    [['60','1 minute'],['120','2 minutes'],['300','5 minutes'],['600','10 minutes']]);
+  const feedback=document.createElement('p');feedback.className='message';
+  feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
+  form.append(flags,settings,feedback);
+  card.append(head,note,form);list.append(card);
+  glanceControls[def.id]={state,switches,options,form,feedback,saved:null};
+  form.addEventListener('submit',e=>e.preventDefault());
+  form.addEventListener('change',()=>saveGlanceSettings(def.id));
+ }
+}
+function renderGlanceSetting(id,value){
+ const el=glanceControls[id];el.saved={...value};
+ for(const [key,input] of Object.entries(el.switches))input.checked=!!value[key];
+ for(const [key,input] of Object.entries(el.options))input.value=value[key]??'';
+ el.state.textContent=value.enabled?'Enabled':'Disabled';
+ el.state.classList.toggle('on',!!value.enabled);
+}
+async function loadGlanceSettings(){
+ try{
+  const data=await fetchJson('/api/glance/settings',{cache:'no-store'});
+  for(const [id,controls] of Object.entries(glanceControls))
+    renderGlanceSetting(id,data.integrations?.[id]||{});
+ }catch(error){for(const item of Object.values(glanceControls)){
+  item.state.textContent='Unavailable';item.feedback.textContent=error.message;
+ }}
+}
+async function saveGlanceSettings(id){
+ const controls=glanceControls[id];if(!controls.saved)return;
+ const value={...controls.saved};
+ for(const [key,input] of Object.entries(controls.switches))value[key]=input.checked;
+ for(const [key,input] of Object.entries(controls.options))value[key]=input.value;
+ const inputs=[...controls.form.querySelectorAll('input,select')];
+ inputs.forEach(input=>input.disabled=true);controls.feedback.textContent='Saving…';
+ try{
+  const updated=await fetchJson('/api/glance/settings/'+id,{
+    method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(value)
+  });
+  renderGlanceSetting(id,updated);
+  controls.feedback.textContent='Saved. Newly opened screens will use these settings.';
+ }catch(error){
+  renderGlanceSetting(id,controls.saved);
+  controls.feedback.textContent='Could not save: '+error.message;
+ }finally{inputs.forEach(input=>input.disabled=false);}
+}
+
 // Convert all integration cards into compact, keyboard-accessible rows.
 // This preserves their original forms, IDs, and API handlers unchanged.
 function initConnectionDirectory(){
@@ -517,5 +631,5 @@ async function loadConnectionVisibility(){
    controls.feedback.textContent='Could not load visibility settings: '+error.message;
  }
 }
-build();initConnectionDirectory();refresh();loadConnectionVisibility();
+build();addGlanceIntegrationCards();initConnectionDirectory();refresh();loadConnectionVisibility();loadGlanceSettings();
 </script></body></html>

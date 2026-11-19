@@ -982,6 +982,12 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     timeline.append(elapsed,slider,total);
     bottom.prepend(timeline);surface.append(video,controls,info,bottom,slowPrompt,adrift);
     document.body.append(surface);current=surface;mediaId=id;started=false;saveAt=0;offset=0;captionsSelect=cc;
+    // The optional widgets render below Time Adrift and never intercept
+    // playback keys. The module can arrive after the player opens.
+    if(window.YarrGlance)window.YarrGlance.mountPause(surface);
+    else window.addEventListener('yarr:glance-ready',()=>{
+      if(surface.isConnected)window.YarrGlance?.mountPause(surface);
+    },{once:true});
     surface.focus({preventScroll:true});
     surface.addEventListener('pointermove',()=>{revealChrome();concealChromeSoon()});
     surface.addEventListener('pointerdown',revealChrome);
