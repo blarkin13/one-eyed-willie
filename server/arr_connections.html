@@ -3,7 +3,7 @@
 <head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>One-Eyed Willie · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-status-fix-4"><script defer src="/assets/shell.js?v=connections-status-fix-4"></script>
+<title>Yarr Media · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-status-fix-4"><script defer src="/assets/shell.js?v=connections-status-fix-4"></script>
 <style>
 .connection-list{display:flex;flex-direction:column;gap:20px;width:100%;min-width:0;margin-top:20px}
 .connection-grid{display:contents}
@@ -96,18 +96,18 @@
 </form>
 <p class="connection-help"><a class="text-link" href="/sabnzbd">Open SABnzbd dashboard</a> to monitor downloads and control the queue.</p>
 <p id="sab-message" class="message" role="status"></p>
-<p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. One-Eyed Willie only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
+<p class="connection-help">SABnzbd continues handling downloads for Radarr and Sonarr. Yarr Media only shows status and provides explicit queue pause/resume controls; it does not add, remove, or delete downloads.</p>
 </section>
 <section class="connection-card" aria-labelledby="plex-heading">
 <div class="connection-head"><h2 id="plex-heading"><img class="integration-logo" src="/assets/brand/plex.svg" alt=""> Plex watched history</h2><span id="plex-state" class="integration-state">Checking…</span></div>
-<p class="connection-kind">Import watched movies and episodes from your local Plex server into One-Eyed Willie.</p>
+<p class="connection-kind">Import watched movies and episodes from your local Plex server into Yarr Media.</p>
 <p id="plex-summary" class="connection-state" role="status">Checking connection…</p>
 <form id="plex-form">
 <label for="plex-url">Plex local address</label>
 <input id="plex-url" type="url" required placeholder="http://host.docker.internal:32400" value="http://host.docker.internal:32400" autocomplete="off">
 <label for="plex-token">Plex authentication token</label>
 <input id="plex-token" type="password" required minlength="6" maxlength="512" placeholder="Your Plex X-Plex-Token" autocomplete="off" spellcheck="false">
-<p class="connection-help">Use a Plex token for the Plex user whose watched history you want. Plex must be reachable from the One-Eyed Willie server on port 32400. The token is saved locally and is never shown again.</p>
+<p class="connection-help">Use a Plex token for the Plex user whose watched history you want. Plex must be reachable from the Yarr Media server on port 32400. The token is saved locally and is never shown again.</p>
 <div class="form-actions"><button type="submit" class="primary-button" id="plex-connect">Connect Plex</button><button type="button" id="plex-disconnect" class="danger-button">Disconnect</button></div>
 </form>
 <div class="form-actions" style="margin-top:14px"><button type="button" class="secondary-button" id="plex-preview" disabled>Preview watched import</button><button type="button" class="primary-button" id="plex-import" hidden>Import matched watched items</button></div>
@@ -134,7 +134,7 @@
 
 <section class="form-card"><h2>How this works</h2>
 <p>Enter the LAN address and API key for each media manager. Credentials stay on the server; queues, history, searches, and monitoring are managed from their own Radarr, Sonarr, and SABnzbd pages.</p>
-<p>Radarr manages movies; Sonarr manages TV series; Lidarr manages music artists and albums. One-Eyed Willie can send a title to either service after you choose its folder and quality profile. Adding a title does not mean the media is available to play.</p>
+<p>Radarr manages movies; Sonarr manages TV series; Lidarr manages music artists and albums. Yarr Media can send a title to either service after you choose its folder and quality profile. Adding a title does not mean the media is available to play.</p>
 <p>Other *arr applications have different content types: Readarr manages books, and Prowlarr manages indexers. They can be integrated separately when those features are supported; connecting them here would not add movie or TV browsing.</p></section>
 </main></div></div>
 <script>
@@ -292,7 +292,7 @@ $('plex-form').addEventListener('submit',async event=>{
  finally{$('plex-connect').disabled=false}
 });
 $('plex-disconnect').addEventListener('click',async()=>{
- if(!confirm('Disconnect Plex? Existing One-Eyed Willie watched history will be kept.'))return;
+ if(!confirm('Disconnect Plex? Existing Yarr Media watched history will be kept.'))return;
  try{
   await fetchJson('/api/plex/settings',{method:'DELETE'});
   $('plex-message').textContent='Plex disconnected; imported watched history remains.';
@@ -312,7 +312,7 @@ $('plex-preview').addEventListener('click',async()=>{
  finally{$('plex-preview').disabled=false}
 });
 $('plex-import').addEventListener('click',async()=>{
- if(!confirm('Mark matching Plex movies and TV episodes watched in One-Eyed Willie? This does not modify Plex.'))return;
+ if(!confirm('Mark matching Plex movies and TV episodes watched in Yarr Media? This does not modify Plex.'))return;
  $('plex-import').disabled=true;$('plex-message').textContent='Importing watched statuses…';
  try{
   const result=await fetchJson('/api/plex/import',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({confirm:true})});
