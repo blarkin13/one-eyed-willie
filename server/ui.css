@@ -1064,6 +1064,36 @@ body:not(:has(.willie-hover-backdrop)) .workspace{background-color:#000000}
 .search-box input,.sort-select,dialog,.form-card input,.form-card select{background:#161616}
 
 
+/* Custom black-glass select controls, shared by web server and Google TV.
+   The native select and keyboard semantics remain intact for accessibility. */
+:root{--yarr-control-accent:var(--oew-tv-select-color,#A61E1E)}
+html body[data-page] select:not([multiple]){
+  -webkit-appearance:none!important;appearance:none!important;
+  color:#f5f1e8!important;background-color:rgba(20,20,20,.96)!important;
+  background-image:url("data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20width='14'%20height='10'%20viewBox='0%200%2014%2010'%3E%3Cpath%20d='M2%202.5%207%207.5%2012%202.5'%20fill='none'%20stroke='%23C9C9C9'%20stroke-width='2'%20stroke-linecap='round'%20stroke-linejoin='round'/%3E%3C/svg%3E")!important;
+  background-repeat:no-repeat!important;background-position:right 14px center!important;
+  background-size:14px 10px!important;
+  border:1px solid rgba(255,255,255,.22)!important;border-radius:10px!important;
+  padding:10px 43px 10px 14px!important;min-height:44px;box-sizing:border-box;
+  font:inherit;line-height:1.4;cursor:pointer;
+  transition:background-color .16s ease,border-color .16s ease,box-shadow .16s ease;
+}
+html body[data-page] select:not([multiple]):hover:not(:disabled){
+  background-color:#202020!important;border-color:rgba(255,255,255,.34)!important
+}
+html body[data-page] select:not([multiple]):is(:focus,:focus-visible){
+  outline:2px solid var(--yarr-control-accent)!important;outline-offset:2px!important;
+  border-color:var(--yarr-control-accent)!important;
+  box-shadow:0 0 0 2px #000!important
+}
+html body[data-page] select:not([multiple]):disabled{opacity:.5;cursor:not-allowed}
+html body[data-page] select option,html body[data-page] select optgroup{
+  color:#f5f1e8;background:#151515
+}
+@media(prefers-reduced-motion:reduce){
+  html body[data-page] select:not([multiple]){transition:none}
+}
+
 /* Compact YARR.MEDIA wordmark that matches the public site; no second raster logo. */
 .sidebar .brand-wordmark{
   display:none;align-items:center;flex:0 0 auto;min-width:0;
