@@ -3,7 +3,7 @@
 <head>
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Yarr Media · Connections</title><link rel="stylesheet" href="/assets/ui.css?v=connections-status-fix-4"><script defer src="/assets/shell.js?v=connections-status-fix-4"></script>
+<title>Yarr Media · Integrations</title><link rel="stylesheet" href="/assets/ui.css?v=connections-status-fix-4"><script defer src="/assets/shell.js?v=connections-status-fix-4"></script>
 <style>
 .connection-list{display:flex;flex-direction:column;gap:20px;width:100%;min-width:0;margin-top:20px}
 .connection-grid{display:contents}
@@ -83,12 +83,12 @@
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
 <div class="workspace">
 <main class="content">
-<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Connections</h1>
+<div class="page-head"><div><p class="eyebrow">Settings</p><h1>Integrations</h1>
 <p>Configure your media integrations. Each connection has its own settings and status.</p></div>
 </div>
 
 <div class="connection-tools" role="search">
-<label for="connection-search">Search connections</label>
+<label for="connection-search">Search integrations</label>
 <div class="connection-search-row">
 <input id="connection-search" type="search" autocomplete="off" placeholder="Search by service or purpose…" aria-controls="connection-list" />
 <button id="connections-expand" type="button" class="secondary-button">Expand all</button>
@@ -96,7 +96,7 @@
 </div>
 <p id="connections-count" role="status" aria-live="polite"></p>
 </div>
-<div class="connection-list" id="connection-list" aria-label="Connection configuration">
+<div class="connection-list" id="connection-list" aria-label="Integration configuration">
 <div class="connection-grid" id="connections"></div>
 <section class="connection-card" data-connection-id="sabnzbd" aria-labelledby="sab-heading">
 <div class="connection-head"><h2 id="sab-heading"><img class="integration-logo" src="/assets/brand/sabnzbd.svg" alt=""> SABnzbd</h2><span id="sab-state" class="integration-state">Checking…</span></div>
@@ -410,14 +410,14 @@ function initConnectionDirectory(){
    if(serviceId){
      const row=document.createElement('div');row.className='connection-visibility-row';
      const text=document.createElement('div');
-     const title=document.createElement('strong');title.className='visibility-title';title.textContent='Connections page';
+     const title=document.createElement('strong');title.className='visibility-title';title.textContent='Integrations page';
      const note=document.createElement('p');note.className='visibility-explanation';
      note.textContent='Hide this tile from the server and TVs without disconnecting the service.';
      text.append(title,note);
      const label=document.createElement('label');label.className='connection-visibility-label';
      const input=document.createElement('input');input.type='checkbox';input.checked=true;
-     input.setAttribute('aria-label','Show '+title.textContent.replace('Connections page',serviceId)+' in Connections');
-     const labelText=document.createElement('span');labelText.textContent='Show in Connections';
+     input.setAttribute('aria-label','Show '+title.textContent.replace('Integrations page',serviceId)+' in Integrations');
+     const labelText=document.createElement('span');labelText.textContent='Show in Integrations';
      label.append(input,labelText);
      const feedback=document.createElement('p');feedback.className='connection-visibility-feedback';
      feedback.setAttribute('role','status');
@@ -430,7 +430,7 @@ function initConnectionDirectory(){
            method:'PUT',headers:{'Content-Type':'application/json'},
            body:JSON.stringify({service:serviceId,visible:requested})
          });
-         feedback.textContent=requested?'Shown in Connections.':'Hidden in Connections; still connected.';
+         feedback.textContent=requested?'Shown in Integrations.':'Hidden in Integrations; still connected.';
        }catch(error){
          input.checked=!requested;
          feedback.textContent='Could not save: '+error.message;
@@ -455,13 +455,13 @@ function initConnectionDirectory(){
      record.details.hidden=!visible;
      if(visible)matches++;
    }
-   counter.textContent=matches+' of '+records.length+' connections'+(matches===0?' — no matches':'');
+   counter.textContent=matches+' of '+records.length+' integrations'+(matches===0?' — no matches':'');
  }
  search.addEventListener('input',filter);
  $('connections-expand').addEventListener('click',()=>records.filter(item=>!item.details.hidden).forEach(item=>item.details.open=true));
  $('connections-collapse').addEventListener('click',()=>records.forEach(item=>item.details.open=false));
  filter();
- // Open a connection automatically when navigating from the Connections hub.
+ // Open a connection automatically when navigating from the Integrations hub.
  const hash=location.hash;
  const target=hash?document.getElementById(hash.slice(1)):null;
  const selected=target?.closest('.connection-item');

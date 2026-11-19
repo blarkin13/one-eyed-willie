@@ -10,7 +10,7 @@ class SettingsNavigationTests(unittest.TestCase):
     def test_four_settings_pages_have_routes(self):
         routes = {getattr(route, "path", "") for route in app.routes}
         for expected in ("/settings", "/settings/general", "/settings/appearance", "/settings/libraries",
-                         "/settings/metadata", "/settings/connections"):
+                         "/settings/metadata", "/settings/integrations", "/settings/connections"):
             self.assertIn(expected, routes)
 
     def test_general_links_to_real_maintenance_playback_remote_endpoints(self):
@@ -43,7 +43,7 @@ class SettingsNavigationTests(unittest.TestCase):
             ("Appearance &amp; Navigation", "/settings/appearance"),
             ("Libraries", "/settings/libraries"),
             ("Metadata", "/settings/metadata"),
-            ("Connections", "/settings/connections"),
+            ("Integrations", "/settings/integrations"),
         ]:
             self.assertIn("<h2>"+heading+"</h2>", page)
             self.assertIn('href="'+route+'"', page)
@@ -61,7 +61,7 @@ class SettingsNavigationTests(unittest.TestCase):
         for term in ("tv-subtitle-form", "tv-subtitles-on", "tv-language-dialog",
                      "tv-playback-form", "tv-server-connection"):
             self.assertIn(term, page)
-        for title in ("Library settings", "Metadata", "Maintenance", "Connections",
+        for title in ("Library settings", "Metadata", "Maintenance", "Integrations",
                       "Appearance &amp; Navigation"):
             self.assertNotIn("<h2>" + title + "</h2>", page)
         main = (ROOT.parent / "google-tv/app/src/main/java/studio/oneeyedwillie/tv/MainActivity.kt").read_text()

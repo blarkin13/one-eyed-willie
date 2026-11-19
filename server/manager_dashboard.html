@@ -305,7 +305,7 @@ async function refresh(){
     ((activeData.warnings||[]).length?' · '+activeData.warnings.join(' '):''));
  }catch(error){
   $('manager-body').hidden=true;
-  feedback(error.message+' Connect or check '+label+' in Settings → Connections.');
+  feedback(error.message+' Connect or check '+label+' in Settings → Integrations.');
  }finally{waiting=false;$('manager-refresh').disabled=false}
 }
 $('manager-refresh').onclick=refresh;

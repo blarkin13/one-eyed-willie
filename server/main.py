@@ -681,6 +681,7 @@ def metadata_settings_page():
 def explore_more_page():
     return TextFileResponse(Path(__file__).with_name("explore.html"), media_type="text/html")
 
+@app.get("/integrations")
 @app.get("/connections")
 def connections_hub_page():
     return TextFileResponse(Path(__file__).with_name("connections_hub.html"), media_type="text/html",
@@ -690,7 +691,7 @@ def connections_hub_page():
 @app.get("/services")
 def download_services_page():
     # Preserve old bookmarks without showing disconnected services.
-    return RedirectResponse("/connections", status_code=307)
+    return RedirectResponse("/integrations", status_code=307)
 
 
 @app.get("/radarr")
@@ -713,6 +714,7 @@ def sabnzbd_dashboard_page():
     return TextFileResponse(Path(__file__).with_name("sab_dashboard.html"), media_type="text/html")
 
 
+@app.get("/settings/integrations")
 @app.get("/settings/connections")
 def arr_connections_page():
     return TextFileResponse(Path(__file__).with_name("arr_connections.html"), media_type="text/html")

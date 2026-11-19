@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Connections · Yarr Media</title>
+<title>Integrations · Yarr Media</title>
 <link rel="icon" href="/assets/favicon.png" type="image/png">
 <link rel="stylesheet" href="/assets/ui.css?v=connections-hub-lidarr-4">
 <script defer src="/assets/shell.js?v=connections-hub-1"></script>
@@ -75,9 +75,9 @@ html body.oew-tv-client .connection-service-dialog button:is(:focus,:focus-visib
 <body data-page="connectionshub"><div class="app-shell">
 <aside class="sidebar" id="app-nav" aria-label="Sidebar"></aside>
 <div class="workspace"><main class="content">
-<div class="page-head"><div><p class="eyebrow">Media management</p><h1>Connections</h1>
+<div class="page-head"><div><p class="eyebrow">Media management</p><h1>Integrations</h1>
 <p id="connections-intro">View your configured media service integrations. Only configured services appear. Select a dashboard service to open it; API-only integrations display their status here.</p></div>
-<a class="secondary-button" id="connections-manage" href="/settings/connections">Manage connections</a></div>
+<a class="secondary-button" id="connections-manage" href="/settings/connections">Manage integrations</a></div>
 <div class="connections-hub" id="connected-services" aria-label="Connected services" aria-live="polite"></div>
 <p class="connection-empty" id="connections-message" role="status">Checking configured services…</p>
 <dialog class="connection-service-dialog" id="connection-service-dialog"
@@ -234,13 +234,13 @@ async function showConnected(){
    message.textContent='';
  else if(!root.childElementCount && settled.every(value=>value.status==='fulfilled'))
    message.textContent=Object.values(connected).some(Boolean)
-     ?'All connected services are hidden. Enable Show in Connections in server settings.'
+     ?'All connected services are hidden. Enable Show in Integrations in server settings.'
      :isTvClient?'No services connected. Add integrations using Settings on your Yarr Media server.'
-       :'No services connected yet. Add one in Settings → Connections.';
+       :'No services connected yet. Add one in Settings → Integrations.';
  else if(!root.childElementCount)
    message.textContent=isTvClient
      ?'Connection status unavailable. Check Yarr Media on your server.'
-     :'Connection status is unavailable. Check Settings → Connections.';
+     :'Connection status is unavailable. Check Settings → Integrations.';
 }
 showConnected();
 </script></body></html>

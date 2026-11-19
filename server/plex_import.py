@@ -103,7 +103,7 @@ def _read():
         data = json.loads(CONFIG.read_text())
         return {"url": _base_url(data["url"]), "token": str(data["token"])}
     except FileNotFoundError:
-        raise HTTPException(409, "Connect Plex in Settings → Connections first")
+        raise HTTPException(409, "Connect Plex in Settings → Integrations first")
     except (OSError, KeyError, ValueError, TypeError) as error:
         raise HTTPException(500, "Plex connection settings are invalid") from error
 
