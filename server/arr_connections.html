@@ -433,7 +433,8 @@ loadTimeAdrift();
 const glanceDefinitions=[
  {id:'clock',name:'Clock',description:'Live local or selected-zone time. No external provider.'},
  {id:'weather',name:'Weather',description:'US forecasts from the National Weather Service. A ZIP is required.'},
- {id:'news',name:'News',description:'Attributed headlines linking to the original publishers.'}
+ {id:'news',name:'News',description:'Attributed headlines linking to the original publishers.'},
+ {id:'ambient',name:'Ambient Display',description:'Full-screen idle view with the widgets selected for Idle.'}
 ];
 const glanceControls={};
 function addGlanceIntegrationCards(){
@@ -450,8 +451,10 @@ function addGlanceIntegrationCards(){
   const form=document.createElement('form');form.className='glance-config-form';
   const flags=document.createElement('div');flags.className='glance-config-grid';
   const switches={};
-  for(const [key,label] of [['enabled','Enable '+def.name],['home','Home'],
-    ['pause','Paused player'],['idle','Idle screen']]){
+  const flagsForCard=def.id==='ambient'?[['enabled','Enable Ambient Display']]:
+    [['enabled','Enable '+def.name],['home','Home'],
+     ['pause','Paused player'],['idle','Idle screen']];
+  for(const [key,label] of flagsForCard){
     const wrapper=document.createElement('label');wrapper.className='glance-switch-label';
     const input=document.createElement('input');input.type='checkbox';
     input.className='glance-checkbox';input.name=key;
@@ -482,6 +485,8 @@ function addGlanceIntegrationCards(){
   }
   if(def.id==='news')makeInput('news_source','News provider','select',
     [['npr','NPR News'],['bbc','BBC News']]);
+  if(def.id==='ambient')makeInput('idle_timeout_seconds','Show after','select',
+    [['60','1 minute'],['120','2 minutes'],['300','5 minutes'],['600','10 minutes']]);
   const feedback=document.createElement('p');feedback.className='message';
   feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
   form.append(flags,settings,feedback);
