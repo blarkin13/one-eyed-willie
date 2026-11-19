@@ -22,7 +22,7 @@ git pull --ff-only origin main
 bash deploy/setup-yarr-vpc.sh
 ```
 
-The setup script securely prompts for the token and writes it to the local, gitignored `.env` with mode 0600. It starts **only** the optional `yarr-cloudflared` sidecar. It doesn't open firewall ports or replace the existing One-Eyed Willie app. The tunnel requires outbound UDP 7844 (QUIC).
+The setup script securely prompts for the token and writes it to the local, gitignored `.env` with mode 0600. It starts **only** the optional `yarr-cloudflared` sidecar. It doesn't open firewall ports or replace the existing Yarr Media app. The tunnel requires outbound UDP 7844 (QUIC).
 
 4. Once the Cloudflare tunnel shows Healthy, sign into `https://yarr.larki-brian.workers.dev/app` and click **Test private connection**.
 5. Expected response: `connected: true`, the application name and version, and `media_access: false`. If the tunnel is offline, the endpoint returns a controlled error, rather than exposing your origin.
@@ -43,7 +43,7 @@ cd /opt/one-eyed-willie/app
 sudo docker compose -f compose.yaml -f compose.yarr-vpc.yaml stop yarr-cloudflared
 ```
 
-The old media server continues operating locally, and the existing One-Eyed Willie Worker is untouched.
+The old media server continues operating locally, and the existing Yarr Media Worker is untouched.
 
 ## Security / rollout boundary
 
