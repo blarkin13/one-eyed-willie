@@ -173,7 +173,8 @@ const entries=[
  {id:'time-adrift',title:'Time Adrift',config:'#time-adrift-heading',description:'Per-video pause and rewind time counter.',image:null},
  {id:'clock',title:'Clock',description:'Live digital clock with optional 12/24-hour format.',image:null,icon:'◷'},
  {id:'weather',title:'Weather',description:'US National Weather Service forecasts by ZIP code.',image:null,icon:'☀'},
- {id:'news',title:'News',description:'News headlines with links and source attribution.',image:null,icon:'≡'}
+ {id:'news',title:'News',description:'News headlines with links and source attribution.',image:null,icon:'≡'},
+ {id:'ambient',title:'Ambient Display',description:'Idle screensaver for enabled widgets.',image:null,icon:'◫'}
 ];
 function serviceLogo(service){
  if(!service.image){
@@ -233,12 +234,12 @@ async function showConnected(){
  const lidarr=settled[4].status==='fulfilled'?settled[4].value:{};
  const timeAdrift=settled[5].status==='fulfilled'?settled[5].value:{};
  const glanceSettings=settled[6].status==='fulfilled'?settled[6].value.integrations||{}:{};
- const glanceNames=['clock','weather','news'];
+ const glanceNames=['clock','weather','news','ambient'];
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
    lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
    opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled,
    clock:!!glanceSettings.clock?.enabled,weather:!!glanceSettings.weather?.enabled,
-   news:!!glanceSettings.news?.enabled};
+   news:!!glanceSettings.news?.enabled,ambient:!!glanceSettings.ambient?.enabled};
  for(const service of entries){
    if((service.id!=='time-adrift'&&!glanceNames.includes(service.id)&&
        !connected[service.id])||visibility.visible?.[service.id]===false)continue;
