@@ -172,6 +172,31 @@ class KeyStoreTests(unittest.TestCase):
             self.assertEqual(reloaded._keys["k9"].public_bytes_raw(), raw)
 
 
+class KeyRefreshRaceTests(unittest.TestCase):
+    def test_a_pass_on_first_visit_waits_for_the_running_download(self):
+        """A fresh server starts a background key download; the pass check that
+        arrives meanwhile must wait for it rather than report unknown_key."""
+        import threading
+        key = Ed25519PrivateKey.generate()
+        raw = key.public_key().public_bytes_raw()
+        started = threading.Event()
+
+        def slow_fetch():
+            started.set()
+            time.sleep(0.3)
+            return {"keys": [{"kty": "OKP", "crv": "Ed25519", "x": b64(raw), "kid": "k1"}]}
+
+        with tempfile.TemporaryDirectory() as folder:
+            store = ra.KeyStore(path=Path(folder) / "keys.json", fetch=slow_fetch)
+            background = threading.Thread(target=store.refresh)
+            background.start()
+            started.wait(2)
+            store.refresh()  # throttled, but must not return before the download lands
+            claims = ra.verify_pass(make_pass(key), keys=ra._NonBlocking(store), server_id=SERVER)
+            background.join()
+        self.assertEqual(claims["aud"], SERVER)
+
+
 class WiringTests(unittest.TestCase):
     def test_real_app_installs_the_gate_and_caddy_marks_remote(self):
         from server.main import app

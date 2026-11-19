@@ -60,6 +60,9 @@ class KeyStore:
         self.url = url
         self._fetch = fetch or self._download
         self._lock = threading.Lock()
+        # One download at a time. A caller that needs a key while another
+        # download is running waits for it instead of giving up.
+        self._fetch_lock = threading.Lock()
         self._keys = {}
         self._loaded_at = 0.0
         self._last_attempt = 0.0
@@ -93,6 +96,10 @@ class KeyStore:
             pass
 
     def refresh(self):
+        with self._fetch_lock:
+            return self._refresh_locked()
+
+    def _refresh_locked(self):
         with self._lock:
             if time.time() - self._last_attempt < KEY_RETRY_SECONDS:
                 return False
