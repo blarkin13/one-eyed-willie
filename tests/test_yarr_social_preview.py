@@ -22,7 +22,8 @@ class SocialPreviewTests(unittest.TestCase):
         self.assertIn(URL, WORKER)
         self.assertIn('property="og:image"', WORKER)
         self.assertIn('name="twitter:card" content="summary_large_image"', WORKER)
-        self.assertIn("u.pathname==='/assets/yarr-media-og-v2.jpg'", WORKER)
+        # Served from the Worker's public asset table (fetched from this repo).
+        self.assertIn("'/assets/yarr-media-og-v2.jpg':'yarr-media-og-v2.jpg'", WORKER)
 
     def test_media_server_uses_same_image(self):
         self.assertEqual(HOME.count(URL), 3)

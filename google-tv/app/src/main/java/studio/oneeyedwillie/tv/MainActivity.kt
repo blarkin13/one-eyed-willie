@@ -90,6 +90,10 @@ class MainActivity : ComponentActivity() {
     private var playedStartupSound = false
     @Volatile private var discoveryGeneration = 0
     private val discoveryWorker = Executors.newSingleThreadExecutor()
+    // Yarr account sign-in runs its network calls here, never on the main thread.
+    private val accountWorker = Executors.newSingleThreadExecutor()
+    private val accountHandler = android.os.Handler(android.os.Looper.getMainLooper())
+    private var accountDialog: android.app.AlertDialog? = null
 
     private fun dp(value: Int) = (value * resources.displayMetrics.density + .5f).toInt()
 
@@ -434,6 +438,7 @@ class MainActivity : ComponentActivity() {
             .setMessage("Change this TV's saved server address and port.")
             .setView(container)
             .setNegativeButton("Cancel", null)
+            .setNeutralButton("Yarr account") { _, _ -> showYarrAccount() }
             .setPositiveButton("Connect", null)
             .create()
         dialog.setOnShowListener {
@@ -458,6 +463,123 @@ class MainActivity : ComponentActivity() {
             }
         }
         dialog.show()
+    }
+
+    // ---- Yarr account (sign in with a code shown on the TV) -------------------
+    private fun accountMessageView(lines: String, code: String? = null): View =
+        LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(24), dp(12), dp(24), dp(4))
+            addView(TextView(this@MainActivity).apply { text = lines; textSize = 18f })
+            if (code != null) addView(TextView(this@MainActivity).apply {
+                text = code
+                textSize = 40f
+                letterSpacing = 0.12f
+                typeface = android.graphics.Typeface.MONOSPACE
+                gravity = Gravity.CENTER
+                setPadding(0, dp(16), 0, dp(8))
+            })
+        }
+
+    private fun showAccountDialog(title: String, body: View, configure: (android.app.AlertDialog.Builder) -> Unit) {
+        accountDialog?.dismiss()
+        val builder = android.app.AlertDialog.Builder(this).setTitle(title).setView(body)
+        configure(builder)
+        accountDialog = builder.create().also { it.show() }
+    }
+
+    private fun showYarrAccount() {
+        val token = YarrAccount.savedToken(this) ?: return startYarrSignIn()
+        showAccountDialog("Yarr account", accountMessageView("Checking your account…")) {
+            it.setNegativeButton("Close", null)
+        }
+        accountWorker.execute {
+            val profile = try { YarrAccount.profile(token) } catch (e: Exception) { e }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                when (profile) {
+                    null -> { YarrAccount.saveToken(this, null); startYarrSignIn() }
+                    is YarrAccount.Profile -> showAccountDialog("Yarr account", accountMessageView(
+                        "Signed in as ${profile.email.ifBlank { profile.displayName }}\nPlan: ${if (profile.pro) "Pro" else "Free"}")) {
+                        it.setNegativeButton("Close", null)
+                        it.setNeutralButton("Sign out") { _, _ ->
+                            YarrAccount.saveToken(this, null)
+                            accountWorker.execute { YarrAccount.signOut(token) }
+                        }
+                    }
+                    else -> showAccountDialog("Yarr account", accountMessageView(
+                        "Yarr Media could not be reached. Check this TV's internet connection.")) {
+                        it.setNegativeButton("Close", null)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun startYarrSignIn() {
+        val name = android.provider.Settings.Global.getString(contentResolver, "device_name")
+            ?.takeIf { it.isNotBlank() } ?: android.os.Build.MODEL ?: "Google TV"
+        showAccountDialog("Sign in to Yarr Media", accountMessageView("Getting a sign-in code…")) {
+            it.setNegativeButton("Cancel", null)
+        }
+        val waiting = accountDialog
+        accountWorker.execute {
+            val code = try { YarrAccount.requestCode(name) } catch (e: Exception) { null }
+            runOnUiThread {
+                if (isDestroyed || accountDialog !== waiting || waiting?.isShowing != true) return@runOnUiThread
+                if (code == null) {
+                    showAccountDialog("Sign in to Yarr Media", accountMessageView(
+                        "Yarr Media could not be reached. Check this TV's internet connection.")) {
+                        it.setNegativeButton("Close", null)
+                        it.setPositiveButton("Try again") { _, _ -> startYarrSignIn() }
+                    }
+                    return@runOnUiThread
+                }
+                showAccountDialog("Sign in to Yarr Media", accountMessageView(
+                    "On your phone or computer, go to\n${code.verificationUri.removePrefix("https://")}\nand enter this code:", code.userCode)) {
+                    it.setNegativeButton("Cancel", null)
+                }
+                val shown = accountDialog
+                val deadline = android.os.SystemClock.uptimeMillis() + code.expiresInSeconds * 1000L
+                pollYarrSignIn(code, code.intervalSeconds, deadline, shown)
+            }
+        }
+    }
+
+    private fun pollYarrSignIn(code: YarrAccount.DeviceCode, interval: Int, deadline: Long,
+                               shown: android.app.AlertDialog?) {
+        accountHandler.postDelayed({
+            if (isDestroyed || accountDialog !== shown || shown?.isShowing != true) return@postDelayed
+            if (android.os.SystemClock.uptimeMillis() > deadline) {
+                showAccountDialog("Sign in to Yarr Media", accountMessageView("The code expired.")) {
+                    it.setNegativeButton("Close", null)
+                    it.setPositiveButton("Get a new code") { _, _ -> startYarrSignIn() }
+                }
+                return@postDelayed
+            }
+            accountWorker.execute {
+                val result = YarrAccount.poll(code.deviceCode, interval)
+                runOnUiThread {
+                    if (isDestroyed || accountDialog !== shown || shown?.isShowing != true) return@runOnUiThread
+                    when (result) {
+                        is YarrAccount.Poll.Granted -> {
+                            YarrAccount.saveToken(this, result.token)
+                            showYarrAccount()
+                        }
+                        is YarrAccount.Poll.SlowDown -> pollYarrSignIn(code, result.intervalSeconds, deadline, shown)
+                        YarrAccount.Poll.Pending -> pollYarrSignIn(code, interval, deadline, shown)
+                        YarrAccount.Poll.Denied -> showAccountDialog("Sign in to Yarr Media",
+                            accountMessageView("Sign-in was cancelled.")) { it.setNegativeButton("Close", null) }
+                        YarrAccount.Poll.Expired -> showAccountDialog("Sign in to Yarr Media",
+                            accountMessageView("The code expired.")) {
+                            it.setNegativeButton("Close", null)
+                            it.setPositiveButton("Get a new code") { _, _ -> startYarrSignIn() }
+                        }
+                        is YarrAccount.Poll.Failed -> pollYarrSignIn(code, interval, deadline, shown)
+                    }
+                }
+            }
+        }, interval * 1000L)
     }
 
     private fun waitForStartupContent(web: WebView, serial: Int, attempts: Int = 0) {
@@ -1066,6 +1188,9 @@ class MainActivity : ComponentActivity() {
         loadingArt = null
         ++discoveryGeneration
         discoveryWorker.shutdownNow()
+        accountHandler.removeCallbacksAndMessages(null)
+        accountDialog?.dismiss()
+        accountWorker.shutdownNow()
         loadingOverlay?.animate()?.cancel()
         tvTextEditing = false
         browser?.keepScreenOn = false

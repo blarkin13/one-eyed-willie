@@ -2,7 +2,7 @@
 // Product name and public domain remain provisional. No home-server media proxy.
 const JSON_HEADERS = {'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
 const HTML_HEADERS = {'content-type':'text/html; charset=utf-8','cache-control':'public, max-age=300','x-content-type-options':'nosniff','referrer-policy':'strict-origin-when-cross-origin','content-security-policy':"default-src 'none'; style-src 'unsafe-inline'; img-src 'self' https://raw.githubusercontent.com; base-uri 'none'; frame-ancestors 'none'; form-action 'self'"};
-// Public emblem and favicon use the same square artwork as the app.
+// First-party Yarr Media logo and favicon.
 const YARR_ICON_SVG = "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 900 900\" role=\"img\" aria-label=\"Yarr Media moon, pirate sail and waves\"><path fill=\"#fff\" d=\"M34,808 78,809 193,798 254,798 313,805 395,823 445,832 490,837 527,838 572,835 613,829 695,809 751,800 776,798 821,798 855,801 868,804 873,803 833,790 794,782 766,779 722,779 684,784 628,797 592,803 562,806 506,806 447,797 381,779 339,770 303,765 251,763 213,766 178,772 84,797Z M285,129 246,152 216,174 194,193 162,227 140,256 122,285 108,313 92,355 82,393 77,424 77,493 83,529 89,552 103,591 120,626 147,668 173,700 198,725 232,753 288,747 313,686 337,639 363,596 401,543 455,481 521,419 574,380 598,366 634,349 667,339 683,337 683,339 668,349 653,363 640,381 630,409 628,432 609,437 589,452 558,463 587,477 620,482 618,492 618,518 621,536 626,552 635,571 648,590 660,602 672,610 665,611 633,605 613,608 602,614 596,619 596,621 609,622 624,628 608,634 596,645 596,647 608,650 624,659 637,672 627,675 650,690 673,716 670,717 620,697 565,683 521,677 467,677 440,680 410,686 370,699 352,707 331,720 317,732 307,745 392,750 451,759 559,779 623,782 657,760 683,739 711,712 737,682 761,648 775,624 791,590 804,553 811,524 816,491 817,443 815,418 811,391 803,357 790,320 776,290 755,255 736,229 706,195 687,177 656,152 632,136 593,116 561,104 531,96 494,90 462,88 426,89 383,95 354,102 329,110Z\"/></svg>";
 const page = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -23,7 +23,7 @@ const page = `<!doctype html>
 <meta name="twitter:title" content="Yarr Media — Your media. Your server.">
 <meta name="twitter:description" content="Your own movies and shows on your server.">
 <meta name="twitter:image" content="https://yarr.media/assets/yarr-media-og-v2.jpg">
-<meta name="robots" content="index,follow"><link rel="canonical" href="https://yarr.larki-brian.workers.dev/">
+<meta name="robots" content="index,follow"><link rel="canonical" href="https://yarr.media/">
 <style>
 :root{color-scheme:dark;--bg:#0a0a0a;--ink:#f5f1e8;--accent:#a61e1e;--bright:#eb8888;--muted:#c2bcb2;--line:#ffffff25;font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:var(--bg);color:var(--ink)}
 *{box-sizing:border-box}html{scroll-behavior:smooth}body{margin:0;background:radial-gradient(ellipse at 85% 11%,#39101055,transparent 34%),var(--bg);min-width:280px}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 30px}
@@ -60,13 +60,14 @@ const page = `<!doctype html>
 
 
 
-const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="/favicon.svg?v=moon-sail-v1" alt="" aria-hidden="true"><span class="site-brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
+const DOWNLOADS_PLACEHOLDERS = "<section id=\"downloads\" class=\"section reveal\" aria-labelledby=\"downloads-title\"><div class=\"eyebrow\">Apps</div><h2 id=\"downloads-title\">Downloads</h2><p class=\"section-intro\">Choose where you want to watch. App installation options are coming soon.</p><div class=\"features\"><article class=\"tile\"><b>GOOGLE TV</b><h3>Android TV</h3><p>Coming soon to the Google Play Store.</p></article><article class=\"tile\"><b>ANDROID</b><h3>Mobile web app</h3><p>Install from Chrome — coming soon.</p></article><article class=\"tile\"><b>IPHONE &amp; IPAD</b><h3>Mobile web app</h3><p>Add to Home Screen in Safari — coming soon.</p></article></div></section>";
+const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="/favicon.svg?v=moon-sail-v1" alt="" aria-hidden="true"><span class="site-brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a><a href="/#downloads">Downloads</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
 const SITE_FOOTER = '<footer class="site-footer" role="contentinfo"><div><div class="site-foot-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="site-foot-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a></div><div><div class="site-foot-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="site-foot-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>';
 const SITE_CHROME_CSS = `
 :root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f5f1e8}html{background:#0a0a0a}body{margin:0;min-height:100vh;background:#0a0a0a;color:#f5f1e8;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 24px}
 .site-header{max-width:100%;min-height:90px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 0;border-bottom:1px solid #ffffff29}
 .site-header .site-brand{display:flex;align-items:center;gap:12px;white-space:nowrap;text-decoration:none;color:#f5f1e8;font-size:21px;letter-spacing:.075em;font-weight:900}
-.site-brand img{height:48px;width:48px;flex:none;object-fit:contain}.site-brand strong{color:#eb8888}.site-header .site-brand .site-brand-label{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:clamp(18px,1.8vw,23px);font-weight:900;letter-spacing:.01em;line-height:1;color:#f5f1e8}
+.site-brand img{height:46px;width:46px;object-fit:contain}.site-header .site-brand .site-brand-label{font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;font-size:clamp(18px,1.8vw,23px);font-weight:900;letter-spacing:.01em;line-height:1;color:#f5f1e8}.site-header .site-brand .site-wordmark{width:clamp(160px,23vw,255px);height:auto;max-height:76px;object-fit:contain}.site-brand strong{color:#eb8888}
 .site-nav{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.site-nav a{color:#d9d3c9;text-decoration:none;font-size:14px;font-weight:500}.site-nav a:hover{color:#fff}
 .site-actions{display:flex;align-items:center;gap:10px}.site-actions a{display:inline-flex;justify-content:center;align-items:center;padding:10px 14px;min-height:42px;border-radius:8px;border:1px solid #ffffff48;text-decoration:none;color:#f5f1e8;font-size:13px;font-weight:750;white-space:nowrap;transition:background .2s ease,transform .2s ease}
 .site-actions a:hover{background:#ffffff18;transform:translateY(-2px)}.site-actions .site-app-link{background:#a61e1e;color:white;border-color:#a61e1e}.site-actions .site-app-link:hover{background:#c32c2c}
@@ -77,6 +78,28 @@ const SITE_CHROME_CSS = `
 @media(max-width:1050px){.site-header{flex-wrap:wrap}.site-nav{gap:16px}.site-footer{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:560px){.site-header{gap:13px}.site-header .site-brand{font-size:18px}.site-brand img{width:38px;height:38px}.site-nav{order:3;width:100%;gap:15px}.site-nav a{font-size:13px}.site-actions{margin-left:auto}.site-actions a{padding:9px;font-size:12px}.site-footer{grid-template-columns:1fr}}
 @media(max-width:350px){.site-actions{width:100%}.site-actions a{flex:1}}
+
+/* Unified public and account chrome: same width, spacing, sizing and logo. */
+.wrap{width:100%;max-width:1440px;margin-inline:auto;padding-inline:clamp(18px,3vw,48px)}
+.site-header{box-sizing:border-box;min-height:118px;padding:18px 0;gap:24px}
+.site-header .site-brand .site-wordmark{width:245px;height:76px;max-width:100%;max-height:76px;object-fit:contain}
+.site-nav{gap:24px}.site-nav a{font-size:15px;font-weight:600}.site-actions a{font-size:14px;min-height:46px;padding:11px 17px}
+.account-main{padding-top:64px}
+@media(max-width:1050px){.site-header{min-height:104px;gap:16px}.site-header .site-brand .site-wordmark{width:205px;height:65px}}
+@media(max-width:560px){.wrap{padding-inline:16px}.site-header{min-height:88px;padding:14px 0}.site-header .site-brand .site-wordmark{width:168px;height:54px}.site-nav a{font-size:13px}.site-actions a{font-size:12px;min-height:40px;padding:9px 11px}.account-main{padding-top:42px}}
+/* Keep shared site header and buttons inside the viewport. */
+html,body{max-width:100%}
+.wrap{box-sizing:border-box;width:100%;max-width:1440px;margin-inline:auto;padding-inline:clamp(16px,3vw,48px)}
+.site-header{box-sizing:border-box;display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:center;column-gap:clamp(12px,2vw,30px);width:100%;max-width:100%}
+.site-header .site-brand{min-width:0;justify-self:start}
+.site-header .site-brand .site-wordmark{display:block;width:clamp(150px,17vw,245px);max-width:100%;height:auto;max-height:76px}
+.site-nav{min-width:0;justify-content:center;gap:clamp(12px,1.5vw,24px)}
+.site-nav a{white-space:nowrap}
+.site-actions{justify-self:end;min-width:0;max-width:100%;gap:10px}
+.site-actions a{box-sizing:border-box;white-space:nowrap}
+@media(max-width:1100px){.site-header{display:grid;grid-template-columns:minmax(0,1fr) auto;grid-template-areas:"brand actions" "nav nav";row-gap:13px;padding-block:16px}.site-header .site-brand{grid-area:brand}.site-nav{grid-area:nav;justify-content:center;width:100%;flex-wrap:wrap}.site-actions{grid-area:actions;justify-self:end}}
+@media(max-width:620px){.site-header{gap:12px}.site-header .site-brand .site-wordmark{width:clamp(130px,34vw,185px)}.site-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}.site-actions a{font-size:12px;padding:8px 10px;min-height:38px}.site-nav{gap:10px 16px;justify-content:center}}
+@media(max-width:430px){.site-header{grid-template-columns:1fr;grid-template-areas:"brand" "actions" "nav"}.site-actions{justify-self:stretch;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.site-actions a{min-width:0;white-space:normal;text-align:center}}
 @media(prefers-reduced-motion:reduce){.site-actions a{transition:none}.site-actions a:hover{transform:none}}
 `;
 function siteChrome(html) {
@@ -85,7 +108,7 @@ function siteChrome(html) {
  const footer=/<footer class="(?:footer|foot|note)">[\s\S]*?<\/footer>/;
  if(!header.test(out)||!footer.test(out)||!out.includes('</style>'))throw Error('Public site chrome missing');
  out=out.replace(header,SITE_HEADER).replace(footer,SITE_FOOTER);
- return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>');
+ return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>').replaceAll('href=\"/app\"','href=\"'+APP_SITE+'/\"').replaceAll('href=\"/account\"','href=\"'+ACCOUNTS_SITE+'/\"').replaceAll('href=\"/\"','href=\"'+PUBLIC_SITE+'/\"').replaceAll('href=\"/#downloads\"','href=\"'+PUBLIC_SITE+'/#downloads\"').replace(/href=\"\/(features|free-vs-pro|how-it-works|remote-access|terms|privacy|cookies)\"/g,(_,path)=>'href=\"'+PUBLIC_SITE+'/'+path+'\"');
 }
 
 const PUBLIC_PAGE_DATA = {
@@ -112,7 +135,12 @@ const LEGAL_PAGE_DATA = {
  ['Paired server information','Account-linked records can include server display names, identifiers, pairing status, connection credential hashes and connection status. Network diagnostics may exchange connection information to evaluate server access.'],
  ['Your media','Yarr Media is designed to operate from your own server. The public website does not provide a public media-storage service. Media access and metadata processing on your installed server are separate from the marketing website.'],
  ['Service providers','The preview runs on Cloudflare infrastructure and uses Google sign-in. These providers may process technical information needed to deliver their respective services.'],
- ['Your choices','You can sign out of your account. For questions about access, correction or deletion of account information during the preview, contact the project owner through the project repository. Automated account deletion is not represented here as available.'],
+ ['Signed-in TVs and apps','When you sign in a TV or app with a code, the account stores the device name, type, app version, sign-in date and last-used date, plus a hashed credential. You can sign a device out at any time from My Account.'],
+ ['Remote access','When you open your server remotely, the website issues a short-lived signed pass naming your account and server. Your media streams directly between your server and your device; it is not stored on the website.'],
+ ['Payments','Pro purchases are processed by Stripe. Card and billing details are entered with Stripe and are not received by Yarr Media. The account stores your Stripe customer and subscription identifiers, plan status and renewal date, and a record of billing notifications.'],
+ ['Security records','Sign-ins, device approvals, plan changes and account deletion are logged with a one-way hash of the network address, and kept for up to one year.'],
+ ['Retention and deletion','Sessions expire after seven days and device credentials after one year unless renewed. You can permanently delete your account from My Account; this cancels Pro, signs out every device and unlinks your servers. A minimal, anonymized deletion record and billing records required by law may be kept.'],
+ ['Your choices','You can sign out, sign out individual devices, or delete your account at any time from My Account.'],
  ['Changes','This page describes the current preview rather than a finalized production policy. Material changes will require an updated notice before public launch.']]},
  '/cookies': {title:'Cookie Policy',eyebrow:'Cookies',description:'Session and Google sign-in cookies used by the Yarr Media preview.',heading:'Cookie Policy',intro:'The Yarr Media public marketing pages do not require sign-in. The account area uses essential cookies for authentication.',sections:[
  ['Session cookie','After sign-in, an HttpOnly, Secure session cookie named __Host-yarr_session allows the website to recognize the signed-in account. The code sets a maximum age of seven days.'],
@@ -125,10 +153,11 @@ const LEGAL_PAGE_DATA = {
  ['Your own media','You are responsible for ensuring you have the rights to store, organize and play files on your server and for complying with applicable laws. Yarr Media does not supply movies or television programs.'],
  ['Third-party services','Optional integrations and Google sign-in are subject to the terms and availability of their respective providers.'],
  ['Accounts and security','Keep account credentials secure and use the preview only for authorized access to your own installations. Do not attempt unauthorized access or interfere with the service.'],
- ['Pro availability','Remote access is a planned Pro capability, not a generally available paid entitlement. Pricing, billing, refunds and finalized subscription or license terms have not been published.'],
+ ['Pro subscription','When Pro is offered, it is a recurring subscription billed through Stripe at the price shown at checkout, including any applicable tax. You can cancel at any time from My Account; Pro then stays active until the end of the paid period. Refund terms will be published before Pro goes on sale.'],
+ ['Remote access','Pro remote access connects your devices to your own server. It depends on your server being online and reachable and on your home internet connection, and may be unavailable at times.'],
  ['Changes and contact','These preview disclosures will be reviewed and updated before a paid public launch. Product questions can be raised through the Yarr Media project repository.']]}
 };
-const PUBLIC_SITE = 'https://yarr.larki-brian.workers.dev';
+const PUBLIC_SITE = 'https://yarr.media';
 const PUBLIC_URLS = ['/',...Object.keys(PUBLIC_PAGE_DATA),...Object.keys(LEGAL_PAGE_DATA)];
 const legalEscape = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function infoPage(path) {
@@ -146,6 +175,13 @@ function infoPage(path) {
 }
 
 const SITE = "https://yarr.larki-brian.workers.dev";
+const APP_SITE = "https://app.yarr.media";
+const ACCOUNTS_SITE = "https://accounts.yarr.media";
+const SHARED_SESSION_NAME = "__Secure-yarr_session";
+const sharedSessionCookie=(value,age)=>SHARED_SESSION_NAME+"="+value+"; Domain=yarr.media; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age="+age;
+// Exact-host allowlist. Never derive OAuth redirects from arbitrary forwarded hosts.
+const allowedSite=req=>{const u=new URL(req.url);return [PUBLIC_SITE,SITE,APP_SITE,ACCOUNTS_SITE,DEV_SITE].includes(u.origin)?u.origin:null;};
+const validOrigin=req=>{const site=allowedSite(req);return !!site && req.headers.get('origin')===site;};
 const SESSION_SECONDS = 7*24*60*60;
 const FLOW_SECONDS = 10*60;
 const authReady = env => Boolean(env.GOOGLE_CLIENT_ID && env.GOOGLE_CLIENT_SECRET && env.ACCOUNTS);
@@ -160,7 +196,8 @@ const redirect = (dest,extra={})=>new Response(null,{status:303,headers:{locatio
 const html = (text,status=200,extra={})=>new Response(text,{status,headers:{...HTML_HEADERS,'cache-control':'no-store',...extra}});
 const escapeHTML = value => String(value||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function currentUser(req,env) {
- const raw=getCookie(req,'__Host-yarr_session');
+ const host=new URL(req.url).hostname;
+  const raw=(host==='yarr.media'||host.endsWith('.yarr.media')?getCookie(req,SHARED_SESSION_NAME):'')||getCookie(req,'__Host-yarr_session');
  if(!raw||raw.length>200)return null;
  const tokenHash=await digest(raw);
  const record=await env.ACCOUNTS.prepare(
@@ -191,23 +228,26 @@ async function validateGoogleIdToken(token,clientId,nonce) {
  if(!valid)throw Error('invalid_signature');
  return payload;
 }
-async function googleStart(env) {
+async function googleStart(req,env) {
+ const site=allowedSite(req);if(!site)return json({error:'invalid_host'},403);
  if(!authReady(env))return redirect('/account?setup=required');
  const state=random(),nonce=random(),verifier=random(),challenge=await digest(verifier);
  await env.ACCOUNTS.prepare("DELETE FROM oauth_flows WHERE expires_at < CURRENT_TIMESTAMP").run();
- await env.ACCOUNTS.prepare("INSERT INTO oauth_flows(state_hash,nonce,verifier,expires_at) VALUES(?,?,?,datetime('now','+10 minutes'))").bind(await digest(state),nonce,verifier).run();
- const p=new URLSearchParams({client_id:env.GOOGLE_CLIENT_ID,redirect_uri:SITE+'/auth/google/callback',response_type:'code',scope:'openid email profile',state,nonce,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
+ const returnTo=safeReturnPath(new URL(req.url).searchParams.get('return'))||null;
+ await env.ACCOUNTS.prepare("INSERT INTO oauth_flows(state_hash,nonce,verifier,expires_at,return_to) VALUES(?,?,?,datetime('now','+10 minutes'),?)").bind(await digest(state),nonce,verifier,returnTo).run();
+ const p=new URLSearchParams({client_id:env.GOOGLE_CLIENT_ID,redirect_uri:site+'/auth/google/callback',response_type:'code',scope:'openid email profile',state,nonce,code_challenge:challenge,code_challenge_method:'S256',prompt:'select_account'});
  return redirect('https://accounts.google.com/o/oauth2/v2/auth?'+p,{ 'set-cookie':cookie('__Host-yarr_oauth',state,FLOW_SECONDS) });
 }
 async function googleCallback(req,env) {
+ const site=allowedSite(req);if(!site)return json({error:'invalid_host'},403);
  const u=new URL(req.url),state=u.searchParams.get('state')||'',code=u.searchParams.get('code')||'';
  const stored=getCookie(req,'__Host-yarr_oauth');
  const cleared=cookie('__Host-yarr_oauth','',0);
  if(!authReady(env)||!state||!code||state.length>256||state!==stored)return redirect('/account?login=failed',{'set-cookie':cleared});
- const row=await env.ACCOUNTS.prepare("DELETE FROM oauth_flows WHERE state_hash=? AND expires_at > CURRENT_TIMESTAMP RETURNING nonce,verifier").bind(await digest(state)).first();
+ const row=await env.ACCOUNTS.prepare("DELETE FROM oauth_flows WHERE state_hash=? AND expires_at > CURRENT_TIMESTAMP RETURNING nonce,verifier,return_to").bind(await digest(state)).first();
  if(!row)return redirect('/account?login=expired',{'set-cookie':cleared});
  try {
-  const params=new URLSearchParams({code,client_id:env.GOOGLE_CLIENT_ID,client_secret:env.GOOGLE_CLIENT_SECRET,redirect_uri:SITE+'/auth/google/callback',grant_type:'authorization_code',code_verifier:row.verifier});
+  const params=new URLSearchParams({code,client_id:env.GOOGLE_CLIENT_ID,client_secret:env.GOOGLE_CLIENT_SECRET,redirect_uri:site+'/auth/google/callback',grant_type:'authorization_code',code_verifier:row.verifier});
   const response=await fetch('https://oauth2.googleapis.com/token',{method:'POST',headers:{'content-type':'application/x-www-form-urlencoded'},body:params});
   if(!response.ok)return redirect('/account?login=failed',{'set-cookie':cleared});
   const tokens=await response.json();
@@ -216,11 +256,14 @@ async function googleCallback(req,env) {
   await env.ACCOUNTS.prepare("INSERT INTO users(id,google_sub,email,display_name,avatar_url) VALUES(?,?,?,?,?) ON CONFLICT(google_sub) DO UPDATE SET email=excluded.email,display_name=excluded.display_name,avatar_url=excluded.avatar_url,updated_at=CURRENT_TIMESTAMP").bind(id,identity.sub,email,displayName,avatar).run();
   const user=await env.ACCOUNTS.prepare("SELECT id FROM users WHERE google_sub=?").bind(identity.sub).first();
   if(!user)throw Error('user_not_saved');
+  await env.ACCOUNTS.prepare("INSERT INTO user_identities(provider,subject,user_id,email,email_verified,last_login_at) VALUES('google',?,?,?,1,CURRENT_TIMESTAMP) ON CONFLICT(provider,subject) DO UPDATE SET email=excluded.email,last_login_at=CURRENT_TIMESTAMP").bind(identity.sub,user.id,email).run();
+  await audit(env,user.id,'signed_in','google',req);
   const session=random();
   await env.ACCOUNTS.prepare("INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES(?,?,?,datetime('now','+7 days'))").bind(crypto.randomUUID(),user.id,await digest(session)).run();
-  const headers=new Headers({'location':'/account','cache-control':'no-store'});
+  const hostOnly=HOST_ONLY_SITES.has(site),returnTo=safeReturnPath(row.return_to);
+  const headers=new Headers({'location':hostOnly?(returnTo||'/account'):ACCOUNTS_SITE+(returnTo||'/account'),'cache-control':'no-store'});
   headers.append('set-cookie',cleared);
-  headers.append('set-cookie',cookie('__Host-yarr_session',session,SESSION_SECONDS));
+  headers.append('set-cookie',hostOnly?cookie('__Host-yarr_session',session,SESSION_SECONDS):sharedSessionCookie(session,SESSION_SECONDS));
   return new Response(null,{status:303,headers});
  }catch(_){return redirect('/account?login=failed',{'set-cookie':cleared});}
 }
@@ -261,7 +304,7 @@ async function listServers(env,userId) {
 }
 async function serverMutation(req,env,user) {
  if(!user)return json({error:'not_authenticated'},401);
- if(req.headers.get('origin')!==SITE || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
+ if(!validOrigin(req) || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
  if(req.method!=='POST')return json({error:'method_not_allowed'},405);
  const type=req.headers.get('content-type')||'';
  if(!type.startsWith('application/x-www-form-urlencoded'))return json({error:'invalid_content_type'},415);
@@ -320,7 +363,7 @@ async function pairingStatus(req,env){
 }
 async function pairingClaim(req,env,user){
  if(!user)return json({error:'not_authenticated'},401);
- if(req.headers.get('origin')!==SITE || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
+ if(!validOrigin(req) || req.headers.get('sec-fetch-site')==='cross-site')return json({error:'forbidden'},403);
  const type=req.headers.get('content-type')||'';
  if(!type.startsWith('application/x-www-form-urlencoded'))return json({error:'content_type'},415);
  const body=await req.text();if(body.length>500)return json({error:'too_large'},413);
@@ -443,7 +486,7 @@ async function verifiedOriginShared(env,server,signal){
 }
 // This single-server pilot currently streams media through the Yarr Worker;
 // production multi-tenant playback needs a separate authorized data plane.
-// Full Yarr Media application pilot. Every request is authorized against the
+// Full One-Eyed Willie application pilot. Every request is authorized against the
 // Yarr session and the exact paired server; no arbitrary origins or host overrides.
 const ORIGIN_BASE='http://one-eyed-willie:8787';
 const HOP_HEADERS=new Set(['connection','keep-alive','proxy-authenticate','proxy-authorization','te','trailer','transfer-encoding','upgrade','host','cookie','authorization','cf-connecting-ip','x-forwarded-for','x-forwarded-host','x-forwarded-proto','x-real-ip','x-yarr-proxy-auth','x-yarr-server-id']);
@@ -459,7 +502,7 @@ async function proxyInstalledApp(req,env,originPath) {
  if(!['GET','HEAD'].includes(method)){
   const origin=req.headers.get('origin');
   const site=req.headers.get('sec-fetch-site');
-  if((origin&&origin!==SITE)||(site&&site!=='same-origin')||(!origin&&site!=='same-origin'))return json({error:'forbidden'},403);
+  if(!allowedSite(req)||(origin&&origin!==allowedSite(req))||(site&&site!=='same-origin')||(!origin&&site!=='same-origin'))return json({error:'forbidden'},403);
  }
  const size=Number(req.headers.get('content-length')||0);
  if(!Number.isFinite(size)||size>32*1024*1024)return json({error:'request_too_large'},413);
@@ -478,7 +521,7 @@ async function proxyInstalledApp(req,env,originPath) {
  // Fail closed for video from the opt-in media test page. If its scoped service
  // worker is absent, never allow the normal Worker to proxy test movie bytes.
  const ref=req.headers.get('referer')||'';
- if(method==='GET'&&ref.startsWith(SITE+'/media-test')&&
+ if(method==='GET'&&ref.startsWith(allowedSite(req)+'/media-test')&&
    (/^\/api\/watch\/[1-9][0-9]*\/(?:stream|transcode)$/.test(path)||
     /^\/api\/stream\/hls\//.test(path)))
    return json({error:'direct_test_requires_service_worker'},503);
@@ -554,7 +597,7 @@ const YARR_TEST_PAGE="<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf
 const YARR_MEDIA_TEST_PAGE="<!DOCTYPE html>\n<html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\n<title>Yarr Media • Direct movie playback test</title>\n<style>\nbody{font:16px system-ui,sans-serif;background:#0c101b;color:#f4f2ef;max-width:920px;padding:30px 18px;margin:auto}\nh1{font-size:30px}p,small{color:#bfc4cc;line-height:1.5}a{color:#ba9dff}\ninput{background:#1d2533;color:white;border:1px solid #64708b;padding:12px;border-radius:8px;max-width:150px;font-size:16px}\nbutton{border:0;background:#9573dc;color:#141020;padding:12px 18px;font:700 16px system-ui;border-radius:8px;cursor:pointer;margin:0 10px 10px 0}\nbutton:disabled{opacity:.4;cursor:not-allowed}video{width:100%;max-height:60vh;background:#000;border-radius:10px;margin:10px 0}\npre{white-space:pre-wrap;word-break:break-word;line-height:1.5;background:#202a3b;padding:16px;border-radius:10px}\nlabel{display:block;margin:12px 0}strong{color:#f4f2ef}\n</style>\n<script>window.YARR_DIRECT_TEST_MODE=true;</script>\n<script src=\"/assets/yarr-direct-client.js\" defer></script>\n</head><body>\n<a href=\"/app\">Back to Yarr</a>\n<h1>Direct movie playback test</h1>\n<p>This test streams video directly from your home server over WebRTC UDP 3478. The normal Yarr movie player is unchanged. Use a <strong>browser-playable MP4</strong> movie from your library to test video and seeking. Other formats will be tested separately.</p>\n<p>Find the media ID in the normal Yarr watch URL, for example <code>/watch/42</code> means ID <code>42</code>.</p>\n<label for=\"id\">Movie ID <input id=\"id\" type=\"number\" min=\"1\" step=\"1\" placeholder=\"42\" inputmode=\"numeric\"></label>\n<button id=\"play\" disabled>Play direct</button>\n<button id=\"seek\" disabled>Seek +60 seconds</button>\n<button id=\"stop\" disabled>Stop</button>\n<video id=\"video\" controls preload=\"none\" playsinline></video>\n<pre id=\"status\" role=\"status\" aria-live=\"polite\">Connecting direct peer…</pre>\n<small>Only use this test when your home server is running the experimental direct-media pilot. No normal video playback is changed.</small>\n<script>\n(()=>{'use strict';\nconst video=document.getElementById('video'),out=document.getElementById('status'),id=document.getElementById('id'),\n play=document.getElementById('play'),seek=document.getElementById('seek'),stop=document.getElementById('stop');\nconst log=txt=>{out.textContent+='\\n'+txt};\nfunction status(msg){log('Peer: '+msg);play.disabled=msg!=='connected';}\nwindow.addEventListener('yarr:peer:status',event=>status(event.detail));\nwindow.addEventListener('yarr:peer:bytes',event=>{document.title='Direct test: '+Math.round(event.detail/1024)+' KiB received';});\nif(window.YarrDirectPeerStatus)status(window.YarrDirectPeerStatus);\nplay.onclick=()=>{\n const number=Number(id.value);\n if(!Number.isSafeInteger(number)||number<1){log('Enter the numeric media ID from your /watch/<id> URL');return}\n window.YarrDirectTestBytes=0;\n video.src='/api/watch/'+number+'/stream?viewing=direct-pilot';\n video.load();\n video.play().then(()=>log('Video playing directly through peer')).catch(e=>log('Play: '+e.message));\n stop.disabled=false;seek.disabled=true;log('Opening movie '+number+' over direct WebRTC; watching for video bytes…');\n};\nseek.onclick=()=>{\n if(!Number.isFinite(video.duration)){log('Duration unavailable; cannot seek yet');return}\n const from=video.currentTime,to=Math.min(Math.max(0,video.duration-1),from+60);\n if(to<=from){log('Already near the end');return}\n video.currentTime=to;log('Seeking '+Math.round(from)+'s → '+Math.round(to)+'s over WebRTC');\n};\nstop.onclick=()=>{video.pause();video.removeAttribute('src');video.load();seek.disabled=true;stop.disabled=true;log('Stopped');};\nvideo.addEventListener('loadedmetadata',()=>{log('Metadata received; duration '+Math.round(video.duration)+'s');seek.disabled=!Number.isFinite(video.duration)});\nvideo.addEventListener('seeking',()=>log('Video seeking…'));\nvideo.addEventListener('seeked',()=>log('Seek completed at '+Math.round(video.currentTime)+'s'));\nvideo.addEventListener('playing',()=>log('Video playing; '+(window.YarrDirectTestBytes||0)+' direct peer bytes received so far'));\nvideo.addEventListener('error',()=>log('Video failed: '+(video.error?.message||'unsupported codec or media request failed')+'; peer bytes '+(window.YarrDirectTestBytes||0)));\nsetInterval(()=>{if(!video.paused&&video.readyState>0)out.dataset.bytes=String(window.YarrDirectTestBytes||0)},1000);\n})();\n</script></body></html>";
 async function directPeerOffer(req,env){
  if(env.YARR_DIRECT_ENABLED!=='1'&&(new URL(req.url)).pathname!=='/api/yarr/direct/test-offer')return json({error:'direct_media_disabled'},404);
- if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
+ if(!validOrigin(req))return json({error:'forbidden'},403);
  const owned=await ownedPrivateServer(req,env);
  if(owned.error)return owned.error;
  if(!env.YARR_PILOT_TUNNEL_TOKEN)return json({error:'direct_peer_not_configured'},503);
@@ -586,7 +629,7 @@ async function directPeerOffer(req,env){
  }catch(_){return json({error:'direct_peer_origin_unreachable'},503)}
 }
 async function yarrWifiOffer(req,env){
- if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
+ if(!validOrigin(req))return json({error:'forbidden'},403);
  const owned=await ownedPrivateServer(req,env);if(owned.error)return owned.error;
  if(!env.YARR_PILOT_TUNNEL_TOKEN)return json({error:'not_configured'},503);
  const size=Number(req.headers.get('content-length')||0);
@@ -620,10 +663,11 @@ function serverCardsHTML(servers) {
   const description=linked?(s.online?'Connected and reporting securely.':s.connection_secret_hash?'Paired, but not currently reporting.':'Paired. Reconnect in your server settings to restore reporting.'):'Registration only — no installed server is paired.';
   const rename='<form method="post" action="/account/servers" class="account-form"><input type="hidden" name="action" value="rename"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-name-'+escapeHTML(s.id)+'">Server name</label><div class="account-form-row"><input id="server-name-'+escapeHTML(s.id)+'" required maxlength="80" name="name" value="'+escapeHTML(s.display_name)+'"><button class="account-secondary" type="submit">Save name</button></div></form>';
   const remove=linked?'':'<form method="post" action="/account/servers" class="account-remove"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button class="account-text-button" type="submit">Remove unused registration</button></form>';
-  return '<article class="account-server"><div class="account-server-header"><div><h3>'+escapeHTML(s.display_name)+'</h3><p class="account-note">'+description+'</p></div><span class="server-status '+statusClass+'"><span class="status-dot" aria-hidden="true"></span>'+state+'</span></div><details class="account-manage"><summary>Manage server</summary><div class="account-manage-body">'+rename+remove+'</div></details></article>';
+  const address=linked?remoteAddressFormHTML(s):'';
+  return '<article class="account-server"><div class="account-server-header"><div><h3>'+escapeHTML(s.display_name)+'</h3><p class="account-note">'+description+'</p></div><span class="server-status '+statusClass+'"><span class="status-dot" aria-hidden="true"></span>'+state+'</span></div><details class="account-manage"><summary>Manage server</summary><div class="account-manage-body">'+rename+address+remove+'</div></details></article>';
  }).join('')+'</div>';
 }
-function accountHTML(user,enabled,message='',servers=[]) {
+function accountHTML(user,enabled,message='',servers=[],extra=null) {
  const signedIn=!!user,title=signedIn?'My Account':'Sign in to Yarr Media';
  const paired=servers.filter(s=>s.status==='paired'&&!!s.server_identity),online=paired.filter(s=>!!s.online);
  const feedback=message?'<div class="account-feedback" role="status">'+escapeHTML(message)+'</div>':'';
@@ -636,9 +680,10 @@ function accountHTML(user,enabled,message='',servers=[]) {
    '<section class="account-panel" id="servers"><div class="panel-top"><div><p class="account-kicker">My library connections</p><h2>Connected servers</h2></div><span class="account-count">'+servers.length+' total</span></div>'+
     '<div class="account-stats"><div><strong>'+paired.length+'</strong><span>Paired</span></div><div><strong>'+online.length+'</strong><span>Online</span></div><div><strong>'+servers.length+'</strong><span>Registered</span></div></div>'+
     serverCardsHTML(servers)+'</section>'+
+   (extra?devicesPanelHTML(extra)+DANGER_HTML:'')+
   '</div>'+
   '<aside class="account-aside"><section class="account-panel account-pair-panel" id="pair-server"><div class="panel-top"><div><p class="account-kicker">Add a connection</p><h2>Pair a server</h2></div></div><p class="account-note">On your installed Yarr Media server, open <strong>Settings → General → Connect to Yarr</strong>, then enter the pairing code here.</p><form class="account-form" method="post" action="/account/pair"><label for="pairing-code">Pairing code</label><input id="pairing-code" name="code" required maxlength="22" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"><button class="account-submit" type="submit">Pair server</button></form><p class="account-small">Pairing links your installation to this account. Remote access is a planned Pro feature and is not enabled by pairing alone.</p></section>'+
-   '<section class="account-panel account-help"><p class="account-kicker">About your plan</p><h2>Yarr Media preview</h2><p class="account-note">Your personal libraries are hosted on your server. Pro remote access is still in development.</p><a href="/free-vs-pro" class="account-secondary">Compare Free and Pro</a></section></aside></div>'
+   (extra?planPanelHTML(extra):'<section class="account-panel account-help"><p class="account-kicker">About your plan</p><h2>Yarr Media preview</h2><p class="account-note">Your personal libraries are hosted on your server. Pro remote access is still in development.</p><a href="/free-vs-pro" class="account-secondary">Compare Free and Pro</a></section>')+'</aside></div>'
   :
   '<div class="account-signin"><p class="account-kicker">Your Yarr Media account</p><h1>Sign in</h1><p class="account-subtitle">Connect your home server to your account, review paired devices and manage your library connections.</p>'+feedback+
    '<div class="account-panel account-login"><h2>Continue to your account</h2><p class="account-note">Use your Google account to sign in securely.</p>'+
@@ -655,29 +700,603 @@ const accountCSS = `
 .account-manage{margin-top:16px;padding-top:13px;border-top:1px solid #ffffff1d}.account-manage summary{cursor:pointer;color:#e8d7d2;font-size:13px;font-weight:750;list-style-position:inside}.account-manage-body{margin-top:15px}.account-form{display:grid;gap:10px;margin-top:16px}.account-form label{color:#ddd4ca;font-weight:700;font-size:13px}.account-form input{min-width:0;width:100%;background:#0d0d0d;border:1px solid #ffffff42;border-radius:8px;color:#fff;font:inherit;padding:12px;min-height:46px}.account-form input:focus-visible{outline:2px solid #ec8888;outline-offset:2px}.account-form-row{display:flex;align-items:center;gap:9px}.account-secondary{display:inline-flex;justify-content:center;align-items:center;padding:11px 14px;min-height:42px;border:1px solid #9c5959;border-radius:8px;background:transparent;color:#f5f1e8;text-decoration:none;font:700 13px system-ui,sans-serif;cursor:pointer;white-space:nowrap}.account-secondary:hover{background:#462323}.account-form .account-submit{width:100%;margin-top:5px}.account-remove{margin-top:16px}.account-small{font-size:12px;color:#aaa29b;line-height:1.65;margin-top:17px!important}.account-empty{padding:30px 16px;text-align:center;border:1px dashed #ffffff40;border-radius:12px}.account-empty h3{margin:8px 0}.account-empty p{color:#bcb4ab;line-height:1.6;font-size:14px;margin-bottom:18px}.empty-emblem{font-size:30px;color:#dd8989}.account-feedback{background:#281a1a;border-left:3px solid #a61e1e;border-radius:7px;padding:14px 16px;margin-bottom:24px;color:#f3dbd7;font-size:14px}.account-help h2{margin:10px 0 14px}.account-help .account-secondary{margin-top:20px}.account-signin{max-width:590px;margin:10px auto 0;text-align:center}.account-signin .account-panel{text-align:left;margin-top:30px}.account-signin .account-login h2{margin-bottom:13px}.account-signin .account-login .account-submit{width:100%;margin-top:22px}
 @media(max-width:850px){.account-dashboard{grid-template-columns:1fr}.account-main{padding:42px 0 65px}}@media(max-width:520px){.account-panel{padding:20px}.account-stats>div{padding:12px}.account-form-row{flex-direction:column;align-items:stretch}.account-form-row button{width:100%}.account-top .account-open{width:100%}.account-main h1{font-size:40px}}@media(prefers-reduced-motion:reduce){.account-open,.account-submit{transition:none}.account-open:hover,.account-submit:hover{transform:none}}
 `;
+// ---------------------------------------------------------------------------
+// Accounts v2: remote-access passes, Google TV sign-in, Pro billing (Stripe),
+// account deletion and scheduled cleanup. Everything here is inert until its
+// secrets are set: no PASS_SIGNING_KEY means no passes, no Stripe keys means Pro
+// cannot be bought. Owner-only for now: a pass is only ever issued to the
+// account that paired the server.
+// ---------------------------------------------------------------------------
+const DEV_SITE = 'https://yarr-dev.larki-brian.workers.dev';
+const HOST_ONLY_SITES = new Set([SITE, DEV_SITE]);
+const PASS_SECONDS = 60*60;
+const DEVICE_CODE_SECONDS = 10*60;
+const DEVICE_TOKEN_DAYS = 365;
+const PRO_GRACE_DAYS = 3;
+const DEVICE_TYPES = new Set(['google_tv','android','web']);
+const STRIPE_API = 'https://api.stripe.com/v1';
+
+const sqlTime = date => date.toISOString().replace('T',' ').slice(0,19);
+const parseSqlTime = value => value ? Date.parse(String(value).replace(' ','T')+'Z') : NaN;
+const base64urlJSON = obj => encoded(new TextEncoder().encode(JSON.stringify(obj)));
+const formatUserCode = code => code.slice(0,4)+'-'+code.slice(4);
+
+// Paths a sign-in may return to. Anything else goes to the account page.
+function safeReturnPath(value) {
+ const v=String(value||'');
+ if(/^\/activate(?:\?code=[A-Z0-9-]{1,12})?$/.test(v))return v;
+ if(/^\/remote\/open\?server=[A-Za-z0-9-]{1,64}(?:&return=%2F[A-Za-z0-9%._~-]{0,300})?$/.test(v))return v;
+ return '';
+}
+
+async function audit(env,userId,event,detail='',req=null) {
+ try{
+  const ip=req?.headers.get('cf-connecting-ip');
+  await env.ACCOUNTS.prepare("INSERT INTO audit_log(user_id,event,detail,ip_hash) VALUES(?,?,?,?)")
+   .bind(userId||null,event,String(detail||'').slice(0,300),ip?await digest('audit\0'+ip):null).run();
+ }catch(_){}
+}
+
+// Fixed-window rate limit stored in pairing_rate_limits as "<scope>:<window start minute>".
+async function rateLimited(env,req,scope,windowMinutes,limit) {
+ const minute=Math.floor(Date.now()/60000),start=minute-minute%windowMinutes;
+ const ipHash=await digest(req.headers.get('cf-connecting-ip')||'unknown');
+ const key=scope+':'+start;
+ await env.ACCOUNTS.prepare("INSERT INTO pairing_rate_limits(ip_hash,window,count) VALUES(?,?,1) ON CONFLICT(ip_hash,window) DO UPDATE SET count=count+1").bind(ipHash,key).run();
+ const row=await env.ACCOUNTS.prepare("SELECT count FROM pairing_rate_limits WHERE ip_hash=? AND window=?").bind(ipHash,key).first();
+ return Number(row?.count||0)>limit;
+}
+
+async function readJSON(req,max=4000) {
+ if((req.headers.get('content-type')||'').split(';')[0].trim()!=='application/json')throw Object.assign(Error('content_type'),{status:415});
+ const raw=await req.text();
+ if(raw.length>max)throw Object.assign(Error('too_large'),{status:413});
+ try{const v=JSON.parse(raw);if(v&&typeof v==='object'&&!Array.isArray(v))return v;}catch(_){}
+ throw Object.assign(Error('invalid_json'),{status:400});
+}
+async function readForm(req,max=2000) {
+ if(!(req.headers.get('content-type')||'').startsWith('application/x-www-form-urlencoded'))throw Object.assign(Error('content_type'),{status:415});
+ const raw=await req.text();
+ if(raw.length>max)throw Object.assign(Error('too_large'),{status:413});
+ return new URLSearchParams(raw);
+}
+const sameSiteForm = req => validOrigin(req) && req.headers.get('sec-fetch-site')!=='cross-site';
+
+// ---- Pro status ------------------------------------------------------------
+// Pro = any subscription that is active/trialing (within its period, plus a few
+// days for a late renewal webhook) or past_due within the grace period. A
+// 'manual' row with no end date is Pro indefinitely (used for testing/comps).
+async function proStatus(env,userId) {
+ const rows=(await env.ACCOUNTS.prepare("SELECT status,provider,current_period_end,cancel_at_period_end,provider_customer_id FROM subscriptions WHERE user_id=?").bind(userId).all()).results||[];
+ const now=Date.now(),grace=PRO_GRACE_DAYS*86400000;
+ let active=false,until=null,forever=false,stripeCustomer=null,cancelling=false;
+ for(const r of rows){
+  if(r.provider==='stripe'&&r.provider_customer_id)stripeCustomer=r.provider_customer_id;
+  const end=parseSqlTime(r.current_period_end);
+  let ok=false;
+  if(r.status==='active'||r.status==='trialing')ok=!r.current_period_end||end+grace>now;
+  else if(r.status==='past_due')ok=!!r.current_period_end&&end+grace>now;
+  if(!ok)continue;
+  active=true;
+  if(!r.current_period_end)forever=true;
+  else if(!until||end>until){until=end;cancelling=!!r.cancel_at_period_end;}
+ }
+ return {active,until:forever?null:(until?new Date(until).toISOString():null),forever,stripe_customer:stripeCustomer,cancelling};
+}
+
+// ---- Device (TV/app) credentials --------------------------------------------
+async function deviceFromRequest(req,env) {
+ const auth=req.headers.get('authorization')||'';
+ if(!auth.startsWith('Bearer ydv_')||auth.length>120)return null;
+ const token=auth.slice(7);
+ if(!/^ydv_[A-Za-z0-9_-]{40,60}$/.test(token))return null;
+ const row=await env.ACCOUNTS.prepare(
+  "SELECT devices.id AS device_id,devices.device_name,devices.device_type,devices.last_seen_at,users.id,users.email,users.display_name FROM devices JOIN users ON users.id=devices.owner_user_id WHERE devices.token_hash=? AND devices.revoked_at IS NULL AND devices.token_expires_at>CURRENT_TIMESTAMP"
+ ).bind(await digest(token)).first();
+ if(!row)return null;
+ if(!row.last_seen_at||parseSqlTime(row.last_seen_at)<Date.now()-3600000)
+  await env.ACCOUNTS.prepare("UPDATE devices SET last_seen_at=CURRENT_TIMESTAMP WHERE id=?").bind(row.device_id).run();
+ return {user:{id:row.id,email:row.email,display_name:row.display_name},device:{id:row.device_id,name:row.device_name,type:row.device_type}};
+}
+
+async function deviceCodeStart(req,env) {
+ if(await rateLimited(env,req,'devcode',10,20))return json({error:'slow_down'},429);
+ let body;try{body=await readJSON(req,1000);}catch(e){return json({error:e.message},e.status||400);}
+ const name=String(body.device_name||'Google TV').replace(/[\u0000-\u001f]/g,'').trim().slice(0,60)||'Google TV';
+ const type=DEVICE_TYPES.has(body.device_type)?body.device_type:'google_tv';
+ for(let attempt=0;attempt<4;attempt++){
+  const userCode=[...crypto.getRandomValues(new Uint8Array(8))].map(b=>CODE_ALPHABET[b%CODE_ALPHABET.length]).join('');
+  const deviceCode=random();
+  const result=await env.ACCOUNTS.prepare("INSERT OR IGNORE INTO device_login_requests(device_code_hash,user_code_hash,device_name,device_type,expires_at) VALUES(?,?,?,?,datetime('now','+10 minutes'))")
+   .bind(await digest(deviceCode),await digest('user\0'+userCode),name,type).run();
+  if(result.meta.changes!==1)continue;
+  const shown=formatUserCode(userCode);
+  return json({device_code:deviceCode,user_code:shown,verification_uri:PUBLIC_SITE+'/activate',
+   verification_uri_complete:PUBLIC_SITE+'/activate?code='+shown,expires_in:DEVICE_CODE_SECONDS,interval:5},201);
+ }
+ return json({error:'retry'},503);
+}
+
+async function deviceCodeToken(req,env) {
+ let body;try{body=await readJSON(req,500);}catch(e){return json({error:e.message},e.status||400);}
+ const code=String(body.device_code||'');
+ if(!/^[A-Za-z0-9_-]{40,60}$/.test(code))return json({error:'invalid_grant'},400);
+ const hash=await digest(code);
+ const row=await env.ACCOUNTS.prepare("SELECT status,expires_at,poll_interval_s,last_polled_at FROM device_login_requests WHERE device_code_hash=?").bind(hash).first();
+ if(!row)return json({error:'invalid_grant'},400);
+ if(parseSqlTime(row.expires_at)<=Date.now())return json({error:'expired_token'},400);
+ if(row.status==='denied')return json({error:'access_denied'},400);
+ if(row.status==='used')return json({error:'invalid_grant'},400);
+ if(row.status==='pending'){
+  const tooSoon=row.last_polled_at&&parseSqlTime(row.last_polled_at)>Date.now()-(Number(row.poll_interval_s)-1)*1000;
+  if(tooSoon){
+   await env.ACCOUNTS.prepare("UPDATE device_login_requests SET poll_interval_s=MIN(poll_interval_s+5,30),last_polled_at=CURRENT_TIMESTAMP WHERE device_code_hash=?").bind(hash).run();
+   return json({error:'slow_down',interval:Math.min(Number(row.poll_interval_s)+5,30)},400);
+  }
+  await env.ACCOUNTS.prepare("UPDATE device_login_requests SET last_polled_at=CURRENT_TIMESTAMP WHERE device_code_hash=?").bind(hash).run();
+  return json({error:'authorization_pending'},400);
+ }
+ // Approved: hand out exactly one credential.
+ const claimed=await env.ACCOUNTS.prepare("UPDATE device_login_requests SET status='used' WHERE device_code_hash=? AND status='approved' AND expires_at>CURRENT_TIMESTAMP RETURNING user_id,device_name,device_type").bind(hash).first();
+ if(!claimed||!claimed.user_id)return json({error:'invalid_grant'},400);
+ const token='ydv_'+random(),deviceId=crypto.randomUUID();
+ await env.ACCOUNTS.prepare("INSERT INTO devices(id,owner_user_id,device_name,device_type,token_hash,token_expires_at,last_seen_at,app_version) VALUES(?,?,?,?,?,datetime('now','+"+DEVICE_TOKEN_DAYS+" days'),CURRENT_TIMESTAMP,?)")
+  .bind(deviceId,claimed.user_id,claimed.device_name||'Google TV',claimed.device_type||'google_tv',await digest(token),String(req.headers.get('x-yarr-app-version')||'').slice(0,40)||null).run();
+ await audit(env,claimed.user_id,'device_signed_in',claimed.device_name,req);
+ return json({access_token:token,token_type:'Bearer',device_id:deviceId,expires_in:DEVICE_TOKEN_DAYS*86400});
+}
+
+async function deviceMe(req,env) {
+ const auth=await deviceFromRequest(req,env);
+ if(!auth)return json({error:'unauthorized'},401);
+ const pro=await proStatus(env,auth.user.id);
+ const servers=(await listServers(env,auth.user.id)).filter(s=>s.status==='paired'&&s.server_identity)
+  .map(s=>({id:s.id,display_name:s.display_name,online:!!s.online,remote_address:s.public_url||null}));
+ return json({user:auth.user,device:auth.device,pro:{active:pro.active,until:pro.until},servers});
+}
+
+async function deviceSignOut(req,env) {
+ const auth=await deviceFromRequest(req,env);
+ if(!auth)return json({error:'unauthorized'},401);
+ await env.ACCOUNTS.prepare("UPDATE devices SET revoked_at=CURRENT_TIMESTAMP,token_hash=NULL WHERE id=?").bind(auth.device.id).run();
+ await audit(env,auth.user.id,'device_signed_out',auth.device.name,req);
+ return json({status:'signed_out'});
+}
+
+function simplePage(title,body,status=200) {
+ const page='<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>'+escapeHTML(title)+' — Yarr Media</title><style>'+accountCSS+
+  '.activate-code{font:800 30px ui-monospace,monospace;letter-spacing:.12em;text-align:center}.activate-actions{display:flex;gap:10px;margin-top:18px;flex-wrap:wrap}.activate-actions form{flex:1}.activate-actions button{width:100%}</style></head><body><div class="wrap"><nav class="nav"><a href="/" class="brand">YARR MEDIA</a></nav><main class="account-main"><div class="account-signin">'+body+
+  '</div></main><footer class="note">Yarr Media · <a href="/terms">Terms</a> · <a href="/privacy">Privacy</a></footer></div></body></html>';
+ return html(siteChrome(page),status);
+}
+
+async function activatePage(req,env) {
+ const u=new URL(req.url);
+ const code=normalizeCode(u.searchParams.get('code'));
+ const shown=code.length===8?formatUserCode(code):'';
+ const user=await currentUser(req,env);
+ if(!user){
+  const back='/activate'+(shown?'?code='+shown:'');
+  return simplePage('Sign in a device','<p class="account-kicker">Sign in a device</p><h1>Sign in first</h1><p class="account-subtitle">Sign in to your Yarr Media account, then confirm the code shown on your TV.</p><div class="account-panel account-login">'+
+   (authReady(env)?'<a class="account-submit" href="/auth/google/start?return='+encodeURIComponent(back)+'">Continue with Google</a>':'<p class="account-note">Sign-in is not configured yet.</p>')+'</div>');
+ }
+ const status=u.searchParams.get('done');
+ if(status)return simplePage('Device sign-in',status==='approved'?'<h1>You\'re signed in</h1><p class="account-subtitle">Your TV will finish signing in within a few seconds.</p>':status==='denied'?'<h1>Sign-in cancelled</h1><p class="account-subtitle">The TV was not signed in.</p>':'<h1>Code not accepted</h1><p class="account-subtitle">That code is wrong, expired or already used. Start again on your TV.</p><a class="account-secondary" href="/activate">Enter a code</a>');
+ if(code.length===8&&[...code].every(c=>CODE_ALPHABET.includes(c))){
+  const pending=await env.ACCOUNTS.prepare("SELECT device_name FROM device_login_requests WHERE user_code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP").bind(await digest('user\0'+code)).first();
+  if(pending){
+   const hidden='<input type="hidden" name="code" value="'+escapeHTML(shown)+'">';
+   return simplePage('Confirm device','<p class="account-kicker">Sign in a device</p><h1>Sign in “'+escapeHTML(pending.device_name||'Google TV')+'”?</h1><p class="account-subtitle">Signed in as '+escapeHTML(user.email||user.display_name||'')+'. Only approve a code you can see on your own screen.</p><div class="account-panel"><p class="activate-code">'+escapeHTML(shown)+'</p><div class="activate-actions">'+
+    '<form method="post" action="/activate">'+hidden+'<input type="hidden" name="decision" value="approve"><button class="account-submit" type="submit">Approve</button></form>'+
+    '<form method="post" action="/activate">'+hidden+'<input type="hidden" name="decision" value="deny"><button class="account-secondary" type="submit">Cancel</button></form></div></div>');
+  }
+ }
+ return simplePage('Sign in a device','<p class="account-kicker">Sign in a device</p><h1>Enter the code from your TV</h1>'+(shown?'<div class="account-feedback" role="status">That code is wrong, expired or already used.</div>':'')+
+  '<div class="account-panel"><form class="account-form" method="get" action="/activate"><label for="code">Code</label><input id="code" name="code" required maxlength="12" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX"><button class="account-submit" type="submit">Continue</button></form></div>');
+}
+
+async function activateDecision(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/activate');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ if(await rateLimited(env,req,'activate',1,10))return redirect('/activate?done=invalid');
+ let form;try{form=await readForm(req,300);}catch(e){return json({error:e.message},e.status||400);}
+ const code=normalizeCode(form.get('code')),decision=form.get('decision');
+ if(code.length!==8||![...code].every(c=>CODE_ALPHABET.includes(c))||!['approve','deny'].includes(decision))return redirect('/activate?done=invalid');
+ const result=await env.ACCOUNTS.prepare("UPDATE device_login_requests SET status=?,user_id=?,approved_at=CURRENT_TIMESTAMP WHERE user_code_hash=? AND status='pending' AND expires_at>CURRENT_TIMESTAMP")
+  .bind(decision==='approve'?'approved':'denied',user.id,await digest('user\0'+code)).run();
+ if(result.meta.changes!==1)return redirect('/activate?done=invalid');
+ await audit(env,user.id,decision==='approve'?'device_approved':'device_denied','',req);
+ return redirect('/activate?done='+(decision==='approve'?'approved':'denied'));
+}
+
+// ---- Remote-access passes ------------------------------------------------------
+// A pass is a short-lived Ed25519-signed token: "this account may use this
+// server remotely until exp". The home server checks it offline with the public
+// key from /api/passes/keys, so media never has to pass through Cloudflare.
+let passKeyCache=null;
+async function passKey(env) {
+ if(!env.PASS_SIGNING_KEY)return null;
+ if(passKeyCache?.raw===env.PASS_SIGNING_KEY)return passKeyCache;
+ const jwk=JSON.parse(env.PASS_SIGNING_KEY);
+ if(jwk.kty!=='OKP'||jwk.crv!=='Ed25519'||!jwk.d||!jwk.x||!jwk.kid)throw Error('PASS_SIGNING_KEY must be an Ed25519 private JWK with a kid');
+ const key=await crypto.subtle.importKey('jwk',{kty:'OKP',crv:'Ed25519',d:jwk.d,x:jwk.x},{name:'Ed25519'},false,['sign']);
+ passKeyCache={raw:env.PASS_SIGNING_KEY,key,kid:jwk.kid,public:{kty:'OKP',crv:'Ed25519',x:jwk.x,kid:jwk.kid,use:'sig',alg:'EdDSA'}};
+ return passKeyCache;
+}
+async function passPublicKeys(env) {
+ const keys=[];
+ const current=await passKey(env);
+ if(current)keys.push(current.public);
+ if(env.PASS_PREVIOUS_PUBLIC_JWK){
+  try{const old=JSON.parse(env.PASS_PREVIOUS_PUBLIC_JWK);if(old.kty==='OKP'&&old.crv==='Ed25519'&&old.x&&old.kid)keys.push({kty:'OKP',crv:'Ed25519',x:old.x,kid:old.kid,use:'sig',alg:'EdDSA'});}catch(_){}
+ }
+ return keys;
+}
+async function issuePass(env,user,server,device=null) {
+ const key=await passKey(env);
+ if(!key)return {error:'passes_not_configured',status:503};
+ const pro=await proStatus(env,user.id);
+ if(!pro.active)return {error:'pro_required',status:402};
+ const now=Math.floor(Date.now()/1000);
+ const proUntil=pro.until?Math.floor(Date.parse(pro.until)/1000)+PRO_GRACE_DAYS*86400:null;
+ const exp=Math.min(now+PASS_SECONDS,proUntil||Infinity);
+ const header={alg:'EdDSA',typ:'yarr-pass',kid:key.kid};
+ const claims={v:1,iss:PUBLIC_SITE,aud:server.server_identity,sub:user.id,role:'owner',dev:device?.id||null,iat:now,exp,jti:random().slice(0,22)};
+ const input=base64urlJSON(header)+'.'+base64urlJSON(claims);
+ const sig=new Uint8Array(await crypto.subtle.sign({name:'Ed25519'},key.key,new TextEncoder().encode(input)));
+ return {pass:input+'.'+encoded(sig),expires_at:new Date(exp*1000).toISOString(),remote_address:server.public_url||null};
+}
+async function ownedServer(env,userId,ref) {
+ const id=String(ref||'');
+ if(!/^[A-Za-z0-9-]{8,64}$/.test(id))return null;
+ // Owner-only for now. Shared access will add a server_members table and check it here.
+ return env.ACCOUNTS.prepare("SELECT id,server_identity,public_url,display_name FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL AND (id=? OR server_identity=?)").bind(userId,id,id).first();
+}
+async function passRequest(req,env) {
+ let who=await deviceFromRequest(req,env);
+ if(!who){
+  const user=await currentUser(req,env);
+  if(!user)return json({error:'unauthorized'},401);
+  if(!validOrigin(req))return json({error:'forbidden'},403);
+  who={user,device:null};
+ }
+ let body;try{body=await readJSON(req,500);}catch(e){return json({error:e.message},e.status||400);}
+ const server=await ownedServer(env,who.user.id,body.server_id);
+ if(!server)return json({error:'server_not_found'},404);
+ const result=await issuePass(env,who.user,server,who.device);
+ if(result.error)return json({error:result.error},result.status);
+ return json(result);
+}
+// Browser entry point: sign in (if needed), check Pro, then hand the browser to
+// the home server's own HTTPS address with a fresh pass.
+async function remoteOpen(req,env) {
+ const u=new URL(req.url);
+ const ref=u.searchParams.get('server')||u.searchParams.get('server_identity')||'';
+ let back=u.searchParams.get('return')||'/';
+ if(!/^\/[A-Za-z0-9/._~%?=&-]{0,300}$/.test(back)||back.startsWith('//'))back='/';
+ const user=await currentUser(req,env);
+ if(!user){
+  const ret=safeReturnPath('/remote/open?server='+encodeURIComponent(ref)+(back!=='/'?'&return='+encodeURIComponent(back):''));
+  return redirect(ACCOUNTS_SITE+'/auth/google/start'+(ret?'?return='+encodeURIComponent(ret):''));
+ }
+ const server=await ownedServer(env,user.id,ref);
+ if(!server)return redirect(ACCOUNTS_SITE+'/?remote=not_found');
+ if(!server.public_url)return redirect(ACCOUNTS_SITE+'/?remote=no_address');
+ const result=await issuePass(env,user,server);
+ if(result.error)return redirect(ACCOUNTS_SITE+'/?remote='+(result.error==='pro_required'?'pro_required':'unavailable'));
+ const target=new URL('/remote/start',server.public_url);
+ target.searchParams.set('pass',result.pass);
+ target.searchParams.set('return',back);
+ return new Response(null,{status:303,headers:{location:target.toString(),'cache-control':'no-store','referrer-policy':'no-referrer'}});
+}
+
+// ---- Stripe ------------------------------------------------------------------
+const billingReady = env => Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PRO_PRICE_ID);
+function stripeForm(params,prefix='',out=new URLSearchParams()) {
+ for(const [k,v] of Object.entries(params)){
+  if(v===undefined||v===null)continue;
+  const key=prefix?prefix+'['+k+']':k;
+  if(typeof v==='object')stripeForm(v,key,out);else out.append(key,String(v));
+ }
+ return out;
+}
+async function stripe(env,method,path,params=null) {
+ const r=await fetch(STRIPE_API+path,{method,headers:{authorization:'Bearer '+env.STRIPE_SECRET_KEY,...(params?{'content-type':'application/x-www-form-urlencoded'}:{})},body:params?stripeForm(params):undefined});
+ const data=await r.json().catch(()=>({}));
+ if(!r.ok)throw Object.assign(Error('stripe_'+(data?.error?.type||r.status)),{status:r.status,stripe:data?.error});
+ return data;
+}
+const STRIPE_STATUS={active:'active',trialing:'trialing',past_due:'past_due',unpaid:'past_due',canceled:'canceled',incomplete:'incomplete',incomplete_expired:'expired',paused:'expired'};
+async function saveStripeSubscription(env,sub,userHint=null) {
+ const customer=typeof sub.customer==='string'?sub.customer:sub.customer?.id;
+ let userId=sub.metadata?.user_id||userHint;
+ if(!userId){
+  const known=await env.ACCOUNTS.prepare("SELECT user_id FROM subscriptions WHERE provider='stripe' AND (provider_subscription_id=? OR provider_customer_id=?) LIMIT 1").bind(sub.id,customer||'').first();
+  userId=known?.user_id;
+ }
+ if(!userId)return false;
+ const exists=await env.ACCOUNTS.prepare("SELECT id FROM users WHERE id=?").bind(userId).first();
+ if(!exists)return false;
+ const periodEnd=sub.current_period_end??sub.items?.data?.[0]?.current_period_end??null;
+ await env.ACCOUNTS.prepare(
+  "INSERT INTO subscriptions(id,user_id,plan,status,provider,provider_customer_id,provider_subscription_id,current_period_end,cancel_at_period_end) VALUES(?,?,'pro',?,'stripe',?,?,?,?) "+
+  "ON CONFLICT(provider,provider_subscription_id) WHERE provider_subscription_id IS NOT NULL DO UPDATE SET status=excluded.status,provider_customer_id=excluded.provider_customer_id,current_period_end=excluded.current_period_end,cancel_at_period_end=excluded.cancel_at_period_end,updated_at=CURRENT_TIMESTAMP"
+ ).bind(crypto.randomUUID(),userId,STRIPE_STATUS[sub.status]||'expired',customer||null,sub.id,periodEnd?sqlTime(new Date(periodEnd*1000)):null,sub.cancel_at_period_end?1:0).run();
+ return true;
+}
+async function verifyStripeSignature(env,header,payload) {
+ const parts=Object.create(null),sigs=[];
+ for(const item of String(header||'').split(',')){
+  const [k,v]=item.split('=');
+  if(k==='v1')sigs.push(v);else if(k)parts[k]=v;
+ }
+ const t=Number(parts.t);
+ if(!Number.isFinite(t)||!sigs.length||Math.abs(Date.now()/1000-t)>300)return false;
+ const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(env.STRIPE_WEBHOOK_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+ const mac=new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(parts.t+'.'+payload)));
+ const hex=[...mac].map(b=>b.toString(16).padStart(2,'0')).join('');
+ return sigs.some(s=>{
+  if(typeof s!=='string'||s.length!==hex.length)return false;
+  let diff=0;for(let i=0;i<hex.length;i++)diff|=hex.charCodeAt(i)^s.charCodeAt(i);
+  return diff===0;
+ });
+}
+async function stripeWebhook(req,env) {
+ if(!billingReady(env))return json({error:'billing_not_configured'},503);
+ const payload=await req.text();
+ if(payload.length>256000)return json({error:'too_large'},413);
+ if(!await verifyStripeSignature(env,req.headers.get('stripe-signature'),payload))return json({error:'invalid_signature'},400);
+ let event;try{event=JSON.parse(payload);}catch(_){return json({error:'invalid_json'},400);}
+ if(typeof event.id!=='string'||typeof event.type!=='string')return json({error:'invalid_event'},400);
+ const fresh=await env.ACCOUNTS.prepare("INSERT OR IGNORE INTO billing_events(provider,event_id,event_type,payload_hash) VALUES('stripe',?,?,?)").bind(event.id,event.type.slice(0,80),await digest(payload)).run();
+ if(fresh.meta.changes!==1)return json({received:true,duplicate:true});
+ try{
+  const obj=event.data?.object||{};
+  let subId=null,userHint=null;
+  if(event.type==='checkout.session.completed'&&obj.mode==='subscription'){subId=obj.subscription;userHint=obj.client_reference_id||obj.metadata?.user_id||null;}
+  else if(event.type.startsWith('customer.subscription.'))subId=obj.id;
+  else if(event.type.startsWith('invoice.'))subId=typeof obj.subscription==='string'?obj.subscription:obj.parent?.subscription_details?.subscription||null;
+  if(subId){
+   // Events can arrive out of order; always store Stripe's current view.
+   const sub=await stripe(env,'GET','/subscriptions/'+encodeURIComponent(subId));
+   const saved=await saveStripeSubscription(env,sub,userHint);
+   const owner=await env.ACCOUNTS.prepare("SELECT user_id FROM subscriptions WHERE provider='stripe' AND provider_subscription_id=?").bind(sub.id).first();
+   if(owner)await env.ACCOUNTS.prepare("UPDATE billing_events SET user_id=? WHERE provider='stripe' AND event_id=?").bind(owner.user_id,event.id).run();
+   if(saved&&event.type!=='invoice.paid')await audit(env,owner?.user_id,'subscription_'+(STRIPE_STATUS[sub.status]||sub.status),event.type);
+  }
+  return json({received:true});
+ }catch(e){
+  // Let Stripe retry: forget the event so the retry is processed.
+  await env.ACCOUNTS.prepare("DELETE FROM billing_events WHERE provider='stripe' AND event_id=?").bind(event.id).run();
+  return json({error:'processing_failed'},500);
+ }
+}
+async function billingCheckout(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ if(!billingReady(env))return redirect('/account?billing=unavailable');
+ const pro=await proStatus(env,user.id);
+ if(pro.active)return redirect('/account?billing=already');
+ const params={mode:'subscription',line_items:{0:{price:env.STRIPE_PRO_PRICE_ID,quantity:1}},
+  success_url:ACCOUNTS_SITE+'/?billing=success',cancel_url:ACCOUNTS_SITE+'/?billing=cancelled',
+  client_reference_id:user.id,metadata:{user_id:user.id},subscription_data:{metadata:{user_id:user.id}},
+  allow_promotion_codes:'true'};
+ if(pro.stripe_customer)params.customer=pro.stripe_customer;else if(user.email)params.customer_email=user.email;
+ if(env.STRIPE_AUTOMATIC_TAX==='1'){
+  params.automatic_tax={enabled:'true'};
+  params.billing_address_collection='required';
+  if(pro.stripe_customer)params.customer_update={address:'auto',name:'auto'};
+ }
+ try{
+  const session=await stripe(env,'POST','/checkout/sessions',params);
+  await audit(env,user.id,'checkout_started','',req);
+  return new Response(null,{status:303,headers:{location:session.url,'cache-control':'no-store'}});
+ }catch(_){return redirect('/account?billing=error');}
+}
+async function billingPortal(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ if(!billingReady(env))return redirect('/account?billing=unavailable');
+ const pro=await proStatus(env,user.id);
+ if(!pro.stripe_customer)return redirect('/account?billing=none');
+ try{
+  const session=await stripe(env,'POST','/billing_portal/sessions',{customer:pro.stripe_customer,return_url:ACCOUNTS_SITE+'/'});
+  return new Response(null,{status:303,headers:{location:session.url,'cache-control':'no-store'}});
+ }catch(_){return redirect('/account?billing=error');}
+}
+
+// ---- Account management --------------------------------------------------------
+async function accountDevicesAction(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ let form;try{form=await readForm(req,300);}catch(e){return json({error:e.message},e.status||400);}
+ const id=String(form.get('id')||'');
+ if(form.get('action')!=='revoke'||!/^[a-f0-9-]{36}$/.test(id))return redirect('/account?device=invalid');
+ const r=await env.ACCOUNTS.prepare("UPDATE devices SET revoked_at=CURRENT_TIMESTAMP,token_hash=NULL WHERE id=? AND owner_user_id=? AND revoked_at IS NULL").bind(id,user.id).run();
+ if(r.meta.changes)await audit(env,user.id,'device_revoked',id,req);
+ return redirect('/account?device='+(r.meta.changes?'revoked':'invalid'));
+}
+async function accountRemoteAddress(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ let form;try{form=await readForm(req,600);}catch(e){return json({error:e.message},e.status||400);}
+ const id=String(form.get('id')||'');
+ if(!/^[a-f0-9-]{36}$/.test(id))return redirect('/account?server=invalid');
+ let address;try{address=remoteAddress(form.get('address'));}catch(_){return redirect('/account?server=bad_address');}
+ const r=await env.ACCOUNTS.prepare("UPDATE servers SET public_url=? WHERE id=? AND owner_user_id=?").bind(address||null,id,user.id).run();
+ return redirect('/account?server='+(r.meta.changes?'address_saved':'invalid'));
+}
+async function accountDelete(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ let form;try{form=await readForm(req,300);}catch(e){return json({error:e.message},e.status||400);}
+ if(form.get('confirm')!=='DELETE')return redirect('/account?delete=confirm');
+ // Stop billing first; never delete an account that is still being charged.
+ const subs=(await env.ACCOUNTS.prepare("SELECT provider_subscription_id FROM subscriptions WHERE user_id=? AND provider='stripe' AND status IN ('active','trialing','past_due','incomplete') AND provider_subscription_id IS NOT NULL").bind(user.id).all()).results||[];
+ if(subs.length){
+  if(!env.STRIPE_SECRET_KEY)return redirect('/account?delete=billing');
+  try{for(const s of subs)await stripe(env,'DELETE','/subscriptions/'+encodeURIComponent(s.provider_subscription_id));}
+  catch(e){if(e.status!==404)return redirect('/account?delete=billing');}
+ }
+ await audit(env,null,'account_deleted',await digest('user\0'+user.id),req);
+ await env.ACCOUNTS.batch([
+  env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE owner_user_id=?").bind(user.id),
+  env.ACCOUNTS.prepare("DELETE FROM users WHERE id=?").bind(user.id)
+ ]);
+ const headers=new Headers({location:PUBLIC_SITE+'/?account=deleted','cache-control':'no-store'});
+ const host=new URL(req.url).hostname;
+ headers.append('set-cookie',host==='yarr.media'||host.endsWith('.yarr.media')?sharedSessionCookie('',0):cookie('__Host-yarr_session','',0));
+ return new Response(null,{status:303,headers});
+}
+async function accountExtras(env,user) {
+ const [pro,devices]=await Promise.all([
+  proStatus(env,user.id),
+  env.ACCOUNTS.prepare("SELECT id,device_name,device_type,created_at,last_seen_at FROM devices WHERE owner_user_id=? AND revoked_at IS NULL AND token_hash IS NOT NULL ORDER BY created_at DESC").bind(user.id).all().then(r=>r.results||[])
+ ]);
+ return {pro,devices,billing:billingReady(env)};
+}
+function planPanelHTML(extra) {
+ const p=extra.pro;
+ let body;
+ if(p.active){
+  const until=p.forever?'No end date':(p.cancelling?'Ends ':'Renews ')+new Date(p.until).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});
+  body='<h2>Yarr Media Pro</h2><p class="account-note">Remote access is included. '+escapeHTML(until)+'.</p>'+
+   (extra.billing&&p.stripe_customer?'<form method="post" action="/account/billing/portal"><button class="account-secondary" type="submit">Manage billing</button></form>':'');
+ }else if(extra.billing){
+  body='<h2>Free</h2><p class="account-note">Upgrade to Pro to watch your own library away from home.</p><form method="post" action="/account/billing/checkout"><button class="account-submit" type="submit">Upgrade to Pro</button></form>'+
+   (p.stripe_customer?'<form method="post" action="/account/billing/portal"><button class="account-text-button" type="submit">Billing history</button></form>':'');
+ }else{
+  body='<h2>Free</h2><p class="account-note">Pro remote access is not on sale yet.</p>';
+ }
+ return '<section class="account-panel account-help" id="plan"><p class="account-kicker">Your plan</p>'+body+'</section>';
+}
+function devicesPanelHTML(extra) {
+ const list=extra.devices.length?'<div class="account-server-list">'+extra.devices.map(d=>
+  '<article class="account-server"><div class="account-server-header"><div><h3>'+escapeHTML(d.device_name)+'</h3><p class="account-note">Signed in '+escapeHTML(String(d.created_at).slice(0,10))+(d.last_seen_at?' · last used '+escapeHTML(String(d.last_seen_at).slice(0,10)):'')+'</p></div>'+
+  '<form method="post" action="/account/devices"><input type="hidden" name="action" value="revoke"><input type="hidden" name="id" value="'+escapeHTML(d.id)+'"><button class="account-text-button" type="submit">Sign out</button></form></div></article>').join('')+'</div>'
+  :'<p class="account-note">No TVs or apps are signed in. On your TV, choose Sign in and enter the code at <strong>yarr.media/activate</strong>.</p>';
+ return '<section class="account-panel" id="devices"><div class="panel-top"><div><p class="account-kicker">Devices</p><h2>Signed-in devices</h2></div><span class="account-count">'+extra.devices.length+'</span></div>'+list+'</section>';
+}
+function remoteAddressFormHTML(s) {
+ return '<form method="post" action="/account/servers/address" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-address-'+escapeHTML(s.id)+'">Remote HTTPS address</label><div class="account-form-row"><input id="server-address-'+escapeHTML(s.id)+'" maxlength="260" name="address" placeholder="https://media.example.com" value="'+escapeHTML(s.public_url||'')+'"><button class="account-secondary" type="submit">Save address</button></div></form>'+
+  (s.public_url?'<p class="account-small"><a href="/remote/open?server='+escapeHTML(s.id)+'">Open remotely</a></p>':'');
+}
+const DANGER_HTML='<section class="account-panel" id="delete-account"><p class="account-kicker">Danger zone</p><h2>Delete account</h2><p class="account-note">Deletes your account, signs out every device, unlinks your servers and cancels Pro. Media on your server is not touched.</p><details class="account-manage"><summary>Delete my account</summary><div class="account-manage-body"><form method="post" action="/account/delete" class="account-form"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" name="confirm" required autocomplete="off" pattern="DELETE"><button class="account-secondary" type="submit">Permanently delete</button></form></div></details></section>';
+const ACCOUNT_MESSAGES={
+ billing:{success:'Thanks! Pro will show here as soon as Stripe confirms the payment.',cancelled:'Checkout was cancelled. You have not been charged.',unavailable:'Pro is not on sale yet.',already:'You already have Pro.',none:'No billing history yet.',error:'Billing is temporarily unavailable. Please try again.'},
+ device:{revoked:'That device has been signed out.',invalid:'That device could not be found.'},
+ delete:{confirm:'Type DELETE to confirm account deletion.',billing:'Your subscription could not be cancelled, so the account was not deleted. Please try again.'},
+ remote:{pro_required:'Remote access needs Pro.',no_address:'Add a remote HTTPS address for that server first.',not_found:'That server is not linked to your account.',unavailable:'Remote access is not available yet.'},
+ server:{address_saved:'Remote address saved.',bad_address:'Use a public https:// address on port 443, without a path.'}
+};
+function accountMessage(u) {
+ for(const [key,table] of Object.entries(ACCOUNT_MESSAGES)){const v=u.searchParams.get(key);if(v&&table[v])return table[v];}
+ return '';
+}
+
+// ---- Housekeeping ------------------------------------------------------------
+async function cleanup(env) {
+ const minute=Math.floor(Date.now()/60000),bucket=Math.floor(Date.now()/600000);
+ await env.ACCOUNTS.batch([
+  env.ACCOUNTS.prepare("DELETE FROM sessions WHERE expires_at<CURRENT_TIMESTAMP"),
+  env.ACCOUNTS.prepare("DELETE FROM oauth_flows WHERE expires_at<CURRENT_TIMESTAMP"),
+  env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE expires_at<datetime('now','-1 day')"),
+  env.ACCOUNTS.prepare("DELETE FROM device_login_requests WHERE expires_at<datetime('now','-1 day')"),
+  env.ACCOUNTS.prepare("DELETE FROM pairing_rate_limits WHERE (instr(window,':')>0 AND CAST(substr(window,instr(window,':')+1) AS INTEGER)<?) OR (instr(window,':')=0 AND CAST(window AS INTEGER)<?)").bind(minute-180,bucket-18),
+  env.ACCOUNTS.prepare("DELETE FROM devices WHERE (revoked_at IS NOT NULL AND revoked_at<datetime('now','-90 days')) OR (token_expires_at IS NOT NULL AND token_expires_at<datetime('now','-30 days'))"),
+  env.ACCOUNTS.prepare("DELETE FROM audit_log WHERE created_at<datetime('now','-365 days')"),
+  env.ACCOUNTS.prepare("DELETE FROM billing_events WHERE received_at<datetime('now','-400 days')")
+ ]);
+}
+
+// Routes added by this section. Returns null when the request is not ours.
+async function accountsV2Routes(req,env,u) {
+ const m=req.method,p=u.pathname;
+ if(p==='/activate'&&u.hostname!=='accounts.yarr.media'&&!HOST_ONLY_SITES.has(u.origin))return redirect(ACCOUNTS_SITE+'/activate'+u.search);
+ if(m==='GET'&&p==='/activate')return activatePage(req,env);
+ if(m==='POST'&&p==='/activate')return activateDecision(req,env);
+ if(m==='POST'&&p==='/api/device/code')return deviceCodeStart(req,env);
+ if(m==='POST'&&p==='/api/device/token')return deviceCodeToken(req,env);
+ if(m==='GET'&&p==='/api/device/me')return deviceMe(req,env);
+ if(m==='POST'&&p==='/api/device/signout')return deviceSignOut(req,env);
+ if(m==='GET'&&p==='/api/passes/keys'){
+  try{return new Response(JSON.stringify({keys:await passPublicKeys(env)}),{headers:{...JSON_HEADERS,'cache-control':'public, max-age=3600'}});}
+  catch(_){return json({error:'passes_misconfigured'},503);}
+ }
+ if(m==='POST'&&p==='/api/passes')return passRequest(req,env);
+ if(m==='GET'&&p==='/remote/open')return remoteOpen(req,env);
+ if(m==='POST'&&p==='/api/stripe/webhook')return stripeWebhook(req,env);
+ if(m==='POST'&&p==='/account/billing/checkout')return billingCheckout(req,env);
+ if(m==='POST'&&p==='/account/billing/portal')return billingPortal(req,env);
+ if(m==='POST'&&p==='/account/devices')return accountDevicesAction(req,env);
+ if(m==='POST'&&p==='/account/servers/address')return accountRemoteAddress(req,env);
+ if(m==='POST'&&p==='/account/delete')return accountDelete(req,env);
+ return null;
+}
+
 export default { async fetch(req,env) {
  const u=new URL(req.url);
  try {
-  // Public social preview: versioned to avoid stale crawler thumbnails.
-  if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/assets/yarr-media-og-v2.jpg'){
-    const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/yarr-media-og-v2.jpg');
-    if(!upstream.ok)return new Response('Social image unavailable',{status:502,headers:{'cache-control':'no-store'}});
-    return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':'image/jpeg','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
-  }
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.svg')return new Response(req.method==='HEAD'?null:YARR_ICON_SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.ico')return redirect('/favicon.svg?v=moon-sail-v1');
+  if(u.hostname==='www.yarr.media')return new Response(null,{status:301,headers:{location:'https://yarr.media'+u.pathname+u.search,'cache-control':'public, max-age=3600'}});
+  const accountsV2=await accountsV2Routes(req,env,u);
+  if(accountsV2)return accountsV2;
+  // Dedicated app and account hosts share an authenticated first-party session.
+  if(u.hostname==='app.yarr.media'){
+    if(u.pathname==='/app')return redirect('/');
+    if(u.pathname==='/account'||u.pathname.startsWith('/account/')||u.pathname.startsWith('/auth/'))return redirect(ACCOUNTS_SITE+u.pathname+u.search);
+    if((req.method==='GET'||req.method==='HEAD')&&(u.pathname==='/'||u.pathname==='/index.html')){
+      if(!await currentUser(req,env))return redirect(ACCOUNTS_SITE+'/account');
+      return proxyInstalledApp(req,env,'/');
+    }
+  }
+  if(u.hostname==='accounts.yarr.media'){
+    if(req.method==='GET'&&u.pathname==='/account')return redirect('/'+u.search);
+    // The account dashboard is the homepage of the accounts subdomain.
+    if(u.pathname==='/auth/google/start')return redirect(PUBLIC_SITE+'/auth/google/start'+u.search);
+    if(u.pathname==='/auth/google/callback')return redirect('/account?login=failed');
+    if(u.pathname==='/app')return redirect(APP_SITE+'/');
+  }
+  if(u.hostname==='yarr.media'&&(u.pathname==='/app'||u.pathname==='/account'))return redirect((u.pathname==='/app'?APP_SITE+'/':ACCOUNTS_SITE+'/account')+u.search);
+  // Both authorized hosts now serve their own first-party account sessions.
+  // Public brand assets are fetched from the existing GitHub release source,
+  // rather than through the account-gated private server proxy.
+  const publicAssetPaths={
+   '/assets/yarr-media-wordmark.png':'yarr-media-wordmark.png',
+   '/assets/yarr-media-og.jpg':'yarr-media-og.jpg',
+   '/assets/yarr-media-og-v2.jpg':'yarr-media-og-v2.jpg',
+   '/assets/yarr-anchor.png':'yarr-anchor.png'
+  };
+  if((req.method==='GET'||req.method==='HEAD')&&publicAssetPaths[u.pathname]){
+   const name=publicAssetPaths[u.pathname];
+   const upstream=await fetch('https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/'+name);
+   if(!upstream.ok)return new Response('Asset unavailable',{status:502,headers:{'cache-control':'no-store'}});
+   return new Response(req.method==='HEAD'?null:upstream.body,{status:200,headers:{
+    'content-type':name.endsWith('.jpg')?'image/jpeg':'image/png',
+    'cache-control':'public, max-age=3600','x-content-type-options':'nosniff'
+   }});
+  }
   if(req.method==='GET'&&(u.pathname==='/health'||u.pathname==='/__edge/health')) {
    let database='unavailable';try{await env.ACCOUNTS.prepare('SELECT 1 AS ok').first();database='ready'}catch(_){}
    return json({service:'yarr',status:'staging',database,authentication:authReady(env)?'configured':'not_configured',media_proxy:false},database==='ready'?200:503);
   }
   if(req.method==='GET'&&u.pathname==='/robots.txt')return new Response('User-agent: *\nDisallow: /\n',{headers:{'content-type':'text/plain; charset=utf-8'}});
-  if(req.method==='GET'&&u.pathname==='/auth/google/start')return googleStart(env);
+  if(req.method==='GET'&&u.pathname==='/auth/google/start')return googleStart(req,env);
   if(req.method==='GET'&&u.pathname==='/auth/google/callback')return googleCallback(req,env);
   if(req.method==='POST'&&u.pathname==='/auth/logout') {
-   if(req.headers.get('origin')!==SITE)return json({error:'forbidden'},403);
-   const token=getCookie(req,'__Host-yarr_session');
+   if(!validOrigin(req))return json({error:'forbidden'},403);
+   const token=getCookie(req,SHARED_SESSION_NAME)||getCookie(req,'__Host-yarr_session');
    if(token)await env.ACCOUNTS.prepare("DELETE FROM sessions WHERE token_hash=?").bind(await digest(token)).run();
-   return redirect('/account',{'set-cookie':cookie('__Host-yarr_session','',0)});
+   const cleared=new Headers({'location':new URL(req.url).hostname==='accounts.yarr.media'?'/account':ACCOUNTS_SITE+'/account','cache-control':'no-store'});
+   cleared.append('set-cookie',new URL(req.url).hostname.endsWith('yarr.media')?sharedSessionCookie('',0):cookie('__Host-yarr_session','',0));
+   return new Response(null,{status:303,headers:cleared});
   }
   if(req.method==='POST'&&u.pathname==='/api/connection/heartbeat')return connectionHeartbeat(req,env);
   if(req.method==='GET'&&u.pathname==='/api/connection/status')return accountConnectionStatus(req,env);
@@ -717,19 +1336,28 @@ export default { async fetch(req,env) {
    if(!user)return json({authenticated:false},401);
    return json({authenticated:true,user});
   }
+  if((req.method==='GET'||req.method==='HEAD') && (u.pathname==='/assets/yarr-media-wordmark.png'||u.pathname==='/assets/yarr-media-og.jpg')) {
+   const isLogo=u.pathname.endsWith('wordmark.png');
+   const target='https://raw.githubusercontent.com/blarkin13/one-eyed-willie/main/server/'+(isLogo?'yarr-media-wordmark.png':'yarr-media-og.jpg');
+   const upstream=await fetch(target,{cf:{cacheTtl:3600,cacheEverything:true}});
+   if(!upstream.ok)return new Response('Image unavailable',{status:502,headers:{'cache-control':'no-store'}});
+   return new Response(req.method==='HEAD'?null:upstream.body,{headers:{'content-type':isLogo?'image/png':'image/jpeg','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
+  }
   if(req.method==='GET'&&u.pathname==='/app') {
    const user=await currentUser(req,env);
-   if(!user)return redirect('/account');
+   if(!user)return redirect(new URL(req.url).hostname==='yarr.larki-brian.workers.dev'?'/account':ACCOUNTS_SITE+'/account');
    return proxyInstalledApp(req,env,'/');
   }
-  if(req.method==='GET'&&u.pathname==='/account') {
+  if(req.method==='GET'&&(u.pathname==='/account'||(u.hostname==='accounts.yarr.media'&&(u.pathname==='/'||u.pathname==='/index.html')))) {
    const user=await currentUser(req,env);
    const message=u.searchParams.get('login')?'Sign-in was not completed. Please try again.':'';
    const statuses={renamed:'Server name saved.',deleted:'Unused registration removed.',protected:'Paired servers require a secure unpair flow before removal.',invalid:'Check the server name and try again.'};
    const pairStatuses={success:'Server linked to your account. Remote access is not enabled yet.',invalid:'The pairing code is invalid, expired or already used.',claimed:'That server is already linked. Unpairing is not enabled yet.',slow:'Too many attempts. Try again shortly.',limit:'You can link up to five servers during testing.'};
    const message2=message||pairStatuses[u.searchParams.get('pair')]||statuses[u.searchParams.get('server')]||'';
    const servers=user?await listServers(env,user.id):[];
-   return html(accountHTML(user,authReady(env),message2,servers));
+   const extra=user?await accountExtras(env,user):null;
+   const shown=accountMessage(u)||message2||(u.searchParams.get('account')==='deleted'?'Your account has been deleted.':'');
+   return html(accountHTML(user,authReady(env),shown,servers,extra),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com https://billing.stripe.com")});
   }
   if(req.method==='GET'||req.method==='HEAD') {
    if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
@@ -740,7 +1368,7 @@ export default { async fetch(req,env) {
   if(u.pathname.startsWith('/auth/'))return json({error:'not_found'},404);
   if(u.pathname==='/api/private' || u.pathname.startsWith('/api/private/'))return json({error:'not_found'},404);
   // This Worker owns account, login and pairing routes. All other application
-  // paths are served by the paired local Yarr Media server.
+  // paths are served by the paired local One-Eyed Willie server.
   if(u.pathname!=='/'&&u.pathname!=='/index.html')return proxyInstalledApp(req,env);
   if(req.method!=='GET'&&req.method!=='HEAD')return json({error:'method_not_allowed'},405);
   if(u.pathname==='/'||u.pathname==='/index.html') {
@@ -751,8 +1379,10 @@ export default { async fetch(req,env) {
    const rendered=page.replace('<a class="btn primary" href="#setup">See how it works</a>',cta+'<a class="btn" href="#setup">See how it works</a>')
      .replace('Server download & sign-in are coming.','Server downloads are coming.')
      .replace('Public downloads, Google Sign-In, and account-based pairing are not available yet.','Public downloads and account-based server pairing are not available yet.');
-   return new Response(req.method==='HEAD'?null:siteChrome(rendered),{headers:{...HTML_HEADERS,'cache-control':'private, no-store'}});
+   return new Response(req.method==='HEAD'?null:siteChrome(rendered.replace('</main>',DOWNLOADS_PLACEHOLDERS+'</main>')).replace('<body>','<body class="yarr-home">').replace('</head>',"<style>/* Anchor artwork sits behind homepage content, never intercepts interaction. */body.yarr-home{position:relative}body.yarr-home::before{content:\"\";position:absolute;bottom:0;right:clamp(120px,21vw,320px);width:min(32vw,430px);height:560px;background:url(\"/assets/yarr-anchor.png\") right bottom/contain no-repeat;z-index:0;pointer-events:none;opacity:.85}body.yarr-home>.wrap{position:relative;z-index:1}@media(max-width:850px){body.yarr-home::before{right:20px;width:min(52vw,400px);opacity:.65}}@media(max-width:560px){body.yarr-home::before{right:8px;width:55vw;opacity:.45}}</style>"+'</head>').replace('</head>',"<meta property=\"og:type\" content=\"website\"><meta property=\"og:site_name\" content=\"Yarr.media\"><meta property=\"og:title\" content=\"Yarr.media — Your media. Your rules.\"><meta property=\"og:description\" content=\"Your own movies, television and music in one self-hosted media server.\"><meta property=\"og:image\" content=\"https://yarr.media/assets/yarr-media-og-v2.jpg\"><meta property=\"og:image:width\" content=\"1200\"><meta property=\"og:image:height\" content=\"630\"><meta property=\"og:image:type\" content=\"image/jpeg\"><meta name=\"twitter:card\" content=\"summary_large_image\"><meta name=\"twitter:image\" content=\"https://yarr.media/assets/yarr-media-og-v2.jpg\">"+'</head>'),{headers:{...HTML_HEADERS,'cache-control':'private, no-store'}});
   }
   return json({error:'not_found'},404);
  }catch(_) {return json({error:'temporarily_unavailable'},503);}
-}};
+},
+async scheduled(event,env,ctx) { ctx.waitUntil(cleanup(env)); }
+};
