@@ -25,6 +25,14 @@ document.addEventListener('DOMContentLoaded', () => {
       if(/^#[0-9a-fA-F]{6}$/.test(color||''))
         document.documentElement.style.setProperty('--oew-tv-select-color',color);
     }).catch(()=>{});
+  // Shared first-party widgets for Home, paused browser playback and idle TV/browser.
+  // No third-party scripts are loaded on customer devices.
+  if(!document.querySelector('script[data-yarr-glance]')){
+    const glance=document.createElement('script');
+    glance.dataset.yarrGlance='1';
+    glance.src='/assets/glance.js?v=1';
+    document.head.append(glance);
+  }
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
