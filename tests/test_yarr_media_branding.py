@@ -49,6 +49,8 @@ class YarrMediaBrandingTests(unittest.TestCase):
         self.assertIn(".sidebar .brand-wordmark-media{color:#c62838}", stylesheet)
         self.assertIn(".sidebar .brand-wordmark-dot{color:#9b9b9b}", stylesheet)
         self.assertIn(".sidebar .brand-wordmark-yarr{color:#f5f1e8}", stylesheet)
+        self.assertIn("font:900 16px/1 system-ui", stylesheet)
+        self.assertIn("letter-spacing:.01em;text-transform:uppercase", stylesheet)
         self.assertIn(".sidebar:hover .brand-wordmark", stylesheet)
         self.assertIn("Android TV uses an 85px icon-only rail", main)
 
