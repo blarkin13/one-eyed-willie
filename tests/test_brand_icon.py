@@ -29,10 +29,10 @@ class BrandIconTests(unittest.TestCase):
         # Here: the manifest points at a drawable that exists, and the
         # full-detail logo vector still matches the site's logo.
         manifest = (ROOT / "google-tv/app/src/main/AndroidManifest.xml").read_text()
-        icon = re.search(r'android:icon="@drawable/([a-z0-9_]+)"', manifest)
+        icon = re.search(r'android:icon="@(drawable|mipmap)/([a-z0-9_]+)"', manifest)
         self.assertIsNotNone(icon)
         drawables = ROOT / "google-tv/app/src/main/res"
-        self.assertTrue(list(drawables.glob("drawable*/" + icon.group(1) + ".*")), icon.group(1))
+        self.assertTrue(list(drawables.glob(icon.group(1) + "*/" + icon.group(2) + ".*")), icon.group(0))
         android = (ROOT / "google-tv/app/src/main/res/drawable/yarr_media_icon.xml").read_text()
         svg = (ROOT / "server/logo.svg").read_text()
         self.assertIn(svg.split('d="M')[1].split('"')[0], android)
