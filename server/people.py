@@ -14,7 +14,7 @@ router = APIRouter(prefix="/api/people")
 def public_json(url):
     try:
         req = urllib.request.Request(url, headers={
-            "User-Agent": "OneEyedWillie/1.0 (personal media library; cast biographies)",
+            "User-Agent": "YarrMedia/1.0 (personal media library; cast biographies)",
             "Accept": "application/json",
         })
         with urllib.request.urlopen(req, timeout=6) as response:
