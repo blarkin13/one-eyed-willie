@@ -136,7 +136,11 @@ class MainActivity : ComponentActivity() {
             backgroundTintList = ColorStateList.valueOf(0xFFF0EBE5.toInt())
             setOnClickListener {
                 val web = browser
-                if (web != null) web.reload() else discoverLocalServer()
+                val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
+                if (web != null) {
+                    if (RemoteSession.isRemote(this@MainActivity, origin)) remotePassRefresh.run()
+                    web.reload()
+                } else if (validOrigin(saved)) startWithSavedServer(saved) else showUnconfigured()
             }
         }
         val settings = Button(this).apply {
@@ -290,7 +294,96 @@ class MainActivity : ComponentActivity() {
             }
         })
         val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
-        if (validOrigin(saved)) showServer(saved) else showUnconfigured()
+        if (validOrigin(saved)) startWithSavedServer(saved) else showUnconfigured()
+    }
+
+    /**
+     * Home server first. A TV signed in to a Yarr account checks that the home
+     * server answers (a couple of seconds at most) and, if it doesn't, watches
+     * remotely through the account (Pro). TVs that aren't signed in open the
+     * saved server directly, exactly as before.
+     */
+    private fun startWithSavedServer(saved: String) {
+        if (YarrAccount.savedToken(this) == null) { showServer(saved); return }
+        val generation = showSplashOnly()
+        discoveryWorker.execute {
+            val identity = probeServer(saved)
+            runOnUiThread {
+                if (isFinishing || generation != discoveryGeneration || browser != null) return@runOnUiThread
+                if (identity != null) {
+                    RemoteSession.rememberHomeServer(this, identity)
+                    RemoteSession.clear(this)
+                    showServer(saved)
+                } else connectRemote()
+            }
+        }
+    }
+
+    /** The server's identity if it answers on [server] within a short timeout. Blocks. */
+    private fun probeServer(server: String): String? {
+        var connection: HttpURLConnection? = null
+        return try {
+            connection = (URL("$server/api/server/info").openConnection() as HttpURLConnection).apply {
+                connectTimeout = 2500
+                readTimeout = 2500
+                instanceFollowRedirects = false
+            }
+            if (connection.responseCode != 200) null
+            else JSONObject(connection.inputStream.bufferedReader().use { it.readText().take(4096) })
+                .optString("server_id").ifBlank { null }
+        } catch (_: Exception) { null }
+        finally { connection?.disconnect() }
+    }
+
+    /** Away from home: open the account's server through yarr.media (needs Pro). */
+    private fun connectRemote() {
+        val generation = discoveryGeneration
+        accountWorker.execute {
+            val result = RemoteSession.connect(applicationContext)
+            runOnUiThread {
+                if (isFinishing || generation != discoveryGeneration || browser != null) return@runOnUiThread
+                when (result) {
+                    is RemoteSession.Connect.Ok -> showServer(result.origin)
+                    RemoteSession.Connect.ProRequired ->
+                        showLoadingFailure("Can't reach your server on this network. Watching away from home needs Yarr Media Pro.")
+                    RemoteSession.Connect.NoServer ->
+                        showLoadingFailure("Can't reach your server. Connect it to your Yarr account to watch away from home.")
+                    RemoteSession.Connect.NoAddress ->
+                        showLoadingFailure("Can't reach your server. It hasn't reported its internet address to yarr.media yet.")
+                    RemoteSession.Connect.SignedOut -> {
+                        YarrAccount.saveToken(this, null)
+                        RemoteSession.clear(this)
+                        showLoadingFailure("Can't reach your server, and this TV was signed out of Yarr Media.")
+                    }
+                    RemoteSession.Connect.NotSignedIn ->
+                        showLoadingFailure("Could not find Yarr Media on this network. Retry or open Server settings.")
+                    is RemoteSession.Connect.Failed ->
+                        showLoadingFailure("Unable to reach your server or yarr.media. Check this TV's internet connection.")
+                }
+            }
+        }
+    }
+
+    private fun applyPassCookie(session: RemoteSession.Active, then: (() -> Unit)? = null) {
+        val cookies = android.webkit.CookieManager.getInstance()
+        cookies.setCookie(session.origin, RemoteSession.cookieFor(session, System.currentTimeMillis())) {
+            cookies.flush()
+            then?.invoke()
+        }
+    }
+
+    /** Renews the remote pass well before it expires while the app is open. */
+    private val remotePassRefresh = object : Runnable {
+        override fun run() {
+            accountHandler.removeCallbacks(this)
+            val server = origin
+            if (isFinishing || browser == null || server.isEmpty() || !RemoteSession.isRemote(this@MainActivity, server)) return
+            accountWorker.execute {
+                val session = RemoteSession.freshPass(applicationContext, server)
+                runOnUiThread { if (session != null && !isFinishing && origin == server) applyPassCookie(session) }
+            }
+            accountHandler.postDelayed(this, 5 * 60 * 1000L)
+        }
     }
 
     private fun validOrigin(value: String): Boolean = try {
@@ -304,6 +397,12 @@ class MainActivity : ComponentActivity() {
     // No separate IP/port setup page. On first installation the same native
     // connection editor is accessible from the loading screen's Settings.
     private fun showUnconfigured() {
+        showSplashOnly()
+        discoverLocalServer()
+    }
+
+    /** The startup splash with no page behind it yet. Returns the discovery generation. */
+    private fun showSplashOnly(): Int {
         initialPageLoaded = false
         splashStartedAt = 0L
         browser?.destroy()
@@ -315,7 +414,7 @@ class MainActivity : ComponentActivity() {
         ))
         setContentView(screen)
         showLoading()
-        discoverLocalServer()
+        return ++discoveryGeneration
     }
 
     /**
@@ -399,7 +498,13 @@ class MainActivity : ComponentActivity() {
                     return@runOnUiThread
                 if (discovered != null && validOrigin(discovered)) {
                     prefs.edit().putString("url", discovered).apply()
+                    RemoteSession.clear(this)
+                    discoveryWorker.execute {
+                        probeServer(discovered)?.let { RemoteSession.rememberHomeServer(applicationContext, it) }
+                    }
                     showServer(discovered)
+                } else if (YarrAccount.savedToken(this) != null) {
+                    connectRemote()
                 } else {
                     showLoadingFailure("Could not find Yarr Media on this network. Retry or open Server settings.")
                 }
@@ -453,6 +558,7 @@ class MainActivity : ComponentActivity() {
                     return@setOnClickListener
                 }
                 dialog.dismiss()
+                RemoteSession.clear(this)
                 browser?.stopLoading()
                 browser?.destroy()
                 browser = null
@@ -498,12 +604,12 @@ class MainActivity : ComponentActivity() {
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 when (profile) {
-                    null -> { YarrAccount.saveToken(this, null); startYarrSignIn() }
+                    null -> { YarrAccount.saveToken(this, null); RemoteSession.clear(this); startYarrSignIn() }
                     is YarrAccount.Profile -> showAccountDialog("Yarr account", accountMessageView(
                         "Signed in as ${profile.email.ifBlank { profile.displayName }}\nPlan: ${if (profile.pro) "Pro" else "Free"}")) {
                         it.setNegativeButton("Close", null)
                         it.setNeutralButton("Sign out") { _, _ ->
-                            YarrAccount.saveToken(this, null)
+                            YarrAccount.saveToken(this, null); RemoteSession.clear(this)
                             accountWorker.execute { YarrAccount.signOut(token) }
                         }
                     }
@@ -632,7 +738,12 @@ class MainActivity : ComponentActivity() {
         ))
         setContentView(screen)
         showLoading()
-        view.loadUrl("$origin/")
+        val remote = RemoteSession.current()?.takeIf { it.origin == origin }
+        if (remote != null) {
+            val target = origin
+            applyPassCookie(remote) { if (browser === view && origin == target) view.loadUrl("$target/") }
+            accountHandler.postDelayed(remotePassRefresh, 5 * 60 * 1000L)
+        } else view.loadUrl("$origin/")
     }
 
     private fun configureBrowser(view: WebView) {
@@ -1135,6 +1246,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         playerLaunchPending = false
+        if (browser != null && origin.isNotEmpty() && RemoteSession.isRemote(this, origin)) remotePassRefresh.run()
         stopTvRepeat()
         // Read the player state via the JavaScript evaluation callback.
         // Never use JS prompt() here: after a second launch/resume it can

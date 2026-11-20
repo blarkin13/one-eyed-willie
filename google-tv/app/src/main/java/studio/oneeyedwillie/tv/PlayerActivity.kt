@@ -348,7 +348,14 @@ class PlayerActivity : ComponentActivity() {
         // should cost a pause, not a failed playback.
         val http = DefaultHttpDataSource.Factory()
             .setConnectTimeoutMs(10_000).setReadTimeoutMs(20_000).setAllowCrossProtocolRedirects(true)
-        val sources = DefaultMediaSourceFactory(http)
+        // Away from home, every request to the server carries the remote pass
+        // (renewed here on the loading thread when it is close to expiring).
+        val remoteOrigin = server
+        val authorized = androidx.media3.datasource.ResolvingDataSource.Factory(http) { spec ->
+            val header = RemoteSession.headerFor(applicationContext, spec.uri.toString(), remoteOrigin)
+            if (header == null) spec else spec.withAdditionalHeaders(mapOf("Authorization" to header))
+        }
+        val sources = DefaultMediaSourceFactory(authorized)
             .setLoadErrorHandlingPolicy(DefaultLoadErrorHandlingPolicy(6))
         player = ExoPlayer.Builder(this).setMediaSourceFactory(sources).build().also { exo ->
             playerView.player = exo
@@ -1168,6 +1175,7 @@ class PlayerActivity : ComponentActivity() {
             try {
                 val url=URL(resolveUrl("/api/watch/$mediaId/watched"))
                 val connection=url.openConnection() as HttpURLConnection
+                RemoteSession.authorize(applicationContext, connection)
                 try {
                     connection.requestMethod="PUT"
                     connection.connectTimeout=5000
@@ -1620,6 +1628,7 @@ class PlayerActivity : ComponentActivity() {
         path: String, method: String = "GET", payload: JSONObject? = null
     ): JSONObject {
         val connection = URL(resolveUrl(path)).openConnection() as HttpURLConnection
+        RemoteSession.authorize(applicationContext, connection)
         try {
             connection.requestMethod = method
             connection.connectTimeout = 7000
@@ -1839,6 +1848,7 @@ class PlayerActivity : ComponentActivity() {
             try {
                 val connection = URL(resolveUrl("/api/playback/progress"))
                     .openConnection() as HttpURLConnection
+                RemoteSession.authorize(applicationContext, connection)
                 try {
                     connection.requestMethod = "POST"
                     // Avoid reusing a stale keep-alive socket while Media3

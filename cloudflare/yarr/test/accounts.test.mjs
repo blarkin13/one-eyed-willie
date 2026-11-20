@@ -73,6 +73,35 @@ test('Google TV sign-in: code, approval, token, profile, sign-out', async()=>{
  assert.equal((await request(worker,env,'GET',PUB+'/api/device/me',{headers:auth})).status,401);
 });
 
+test('a signed-in TV finds its server and gets a 1-hour pass for remote playback', async()=>{
+ const key=await newPassKey('k-tv');
+ const worker=await loadWorker(),env=makeEnv({PASS_SIGNING_KEY:JSON.stringify(key)});
+ const user=await signedInUser(env);
+ const server=pairedServer(env,user.id);
+ const db=env.ACCOUNTS.raw;
+ db.prepare("UPDATE servers SET public_ip='76.183.183.204'").run();
+ const token='ydv_'+'t'.repeat(43);
+ db.prepare("INSERT INTO devices(id,owner_user_id,device_name,device_type,token_hash,token_expires_at) VALUES('tv1',?,'Living room TV','google_tv',?,datetime('now','+1 day'))").run(user.id,await digest(token));
+ const auth={authorization:'Bearer '+token};
+ const me=await (await request(worker,env,'GET',PUB+'/api/device/me',{headers:auth})).json();
+ assert.deepEqual(me.servers.map(s=>[s.id,s.server_identity,s.remote_address]),[[server.id,server.identity,'https://76-183-183-204.sslip.io']]);
+ const free=await request(worker,env,'POST',PUB+'/api/passes',{headers:auth,json:{server_id:server.id}});
+ assert.equal(free.status,402,'remote playback needs Pro');
+ assert.equal((await free.json()).error,'pro_required');
+ db.prepare("INSERT INTO subscriptions(id,user_id,status,provider) VALUES('m1',?,'active','manual')").run(user.id);
+ const res=await request(worker,env,'POST',PUB+'/api/passes',{headers:auth,json:{server_id:server.id}});
+ assert.equal(res.status,200);
+ const body=await res.json();
+ assert.equal(body.remote_address,'https://76-183-183-204.sslip.io');
+ const keys=await (await request(worker,env,'GET',PUB+'/api/passes/keys')).json();
+ const pass=await verifyPass(body.pass,keys.keys[0]);
+ assert.ok(pass.ok);
+ assert.equal(pass.claims.aud,server.identity);
+ assert.equal(pass.claims.dev,'tv1');
+ assert.equal(pass.claims.exp-pass.claims.iat,3600);
+ assert.equal((await request(worker,env,'POST',PUB+'/api/passes',{headers:auth,json:{server_id:'99999999-2222-3333-4444-555555555555'}})).status,404);
+});
+
 test('activation needs sign-in and keeps the code through Google sign-in', async()=>{
  const worker=await loadWorker(),env=makeEnv();
  const page=await (await request(worker,env,'GET',ACC+'/activate?code=ABCD-EFGH')).text();
