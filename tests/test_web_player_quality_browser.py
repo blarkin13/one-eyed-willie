@@ -131,11 +131,14 @@ class WebPlayerQualityBrowserTests(unittest.TestCase):
         page.click(row)
 
     def open_player(self, status=None, hls_start="busy", stream="hang", metered=False,
-                    estimates=ESTIMATES, viewport=None, setup=None):
+                    estimates=ESTIMATES, viewport=None, setup=None, touch=False, init_script=None):
         """Open /watch/7 with stubbed media APIs; returns (page, hls_start_urls, stream_urls)."""
-        context = self.browser.new_context(viewport=viewport or {"width": 1280, "height": 720})
+        context = self.browser.new_context(viewport=viewport or {"width": 1280, "height": 720},
+                                           has_touch=touch, is_mobile=touch)
         self.addCleanup(context.close)
         page = context.new_page()
+        if init_script:
+            page.add_init_script(init_script)
         if metered:
             page.add_init_script(CELLULAR)
         # Requests left pending on purpose must not raise when the page closes.

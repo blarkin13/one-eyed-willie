@@ -49,6 +49,8 @@ object AppShell {
     private class TabView(val root: View, val icon: ImageView, val label: TextView)
     private var tabViews = emptyMap<String, TabView>()
     private var refresher: SwipeRefreshLayout? = null
+    private var tabBarView: View? = null
+    private var playerOpen = false
     private var currentPath = "/"
     private var navLinks = emptyList<ShellLogic.NavLink>()
     private var documentStartStyle = false
@@ -131,7 +133,14 @@ html.yarr-app #items{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap
   a.insertAdjacentHTML('beforeend','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>');
  });
 }
-if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();})();
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
+ // The player covers the page: the app hides its tabs and the phone's bars meanwhile.
+ if(!window.__yarrPlayerWatch){window.__yarrPlayerWatch=1;var playing=false;
+  function watch(){var on=!!document.querySelector('body>.willie-player');
+   if(on!==playing){playing=on;try{prompt('oewtv:shell:player:'+(on?1:0),'')}catch(_){}}}
+  function start(){watch();new MutationObserver(watch).observe(document.body,{childList:true})}
+  if(document.body)start();else document.addEventListener('DOMContentLoaded',start);}
+})();
 """
 
     private val APP_SCRIPT = """(function(){
@@ -185,12 +194,14 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(Color.BLACK)
             addView(screen, LinearLayout.LayoutParams(-1, 0, 1f))
-            addView(tabBar(activity, host, web), LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
+            addView(tabBar(activity, host, web).also { tabBarView = it }, LinearLayout.LayoutParams(-1, ViewGroup.LayoutParams.WRAP_CONTENT))
         }
     }
 
     fun onPageStarted(url: String?) {
         currentPath = url?.let { Uri.parse(it).path }.orEmpty().ifEmpty { "/" }
+        // A new page never starts with the player open.
+        (tabBarView?.context as? Activity)?.let { setPlayerOpen(it, false) }
         refreshTabs()
     }
 
@@ -202,8 +213,34 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         web.postDelayed({ readNav(web) }, 1500)
     }
 
+    /** Messages from the page (prompt bridge). True when handled. */
+    fun onPrompt(activity: Activity, message: String): Boolean = when (message) {
+        "oewtv:shell:player:1" -> { setPlayerOpen(activity, true); true }
+        "oewtv:shell:player:0" -> { setPlayerOpen(activity, false); true }
+        else -> false
+    }
+
+    /** While a video plays: no tabs, no pull-to-refresh, and the phone's bars tucked away. */
+    private fun setPlayerOpen(activity: Activity, open: Boolean) {
+        if (open == playerOpen) return
+        playerOpen = open
+        tabBarView?.visibility = if (open) View.GONE else View.VISIBLE
+        refresher?.isEnabled = !open
+        val bars = androidx.core.view.WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+        if (open) {
+            bars.systemBarsBehavior = androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            bars.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+        } else bars.show(androidx.core.view.WindowInsetsCompat.Type.systemBars())
+    }
+
+    /** WebView's stand-in picture before a video starts is a big grey play button: show nothing instead. */
+    fun defaultVideoPoster(): android.graphics.Bitmap? =
+        android.graphics.Bitmap.createBitmap(1, 1, android.graphics.Bitmap.Config.ARGB_8888)
+
     /** Back on a tab goes Home, Back on Home leaves the app; deeper pages go back as usual. */
     fun onBack(activity: Activity, host: ShellHost, web: WebView): Boolean {
+        // Back closes the player first, like the player's own back arrow.
+        if (playerOpen) { web.evaluateJavascript("window.WilliePlayer&&window.WilliePlayer.close()", null); return true }
         if (currentPath == "/" || currentPath.isEmpty()) { activity.finish(); return true }
         if (ShellLogic.isTabRoot(currentPath)) { host.shellOpen("/"); return true }
         return false
