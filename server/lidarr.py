@@ -264,3 +264,40 @@ def artist_image(artist_id: int, kind: str):
     return Response(content=data, media_type=ctype.split(";")[0],
                     headers={"Cache-Control": "private, max-age=86400",
                              "X-Content-Type-Options": "nosniff"})
+
+
+@router.get("/artists")
+def artist_index():
+    """Name -> Lidarr id and available artwork, for the Music library tiles."""
+    setting = _settings()
+    if not setting:
+        return {"artists": []}
+    try:
+        artists = _lidarr_get(setting, "artist")
+    except HTTPException:
+        return {"artists": []}
+    # Album-level genres (only albums with files), so a filter like
+    # "Christmas Music" matches the Christmas albums, not every album by the artist.
+    albums_by_artist = {}
+    try:
+        for al in _lidarr_get(setting, "album", limit=32 * 1024 * 1024):
+            if not isinstance(al, dict) or not isinstance(al.get("artistId"), int):
+                continue
+            stats = al.get("statistics") if isinstance(al.get("statistics"), dict) else {}
+            if not stats.get("trackFileCount"):
+                continue
+            albums_by_artist.setdefault(al["artistId"], []).append({
+                "title": str(al.get("title", ""))[:200],
+                "genres": [str(g)[:40] for g in (al.get("genres") or [])[:12] if g]})
+    except (HTTPException, TypeError):
+        albums_by_artist = {}
+    out = []
+    for a in artists if isinstance(artists, list) else []:
+        if not isinstance(a, dict) or not isinstance(a.get("id"), int):
+            continue
+        kinds = {i.get("coverType") for i in a.get("images") or [] if isinstance(i, dict)}
+        out.append({"id": a["id"], "name": str(a.get("artistName", ""))[:200],
+                    "images": [k for k in IMAGE_KINDS if k in kinds],
+                    "genres": [str(g)[:40] for g in (a.get("genres") or [])[:12] if g],
+                    "albums": albums_by_artist.get(a["id"], [])})
+    return {"artists": out}
