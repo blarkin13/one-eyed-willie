@@ -53,23 +53,74 @@ object AppShell {
     private var navLinks = emptyList<ShellLogic.NavLink>()
     private var documentStartStyle = false
 
-    /** App-only styling, added before the page's own scripts run. */
+    /** App-only styling, added before the page's own scripts run. Plex-like:
+     *  Home is rows of posters (no hero, no changing background); libraries are
+     *  a plain three-column poster grid. Only inside the phone app. */
     private val APP_CSS = """
-html.yarr-app{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%}
-html.yarr-app body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none}
+html.yarr-app{-webkit-tap-highlight-color:transparent;-webkit-text-size-adjust:100%;background:#000}
+html.yarr-app body{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none;overscroll-behavior:none;background:#000!important}
 html.yarr-app input,html.yarr-app textarea,html.yarr-app select,html.yarr-app [contenteditable="true"]{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}
 html.yarr-app ::-webkit-scrollbar{display:none}
-html.yarr-app .sidebar{display:none!important}
+html.yarr-app .sidebar,html.yarr-app .willie-hover-backdrop,html.yarr-app #willie-ambient-effects{display:none!important}
 html.yarr-app .workspace{margin:0!important}
-html.yarr-app .workspace>.content,html.yarr-app body[data-page] .workspace>.content{padding-top:16px!important;padding-bottom:28px!important}
-html.yarr-app body[data-page="home"] .shelf-track{scroll-snap-type:x mandatory}
-html.yarr-app body[data-page="home"] .shelf-track>.tile{scroll-snap-align:start}
-html.yarr-app body[data-page="home"] .shelf-track .tile h3{min-height:0!important;margin:7px 0 2px!important;-webkit-line-clamp:1!important;max-height:1.3em!important}
-html.yarr-app body[data-page="home"] .shelf-track .tile-meta{min-height:0!important}
+html.yarr-app .workspace>.content{padding:16px 16px 28px!important}
+html.yarr-app #items::before,html.yarr-app .shelf-track::before,html.yarr-app .explore-grid::before,html.yarr-app .movie-grid::before,html.yarr-app .tv-grid::before{display:none!important}
 html.yarr-app .cover,html.yarr-app .tile-button{transition:transform .12s ease,opacity .12s ease}
 html.yarr-app .tile-button:active,html.yarr-app a:active>.cover{transform:scale(.97);opacity:.88}
 html.yarr-app button:active,html.yarr-app .filter-link:active{opacity:.75}
+html.yarr-app .yarr-app-bar{display:flex;align-items:center;gap:10px;height:54px;padding:0 16px}
+html.yarr-app .yarr-app-bar img{width:34px;height:34px}
+html.yarr-app .yarr-app-bar strong{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;color:#fff}
+html.yarr-app body[data-page="home"] .workspace>.content{padding:0 0 28px!important}
+html.yarr-app body[data-page="home"] .home-feature{display:none!important}
+html.yarr-app body[data-page="home"] .shelf{padding:0!important;margin:20px 0 0!important;height:auto!important;min-height:0!important}
+html.yarr-app body[data-page="home"] .shelf>.section-heading{padding:0 16px!important;margin:0 0 10px!important}
+html.yarr-app body[data-page="home"] .shelf-title{font-size:1.2rem!important;font-weight:750!important;color:#fff!important;line-height:1.3!important;margin:0!important}
+html.yarr-app .yarr-shelf-link{display:inline-flex;align-items:center;gap:6px;color:#fff;text-decoration:none}
+html.yarr-app .yarr-shelf-link svg{width:20px;height:20px;flex:none}
+html.yarr-app body[data-page="home"] .shelf-track{display:flex;gap:8px!important;padding:0 16px 4px!important;scroll-padding-inline:16px!important;scroll-snap-type:x mandatory}
+html.yarr-app body[data-page="home"] .shelf-track>.tile{flex:0 0 calc((100vw - 48px)/3.15)!important;width:calc((100vw - 48px)/3.15)!important;scroll-snap-align:start}
+html.yarr-app .tile .cover{border:0!important;border-radius:6px!important;box-shadow:none!important}
+html.yarr-app body[data-page="home"] .tile-button{display:grid!important;grid-template-columns:minmax(0,1fr)}
+html.yarr-app body[data-page="home"] .tile-button>.cover{grid-area:1/1}
+html.yarr-app body[data-page="home"] .tile-button>.progress-track{grid-area:1/1;align-self:end;z-index:2;height:4px!important;margin:0 7px 7px!important;background:#000a!important;border-radius:3px}
+html.yarr-app body[data-page="home"] .progress-fill{background:#a9ddff!important}
+html.yarr-app body[data-page="home"] .progress-time,html.yarr-app body[data-page="home"] .next-episode-badge{display:none!important}
+html.yarr-app .tile h3{font-size:.9rem!important;font-weight:500!important;color:#f2f2f2!important;line-height:1.3!important;margin:7px 0 1px!important;min-height:0!important;max-height:1.3em!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
+html.yarr-app .tile .tile-meta{font-size:.78rem!important;color:#9aa0a6!important;line-height:1.3!important;min-height:0!important;max-height:1.3em!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important}
+html.yarr-app .library-header-art-frame,html.yarr-app #eyebrow,html.yarr-app .library-header-icon,html.yarr-app .library-trivia,html.yarr-app #refresh-metadata,html.yarr-app #explore-library,html.yarr-app .alpha-nav{display:none!important}
+html.yarr-app .library-head{min-height:0!important;height:auto!important;padding:0!important;margin:0 0 14px!important;background:none!important;border:0!important;box-shadow:none!important;overflow:visible!important}
+html.yarr-app .library-head-top{display:block!important;padding:0!important;margin:0!important}
+html.yarr-app .library-header-title{display:block!important;margin:0!important}
+html.yarr-app #page-title{font-size:1.75rem!important;font-weight:800!important;line-height:1.2!important;margin:0 0 14px!important;color:#fff!important}
+html.yarr-app .library-head-actions{display:flex!important;align-items:center!important;gap:8px!important;flex-wrap:nowrap!important;width:100%!important;margin:0!important}
+html.yarr-app .library-head-actions .search-box{flex:1 1 auto!important;width:auto!important;min-width:0!important;margin:0!important}
+html.yarr-app .library-head-actions .search-box input{width:100%!important;height:40px!important;border-radius:20px!important;background:#1c1f24!important;border:0!important;color:#fff!important;padding-left:40px!important;font-size:.95rem!important}
+html.yarr-app .catalog-tool-icon{width:40px!important;height:40px!important;border-radius:20px!important;background:#1c1f24!important;border:0!important;color:#e8eaed!important}
+html.yarr-app .catalog-tool-icon svg{width:20px!important;height:20px!important}
+html.yarr-app #section-title{display:none!important}
+html.yarr-app .library-head~.section-heading{margin:-6px 0 8px!important;padding:0!important;justify-content:flex-end!important;min-height:0!important}
+html.yarr-app .count-label{font-size:.8rem!important;color:#9aa0a6!important}
+html.yarr-app #items{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap:16px 8px!important;padding:0!important}
 """.trimIndent().replace("\n", "")
+
+    /** App-only page tweaks: a title bar on Home and ">" links on its rows. */
+    private val APP_JS = """
+(function(){function run(){
+ var b=document.body;if(!b||b.dataset.page!=='home'||document.querySelector('.yarr-app-bar'))return;
+ var c=document.querySelector('.workspace>.content');if(!c)return;
+ var bar=document.createElement('header');bar.className='yarr-app-bar';
+ bar.innerHTML='<img src="/assets/logo.svg?v=moon-sail-v1" alt=""><strong>Yarr Media</strong>';
+ c.prepend(bar);
+ [['movies-heading','/movies'],['tv-heading','/tv'],['music-heading','/music']].forEach(function(p){
+  var h=document.getElementById(p[0]);if(!h||h.closest('a'))return;
+  var a=document.createElement('a');a.href=p[1];a.className='yarr-shelf-link';
+  h.parentNode.insertBefore(a,h);a.appendChild(h);
+  a.insertAdjacentHTML('beforeend','<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg>');
+ });
+}
+if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();})();
+"""
 
     private val APP_SCRIPT = """(function(){
  if(window.__yarrAppShell)return;window.__yarrAppShell=1;
@@ -78,7 +129,7 @@ html.yarr-app button:active,html.yarr-app .filter-link:active{opacity:.75}
   if(document.getElementById('yarr-app-style'))return true;
   var s=document.createElement('style');s.id='yarr-app-style';s.textContent=css;(document.head||r).appendChild(s);return true}
  if(!add())new MutationObserver(function(m,o){if(add())o.disconnect()}).observe(document,{childList:true,subtree:true});
-})();"""
+})();""" + APP_JS
 
     /** The web navigation's links (the page draws them; the app shows them natively). */
     private val NAV_SCRIPT = """(()=>{const out=[];document.querySelectorAll('.sidebar a.nav-link').forEach(a=>{
