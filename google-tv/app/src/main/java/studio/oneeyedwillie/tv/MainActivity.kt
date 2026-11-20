@@ -1004,6 +1004,8 @@ class MainActivity : ComponentActivity(), ShellHost {
             mixedContentMode = android.webkit.WebSettings.MIXED_CONTENT_NEVER_ALLOW
         }
         view.webChromeClient = object : WebChromeClient() {
+            override fun getDefaultVideoPoster(): android.graphics.Bitmap? =
+                AppShell.defaultVideoPoster() ?: super.getDefaultVideoPoster()
             override fun onJsPrompt(
                 web: WebView, url: String, message: String,
                 defaultValue: String?, result: JsPromptResult
@@ -1013,6 +1015,10 @@ class MainActivity : ComponentActivity(), ShellHost {
                 if ((message.startsWith("oewtv:") || message.startsWith("oewtv.")) &&
                     (!sameOrigin(url) || browser !== web)) {
                     result.cancel()
+                    return true
+                }
+                if (sameOrigin(url) && browser === web && message.startsWith("oewtv:shell:")) {
+                    if (AppShell.onPrompt(this@MainActivity, message)) result.confirm("ACK") else result.cancel()
                     return true
                 }
                 if (sameOrigin(url) && browser === web &&

@@ -302,7 +302,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     return [Math.floor(value/3600),Math.floor(value%3600/60),value%60]
       .map((x,i)=>i===0?String(x):String(x).padStart(2,'0')).join(':');
   };
-  function message(text){const el=current?.querySelector('.willie-info');if(el)el.textContent=text;}
+  function message(text){const el=current?.querySelector('.willie-info');if(el){el.textContent=text;delete el.dataset.kind}}
   function playerPosition(video){
     const time=Number(video?.currentTime);
     const base=playbackMode==='hls'?offset:0;
@@ -924,7 +924,15 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
       if(autoPlayNext&&nextEpisode&&current===surface)launchNext();
     }
     const diagnostics=document.createElement('button');setIcon(diagnostics,'info','Playback diagnostics');
-    diagnostics.onclick=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':(quality==='auto'?autoTier:quality)==='full'?'HLS — original video, audio converted':
+    // Playback details: the info button toggles them; they also go away on their own.
+    let diagnosticsTimer=0;
+    const hideDiagnostics=()=>{clearTimeout(diagnosticsTimer);if(info.dataset.kind==='diagnostics')message('')};
+    diagnostics.onclick=()=>{
+      if(info.dataset.kind==='diagnostics'&&info.textContent){hideDiagnostics();return}
+      showDiagnostics();info.dataset.kind='diagnostics';
+      clearTimeout(diagnosticsTimer);diagnosticsTimer=setTimeout(hideDiagnostics,8000);
+    };
+    const showDiagnostics=()=>message((playbackMode==='direct'?'Direct Play — browser decoding':(quality==='auto'?autoTier:quality)==='full'?'HLS — original video, audio converted':
       'HLS transcoding ('+(quality==='auto'?autoTier:quality)+')')+
       ' · Server: '+(surface.dataset.engine||'Not reported')+
       ' · Video: '+(video.videoWidth||'?')+'×'+(video.videoHeight||'?')+
@@ -938,6 +946,7 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     left.append(backward,playPause,forward);right.append(next,subtitles,qualityButton,watch,diagnostics);
     toolbar.append(left,right);bottom.append(toolbar,subtitleMenu,qualityMenu);
     const info=document.createElement('div');info.className='willie-info';info.setAttribute('role','status');
+    info.addEventListener('click',()=>hideDiagnostics());
     const timeline=document.createElement('div');timeline.className='willie-timeline';
     const elapsed=document.createElement('span');elapsed.textContent='0:00:00';
     const slider=document.createElement('input');slider.type='range';slider.min='0';slider.max='1000';slider.value='0';
@@ -993,7 +1002,18 @@ align-items:center;gap:12px;padding:0;z-index:5;position:relative}
     surface.addEventListener('pointerdown',revealChrome);
     surface.addEventListener('focusin',revealChrome);
     surface.addEventListener('focusout',concealChromeSoon);
+    let tapShowedChrome=false,touchTap=false;
+    surface.addEventListener('pointerdown',event=>{
+      touchTap=event.pointerType==='touch';
+      tapShowedChrome=surface.classList.contains('willie-chrome-hidden');
+    },{capture:true});
     video.addEventListener('click',()=>{
+      if(touchTap){
+        // Phones and tablets: tap to show the controls, tap again to put them away.
+        if(tapShowedChrome){revealChrome();concealChromeSoon()}
+        else{clearTimeout(chromeTimer);surface.classList.add('willie-chrome-hidden');hideDiagnostics()}
+        return;
+      }
       if(video.paused)video.play().catch(()=>{});
       else video.pause();
       revealChrome();concealChromeSoon();

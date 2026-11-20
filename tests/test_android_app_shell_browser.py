@@ -66,21 +66,18 @@ class AppShellStylingTest(base.MobileHomeLayoutTest):
                 self.assertLessEqual(data["width"], width)
                 self.assertEqual(data["titleMin"], "0px")
                 self.assertEqual(data["metaMin"], "0px")
-                self.assertIn("mandatory", data["snap"])
+                self.assertEqual(data["snap"], "none")
                 self.assertEqual(data["select"], "none")
                 page.screenshot(path=f"/tmp/app-shell-{width}.png")
 
-    def test_shelf_settles_on_a_poster_edge(self):
+    def test_shelf_scrolls_freely_without_snapping(self):
+        # Snapping made swipes feel sticky on the phone; rows scroll freely, like Plex.
         page = self.open_app(411)
         track = "#recent-movies .shelf-track"
+        self.assertEqual(page.eval_on_selector(track, "t => getComputedStyle(t).scrollSnapType"), "none")
         page.evaluate(f"document.querySelector('{track}').scrollLeft=70")
         page.wait_for_timeout(700)
-        offset = page.evaluate(f"""() => {{
-          const t=document.querySelector('{track}');const r=t.getBoundingClientRect();
-          const tiles=[...t.querySelectorAll(':scope>.tile')].map(e=>e.getBoundingClientRect().left-r.left);
-          return Math.min(...tiles.map(x=>Math.abs(x-16)));
-        }}""")
-        self.assertLess(offset, 6)
+        self.assertEqual(page.eval_on_selector(track, "t => Math.round(t.scrollLeft)"), 70)
 
     def test_home_is_poster_rows_like_plex(self):
         page = self.open_app(411)

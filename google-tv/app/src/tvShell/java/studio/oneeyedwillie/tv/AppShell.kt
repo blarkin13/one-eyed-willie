@@ -15,4 +15,7 @@ object AppShell {
     fun onPageStarted(url: String?) = Unit
     fun onPageFinished(web: WebView, url: String?) = Unit
     fun onBack(activity: Activity, host: ShellHost, web: WebView): Boolean = false
+    fun onPrompt(activity: Activity, message: String): Boolean = false
+    /** Null keeps WebView's own default. */
+    fun defaultVideoPoster(): android.graphics.Bitmap? = null
 }

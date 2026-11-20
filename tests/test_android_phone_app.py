@@ -76,6 +76,16 @@ class DistributionTests(unittest.TestCase):
         # The TV keeps its wording.
         self.assertIn('if (isTv) "TV Server Connection" else "Server connection"', MAIN)
 
+    def test_phone_player_hides_tabs_and_grey_poster_but_tv_is_unchanged(self):
+        shell = (TV / "phone/src/main/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+        tv_shell = (TV / "app/src/tvShell/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+        self.assertIn('tabBarView?.visibility = if (open) View.GONE else View.VISIBLE', shell)
+        self.assertIn('bars.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())', shell)
+        self.assertIn('if (playerOpen) { web.evaluateJavascript("window.WilliePlayer&&window.WilliePlayer.close()"', shell)
+        self.assertIn('fun onPrompt(activity: Activity, message: String): Boolean = false', tv_shell)
+        self.assertIn('fun defaultVideoPoster(): android.graphics.Bitmap? = null', tv_shell)
+        self.assertIn('AppShell.defaultVideoPoster() ?: super.getDefaultVideoPoster()', MAIN)
+
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()
         self.assertIn(":phone:assembleDebug :phone:assembleLean", ci)
