@@ -164,5 +164,6 @@ object YarrAccount {
 
 /** Version string sent with account requests (shown on the account's device list). */
 object BuildConfigVersion {
-    const val name = "tv-0.1.0"
+    /** "tv-<version>" or "android-<version>"; MainActivity fills in the real version. */
+    @Volatile var name = "tv-0.1.0"
 }

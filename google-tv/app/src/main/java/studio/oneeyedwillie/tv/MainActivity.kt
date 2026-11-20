@@ -282,6 +282,9 @@ class MainActivity : ComponentActivity(), ShellHost {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NavTrace.init(applicationContext)
+        BuildConfigVersion.name = (if (isTv) "tv-" else "android-") + (try {
+            packageManager.getPackageInfo(packageName, 0).versionName
+        } catch (_: Exception) { null } ?: "0")
         if (isTv) {
             window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
                     View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
