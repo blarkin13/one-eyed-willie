@@ -416,7 +416,9 @@ document.addEventListener('DOMContentLoaded', () => {
     if(img.classList.contains('poster-image')){
       img.remove(); // Exposes the poster placeholder background on the parent card.
     }else if(['hero-poster','movie-detail-poster','explore-poster'].some(cls=>img.classList.contains(cls))){
-      if(!img.src.endsWith('/assets/poster-placeholder.jpg'))img.src='/assets/poster-placeholder.jpg';
+      // Show the element's neutral background instead of a broken image.
+      const blank='data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
+      if(img.src!==blank)img.src=blank;
     }
   },true);
   // Make the hover-expanded icon rail keyboard-accessible too.

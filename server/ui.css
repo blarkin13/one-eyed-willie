@@ -352,27 +352,24 @@ body[data-page="tv"] .season-card{border:0;background:transparent}
 .sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,.sidebar:focus-within .brand-logo-frame{width:58px;height:72px;flex:0 0 58px;overflow:visible}
 .sidebar .brand-logo,.sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{width:58px;height:72px;object-fit:contain;object-position:center;transform:none}
 #items,.shelf-track,.explore-grid,.movie-grid,.tv-grid{position:relative;isolation:isolate}
-#items::before,.shelf-track::before,.explore-grid::before,.movie-grid::before,.tv-grid::before{content:"";position:absolute;left:50%;top:50%;width:min(410px,66vw);aspect-ratio:1;transform:translate(-50%,-50%);background:url('/assets/logo.png') center / contain no-repeat;opacity:.055;pointer-events:none;z-index:-1}
+/* No watermark behind poster collections: it cost a 1.2 MB image per page. */
 @media(max-width:700px){.sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,.sidebar:focus-within .brand-logo-frame{width:58px;height:72px;flex-basis:58px}.sidebar .brand-logo,.sidebar:hover .brand-logo,.sidebar:focus-within .brand-logo{width:58px;height:72px}}
-/* Placeholder artwork blended at 50% against the dark poster background. Real poster images remain fully opaque. */
+/* Neutral placeholder while a poster loads (or when a title has none).
+   No image request: plain black/grey surfaces matching the interface. */
 .cover,
 .cover--1,.cover--2,.cover--3,.cover--4,.cover--5{
-  background-color:#0b111c;
-  background-image:linear-gradient(rgba(11,17,28,.50),rgba(11,17,28,.50)),url("/assets/poster-placeholder.jpg");
-  background-position:center,center;
-  background-size:cover,cover;
-  background-repeat:no-repeat,no-repeat;
+  background-color:#151515;
+  background-image:linear-gradient(160deg,#1f1f1f 0%,#121212 100%);
+  border-color:#262626;
 }
+.cover::before{display:none}
 .cover:not(:has(.poster-image)) .cover-initial{display:none}
 .cover:not(:has(.poster-image)) .cover-title{
   position:relative;z-index:1;text-shadow:0 2px 12px #000,0 1px 3px #000;
 }
 .hero-poster,.movie-detail-poster,.explore-poster{
-  background-color:#0b111c;
-  background-image:linear-gradient(rgba(11,17,28,.50),rgba(11,17,28,.50)),url("/assets/poster-placeholder.jpg");
-  background-position:center,center;
-  background-size:cover,cover;
-  background-repeat:no-repeat,no-repeat;
+  background-color:#151515;
+  background-image:linear-gradient(160deg,#1f1f1f 0%,#121212 100%);
 }
 
 
