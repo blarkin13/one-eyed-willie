@@ -19,6 +19,7 @@ from pydantic import BaseModel, Field
 from .library import MEDIA_ROOT, db
 from .media_probe import inspect_media
 from . import usage
+from .viewer import current as current_viewer
 
 router = APIRouter(prefix="/api/watch")
 TRANSCODE_SLOTS = asyncio.Semaphore(2)
@@ -88,7 +89,7 @@ def watch_status(media_id: int):
     with db() as conn:
         existing = conn.execute(
             "SELECT position_seconds,duration_seconds,completed,updated_at "
-            "FROM playback_progress WHERE media_id=?", (media_id,),
+            "FROM playback_progress WHERE viewer=? AND media_id=?", (current_viewer().id, media_id),
         ).fetchone()
     progress = dict(existing) if existing else None
     return {
@@ -109,8 +110,8 @@ def mark_watched(media_id: int, update: WatchedRequest):
     _item(media_id)
     with db() as conn:
         previous = conn.execute(
-            "SELECT position_seconds,duration_seconds FROM playback_progress WHERE media_id=?",
-            (media_id,),
+            "SELECT position_seconds,duration_seconds FROM playback_progress WHERE viewer=? AND media_id=?",
+            (current_viewer().id, media_id),
         ).fetchone()
         duration = previous["duration_seconds"] if previous else 0
         if update.watched:
@@ -118,15 +119,15 @@ def mark_watched(media_id: int, update: WatchedRequest):
             # completed row with zero duration and no misleading resume position.
             position = duration
             conn.execute(
-                "INSERT INTO playback_progress(media_id,position_seconds,duration_seconds,completed,updated_at) "
-                "VALUES(?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(media_id) DO UPDATE SET "
+                "INSERT INTO playback_progress(viewer,media_id,position_seconds,duration_seconds,completed,updated_at) "
+                "VALUES(?,?,?,?,?,CURRENT_TIMESTAMP) ON CONFLICT(viewer,media_id) DO UPDATE SET "
                 "position_seconds=excluded.position_seconds,duration_seconds=excluded.duration_seconds,"
                 "completed=excluded.completed,updated_at=CURRENT_TIMESTAMP",
-                (media_id, position, duration, 1),
+                (current_viewer().id, media_id, position, duration, 1),
             )
         else:
             # Unwatched resets resume as well; the next play starts at beginning.
-            conn.execute("DELETE FROM playback_progress WHERE media_id=?", (media_id,))
+            conn.execute("DELETE FROM playback_progress WHERE viewer=? AND media_id=?", (current_viewer().id, media_id))
     return {"media_id": media_id, "watched": update.watched}
 
 

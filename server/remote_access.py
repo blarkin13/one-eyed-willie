@@ -35,6 +35,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 from fastapi import APIRouter, HTTPException
 
 from .connections import get_server_id
+from . import barnacle_access, viewer
 
 ACCOUNT_SITE = os.environ.get("YARR_ACCOUNT_SITE", "https://yarr.media").rstrip("/")
 ACCOUNTS_SITE = os.environ.get("YARR_ACCOUNTS_SITE", "https://accounts.yarr.media").rstrip("/")
@@ -181,7 +182,14 @@ def verify_pass(token, *, keys=None, server_id=None, now=None):
         raise PassError("wrong_issuer")
     if claims.get("aud") != (server_id or get_server_id()):
         raise PassError("wrong_server")
-    if claims.get("role") != "owner":  # shared access will add roles here
+    role = claims.get("role")
+    if role == "barnacle":
+        # Someone the owner shares with: needs an account id and a library list.
+        libs = claims.get("lib")
+        if not isinstance(claims.get("sub"), str) or not claims["sub"] or not isinstance(libs, list) \
+                or not all(isinstance(n, int) and not isinstance(n, bool) for n in libs):
+            raise PassError("malformed")
+    elif role != "owner":
         raise PassError("not_allowed")
     return claims
 
@@ -275,7 +283,22 @@ class RemotePassMiddleware:
             return await self._refuse(scope, headers, str(error), send, origin)
         scope = dict(scope)
         scope["yarr_pass"] = claims
-        return await self.app(scope, receive, self._with_cors(send, origin))
+        who = viewer.from_claims(claims)
+        if who.is_barnacle and not await asyncio.to_thread(
+                barnacle_access.allowed, who, scope.get("method", "GET"), path, query):
+            return await self._not_for_barnacles(scope, headers, send, origin)
+        token = viewer.use(who)
+        try:
+            return await self.app(scope, receive, self._with_cors(send, origin))
+        finally:
+            viewer.reset(token)
+
+    async def _not_for_barnacles(self, scope, headers, send, origin):
+        """Barnacles can watch and listen; everything else is the owner's."""
+        if not origin and scope.get("method") == "GET" and "text/html" in headers.get("accept", ""):
+            return await _send(send, 303, [("location", "/"), ("cache-control", "no-store")])
+        return await _send(send, 403, [("content-type", "application/json"), ("cache-control", "no-store")],
+                           b'{"detail":"Only the owner of this server can do that."}', origin=origin)
 
     @staticmethod
     def _with_cors(send, origin):

@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
 from mutagen import File as AudioFile, MutagenError
 from PIL import Image, UnidentifiedImageError
+from .viewer import current as current_viewer
 
 from . import library as _library
 from .library import db, AUDIO_EXTENSIONS
@@ -147,7 +148,8 @@ def music_catalog(library_id: int | None = None, search: str = ""):
         if not row or row["kind"] != "music":
             raise HTTPException(404, "Music library not found")
     query = search.strip().casefold()[:120]
-    tracks = [_track(row) for row in _files(library_id)]
+    who = current_viewer()
+    tracks = [_track(row) for row in _files(library_id) if who.can_see(row["library_id"])]
     if query:
         tracks = [track for track in tracks if query in
                   (track["title"]+" "+track["artist"]+" "+track["album"]).casefold()]

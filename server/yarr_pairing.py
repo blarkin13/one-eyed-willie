@@ -150,14 +150,29 @@ def pairing_status():
                 "expires_in": max(0, int(current["expires_at"] - time.time()))}
 
 
+def _library_list():
+    """Library ids, names and kinds, so the owner can choose what each barnacle
+    (someone they share with) sees on My Account. Never titles, files or paths."""
+    try:
+        from .library import db
+        with db() as connection:
+            return [{"id": row["id"], "name": row["name"], "kind": row["kind"]} for row in
+                    connection.execute("SELECT id,name,kind FROM libraries ORDER BY sort_order,id")]
+    except Exception:
+        return None
+
+
 def report_heartbeat():
-    """Send only a signed-in server presence signal; never send media or LAN details."""
+    """Send a signed-in server presence signal and the library list (names and
+    kinds only); never send media, file or LAN details."""
     with LOCK:
         record = _read()
         if record.get("status") != "paired" or not record.get("poll_secret"):
             return False
         secret = record["poll_secret"]
-    reply = _cloud("/api/connection/heartbeat", data={}, secret=secret)
+    libraries = _library_list()
+    reply = _cloud("/api/connection/heartbeat",
+                   data={"libraries": libraries} if libraries is not None else {}, secret=secret)
     with LOCK:
         current = _read()
         if current.get("status") == "paired" and current.get("poll_secret") == secret:

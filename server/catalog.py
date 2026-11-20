@@ -9,6 +9,7 @@ from functools import lru_cache
 from pathlib import Path
 from collections import defaultdict
 from .library import db, scan_library, scan_lock, safe_folder
+from .viewer import current as current_viewer
 
 log = logging.getLogger(__name__)
 INTERVAL = max(30, int(os.environ.get("SCAN_INTERVAL_SECONDS", "60")))
@@ -110,14 +111,17 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title", library_id=N
         applicable = [lib for lib in libs if
                       lib["kind"] in ("movies", "tv") and
                       (not kind or lib["kind"] == kind) and
-                      (library_id is None or lib["id"] == library_id)]
+                      (library_id is None or lib["id"] == library_id) and
+                      current_viewer().can_see(lib["id"])]
         cached_metadata = _indexed_metadata(conn, [lib["id"] for lib in applicable])
         groups = {}
         completed_ids = {row["media_id"] for row in conn.execute(
-            "SELECT media_id FROM playback_progress WHERE completed=1"
+            "SELECT media_id FROM playback_progress WHERE viewer=? AND completed=1",
+            (current_viewer().id,)
         )}
         in_progress_ids = {row["media_id"] for row in conn.execute(
-            "SELECT media_id FROM playback_progress WHERE completed=0 AND position_seconds>=30"
+            "SELECT media_id FROM playback_progress WHERE viewer=? AND completed=0 AND position_seconds>=30",
+            (current_viewer().id,)
         )}
         for lib in applicable:
             rows = conn.execute("SELECT id,path,source_root,size,added_at,mtime_ns FROM media WHERE library_id=? ORDER BY path", (lib["id"],)).fetchall()

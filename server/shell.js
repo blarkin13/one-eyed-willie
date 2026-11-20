@@ -238,6 +238,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const caption=document.createElement('span');caption.className='nav-text';caption.textContent=item.name;a.append(caption);
     nav.append(a);
   });target.append(nav);
+  // Barnacles (people the owner shares with) only watch and listen: keep the
+  // library links, and Settings only in the apps (for their connection).
+  fetch('/api/viewer',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(viewer=>{
+    if(!viewer||viewer.role!=='barnacle')return;
+    document.documentElement.classList.add('yarr-barnacle');
+    const app=/OneEyedWillieTV\/1|YarrMediaAndroid\/1/.test(navigator.userAgent);
+    const prune=()=>nav.querySelectorAll('a[data-nav-id]').forEach(a=>{
+      const id=a.dataset.navId;
+      if(['home','movies','tv','music'].includes(id)||id.startsWith('library:')||(id==='settings'&&app))return;
+      a.remove();
+    });
+    prune();new MutationObserver(prune).observe(nav,{childList:true});
+  }).catch(()=>{});
   // Do not show unconfigured library types, including during initial paint.
   // The successful /api/libraries result below decides which to reveal.
   for(const kind of ['movies','tv','music']){
