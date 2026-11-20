@@ -152,6 +152,7 @@ internal class PlayerScrubPreview(
             try {
                 val connection = URL("$origin/api/maintenance/preview/$mediaId")
                     .openConnection() as HttpURLConnection
+                RemoteSession.authorize(activity.applicationContext, connection)
                 connection.connectTimeout = 4000
                 connection.readTimeout = 6000
                 try {
@@ -224,6 +225,7 @@ internal class PlayerScrubPreview(
             try {
                 if (!framePattern.matches(url)) return@execute
                 val conn = URL(origin + url).openConnection() as HttpURLConnection
+                RemoteSession.authorize(activity.applicationContext, conn)
                 conn.instanceFollowRedirects = false
                 conn.connectTimeout = 3500
                 conn.readTimeout = 6000

@@ -11,7 +11,8 @@ import java.net.URL
  * The TV asks yarr.media for a short code, shows it, and the viewer approves it
  * on a phone at yarr.media/activate. The TV then receives its own credential,
  * which can be signed out from My Account. Nothing here touches media playback
- * at home; the credential is only for remote access and the account screen.
+ * at home; the credential is only for remote access (see RemoteSession) and the
+ * account screen.
  */
 object YarrAccount {
     const val SITE = "https://yarr.media"
@@ -21,6 +22,28 @@ object YarrAccount {
                           val expiresInSeconds: Int, val intervalSeconds: Int)
 
     data class Profile(val email: String, val displayName: String, val pro: Boolean)
+
+    /** A server paired with the signed-in account, as /api/device/me lists it. */
+    data class RemoteServer(val id: String, val identity: String, val name: String,
+                            val online: Boolean, val remoteAddress: String?)
+
+    sealed class PassReply {
+        data class Granted(val pass: String, val expiresAtMillis: Long, val remoteAddress: String?) : PassReply()
+        object ProRequired : PassReply()
+        object SignedOut : PassReply()
+        object ServerNotFound : PassReply()
+        data class Failed(val message: String) : PassReply()
+    }
+
+    /** Maps the pass endpoint's reply. Pure, so it is unit tested. */
+    fun passOutcome(status: Int, error: String?, pass: String?, expiresAtMillis: Long?, remoteAddress: String?): PassReply = when {
+        status == 200 && !pass.isNullOrBlank() && expiresAtMillis != null ->
+            PassReply.Granted(pass, expiresAtMillis, remoteAddress?.takeIf { it.startsWith("https://") })
+        status == 401 -> PassReply.SignedOut
+        status == 402 || error == "pro_required" -> PassReply.ProRequired
+        status == 404 -> PassReply.ServerNotFound
+        else -> PassReply.Failed("Yarr Media returned HTTP $status")
+    }
 
     sealed class Poll {
         object Pending : Poll()
@@ -105,6 +128,33 @@ object YarrAccount {
         val user = reply.body.getJSONObject("user")
         return Profile(user.optString("email"), user.optString("display_name"),
             reply.body.optJSONObject("pro")?.optBoolean("active", false) ?: false)
+    }
+
+    /** Servers paired with this account; null when the credential is no longer valid. */
+    fun servers(token: String): List<RemoteServer>? {
+        val reply = call("GET", "/api/device/me", token = token)
+        if (reply.status == 401) return null
+        if (reply.status != 200) error("Yarr Media returned HTTP ${reply.status}")
+        val list = reply.body.optJSONArray("servers") ?: return emptyList()
+        return (0 until list.length()).mapNotNull { i ->
+            val o = list.optJSONObject(i) ?: return@mapNotNull null
+            RemoteServer(o.optString("id"), o.optString("server_identity"), o.optString("display_name"),
+                o.optBoolean("online", false),
+                if (o.isNull("remote_address")) null else o.optString("remote_address").ifBlank { null })
+        }.filter { it.id.isNotBlank() }
+    }
+
+    /** A short-lived pass that lets this TV open [serverId] from outside the home network. */
+    fun pass(token: String, serverId: String): PassReply = try {
+        val reply = call("POST", "/api/passes", token = token, json = JSONObject().put("server_id", serverId))
+        val b = reply.body
+        val expires = b.optString("expires_at").ifBlank { null }?.let {
+            try { java.time.Instant.parse(it).toEpochMilli() } catch (_: Exception) { null }
+        }
+        passOutcome(reply.status, b.optString("error").ifBlank { null }, b.optString("pass").ifBlank { null },
+            expires, if (b.isNull("remote_address")) null else b.optString("remote_address").ifBlank { null })
+    } catch (e: Exception) {
+        PassReply.Failed(e.message ?: "Could not reach yarr.media")
     }
 
     fun signOut(token: String) {

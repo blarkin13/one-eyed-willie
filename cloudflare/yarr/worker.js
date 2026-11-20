@@ -937,7 +937,7 @@ async function deviceMe(req,env) {
  if(!auth)return json({error:'unauthorized'},401);
  const pro=await proStatus(env,auth.user.id);
  const servers=(await listServers(env,auth.user.id)).filter(s=>s.status==='paired'&&s.server_identity)
-  .map(s=>({id:s.id,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s)}));
+  .map(s=>({id:s.id,server_identity:s.server_identity,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s)}));
  return json({user:auth.user,device:auth.device,pro:{active:pro.active,until:pro.until},servers});
 }
 
