@@ -79,6 +79,25 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .detail-meta a{color:#fff;font-weight:700;text-decoration:none}
 .detail-meta a:hover{text-decoration:underline}
 .detail-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+.detail-bg.fanart{inset:0;filter:none;opacity:.42;background-position:center 25%}
+.detail.has-fanart::after{background:linear-gradient(90deg,#08101cf5 0%,#08101cd9 45%,#08101c70 100%),linear-gradient(0deg,#08101c 0%,transparent 40%)}
+.detail-sub{color:#c9d6e4;font-size:1.05rem;margin:8px 0 0;font-weight:550}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:14px}
+.chip{font-size:.78rem;font-weight:650;color:#dce7f3;background:#ffffff14;border:1px solid #ffffff24;border-radius:999px;padding:5px 11px}
+.about{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:28px;margin:0 0 30px;padding:22px 26px;border:1px solid #26384d;border-radius:16px;background:#0d1826}
+.about h2{margin:0 0 10px;font-size:1.1rem}
+.bio{color:#c7d4e2;line-height:1.7;font-size:.95rem;margin:0;white-space:pre-line;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:5;overflow:hidden}
+.bio.open{display:block}
+.bio-more{background:none;border:0;color:var(--accent-soft);font:700 .86rem system-ui;padding:8px 0 0;cursor:pointer}
+.bio-source{color:#8197ad;font-size:.78rem;margin-top:10px}
+.facts{display:grid;gap:12px;align-content:start}
+.fact small{display:block;color:#8197ad;font-size:.72rem;font-weight:750;letter-spacing:.08em;text-transform:uppercase}
+.fact span{color:#e2ebf5;font-size:.92rem}
+.ext-links{display:flex;flex-wrap:wrap;gap:6px}
+.ext-links a{font-size:.8rem;color:#dce7f3;text-decoration:none;border:1px solid #3a4f67;border-radius:8px;padding:5px 9px}
+.ext-links a:hover{background:#1d2f44;color:#fff}
+.artist-logo{max-width:min(340px,70%);max-height:90px;object-fit:contain;object-position:left;display:block;margin:4px 0 2px}
+@media(max-width:900px){.about{grid-template-columns:1fr;padding:18px}}
 .btn-play{display:inline-flex;align-items:center;gap:9px;border:0;border-radius:999px;background:var(--accent);color:#fff;font-weight:750;padding:12px 24px;min-height:46px;cursor:pointer;font-size:.95rem}
 .btn-play:hover{background:var(--accent-hi)}
 .btn-ghost{display:inline-flex;align-items:center;gap:9px;border:1px solid #5a6f88;border-radius:999px;background:#0b1626aa;color:#eaf2fb;font-weight:650;padding:12px 22px;min-height:46px;cursor:pointer;font-size:.95rem}
@@ -415,7 +434,48 @@ function renderArtist(name){
  out.append(detailHeader({art:r.tracks[0],round:true,eyebrow:'Artist',title:r.name,meta,actions:[
   button('btn-play',ICON_SHUFFLE,'Shuffle play',()=>playList(r.tracks,0,true)),
   button('btn-ghost',ICON_PLAY,'Play all',()=>playList(r.tracks,0))]}));
+ const about=el('section','about');about.hidden=true;out.append(about);
  out.append(el('h2','sub-heading','Albums'),miniGrid(r.albums.sort((x,y)=>(y.year||0)-(x.year||0))));
+ enrichArtist(r,out,about);
+}
+// Average brightness of a logo's visible pixels; dark logos get inverted.
+function isDarkImage(img){
+ try{const c=document.createElement('canvas'),w=c.width=64,h=c.height=Math.max(1,Math.round(64*img.naturalHeight/img.naturalWidth));
+  const x=c.getContext('2d',{willReadFrequently:true});x.drawImage(img,0,0,w,h);const d=x.getImageData(0,0,w,h).data;let sum=0,n=0;
+  for(let i=0;i<d.length;i+=4){const a=d[i+3]/255;if(a<.3)continue;sum+=(.2126*d[i]+.7152*d[i+1]+.0722*d[i+2])*a;n+=a}
+  return n>0&&sum/n<90}catch{return false}
+}
+async function enrichArtist(r,out,about){
+ let info;
+ try{const res=await fetch('/api/lidarr/artist-info?name='+encodeURIComponent(r.name),{cache:'no-store'});if(!res.ok)return;info=await res.json()}catch{return}
+ if(!info?.found||new URLSearchParams(location.search).get('artist')!==r.name)return;
+ const head=out.querySelector('.detail'),img=id=>'/api/lidarr/artist/'+info.id+'/image/'+id;
+ if(info.images.includes('fanart')){
+  const pre=new Image();pre.onload=()=>{const bg=head.querySelector('.detail-bg')||el('div','detail-bg');bg.className='detail-bg fanart';bg.style.backgroundImage='url("'+pre.src+'")';head.prepend(bg);head.classList.add('has-fanart')};pre.src=img('fanart');
+ }
+ if(info.images.includes('poster')){
+  const pic=head.querySelector('.detail-art'),p=new Image();p.alt='';p.onload=()=>{pic.replaceChildren(p)};p.src=img('poster');
+ }
+ const eyebrow=head.querySelector('.eyebrow');eyebrow.textContent={Group:'Band',Person:'Artist',Orchestra:'Orchestra',Choir:'Choir'}[info.type]||'Artist';
+ const h1=head.querySelector('h1');
+ if(info.images.includes('clearlogo')){const logo=new Image();logo.className='artist-logo';logo.alt=r.name;logo.onload=()=>{if(isDarkImage(logo))logo.style.filter='invert(1) drop-shadow(0 2px 6px #0008)';h1.classList.add('sr-only');h1.after(logo)};logo.src=img('clearlogo')}
+ const sub=info.wikipedia?.description||info.disambiguation;
+ if(sub){const p=el('p','detail-sub',sub.charAt(0).toUpperCase()+sub.slice(1));h1.after(p)}
+ if(info.genres.length){const chips=el('div','chips');for(const g of info.genres.slice(0,6))chips.append(el('span','chip',g));head.querySelector('.detail-meta').after(chips)}
+ const bioText=info.wikipedia?.extract||info.overview;
+ const left=el('div');left.append(el('h2','','About'));
+ if(bioText){
+  const bio=el('p','bio',bioText);left.append(bio);
+  requestAnimationFrame(()=>{if(bio.scrollHeight>bio.clientHeight+4){const more=el('button','bio-more','Read more');more.type='button';more.onclick=()=>{bio.classList.toggle('open');more.textContent=bio.classList.contains('open')?'Show less':'Read more'};bio.after(more)}});
+  if(info.wikipedia)left.append(el('p','bio-source','From Wikipedia, under CC BY-SA.'));
+ }else left.append(el('p','bio','No biography available.'));
+ const facts=el('div','facts'),fact=(k,v)=>{const f=el('div','fact');f.append(el('small','',k));typeof v==='string'?f.append(el('span','',v)):f.append(v);facts.append(f)};
+ const years=r.albums.map(a=>a.year).filter(Boolean);
+ if(years.length)fact('In your library',Math.min(...years)+(Math.max(...years)>Math.min(...years)?' – '+Math.max(...years):''));
+ if(info.status&&info.type==='Group')fact('Status',info.status==='ended'?'Disbanded':'Active');
+ if(typeof info.rating==='number')fact('Rating','★ '+info.rating.toFixed(1)+' / 10');
+ if(info.links.length){const box=el('div','ext-links');for(const l of info.links){const a=el('a','',l.name);a.href=l.url;a.target='_blank';a.rel='noopener noreferrer';box.append(a)}fact('Links',box)}
+ about.replaceChildren(left,facts);about.hidden=false;
 }
 function miniGrid(albums){
  const grid=el('div');grid.id='';grid.style.cssText='display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,165px),1fr));gap:22px 16px';
