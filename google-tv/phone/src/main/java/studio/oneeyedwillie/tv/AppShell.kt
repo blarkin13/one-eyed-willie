@@ -83,8 +83,8 @@ html.yarr-app body[data-page="home"] .shelf>.section-heading{padding:0 16px!impo
 html.yarr-app body[data-page="home"] .shelf-title{font-size:1.2rem!important;font-weight:750!important;color:#fff!important;line-height:1.3!important;margin:0!important}
 html.yarr-app .yarr-shelf-link{display:inline-flex;align-items:center;gap:6px;color:#fff;text-decoration:none}
 html.yarr-app .yarr-shelf-link svg{width:20px;height:20px;flex:none}
-html.yarr-app body[data-page="home"] .shelf-track{display:flex;gap:8px!important;padding:0 16px 4px!important;scroll-padding-inline:16px!important;scroll-snap-type:x mandatory}
-html.yarr-app body[data-page="home"] .shelf-track>.tile{flex:0 0 calc((100vw - 48px)/3.15)!important;width:calc((100vw - 48px)/3.15)!important;scroll-snap-align:start}
+html.yarr-app body[data-page="home"] .shelf-track{display:flex;gap:8px!important;padding:0 16px 4px!important;scroll-snap-type:none!important;overscroll-behavior-x:contain;touch-action:pan-x pan-y}
+html.yarr-app body[data-page="home"] .shelf-track>.tile{flex:0 0 calc((100vw - 48px)/3.15)!important;width:calc((100vw - 48px)/3.15)!important;scroll-snap-align:none!important}
 html.yarr-app .tile .cover{border:0!important;border-radius:6px!important;box-shadow:none!important}
 html.yarr-app body[data-page="home"] .tile-button{display:grid!important;grid-template-columns:minmax(0,1fr)}
 html.yarr-app body[data-page="home"] .tile-button>.cover{grid-area:1/1}
