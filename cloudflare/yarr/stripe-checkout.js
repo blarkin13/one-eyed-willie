@@ -1,5 +1,5 @@
 // Yarr Media — feature-gated, one-time Stripe Checkout and automatic tax.
-// Live checkout remains OFF until the production migration, credentials and verification are complete.
+// Production checkout is controlled by YARR_LIVE_CHECKOUT_ENABLED; policy terms are disclosed at payment.
 const allowedHost = new Set(['accounts.yarr.media']);
 const checkoutOrigin = 'https://accounts.yarr.media';
 const stripeHeaders = {'content-type':'application/x-www-form-urlencoded'};
@@ -60,6 +60,7 @@ export async function createProCheckout(req,env,user){
     customer_creation:'always',
     client_reference_id:user.id,
     'metadata[yarr_user_id]':user.id,
+    'custom_text[submit][message]':'Yarr Media Pro is a $29 one-time purchase, plus applicable tax. Request a full refund for any reason within 14 days of purchase at refunds@yarr.media. Refund Policy: https://yarr.media/refunds. A refund revokes Pro access, but local Free use continues.',
     success_url:checkoutOrigin+'/?checkout=success&session_id={CHECKOUT_SESSION_ID}',
     cancel_url:checkoutOrigin+'/?checkout=cancel'
   });
