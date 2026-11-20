@@ -1,4 +1,5 @@
 """Local read-only media library catalog and folder configuration."""
+import logging
 import os
 import io
 import tempfile
@@ -573,8 +574,18 @@ def scan_library(library_id: int):
                 connection.execute("UPDATE catalog_state SET revision=revision+1 WHERE id=1")
             now = datetime.now(timezone.utc).isoformat()
             connection.execute("UPDATE libraries SET last_scanned=? WHERE id=?", (now, library_id))
-            return {"found": len(seen), "errors": errors, "last_scanned": now,
-                    "changed": changed}
+            result = {"found": len(seen), "errors": errors, "last_scanned": now,
+                      "changed": changed}
+            is_music = library["kind"] == "music"
+        # After the scan is committed: read tags of new/changed songs so the
+        # Music page never has to open audio files while it loads.
+        if is_music:
+            try:
+                from .music import refresh_tags
+                refresh_tags(library_id)
+            except Exception:
+                logging.getLogger(__name__).exception("Music tag refresh failed")
+        return result
     finally:
         scan_lock.release()
 

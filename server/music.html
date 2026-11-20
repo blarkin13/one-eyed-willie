@@ -717,12 +717,14 @@ async function loadLidarrArtists(){
   lidarrArtists=new Map(list.filter(a=>Number.isInteger(a.id)&&Array.isArray(a.images)).map(a=>[String(a.name).toLocaleLowerCase(),a]));
  }catch{}
 }
-async function loadCatalog(){
- const r=await fetch('/api/music/catalog',{cache:'no-store'});if(!r.ok)throw Error('Music catalog unavailable');
+async function loadCatalog(prefetched){
+ const r=await (prefetched||fetch('/api/music/catalog',{cache:'no-store'}));if(!r.ok)throw Error('Music catalog unavailable');
  tracks=(await r.json()).tracks||[];await lidarrReady;buildGenreMenu();route();
 }
 let lidarrReady=Promise.resolve();
 async function boot(){
+ // Start every request at once; the page used to wait for each in turn.
+ const catalogRequest=fetch('/api/music/catalog',{cache:'no-store'});
  lidarrReady=loadLidarrArtists();
  libraryFilter=new URLSearchParams(location.search).get('library_id')||'';
  genreFilter=store.get('genre','');view=store.get('view','artists');if(!SORTS[view])view='artists';sortKey=store.get('sort.'+view,'title');
@@ -732,7 +734,7 @@ async function boot(){
   const libs=await fetch('/api/libraries',{cache:'no-store'}).then(r=>r.ok?r.json():[]).catch(()=>[]);
   libraries=(Array.isArray(libs)?libs:[]).filter(l=>l.kind==='music');
   applyAppearance(libraries.find(l=>String(l.id)===libraryFilter)||libraries[0]||null);buildLibraryMenu();
-  await loadCatalog();
+  await loadCatalog(catalogRequest);
   // Restore the last queue (paused) so the player survives reloads.
   try{const last=JSON.parse(store.get('last','null'));if(last?.ids?.length){const byId=new Map(tracks.map(t=>[t.id,t]));const q=last.ids.map(i=>byId.get(i)).filter(Boolean);
    if(q.length===last.ids.length){queue=q;order=last.order;pos=last.pos;shuffle=!!last.shuffle;updateModeButtons();load(false)}}}catch{}

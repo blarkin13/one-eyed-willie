@@ -116,6 +116,7 @@ def disconnect():
 # Wikipedia summary found through the artist's Wikidata link (no name guessing).
 
 import re
+import threading
 import time
 from fastapi import Query
 from fastapi.responses import Response
@@ -266,12 +267,47 @@ def artist_image(artist_id: int, kind: str):
                              "X-Content-Type-Options": "nosniff"})
 
 
+_INDEX_TTL = 600
+_index_cache = {"key": None, "at": 0.0, "data": None}
+_index_lock = RLock()
+_index_refreshing = False
+
+
 @router.get("/artists")
 def artist_index():
-    """Name -> Lidarr id and available artwork, for the Music library tiles."""
+    """Name -> Lidarr id, artwork, genres and album genres for the Music page.
+
+    Lidarr's album list includes every artist's full discography (megabytes),
+    so it is cached: served instantly and refreshed in the background."""
+    global _index_refreshing
     setting = _settings()
     if not setting:
         return {"artists": []}
+    key = setting["url"]
+    with _index_lock:
+        cached = _index_cache if _index_cache["key"] == key else None
+        if cached and cached["data"] is not None:
+            if time.time() - cached["at"] > _INDEX_TTL and not _index_refreshing:
+                _index_refreshing = True
+                threading.Thread(target=_refresh_index, args=(setting,), daemon=True).start()
+            return cached["data"]
+    return _refresh_index(setting)
+
+
+def _refresh_index(setting):
+    global _index_refreshing
+    try:
+        data = _build_index(setting)
+        if data["artists"]:
+            with _index_lock:
+                _index_cache.update(key=setting["url"], at=time.time(), data=data)
+        return data
+    finally:
+        with _index_lock:
+            _index_refreshing = False
+
+
+def _build_index(setting):
     try:
         artists = _lidarr_get(setting, "artist")
     except HTTPException:

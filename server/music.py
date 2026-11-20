@@ -1,12 +1,17 @@
 """Read-only Music library API: indexed files, embedded tags and ranged audio streaming."""
 from pathlib import Path
 from functools import lru_cache
+from threading import Lock
+import io
 import mimetypes
+import os
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
 from mutagen import File as AudioFile, MutagenError
+from PIL import Image, UnidentifiedImageError
 
+from . import library as _library
 from .library import db, AUDIO_EXTENSIONS
 
 router = APIRouter(prefix="/api/music", tags=["music"])
@@ -61,26 +66,78 @@ def _read_file_tags(path):
             "track_number": track_number, "disc_number": disc_number,
             "year": year, "genre": genre, "duration": duration}
 
+# ---------------------------------------------------------------------------
+# Tags are stored in the database (like Movies' metadata), keyed by the file's
+# modification time recorded by the library scan. A file is opened only when it
+# is new or has changed, never on every page load.
+TAG_FIELDS = ("title", "artist", "album", "track_number", "disc_number", "year", "genre", "duration")
+_table_ready = None  # database path the table was ensured for
+_fill_lock = Lock()
+
+
+def _ensure_table(connection):
+    global _table_ready
+    if _table_ready == str(_library.DB_PATH):
+        return
+    connection.execute("""CREATE TABLE IF NOT EXISTS music_tags (
+        media_id INTEGER PRIMARY KEY REFERENCES media(id) ON DELETE CASCADE,
+        mtime_ns INTEGER, title TEXT, artist TEXT, album TEXT, track_number INTEGER,
+        disc_number INTEGER, year INTEGER, genre TEXT, duration REAL)""")
+    _table_ready = str(_library.DB_PATH)
+
+
+def _rows(connection, library_id=None):
+    query = """SELECT m.id,m.library_id,m.path,m.added_at,m.mtime_ns,
+        t.mtime_ns AS tag_mtime,t.title,t.artist,t.album,t.track_number,t.disc_number,
+        t.year,t.genre,t.duration
+        FROM media m JOIN libraries l ON l.id=m.library_id
+        LEFT JOIN music_tags t ON t.media_id=m.id
+        WHERE l.kind='music'"""
+    params = ()
+    if library_id is not None:
+        query += " AND l.id=?"
+        params = (library_id,)
+    return connection.execute(query + " ORDER BY m.path", params).fetchall()
+
+
+def refresh_tags(library_id=None):
+    """Read tags for new or changed files only. Called after scans and, as a
+    fallback, by the catalog. Returns the number of files read."""
+    with _fill_lock:
+        with db() as connection:
+            _ensure_table(connection)
+            stale = [(r["id"], r["mtime_ns"], r["path"]) for r in _rows(connection, library_id)
+                     if r["tag_mtime"] is None or r["tag_mtime"] != r["mtime_ns"]]
+        if not stale:
+            return 0
+        # Read the files with NO database transaction open: a slow USB drive
+        # must never hold the write lock that scans and playback progress need.
+        values = []
+        for media_id, mtime_ns, path in stale:
+            tags = _read_file_tags(Path(path))
+            values.append((media_id, mtime_ns, *(tags[f] for f in TAG_FIELDS)))
+        with db() as connection:
+            connection.executemany(
+                "INSERT OR REPLACE INTO music_tags (media_id,mtime_ns," + ",".join(TAG_FIELDS) +
+                ") VALUES (?,?," + ",".join("?" * len(TAG_FIELDS)) + ")", values)
+        return len(stale)
+
+
 def _track(row):
-    path = Path(row["path"])
-    try:
-        metadata = _read_tags(str(path), path.stat().st_mtime_ns)
-    except OSError:
-        metadata = {"title": path.stem, "artist": path.parent.parent.name,
-                    "album": path.parent.name, "track_number": None, "disc_number": None,
-                    "year": None, "genre": None, "duration": None}
     return {"id": row["id"], "library_id": row["library_id"],
-            "added_at": row["added_at"], **metadata}
+            "added_at": row["added_at"], **{f: row[f] for f in TAG_FIELDS}}
+
 
 def _files(library_id=None):
     with db() as connection:
-        query = """SELECT m.id,m.library_id,m.path,m.added_at FROM media m
-            JOIN libraries l ON l.id=m.library_id WHERE l.kind='music'"""
-        params = ()
-        if library_id is not None:
-            query += " AND l.id=?"
-            params = (library_id,)
-        return connection.execute(query+" ORDER BY m.path", params).fetchall()
+        _ensure_table(connection)
+        rows = _rows(connection, library_id)
+    if any(r["tag_mtime"] is None or r["tag_mtime"] != r["mtime_ns"] for r in rows):
+        # Normally done right after the scan; only new files are read here.
+        refresh_tags(library_id)
+        with db() as connection:
+            rows = _rows(connection, library_id)
+    return rows
 
 @router.get("/catalog")
 def music_catalog(library_id: int | None = None, search: str = ""):
@@ -134,9 +191,45 @@ def music_stream(track_id: int):
                         headers={"Cache-Control":"private, no-store",
                                  "X-Content-Type-Options":"nosniff"})
 
+ART_DIR = Path(os.environ.get("ARTWORK_CACHE_DIR", "/data/artwork")) / "music"
+ART_SIZE = 640
+
+
 @router.get("/tracks/{track_id}/art")
 def music_art(track_id: int):
-    path = _safe_track(track_id)
+    """Embedded cover art, extracted once, resized and cached on disk."""
+    with db() as connection:
+        row = connection.execute("SELECT mtime_ns FROM media WHERE id=?", (track_id,)).fetchone()
+    version = row["mtime_ns"] if row else 0
+    cached = ART_DIR / f"{track_id}-{version}.jpg"
+    missing = ART_DIR / f"{track_id}-{version}.none"
+    headers = {"Cache-Control": "private, max-age=86400"}
+    if row and cached.is_file():
+        return FileResponse(cached, media_type="image/jpeg", headers=headers)
+    if row and missing.exists():
+        raise HTTPException(404, "No embedded album artwork")
+    data, mime = _embedded_art(_safe_track(track_id))
+    ART_DIR.mkdir(parents=True, exist_ok=True)
+    for old in ART_DIR.glob(f"{track_id}-*"):
+        old.unlink(missing_ok=True)
+    if not data:
+        missing.touch()
+        raise HTTPException(404, "No embedded album artwork")
+    try:
+        with Image.open(io.BytesIO(data)) as picture:
+            picture = picture.convert("RGB")
+            picture.thumbnail((ART_SIZE, ART_SIZE), Image.Resampling.LANCZOS)
+            buffer = io.BytesIO()
+            picture.save(buffer, "JPEG", quality=86, optimize=True)
+        tmp = cached.with_suffix(".tmp")
+        tmp.write_bytes(buffer.getvalue())
+        os.replace(tmp, cached)
+        return FileResponse(cached, media_type="image/jpeg", headers=headers)
+    except (OSError, ValueError, UnidentifiedImageError, Image.DecompressionBombError):
+        return Response(content=data, media_type=mime, headers=headers)
+
+
+def _embedded_art(path):
     data = None
     mime = "image/jpeg"
     try:
@@ -158,6 +251,6 @@ def music_art(track_id: int):
                         break
     except (OSError, ValueError, TypeError, KeyError, AttributeError, MutagenError):
         pass
-    if not data or len(data) > 5_000_000 or mime not in ("image/jpeg", "image/png"):
-        raise HTTPException(404, "No embedded album artwork")
-    return Response(content=data,media_type=mime,headers={"Cache-Control":"private, max-age=3600"})
+    if not data or len(data) > 15_000_000 or mime not in ("image/jpeg", "image/png"):
+        return None, None
+    return data, mime

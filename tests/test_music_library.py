@@ -49,6 +49,36 @@ class MusicLibraryTests(unittest.TestCase):
         with self.assertRaises(HTTPException):
             music.music_stream(track_id+1000)
 
+    def test_catalog_reads_tags_once_and_only_rereads_changed_files(self):
+        created=library.create_library(library.LibraryRequest(
+            name="Music",kind="music",path=str(self.musicdir),icon="music"))
+        with patch.object(music,"_read_file_tags",wraps=music._read_file_tags) as reader:
+            library.scan_library(created["id"])          # scan stores the tags
+            self.assertEqual(reader.call_count,1)
+            music.music_catalog();music.music_catalog()   # page loads open no files
+            self.assertEqual(reader.call_count,1)
+            with library.db() as connection:              # a re-tagged file is re-read
+                connection.execute("UPDATE media SET mtime_ns=mtime_ns+1")
+            music.music_catalog()
+            self.assertEqual(reader.call_count,2)
+
+    def test_album_art_is_extracted_once_then_served_from_cache(self):
+        import io
+        from PIL import Image
+        created=library.create_library(library.LibraryRequest(
+            name="Music",kind="music",path=str(self.musicdir),icon="music"))
+        library.scan_library(created["id"])
+        track_id=music.music_catalog()["tracks"][0]["id"]
+        buffer=io.BytesIO();Image.new("RGB",(1500,1500),"red").save(buffer,"JPEG")
+        with patch.object(music,"ART_DIR",self.root/"art"),\
+             patch.object(music,"_embedded_art",return_value=(buffer.getvalue(),"image/jpeg")) as extract:
+            first=music.music_art(track_id)
+            second=music.music_art(track_id)
+            self.assertEqual(extract.call_count,1)
+            self.assertEqual(str(first.path),str(second.path))
+            with Image.open(first.path) as cached:
+                self.assertLessEqual(max(cached.size),music.ART_SIZE)
+
     def test_music_scan_rejects_video_and_video_scan_rejects_music(self):
         (self.musicdir/"Not a music file.mkv").write_bytes(b"video")
         created=library.create_library(library.LibraryRequest(
