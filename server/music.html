@@ -407,6 +407,13 @@ function renderBrowse(){
   songs.append(trackTable(sorted,{album:true,artist:true,thumb:true}));
  }
  buildAlpha(letters);
+ showFirstBackdrop();
+}
+function showFirstBackdrop(tries=0){
+ if(!window.__willieShowBackdrop){if(tries<20)setTimeout(()=>showFirstBackdrop(tries+1),100);return}
+ if(window.__willieBackdropElement()?.isConnected&&!$('browse').hidden&&$('browse').contains(window.__willieBackdropElement()))return;
+ const first=$('browse').querySelector('#items .tile-button,#song-list tr.row');
+ if(first)window.__willieShowBackdrop(first);
 }
 function buildAlpha(letters){
  const nav=$('alpha-nav');nav.replaceChildren();
@@ -437,6 +444,7 @@ function trackTable(list,opts={}){
  list.forEach((t,i)=>{
   if(opts.discs&&discs.size>1&&(t.disc_number||1)!==lastDisc){lastDisc=t.disc_number||1;const dr=el('tr','disc-row'),td=el('td','','Disc '+lastDisc);td.colSpan=4;dr.append(td);body.append(dr)}
   const tr=el('tr','row');tr.tabIndex=0;tr.dataset.id=t.id;
+  if(opts.thumb){tr.dataset.hoverBackdrop=artUrl(t);tr.dataset.hoverSoft='1'}
   const num=el('td','num');num.append(el('span','n',String(opts.album?i+1:(t.track_number||i+1))));const pi=el('span','play-ico');pi.append(svg('<svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>'));num.append(pi);
   const cell=el('div','t-cell');
   if(opts.thumb){const img=new Image();img.className='t-thumb';img.loading='lazy';img.alt='';img.src=artUrl(t);img.onerror=()=>{img.style.visibility='hidden'};cell.append(img)}

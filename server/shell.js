@@ -439,6 +439,7 @@ document.addEventListener('DOMContentLoaded',()=>{
   for(const layer of layers){layer.className='willie-hover-backdrop-layer';backdrop.append(layer)}
   document.body.prepend(backdrop);
   const cache=new Map();
+  const sticky=document.body.dataset.page==='music';
   let active=null,showTimer=null,hideTimer=null,generation=0,visible=-1,currentUrl='';
   const valid=url=>typeof url==='string'&&(
     url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/')||
@@ -534,7 +535,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else if(!document.activeElement?.closest?.('#app-nav') &&
+      else if(!sticky&&!document.activeElement?.closest?.('#app-nav') &&
               !onLibraryToolbar(document.activeElement))select(null);
     },130);
   });
@@ -550,11 +551,14 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else if(!document.activeElement?.closest?.('#app-nav') &&
+      else if(!sticky&&!document.activeElement?.closest?.('#app-nav') &&
               !onLibraryToolbar(document.activeElement))select(null);
     },140);
   });
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)select(null)});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&!sticky)select(null)});
+  // Pages can show an item's backdrop without hover/focus (Music: first item on load).
+  window.__willieShowBackdrop=element=>{if(element instanceof Element&&locate(element))select(locate(element))};
+  window.__willieBackdropElement=()=>active;
 });
 
 // Media pages load the shared context menu as a versioned deferred script.
