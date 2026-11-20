@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Bazarr · Yarr Media</title>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<link rel="stylesheet" href="/assets/ui.css?v=service-switcher-20261117-2">
+<script defer src="/assets/shell.js?v=appearance-1"></script>
+<style>
+:root{--accent:var(--oew-tv-select-color,#A61E1E)}
+.bz-content{max-width:1540px}
+.bz-heading{display:flex;align-items:center;gap:13px}
+.bz-heading img{width:42px;height:42px;object-fit:contain;flex:none}
+.bz-tools{display:flex;gap:10px;flex-wrap:wrap}
+.bz-stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:20px 0 26px}
+.bz-stat{padding:17px 20px;border:1px solid #354359;border-radius:13px;background:#111d2a}
+.bz-stat strong{display:block;font-size:1.65rem;letter-spacing:-.045em}
+.bz-stat span{display:block;color:#adbed3;font-size:.86rem;margin-top:3px}
+.bz-stat.warn strong{color:#ffb4a8}
+.bz-tabs{display:flex;gap:8px;overflow-x:auto;padding:7px 0 14px;border-bottom:1px solid #304154;margin:8px 0 22px}
+.bz-tabs button{padding:11px 15px;background:transparent;border:1px solid #3e526c;color:#bdcfe3;border-radius:9px;font:650 .9rem system-ui;cursor:pointer;flex:0 0 auto}
+.bz-tabs button[aria-selected=true]{background:#2c4a67;border-color:#a7c5e6;color:#fff}
+.bz-list{display:grid;gap:9px}
+.bz-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:14px;align-items:center;padding:13px 16px;border:1px solid #2c3e54;border-radius:11px;background:#121e2c}
+.bz-row strong{display:block;overflow-wrap:anywhere}
+.bz-row small{display:block;color:#a7bdd1;margin-top:4px;overflow-wrap:anywhere}
+.bz-row .release{color:#7f95ab;font-size:.78rem}
+.bz-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:7px}
+.bz-tag{font-size:.74rem;font-weight:700;padding:3px 9px;border-radius:999px;background:#ffffff12;border:1px solid #ffffff22;color:#dce7f3}
+.bz-row button,.bz-more{background:#20334a;color:#e7f0fc;border:1px solid #435c77;border-radius:8px;padding:9px 13px;min-height:40px;font-size:.82rem;font-weight:650;cursor:pointer}
+.bz-row button:hover{background:#315276}
+.bz-row button:disabled{opacity:.5;cursor:default}
+.bz-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,250px),1fr));gap:12px}
+.bz-card{background:#17283b;border:1px solid #384f69;border-radius:12px;padding:15px}
+.bz-card strong{display:block}
+.bz-card small{color:#aec2d5;line-height:1.5;overflow-wrap:anywhere}
+.bz-card.bad{border-color:#7a4a44}
+.bz-note{color:#a8bfd5;min-height:1.3rem}
+.bz-empty{color:#a9bbce;padding:14px 0}
+.bz-sub{font-size:1.1rem;margin:24px 0 12px}
+body[data-page=bazarr] :is(a,button):focus-visible{outline:3px solid #d7edff;outline-offset:3px}
+@media(max-width:900px){.bz-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:560px){.bz-row{grid-template-columns:1fr}.bz-row button{justify-self:start}}
+</style>
+</head>
+<body data-page="bazarr"><div class="app-shell"><aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content bz-content">
+<div class="page-head">
+ <div><p class="eyebrow">Subtitle manager</p><div class="bz-heading"><img src="/assets/brand/bazarr.png" alt=""><h1>Bazarr</h1></div>
+ <p>Find and download missing subtitles for the movies and shows in Radarr and Sonarr.</p></div>
+ <div class="bz-tools">
+  <button class="secondary-button" type="button" id="refresh">Refresh</button>
+  <button class="secondary-button" type="button" data-task="sync">Sync with Sonarr &amp; Radarr</button>
+  <a class="secondary-button" id="open-bazarr" target="_blank" rel="noopener noreferrer" hidden>Open Bazarr</a>
+ </div>
+</div>
+<p class="bz-note" id="message" role="status">Loading Bazarr…</p>
+<section id="body" hidden>
+ <div class="bz-stats">
+  <div class="bz-stat" id="stat-movies"><strong id="missing-movies">0</strong><span>Movies missing subtitles</span></div>
+  <div class="bz-stat" id="stat-episodes"><strong id="missing-episodes">0</strong><span>Episodes missing subtitles</span></div>
+  <div class="bz-stat" id="stat-providers"><strong id="provider-count">0</strong><span id="provider-label">Subtitle providers</span></div>
+  <div class="bz-stat"><strong id="version">—</strong><span>Bazarr version</span></div>
+ </div>
+ <nav class="bz-tabs" role="tablist" aria-label="Bazarr sections">
+  <button type="button" role="tab" data-tab="movies" aria-selected="true">Wanted movies</button>
+  <button type="button" role="tab" data-tab="episodes" aria-selected="false">Wanted episodes</button>
+  <button type="button" role="tab" data-tab="history-movies" aria-selected="false">Movie history</button>
+  <button type="button" role="tab" data-tab="history-episodes" aria-selected="false">Episode history</button>
+  <button type="button" role="tab" data-tab="system" aria-selected="false">System</button>
+ </nav>
+ <div class="bz-tools" id="tab-tools"></div>
+ <p class="bz-note" id="tab-note" role="status"></p>
+ <div id="list" class="bz-list"></div>
+ <p style="text-align:center;margin:20px 0"><button class="bz-more" type="button" id="more" hidden>More</button></p>
+</section>
+</main></div></div>
+<script>
+const $=id=>document.getElementById(id);
+let data=null,tab=new URLSearchParams(location.search).get('tab')||'movies',page=1,serial=0;
+const TABS=['movies','episodes','history-movies','history-episodes','system'];
+if(!TABS.includes(tab))tab='movies';
+function el(tag,cls,text){const e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e}
+async function api(url,opts){
+ const r=await fetch(url,opts);const body=await r.json().catch(()=>({}));
+ if(!r.ok)throw Error(typeof body.detail==='string'?body.detail:'Request failed');return body;
+}
+const post=(url,obj)=>api(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(obj)});
+async function runTask(task,label){
+ $('tab-note').textContent='Starting: '+label+'…';
+ try{await post('/api/bazarr/task',{task});$('tab-note').textContent=label+' started in Bazarr. Results appear in History.'}
+ catch(e){$('tab-note').textContent=e.message}
+}
+document.querySelectorAll('[data-task]').forEach(b=>b.addEventListener('click',()=>runTask(b.dataset.task,b.textContent)));
+
+async function load(){
+ $('refresh').disabled=true;
+ try{
+  data=await api('/api/bazarr/dashboard',{cache:'no-store'});
+  $('missing-movies').textContent=data.missing_movies;$('missing-episodes').textContent=data.missing_episodes;
+  const active=data.providers.length;
+  $('provider-count').textContent=active?String(active):'None';
+  $('provider-label').textContent=data.provider_issues?data.provider_issues+' provider issue(s)':'Subtitle providers';
+  $('stat-providers').classList.toggle('warn',!active||data.provider_issues>0);
+  $('version').textContent=data.version||'—';
+  $('open-bazarr').href=data.address;$('open-bazarr').hidden=false;
+  let note='Connected to '+data.address;
+  if(!active)note+=' · No subtitle providers are enabled yet. Add one (for example OpenSubtitles.com) in Bazarr → Settings → Providers, or nothing can be downloaded.';
+  if(data.warnings.length)note+=' · '+data.warnings.join(' ');
+  $('message').textContent=note;$('body').hidden=false;showTab(tab);
+ }catch(e){$('body').hidden=true;$('message').textContent=e.message+' Connect or check Bazarr in Settings → Integrations.'}
+ finally{$('refresh').disabled=false}
+}
+$('refresh').onclick=load;
+
+function showTab(name){
+ tab=name;page=1;
+ for(const b of document.querySelectorAll('[data-tab]'))b.setAttribute('aria-selected',String(b.dataset.tab===name));
+ history.replaceState(null,'',location.pathname+(name==='movies'?'':'?tab='+name));
+ const tools=$('tab-tools');tools.replaceChildren();
+ const taskButton=(task,label)=>{const b=el('button','secondary-button',label);b.type='button';b.onclick=()=>runTask(task,label);tools.append(b)};
+ if(name==='movies')taskButton('search_movies','Search all wanted movies');
+ if(name==='episodes')taskButton('search_episodes','Search all wanted episodes');
+ if(name==='system')taskButton('upgrade','Upgrade previously downloaded subtitles');
+ $('tab-note').textContent='';$('list').replaceChildren();
+ if(name==='system'){renderSystem();$('more').hidden=true;return}
+ loadPage(1);
+}
+document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+
+async function loadPage(n){
+ const id=++serial,list=$('list');
+ const [kind,sub]=tab.startsWith('history-')?['history',tab.slice(8)]:['wanted',tab];
+ $('tab-note').textContent='Loading…';
+ try{
+  const res=await api('/api/bazarr/'+kind+'/'+sub+'?page='+n,{cache:'no-store'});
+  if(id!==serial)return;
+  if(n===1)list.replaceChildren();
+  for(const item of res.items)list.append(kind==='wanted'?wantedRow(item,sub):historyRow(item));
+  if(!list.children.length)list.append(el('p','bz-empty',kind==='wanted'?'Nothing missing. Every monitored title has its subtitles.':'No subtitle activity yet.'));
+  $('tab-note').textContent=res.total?'Showing '+list.querySelectorAll('.bz-row').length+' of '+res.total+'.':'';
+  page=n;$('more').hidden=!res.has_more;
+ }catch(e){if(id===serial)$('tab-note').textContent=e.message}
+}
+$('more').onclick=()=>loadPage(page+1);
+
+function wantedRow(item,sub){
+ const row=el('article','bz-row'),info=el('div');
+ info.append(el('strong','',item.title));
+ if(item.subtitle)info.append(el('small','',item.subtitle));
+ if(item.release)info.append(el('small','release',item.release));
+ const tags=el('div','bz-tags');for(const l of item.missing)tags.append(el('span','bz-tag','Missing '+l));info.append(tags);
+ const button=el('button','',sub==='movies'?'Search':'Search series');button.type='button';button.disabled=!item.id;
+ button.title=sub==='movies'?'Search providers for this movie':'Search providers for every missing episode of this series';
+ button.onclick=async()=>{
+  button.disabled=true;$('tab-note').textContent='Searching for '+item.title+'…';
+  try{await post('/api/bazarr/search',{kind:sub==='movies'?'movie':'series',id:item.id});$('tab-note').textContent='Search started for '+item.title+'. Check History for results.'}
+  catch(e){$('tab-note').textContent=e.message}finally{button.disabled=false}
+ };
+ row.append(info,button);return row;
+}
+function historyRow(item){
+ const row=el('article','bz-row'),info=el('div');
+ info.append(el('strong','',item.title));
+ if(item.subtitle)info.append(el('small','',item.subtitle));
+ info.append(el('small','',[item.action,item.language,item.provider,item.score&&('score '+item.score),item.date].filter(Boolean).join(' · ')));
+ row.append(info,el('span'));return row;
+}
+function renderSystem(){
+ const box=el('div','bz-cards'),card=(t,d,bad)=>{const c=el('div','bz-card'+(bad?' bad':''));c.append(el('strong','',t),el('small','',d));box.append(c)};
+ card('Bazarr',data.version||'Unknown version');
+ card('Sonarr',(data.sonarr_version||'Not connected')+(data.sonarr_live?' · live updates on':''),!data.sonarr_version);
+ card('Radarr',(data.radarr_version||'Not connected')+(data.radarr_live?' · live updates on':''),!data.radarr_version);
+ if(!data.providers.length)card('Providers','None enabled. Add one in Bazarr → Settings → Providers.',true);
+ for(const p of data.providers)card('Provider: '+p.name,p.status||'OK',!!p.retry);
+ for(const h of data.health)card('Health',h,true);
+ if(!data.health.length)card('Health','No issues reported.');
+ $('list').replaceChildren(box);
+}
+load();
+</script></body></html>

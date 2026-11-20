@@ -191,7 +191,9 @@ const providers=[
   {id:'sonarr',title:'Sonarr',desc:'TV show metadata and add-to-library',
    port:8989,image:'/assets/brand/sonarr.svg'},
   {id:'lidarr',title:'Lidarr',desc:'Music collection and artist management',
-   port:8686,image:'/assets/brand/lidarr.svg'}
+   port:8686,image:'/assets/brand/lidarr.svg',api:'/api/lidarr/connection'},
+  {id:'bazarr',title:'Bazarr',desc:'Subtitle downloads for your Sonarr and Radarr libraries',
+   port:6767,image:'/assets/brand/bazarr.png',api:'/api/bazarr/connection'}
 ];
 const $=id=>document.getElementById(id);
 const statusEls={};
@@ -237,7 +239,7 @@ function build(){
    form.onsubmit=async event=>{
      event.preventDefault();connect.disabled=true;message.textContent='Testing local connection…';
      try{
-       await fetchJson(provider.id==='lidarr'?'/api/lidarr/connection':'/api/arr/connections/'+provider.id,
+       await fetchJson(provider.api||'/api/arr/connections/'+provider.id,
          {method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url.value.trim(),api_key:key.value.trim()})});
        key.value='';message.textContent=provider.title+' connected successfully.';await refresh();
      }catch(e){message.textContent=e.message;}
@@ -246,7 +248,7 @@ function build(){
    disconnect.onclick=async()=>{
      if(!confirm('Disconnect '+provider.title+'? Saved artwork and locally indexed files will remain.'))return;
      disconnect.disabled=true;
-     try{await fetchJson(provider.id==='lidarr'?'/api/lidarr/connection':'/api/arr/connections/'+provider.id,{method:'DELETE'});message.textContent=provider.title+' disconnected.';await refresh();}
+     try{await fetchJson(provider.api||'/api/arr/connections/'+provider.id,{method:'DELETE'});message.textContent=provider.title+' disconnected.';await refresh();}
      catch(e){message.textContent=e.message;}
      finally{disconnect.disabled=false;}
    };
@@ -259,13 +261,15 @@ function build(){
 async function refresh(){
  // Check the Arr integrations independently so a failed API leaves the
  // remaining connection rows and their status intact.
- const [arrResult,lidarrResult]=await Promise.allSettled([
+ const own=providers.filter(p=>p.api);
+ const [arrResult,...ownResults]=await Promise.allSettled([
    fetchJson('/api/arr/connections',{cache:'no-store'}),
-   fetchJson('/api/lidarr/connection',{cache:'no-store'})
+   ...own.map(p=>fetchJson(p.api,{cache:'no-store'}))
  ]);
+ const resultFor=p=>p.api?ownResults[own.indexOf(p)]:arrResult;
  for(const provider of providers){
    const controls=statusEls[provider.id];
-   const result=provider.id==='lidarr'?lidarrResult:arrResult;
+   const result=resultFor(provider);
    if(result.status!=='fulfilled'){
      controls.state.textContent='Status unavailable';
      controls.state.className='integration-state';
@@ -273,7 +277,7 @@ async function refresh(){
      controls.disconnect.disabled=true;
      continue;
    }
-   const setting=provider.id==='lidarr'?result.value:(result.value[provider.id]||{});
+   const setting=provider.api?result.value:(result.value[provider.id]||{});
    controls.state.textContent=setting.connected?'Connected':'Not connected';
    controls.state.className='integration-state'+(setting.connected?' on':'');
    controls.summary.textContent=setting.connected
