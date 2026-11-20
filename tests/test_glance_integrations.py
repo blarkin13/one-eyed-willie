@@ -62,6 +62,16 @@ class GlanceSettingsTests(unittest.TestCase):
         self.assertEqual(ambient["idle_timeout_seconds"], 300)
         self.assertTrue(glance.one_setting("weather")["idle"])
 
+    def test_legacy_weather_enabled_without_zip_is_not_advertised(self):
+        with library.db() as conn:
+            glance._settings_table(conn)
+            conn.execute("INSERT INTO app_settings(key,value) VALUES(?,?)",
+                         ("glance_weather", '{"enabled":true,"zip_code":""}'))
+            conn.commit()
+        setting = glance.one_setting("weather")
+        self.assertFalse(setting["enabled"])
+        self.assertEqual(setting["zip_code"], "")
+
     def test_widgets_appear_in_hub_only_after_setup_and_enable(self):
         hub = (ROOT / "server/connections_hub.html").read_text()
         settings = (ROOT / "server/arr_connections.html").read_text()
