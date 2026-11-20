@@ -44,7 +44,7 @@ import android.webkit.JavascriptInterface
  * It is deliberately NOT a second independently maintained Compose screen set.
  * Native Media3 playback handles codecs that Android WebView cannot reliably play.
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), ShellHost {
     private val prefs by lazy { getSharedPreferences("server", MODE_PRIVATE) }
     private var browser: WebView? = null
     private var origin = ""
@@ -107,14 +107,15 @@ class MainActivity : ComponentActivity() {
             isFocusable = true
         }
         val art = ImageView(this).apply {
-            setImageResource(R.drawable.tv_loading_screen)
+            // Phone app: the app icon on black, like other phone apps.
+            setImageResource(if (isTv) R.drawable.tv_loading_screen else R.mipmap.yarrmedia_launcher)
             scaleType = ImageView.ScaleType.FIT_CENTER
             contentDescription = "Yarr Media loading artwork"
         }
         loadingArt = art
-        overlay.addView(art, FrameLayout.LayoutParams(
+        overlay.addView(art, if (isTv) FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
-        ))
+        ) else FrameLayout.LayoutParams(dp(128), dp(128), Gravity.CENTER))
         loadingCaption = TextView(this).apply {
             visibility = View.GONE
             textSize = 19f
@@ -208,7 +209,7 @@ class MainActivity : ComponentActivity() {
     // shown again, put the same picture back first.
     private fun restoreSplashArt() {
         val art = loadingArt ?: return
-        if (art.drawable == null) art.setImageResource(R.drawable.tv_loading_screen)
+        if (art.drawable == null) art.setImageResource(if (isTv) R.drawable.tv_loading_screen else R.mipmap.yarrmedia_launcher)
     }
 
     private fun showLoading() {
@@ -301,6 +302,7 @@ class MainActivity : ComponentActivity() {
             override fun handleOnBackPressed() {
                 val web = browser
                 if (!isTv) {
+                    if (web != null && AppShell.onBack(this@MainActivity, this@MainActivity, web)) return
                     if (web != null && web.canGoBack()) web.goBack() else finish()
                     return
                 }
@@ -750,6 +752,14 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // ---- ShellHost (phone app tab bar and More sheet) ----
+    override fun shellOpen(path: String) {
+        val web = browser ?: return
+        if (origin.isNotEmpty() && path.startsWith("/") && !path.startsWith("//")) web.loadUrl(origin + path)
+    }
+    override fun shellConnectionSettings() = showConnectionSettings()
+    override fun shellYarrAccount() = showYarrAccount()
+
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showUnconfigured(); return }
         ++discoveryGeneration
@@ -760,6 +770,7 @@ class MainActivity : ComponentActivity() {
         val view = WebView(this)
         browser = view
         configureBrowser(view)
+        AppShell.prepareWebView(this, view)
         val screen = FrameLayout(this)
         screen.addView(view, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
@@ -768,7 +779,8 @@ class MainActivity : ComponentActivity() {
         screen.addView(loadingOverlay, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
-        setContentView(screen)
+        // Phone app: native tab bar and pull to refresh around the page (TV: unchanged).
+        setContentView(AppShell.wrap(this, this, screen, view))
         showLoading()
         val remote = RemoteSession.current()?.takeIf { it.origin == origin }
         if (remote != null) {
@@ -937,6 +949,7 @@ class MainActivity : ComponentActivity() {
         }
         view.webViewClient = object : WebViewClient() {
             override fun onPageStarted(web: WebView, url: String?, favicon: android.graphics.Bitmap?) {
+                if (browser === web) AppShell.onPageStarted(url)
                 web.keepScreenOn = false
                 if (browser === web) {
                     tvTextEditing = false
@@ -1002,6 +1015,7 @@ class MainActivity : ComponentActivity() {
             }
             override fun onPageFinished(web: WebView, url: String?) {
                 super.onPageFinished(web, url)
+                if (browser === web) AppShell.onPageFinished(web, url)
                 if (browser === web && sameOrigin(url.orEmpty())) {
                     val completedSerial = pageLoadSerial
                     if (isTv) installRemoteNavigation(web)

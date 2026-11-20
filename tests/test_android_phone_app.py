@@ -76,3 +76,32 @@ class DistributionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AppShellTests(unittest.TestCase):
+    """The phone app's native shell; the TV app gets a no-op with the same functions."""
+    PHONE_SHELL = (TV / "phone/src/main/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+    TV_SHELL = (TV / "app/src/tvShell/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+
+    def test_tv_shell_does_nothing(self):
+        self.assertIn('java.srcDirs("src/tvShell/java")', TV_GRADLE)
+        self.assertIn("): View = screen", self.TV_SHELL)
+        self.assertIn("Boolean = false", self.TV_SHELL)
+        for fn in ("fun prepareWebView", "fun wrap", "fun onPageStarted", "fun onPageFinished", "fun onBack"):
+            self.assertIn(fn, self.TV_SHELL)
+            self.assertIn(fn, self.PHONE_SHELL)
+
+    def test_phone_only_libraries_stay_out_of_the_tv_app(self):
+        for lib in ("androidx.webkit:webkit", "androidx.swiperefreshlayout:swiperefreshlayout"):
+            self.assertIn(lib, PHONE_GRADLE)
+            self.assertNotIn(lib, TV_GRADLE)
+        self.assertNotIn("androidx.webkit", MAIN)
+        self.assertNotIn("swiperefreshlayout", MAIN)
+
+    def test_phone_tab_bar(self):
+        for label in ('"Home"', '"Movies"', '"TV Shows"', '"Music"', '"More"'):
+            self.assertIn(label, self.PHONE_SHELL)
+        for icon in ("home", "movies", "tv", "music", "more"):
+            self.assertTrue((TV / f"phone/src/main/res/drawable/ic_tab_{icon}.xml").exists(), icon)
+        self.assertIn('row("Server connection")', self.PHONE_SHELL)
+        self.assertIn('row("Yarr account")', self.PHONE_SHELL)
