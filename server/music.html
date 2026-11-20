@@ -9,7 +9,7 @@
 <style>
 :root{--accent:var(--oew-tv-select-color,#A61E1E);--accent-hi:color-mix(in srgb,var(--accent) 80%,#fff);--accent-soft:color-mix(in srgb,var(--accent) 55%,#fff)}
 /* Masthead: same structure and sizing as Movies/TV (catalog.html). */
-.music-main{padding-bottom:150px}
+.music-main{padding-bottom:max(150px,calc(var(--player-space,0px) + 40px))}
 #library-masthead[hidden]{display:none}
 .library-head{display:flex;flex-direction:column;align-items:stretch;gap:10px;margin-bottom:14px;position:relative;isolation:isolate;z-index:20;padding:14px 8px 10px}
 .library-head-top{display:flex;align-items:center;justify-content:space-between;gap:20px;width:100%;min-width:0;position:relative;z-index:10}
@@ -206,6 +206,8 @@ input[type=range].bar:hover::-webkit-slider-thumb,input[type=range].bar:focus-vi
 input[type=range].bar::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#fff}
 .right{display:flex;align-items:center;justify-content:flex-end;gap:8px}
 .right .bar{max-width:120px}
+#close-player{opacity:.8}#close-player:hover{opacity:1}
+body.music-tv #close-player{display:none}
 @media(max-width:900px){
  .player{left:0;grid-template-columns:1fr auto;gap:8px 12px;padding:8px 12px}
  .center{grid-column:1/-1;grid-row:2}.right{grid-row:1;grid-column:2}.right .bar,.right #mute{display:none}
@@ -309,6 +311,7 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
   <div class="seek-row"><span id="elapsed">0:00</span><input class="bar" id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek"><span id="total">0:00</span></div>
  </div>
  <div class="right">
+  <button class="pbtn" type="button" id="close-player" aria-label="Stop and close player" title="Stop and close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   <button class="pbtn" type="button" id="mute" aria-label="Mute" title="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path id="vol-waves" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
   <input class="bar" id="volume" type="range" min="0" max="100" value="100" aria-label="Volume">
  </div>
@@ -655,6 +658,16 @@ function updateModeButtons(){
  $('repeat').classList.toggle('on',repeat!=='off');$('repeat-one').hidden=repeat!=='one';$('repeat').setAttribute('aria-label','Repeat: '+repeat);
 }
 function setBar(input,value){input.style.setProperty('--p',value+'%')}
+// Stop the music and put the player away (it comes back with the next song you play).
+function closePlayer(){
+ audio.pause();audio.removeAttribute('src');audio.load();
+ queue=[];order=[];pos=0;$('player').hidden=true;
+ if('mediaSession' in navigator){navigator.mediaSession.metadata=null}
+ markPlaying();
+}
+$('close-player').onclick=closePlayer;
+// Keep the page scrollable above the player: the content's bottom padding follows its height.
+new ResizeObserver(()=>{const p=$('player');document.body.style.setProperty('--player-space',(p.hidden?0:p.offsetHeight)+'px')}).observe($('player'));
 $('play-pause').onclick=togglePlay;$('next').onclick=()=>next(false);$('previous').onclick=prev;
 $('shuffle').onclick=()=>{shuffle=!shuffle;const cur=order[pos];buildOrder(cur);pos=shuffle?0:cur};
 $('repeat').onclick=()=>{repeat={off:'all',all:'one',one:'off'}[repeat];store.set('repeat',repeat);updateModeButtons()};
