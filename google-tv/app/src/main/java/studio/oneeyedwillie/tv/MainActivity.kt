@@ -329,6 +329,8 @@ class MainActivity : ComponentActivity(), ShellHost {
      */
     private fun startWithSavedServer(saved: String) {
         if (YarrAccount.savedToken(this) == null) { showServer(saved); return }
+        // A server picked with Choose server (for example one a friend shares) wins.
+        if (RemoteSession.chosen(this) != null) { showSplashOnly(); connectRemote(); return }
         val generation = showSplashOnly()
         discoveryWorker.execute {
             val identity = probeServer(saved)
@@ -370,6 +372,12 @@ class MainActivity : ComponentActivity(), ShellHost {
                     is RemoteSession.Connect.Ok -> showServer(result.origin)
                     RemoteSession.Connect.ProRequired ->
                         showLoadingFailure("Can't reach your server on this network. Watching away from home needs Yarr Media Pro.")
+                    RemoteSession.Connect.OwnerProRequired ->
+                        showLoadingFailure("The owner of this shared server needs Yarr Media Pro to share it.")
+                    is RemoteSession.Connect.Choose -> {
+                        showLoadingFailure("Choose which server to open.")
+                        showServerPicker(result.servers)
+                    }
                     RemoteSession.Connect.NoServer ->
                         showLoadingFailure("Can't reach your server. Connect it to your Yarr account to watch away from home.")
                     RemoteSession.Connect.NoAddress ->
@@ -642,6 +650,7 @@ class MainActivity : ComponentActivity(), ShellHost {
                     is YarrAccount.Profile -> showAccountDialog("Yarr account", accountMessageView(
                         "Signed in as ${profile.email.ifBlank { profile.displayName }}\nPlan: ${if (profile.pro) "Pro" else "Free"}")) {
                         it.setNegativeButton("Close", null)
+                        it.setPositiveButton("Choose server") { _, _ -> chooseServer() }
                         it.setNeutralButton("Sign out") { _, _ ->
                             YarrAccount.saveToken(this, null); RemoteSession.clear(this)
                             accountWorker.execute { YarrAccount.signOut(token) }
@@ -654,6 +663,53 @@ class MainActivity : ComponentActivity(), ShellHost {
                 }
             }
         }
+    }
+
+    /** Choose server: this network's server, your own, or one shared with you. */
+    private fun chooseServer() {
+        val token = YarrAccount.savedToken(this) ?: return startYarrSignIn()
+        accountWorker.execute {
+            val servers = try { YarrAccount.servers(token) } catch (_: Exception) { null }
+            runOnUiThread {
+                if (isDestroyed) return@runOnUiThread
+                if (servers == null) {
+                    showAccountDialog("Choose server", accountMessageView("Yarr Media could not be reached. Check this TV's internet connection.")) {
+                        it.setNegativeButton("Close", null)
+                    }
+                } else showServerPicker(RemoteSession.choices(servers))
+            }
+        }
+    }
+
+    private fun showServerPicker(servers: List<YarrAccount.RemoteServer>) {
+        val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
+        val local = validOrigin(saved)
+        val labels = (if (local) listOf("Server on this network (${saved.removePrefix("http://")})") else emptyList()) +
+            servers.map { RemoteSession.label(it) }
+        if (labels.isEmpty()) {
+            showAccountDialog("Choose server", accountMessageView(
+                "No servers yet. Pair your own server, or ask a friend to share theirs with this account.")) {
+                it.setNegativeButton("Close", null)
+            }
+            return
+        }
+        accountDialog?.dismiss()
+        accountDialog = android.app.AlertDialog.Builder(this)
+            .setTitle("Choose server")
+            .setItems(labels.toTypedArray()) { _, which ->
+                RemoteSession.clear(this)
+                browser?.stopLoading()
+                if (local && which == 0) {
+                    RemoteSession.setChosen(this, null)
+                    startWithSavedServer(saved)
+                } else {
+                    RemoteSession.setChosen(this, servers[which - (if (local) 1 else 0)].id)
+                    showSplashOnly()
+                    connectRemote()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun startYarrSignIn() {
@@ -707,7 +763,13 @@ class MainActivity : ComponentActivity(), ShellHost {
                     when (result) {
                         is YarrAccount.Poll.Granted -> {
                             YarrAccount.saveToken(this, result.token)
-                            showYarrAccount()
+                            if (browser == null) {
+                                // Nothing open yet (no server on this network): open
+                                // the account's server, or one shared with it.
+                                shown?.dismiss()
+                                showSplashOnly()
+                                connectRemote()
+                            } else showYarrAccount()
                         }
                         is YarrAccount.Poll.SlowDown -> pollYarrSignIn(code, result.intervalSeconds, deadline, shown)
                         YarrAccount.Poll.Pending -> pollYarrSignIn(code, interval, deadline, shown)

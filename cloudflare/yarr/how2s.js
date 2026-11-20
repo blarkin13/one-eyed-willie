@@ -206,6 +206,26 @@ sudo apt update`}]],
    '**The server is off or asleep.** Remote access needs it running.',
    'Your home address changing is fine: the server reports its new address automatically.']}]]]},
 
+ {slug:'barnacles', group:'yarr', title:'Share with friends (Barnacles)', minutes:5,
+  summary:'Let family and friends watch the libraries you choose, on their own TV, phone or browser, under your Pro.',
+  sections:[
+  ['How it works', ['A barnacle is someone you share your server with. They need only a free Yarr Media account, no media and no Pro of their own. They watch the libraries you pick, with their own Continue Watching and watched marks, and can\'t change anything on your server. Video streams straight from your server to them.']],
+  ['Before you start', [{list:[
+   'Yarr Media Pro on your account, and [remote access](/how2s/remote-access) working.',
+   'Your server updated to the latest Yarr Media (it then lists its libraries on My Account).']}]],
+  ['1. Invite them', [{steps:[
+   'Go to [My Account](/account) and find **Barnacles**.',
+   'Enter the email of their Google account and tick the libraries they can see.',
+   'Choose **Invite barnacle**.']}]],
+  ['2. They accept', [{steps:[
+   'They sign in at [yarr.media](/account) with that Google account.',
+   'Under **Shared with you**, they choose **Accept**.']}]],
+  ['3. They watch', [{list:[
+   '**Google TV or Android phone**: install the app ([TV](/how2s/google-tv), or yarr.media/android on a phone) and sign in with **Yarr account**. If they also have their own server, **Choose server** switches between them.',
+   '**Browser**: **Open in your browser** under Shared with you, or [app.yarr.media](https://app.yarr.media).']}]],
+  ['Changing or ending access', ['On My Account, **Change libraries** or **Remove** next to each barnacle. Changes reach devices that are already watching within the hour. Barnacles can leave at any time from Shared with you.',
+   {note:'Only share media you have the rights to share.'}]]]},
+
  {slug:'opensubtitles', group:'yarr', title:'Add subtitles with OpenSubtitles', minutes:5,
   summary:'Search for and download subtitles from inside the Yarr Media player.',
   sections:[

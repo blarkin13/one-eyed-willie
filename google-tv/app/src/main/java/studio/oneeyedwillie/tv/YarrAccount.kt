@@ -25,11 +25,15 @@ object YarrAccount {
 
     /** A server paired with the signed-in account, as /api/device/me lists it. */
     data class RemoteServer(val id: String, val identity: String, val name: String,
-                            val online: Boolean, val remoteAddress: String?)
+                            val online: Boolean, val remoteAddress: String?,
+                            /** "owner", or "barnacle" for a server someone shares with you. */
+                            val role: String = "owner", val ownerName: String = "")
 
     sealed class PassReply {
         data class Granted(val pass: String, val expiresAtMillis: Long, val remoteAddress: String?) : PassReply()
         object ProRequired : PassReply()
+        /** A shared server whose owner no longer has Pro. */
+        object OwnerProRequired : PassReply()
         object SignedOut : PassReply()
         object ServerNotFound : PassReply()
         data class Failed(val message: String) : PassReply()
@@ -40,6 +44,7 @@ object YarrAccount {
         status == 200 && !pass.isNullOrBlank() && expiresAtMillis != null ->
             PassReply.Granted(pass, expiresAtMillis, remoteAddress?.takeIf { it.startsWith("https://") })
         status == 401 -> PassReply.SignedOut
+        error == "owner_pro_required" -> PassReply.OwnerProRequired
         status == 402 || error == "pro_required" -> PassReply.ProRequired
         status == 404 -> PassReply.ServerNotFound
         else -> PassReply.Failed("Yarr Media returned HTTP $status")
@@ -140,7 +145,8 @@ object YarrAccount {
             val o = list.optJSONObject(i) ?: return@mapNotNull null
             RemoteServer(o.optString("id"), o.optString("server_identity"), o.optString("display_name"),
                 o.optBoolean("online", false),
-                if (o.isNull("remote_address")) null else o.optString("remote_address").ifBlank { null })
+                if (o.isNull("remote_address")) null else o.optString("remote_address").ifBlank { null },
+                o.optString("role").ifBlank { "owner" }, o.optString("owner_name"))
         }.filter { it.id.isNotBlank() }
     }
 

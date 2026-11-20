@@ -24,6 +24,18 @@ class RemoteSessionTest {
         assertEquals("a", RemoteSession.chooseServer(list.take(2), null)?.id)
     }
 
+    @Test fun chosenServerWinsAndAmbiguityAsks() {
+        val own = server("a", "id-a", true, "https://1-2-3-4.sslip.io")
+        val shared = YarrAccount.RemoteServer("b", "id-b", "Brian's", true, "https://5-6-7-8.sslip.io", "barnacle", "Brian")
+        assertEquals("b", RemoteSession.chooseServer(listOf(own, shared), "id-a", "b")?.id)
+        assertEquals("a", RemoteSession.chooseServer(listOf(own, shared), "id-a", "gone")?.id)
+        assertNull(RemoteSession.chooseServer(listOf(own, shared), null, null))
+        assertEquals("b", RemoteSession.chooseServer(listOf(shared), null, null)?.id)
+        assertEquals("Brian's · shared by Brian", RemoteSession.label(shared))
+        assertEquals("Home a · yours (offline)", RemoteSession.label(own.copy(online = false)))
+        assertEquals(listOf("a", "b"), RemoteSession.choices(listOf(own, shared, server("c", "id-c", true, null))).map { it.id })
+    }
+
     @Test fun noServerWithoutAnAddress() {
         assertNull(RemoteSession.chooseServer(listOf(server("a", "id-a", true, null)), "id-a"))
         assertNull(RemoteSession.chooseServer(emptyList(), null))
@@ -63,6 +75,7 @@ class RemoteSessionTest {
         assertEquals(YarrAccount.PassReply.Granted("P", 5L, null),
             YarrAccount.passOutcome(200, null, "P", 5L, "http://x.example"))
         assertEquals(YarrAccount.PassReply.ProRequired, YarrAccount.passOutcome(402, "pro_required", null, null, null))
+        assertEquals(YarrAccount.PassReply.OwnerProRequired, YarrAccount.passOutcome(402, "owner_pro_required", null, null, null))
         assertEquals(YarrAccount.PassReply.SignedOut, YarrAccount.passOutcome(401, "unauthorized", null, null, null))
         assertEquals(YarrAccount.PassReply.ServerNotFound, YarrAccount.passOutcome(404, "server_not_found", null, null, null))
         assertTrue(YarrAccount.passOutcome(503, "passes_not_configured", null, null, null) is YarrAccount.PassReply.Failed)
