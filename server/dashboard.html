@@ -19,7 +19,7 @@
 <meta name="twitter:description" content="Your movies, television and music in one self-hosted media server.">
 <meta name="twitter:image" content="https://yarr.media/assets/yarr-media-og-v2.jpg">
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
-<link rel="stylesheet" href="/assets/ui.css?v=home-viewport-shelves-3">
+<link rel="stylesheet" href="/assets/ui.css?v=mobile-home-20261119">
 <script src="/assets/media-title-logo.js?v=1"></script>
 <script defer src="/assets/shell.js?v=sidebar-backdrop-hold-3"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script>
@@ -145,6 +145,64 @@ max-height:calc(100dvh - 32px);overflow-y:auto;overscroll-behavior:contain;
   body[data-page="home"] .shelf>.section-heading{margin-bottom:12px}
 }
 
+/* Phone Home: compact feature, readable metadata and clean swipeable shelves.
+   Larger screens and the Google TV full-height shelf layout are unchanged. */
+@media(max-width:700px){
+ html:has(body[data-page="home"]){scroll-snap-type:none}
+ body[data-page="home"] .workspace>.content{
+  padding-inline:clamp(14px,4vw,22px);
+  padding-bottom:calc(100px + env(safe-area-inset-bottom,0px));
+ }
+ body[data-page="home"] .shelf{padding:0 0 16px;margin:0;overflow:visible}
+ body[data-page="home"] .shelf + .shelf{margin-top:16px}
+ body[data-page="home"] .home-feature{margin:0 0 14px;overflow:visible}
+ body[data-page="home"] .home-feature-copy{width:100%;padding:0 2px 2px}
+ body[data-page="home"] .home-feature-kicker{
+  height:auto;line-height:1.3;font-size:.69rem;letter-spacing:.14em;margin-bottom:8px
+ }
+ body[data-page="home"] .home-feature-title{
+  font-size:clamp(1.45rem,6vw,1.95rem);
+  line-height:1.12;max-height:2.24em;margin-bottom:9px
+ }
+ body[data-page="home"] .home-feature-title.has-title-logo{
+  display:block;height:auto;min-height:0;max-height:none
+ }
+ body[data-page="home"] .home-feature-title.has-title-logo>.media-title-logo{
+  max-width:min(86vw,300px);max-height:68px
+ }
+ body[data-page="home"] .home-feature-meta{
+  flex-wrap:wrap;white-space:normal;height:auto;min-height:0;
+  max-height:3.4em;gap:4px 11px;margin:0 0 9px;
+  font-size:.76rem;line-height:1.4
+ }
+ body[data-page="home"] .home-feature-summary{
+  height:auto;min-height:0;max-height:2.9em;
+  font-size:.82rem;line-height:1.45;margin:0
+ }
+ body[data-page="home"] .shelf>.section-heading{margin:0 0 10px}
+ body[data-page="home"] .shelf-title{font-size:1.06rem;line-height:1.3}
+ body[data-page="home"] .shelf-track{
+  gap:12px;overflow-x:auto;overflow-y:hidden;
+  padding:4px 2px 10px;scroll-padding-inline:3px;
+  scrollbar-width:none;-ms-overflow-style:none
+ }
+ body[data-page="home"] .shelf-track::-webkit-scrollbar{display:none}
+ body[data-page="home"] .shelf-track>.tile{
+  flex:0 0 clamp(112px,33vw,164px);width:clamp(112px,33vw,164px);
+ }
+ body[data-page="home"] .shelf-track .tile h3{
+  margin:8px 0 4px;font-size:.86rem;line-height:1.25;
+  min-height:2.5em;max-height:2.5em;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden
+ }
+ body[data-page="home"] .shelf-track .tile-meta{
+  font-size:.73rem;line-height:1.3;min-height:2.6em;max-height:2.6em;
+  display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden
+ }
+ body[data-page="home"] .progress-track{margin-top:7px}
+ body[data-page="home"] .progress-time,
+ body[data-page="home"] .next-episode-badge{font-size:.7rem}
+}
 .shelf[hidden]{display:none!important}
 </style><script defer src="/assets/ambient.js?v=1"></script>
 </head>
@@ -301,6 +359,24 @@ function selectHomePoster(event){
 }
 document.addEventListener('focusin',selectHomePoster,true);
 document.addEventListener('pointerover',selectHomePoster,{passive:true});
+
+/* On touch, swiping a shelf updates the feature for its leading visible poster.
+   Avoid relying on desktop hover (which touch screens don't provide). */
+let mobileHomeScrollFrame=0;
+document.addEventListener('scroll',event=>{
+ const track=event.target;
+ if(!window.matchMedia('(max-width:700px)').matches ||
+    !track?.classList?.contains('shelf-track'))return;
+ if(mobileHomeScrollFrame)cancelAnimationFrame(mobileHomeScrollFrame);
+ mobileHomeScrollFrame=requestAnimationFrame(()=>{
+  mobileHomeScrollFrame=0;
+  const edge=track.getBoundingClientRect().left+24;
+  const leading=[...track.querySelectorAll('.tile-button')]
+   .find(card=>card.getBoundingClientRect().right>edge);
+  if(leading?._homeItem)updateHomeFeature(leading,leading._homeItem);
+ });
+},true);
+
 const moviePosterJobs=[];
 const movieDetailQueue=[];
 let movieDetailActive=0;
