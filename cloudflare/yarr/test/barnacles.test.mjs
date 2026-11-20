@@ -175,3 +175,69 @@ test('the owner sees the Barnacles panel; deleting either account removes the sh
  await request(t.worker,t.env,'POST',ACC+'/account/delete',{headers:formHeaders(t.owner),form:{confirm:'DELETE'}});
  assert.equal(t.db.prepare("SELECT COUNT(*) n FROM server_shares").get().n,0);
 });
+
+// ---- Server switcher and server pictures ----------------------------------------
+function png(width=64,height=64,extra=0){
+ const b=new Uint8Array(33+extra);
+ b.set([137,80,78,71,13,10,26,10,0,0,0,13,73,72,68,82]);
+ const v=new DataView(b.buffer);v.setUint32(16,width);v.setUint32(20,height);
+ return b;
+}
+function upload(t,user,{id=t.server.id,bytes=png(),action}={}){
+ const form=new FormData();form.set('id',id);
+ if(action)form.set('action',action);else form.set('picture',new Blob([bytes],{type:'image/png'}),'icon.png');
+ return t.worker.fetch(new Request(ACC+'/account/servers/picture',{method:'POST',body:form,redirect:'manual',
+  headers:{cookie:user.cookie,origin:ACC,'sec-fetch-site':'same-origin'}}),t.env);
+}
+const pictureResult=async r=>new URL((await r).headers.get('location'),ACC).searchParams.get('picture');
+
+test('the switcher lists every server the account can open, marking the current one', async()=>{
+ const t=await setup();
+ const friendServer=pairedServer(t.env,t.friend.id,{id:'99999999-2222-3333-4444-555555555555',identity:'ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee'});
+ await invite(t,'friend@gmail.com');
+ await act(t,t.friend,'accept',shareId(t));
+ const list=async cookie=>(await (await request(t.worker,t.env,'GET',APP+'/__yarr/servers',{headers:{cookie}})).json());
+ let mine=await list(t.friend.cookie);
+ assert.deepEqual(mine.servers.map(s=>[s.id,s.role,s.owner_name]),[[friendServer.id,'owner',''],[t.server.id,'barnacle','Owner']]);
+ assert.equal(mine.current,friendServer.id,'own server first by default');
+ mine=await list(t.friend.cookie+'; __Host-yarr_app_server='+t.server.id);
+ assert.equal(mine.current,t.server.id);
+ assert.equal((await list(t.owner.cookie)).servers.length,1,'the owner has one server: no switcher');
+ assert.equal((await request(t.worker,t.env,'GET',APP+'/__yarr/servers')).status,401);
+ // Every own server on My Account has its own Open link (also back to your own server).
+ const page=await (await request(t.worker,t.env,'GET',ACC+'/',{headers:{cookie:t.friend.cookie}})).text();
+ assert.match(page,new RegExp('/__yarr/use\\?server='+friendServer.id));
+});
+
+test('owners set a server picture that the people they share with see', async()=>{
+ const t=await setup();
+ await invite(t,'friend@gmail.com');
+ await act(t,t.friend,'accept',shareId(t));
+ assert.equal(await pictureResult(upload(t,t.owner)),'saved');
+ const tv=await signTvIn(t,t.friend);
+ const me=await (await request(t.worker,t.env,'GET',PUB+'/api/device/me',{headers:tv})).json();
+ assert.equal(me.servers[0].icon_url,ACC+'/api/server-icons/'+t.server.id+'.png?v=1');
+ const img=await request(t.worker,t.env,'GET',me.servers[0].icon_url);
+ assert.equal(img.status,200);
+ assert.equal(img.headers.get('content-type'),'image/png');
+ assert.equal(img.headers.get('x-content-type-options'),'nosniff');
+ assert.match(img.headers.get('content-security-policy'),/default-src 'none'/);
+ assert.deepEqual(new Uint8Array(await img.arrayBuffer()),png());
+ const sw=await (await request(t.worker,t.env,'GET',APP+'/__yarr/servers',{headers:{cookie:t.friend.cookie}})).json();
+ assert.equal(sw.servers[0].icon_url,'/__yarr/server-icons/'+t.server.id+'.png?v=1');
+ assert.equal((await request(t.worker,t.env,'GET',APP+sw.servers[0].icon_url)).status,200);
+ assert.match(await (await request(t.worker,t.env,'GET',ACC+'/',{headers:{cookie:t.friend.cookie}})).text(),/class="server-picture"/);
+ // A new upload changes the address, so caches pick it up.
+ assert.equal(await pictureResult(upload(t,t.owner,{bytes:png(128,128)})),'saved');
+ assert.equal(t.db.prepare("SELECT version FROM server_icons").get().version,2);
+ // Checks: PNG only, size limits, only the owner, and removal.
+ assert.equal(await pictureResult(upload(t,t.owner,{bytes:new TextEncoder().encode('<svg onload=alert(1)>')})),'not_png');
+ assert.equal(await pictureResult(upload(t,t.owner,{bytes:png(16,16)})),'size');
+ assert.equal(await pictureResult(upload(t,t.owner,{bytes:png(64,64,300*1024)})),'too_large');
+ assert.equal(await pictureResult(upload(t,t.friend)),'not_found');
+ assert.equal(t.db.prepare("SELECT version FROM server_icons").get().version,2);
+ const forged=await t.worker.fetch(new Request(ACC+'/account/servers/picture',{method:'POST',body:new FormData(),redirect:'manual',headers:{cookie:t.owner.cookie,origin:'https://evil.example'}}),t.env);
+ assert.equal(forged.status,403);
+ assert.equal(await pictureResult(upload(t,t.owner,{action:'remove'})),'removed');
+ assert.equal((await request(t.worker,t.env,'GET',ACC+'/api/server-icons/'+t.server.id+'.png')).status,404);
+});

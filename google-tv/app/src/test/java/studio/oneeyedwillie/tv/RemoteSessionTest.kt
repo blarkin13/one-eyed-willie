@@ -81,4 +81,32 @@ class RemoteSessionTest {
         assertTrue(YarrAccount.passOutcome(503, "passes_not_configured", null, null, null) is YarrAccount.PassReply.Failed)
         assertTrue(YarrAccount.passOutcome(200, null, "P", null, null) is YarrAccount.PassReply.Failed)
     }
+
+    @Test fun switcherRowsShowHomeOnceThenSharedServers() {
+        val mine = YarrAccount.RemoteServer("a", "id-a", "Basement", true, "https://1-2-3-4.sslip.io")
+        val shared = YarrAccount.RemoteServer("b", "id-b", "Gazorpazorp", false, "https://5-6-7-8.sslip.io",
+            "barnacle", "Brian", "https://accounts.yarr.media/api/server-icons/b.png?v=2")
+        val rows = RemoteSession.entries(listOf(mine, shared), "id-a", hasLocal = true)
+        assertEquals(listOf("Basement" to "Yours", "Gazorpazorp" to "Shared by Brian · offline"), rows.map { it.name to it.detail })
+        assertTrue(rows[0].local)
+        assertEquals("https://accounts.yarr.media/api/server-icons/b.png?v=2", rows[1].iconUrl)
+        assertEquals("Basement", RemoteSession.currentEntry(rows, null)?.name)
+        assertEquals("Gazorpazorp", RemoteSession.currentEntry(rows, "b")?.name)
+
+        // Away from home, your own server is a remote row like the others.
+        val away = RemoteSession.entries(listOf(mine, shared), "id-a", hasLocal = false)
+        assertTrue(away.none { it.local })
+        // A local server not on the account still gets its own row.
+        val unpaired = RemoteSession.entries(listOf(shared), null, hasLocal = true)
+        assertEquals(listOf("Server on this network", "Gazorpazorp"), unpaired.map { it.name })
+    }
+
+    @Test fun serverPicturesMustBeHttps() {
+        assertEquals("https://accounts.yarr.media/api/server-icons/b.png?v=1",
+            YarrAccount.pictureUrl("https://accounts.yarr.media/api/server-icons/b.png?v=1"))
+        assertEquals(null, YarrAccount.pictureUrl("http://evil.example/x.png"))
+        assertEquals(null, YarrAccount.pictureUrl("javascript:alert(1)"))
+        assertEquals(null, YarrAccount.pictureUrl(""))
+        assertEquals(null, YarrAccount.pictureUrl(null))
+    }
 }

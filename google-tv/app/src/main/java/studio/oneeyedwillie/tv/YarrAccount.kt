@@ -27,7 +27,9 @@ object YarrAccount {
     data class RemoteServer(val id: String, val identity: String, val name: String,
                             val online: Boolean, val remoteAddress: String?,
                             /** "owner", or "barnacle" for a server someone shares with you. */
-                            val role: String = "owner", val ownerName: String = "")
+                            val role: String = "owner", val ownerName: String = "",
+                            /** The picture the owner chose for this server, if any. */
+                            val iconUrl: String? = null)
 
     sealed class PassReply {
         data class Granted(val pass: String, val expiresAtMillis: Long, val remoteAddress: String?) : PassReply()
@@ -135,6 +137,9 @@ object YarrAccount {
             reply.body.optJSONObject("pro")?.optBoolean("active", false) ?: false)
     }
 
+    /** A server picture address from the account service; only https is loaded. */
+    fun pictureUrl(raw: String?): String? = raw?.trim()?.takeIf { it.startsWith("https://") && it.length < 512 }
+
     /** Servers paired with this account; null when the credential is no longer valid. */
     fun servers(token: String): List<RemoteServer>? {
         val reply = call("GET", "/api/device/me", token = token)
@@ -146,7 +151,8 @@ object YarrAccount {
             RemoteServer(o.optString("id"), o.optString("server_identity"), o.optString("display_name"),
                 o.optBoolean("online", false),
                 if (o.isNull("remote_address")) null else o.optString("remote_address").ifBlank { null },
-                o.optString("role").ifBlank { "owner" }, o.optString("owner_name"))
+                o.optString("role").ifBlank { "owner" }, o.optString("owner_name"),
+                pictureUrl(o.optString("icon_url")))
         }.filter { it.id.isNotBlank() }
     }
 

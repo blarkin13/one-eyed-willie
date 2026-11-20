@@ -80,6 +80,9 @@ class MainActivity : ComponentActivity(), ShellHost {
     private var loadingErrorPanel: LinearLayout? = null
     private var loadingActions: LinearLayout? = null
     private var loadingRetry: Button? = null
+    /** Phone only: offered when the server can't be reached and no Yarr account is signed in. */
+    private var loadingSignIn: Button? = null
+    private val deviceWord get() = if (isTv) "TV" else "phone"
     // Written from the sound thread and read on the main thread.
     private val startupSounds = java.util.concurrent.CopyOnWriteArrayList<MediaPlayer>()
     // The 4K splash is ~31 MB once decoded; it is released when the splash ends.
@@ -121,6 +124,7 @@ class MainActivity : ComponentActivity(), ShellHost {
             textSize = 19f
             gravity = Gravity.CENTER
             setTextColor(0xFFF0EBE5.toInt())
+            if (!isTv) maxWidth = dp(320)
         }
         val errorControls = LinearLayout(this).apply {
             visibility = View.GONE
@@ -145,6 +149,13 @@ class MainActivity : ComponentActivity(), ShellHost {
                 } else if (validOrigin(saved)) startWithSavedServer(saved) else showUnconfigured()
             }
         }
+        loadingSignIn = Button(this).apply {
+            text = "Sign in"
+            visibility = View.GONE
+            setTextColor(Color.BLACK)
+            backgroundTintList = ColorStateList.valueOf(0xFFF0EBE5.toInt())
+            setOnClickListener { startYarrSignIn() }
+        }
         val settings = Button(this).apply {
             text = "Server settings"
             setTextColor(Color.WHITE)
@@ -156,6 +167,9 @@ class MainActivity : ComponentActivity(), ShellHost {
             gravity = Gravity.CENTER
             visibility = View.GONE
             addView(loadingRetry)
+            if (!isTv) addView(loadingSignIn, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(12) })
             addView(settings, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { leftMargin = dp(12) })
@@ -221,6 +235,7 @@ class MainActivity : ComponentActivity(), ShellHost {
         loadingCaption?.visibility = View.GONE
         loadingActions?.visibility = View.GONE
         loadingErrorPanel?.visibility = View.GONE
+        loadingArt?.visibility = View.VISIBLE
         restoreSplashArt()
         loadingOverlay?.apply {
             animate().cancel()
@@ -250,6 +265,13 @@ class MainActivity : ComponentActivity(), ShellHost {
         }
         loadingRetry?.visibility = View.VISIBLE
         loadingRetry?.requestFocus()
+        if (!isTv) {
+            // The phone's small app icon would sit behind the message.
+            loadingArt?.visibility = View.GONE
+            val signedOut = YarrAccount.savedToken(this) == null
+            loadingSignIn?.visibility = if (signedOut) View.VISIBLE else View.GONE
+            if (signedOut) loadingSignIn?.requestFocus()
+        }
     }
 
     private fun finishLoading(web: WebView, serial: Int) {
@@ -385,12 +407,13 @@ class MainActivity : ComponentActivity(), ShellHost {
                     RemoteSession.Connect.SignedOut -> {
                         YarrAccount.saveToken(this, null)
                         RemoteSession.clear(this)
-                        showLoadingFailure("Can't reach your server, and this TV was signed out of Yarr Media.")
+                        showLoadingFailure("Can't reach your server, and this $deviceWord was signed out of Yarr Media.")
                     }
                     RemoteSession.Connect.NotSignedIn ->
-                        showLoadingFailure("Could not find Yarr Media on this network. Retry or open Server settings.")
+                        showLoadingFailure(if (isTv) "Could not find Yarr Media on this network. Retry or open Server settings."
+                            else "Can't reach your server on this network. Sign in to Yarr Media to watch away from home.")
                     is RemoteSession.Connect.Failed ->
-                        showLoadingFailure("Unable to reach your server or yarr.media. Check this TV's internet connection.")
+                        showLoadingFailure("Unable to reach your server or yarr.media. Check this $deviceWord's internet connection.")
                 }
             }
         }
@@ -462,6 +485,7 @@ class MainActivity : ComponentActivity(), ShellHost {
         // reveal an error message and recovery controls.
         loadingCaption?.visibility = View.GONE
         loadingErrorPanel?.visibility = View.GONE
+        loadingArt?.visibility = View.VISIBLE
         restoreSplashArt()
         loadingOverlay?.visibility = View.VISIBLE
         discoveryWorker.execute {
@@ -571,8 +595,9 @@ class MainActivity : ComponentActivity(), ShellHost {
             addView(input)
         }
         val dialog = android.app.AlertDialog.Builder(this)
-            .setTitle("TV Server Connection")
-            .setMessage("Change this TV's saved server address and port.")
+            .setTitle(if (isTv) "TV Server Connection" else "Server connection")
+            .setMessage(if (isTv) "Change this TV's saved server address and port."
+                else "Your server's address at home. Away from home, the app connects through your Yarr account.")
             .setView(container)
             .setNegativeButton("Cancel", null)
             .setNeutralButton("Yarr account") { _, _ -> showYarrAccount() }
@@ -650,14 +675,14 @@ class MainActivity : ComponentActivity(), ShellHost {
                     is YarrAccount.Profile -> showAccountDialog("Yarr account", accountMessageView(
                         "Signed in as ${profile.email.ifBlank { profile.displayName }}\nPlan: ${if (profile.pro) "Pro" else "Free"}")) {
                         it.setNegativeButton("Close", null)
-                        it.setPositiveButton("Choose server") { _, _ -> chooseServer() }
+                        it.setPositiveButton("Switch server") { _, _ -> chooseServer() }
                         it.setNeutralButton("Sign out") { _, _ ->
                             YarrAccount.saveToken(this, null); RemoteSession.clear(this)
                             accountWorker.execute { YarrAccount.signOut(token) }
                         }
                     }
                     else -> showAccountDialog("Yarr account", accountMessageView(
-                        "Yarr Media could not be reached. Check this TV's internet connection.")) {
+                        "Yarr Media could not be reached. Check this $deviceWord's internet connection.")) {
                         it.setNegativeButton("Close", null)
                     }
                 }
@@ -673,43 +698,125 @@ class MainActivity : ComponentActivity(), ShellHost {
             runOnUiThread {
                 if (isDestroyed) return@runOnUiThread
                 if (servers == null) {
-                    showAccountDialog("Choose server", accountMessageView("Yarr Media could not be reached. Check this TV's internet connection.")) {
+                    showAccountDialog("Choose server", accountMessageView("Yarr Media could not be reached. Check this $deviceWord's internet connection.")) {
                         it.setNegativeButton("Close", null)
                     }
-                } else showServerPicker(RemoteSession.choices(servers))
+                } else showServerPicker(servers)
+            }
+        }
+    }
+
+    /** Servers this account can open, for the switcher (refreshed in the background). */
+    private var serverChoices: List<YarrAccount.RemoteServer> = emptyList()
+
+    private fun switcherEntries(servers: List<YarrAccount.RemoteServer> = serverChoices): List<RemoteSession.Entry> {
+        val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
+        return RemoteSession.entries(RemoteSession.choices(servers), RemoteSession.homeIdentity(this), validOrigin(saved))
+    }
+
+    /** Refresh the list behind the switcher icon; the page re-asks when it changes. */
+    private fun refreshServerChoices() {
+        val token = YarrAccount.savedToken(this) ?: return
+        accountWorker.execute {
+            val servers = try { YarrAccount.servers(token) } catch (_: Exception) { null } ?: return@execute
+            runOnUiThread {
+                if (isFinishing) return@runOnUiThread
+                val changed = servers != serverChoices
+                serverChoices = servers
+                if (changed) browser?.evaluateJavascript("window.dispatchEvent(new Event('yarr-servers-changed'))", null)
             }
         }
     }
 
     private fun showServerPicker(servers: List<YarrAccount.RemoteServer>) {
-        val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
-        val local = validOrigin(saved)
-        val labels = (if (local) listOf("Server on this network (${saved.removePrefix("http://")})") else emptyList()) +
-            servers.map { RemoteSession.label(it) }
-        if (labels.isEmpty()) {
-            showAccountDialog("Choose server", accountMessageView(
+        serverChoices = servers
+        val rows = switcherEntries(servers)
+        if (rows.isEmpty()) {
+            showAccountDialog("Switch server", accountMessageView(
                 "No servers yet. Pair your own server, or ask a friend to share theirs with this account.")) {
                 it.setNegativeButton("Close", null)
             }
             return
         }
+        val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
+        val remoteId = if (origin.isNotEmpty() && RemoteSession.isRemote(this, origin)) RemoteSession.current()?.serverId else null
+        val current = if (browser != null) RemoteSession.currentEntry(rows, remoteId) else null
+        val icons = HashMap<String, android.graphics.Bitmap>()
+        val adapter = object : android.widget.BaseAdapter() {
+            override fun getCount() = rows.size
+            override fun getItem(position: Int) = rows[position]
+            override fun getItemId(position: Int) = position.toLong()
+            override fun getView(position: Int, convertView: View?, parent: ViewGroup?): View {
+                val row = rows[position]
+                return LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    gravity = Gravity.CENTER_VERTICAL
+                    setPadding(dp(20), dp(10), dp(20), dp(10))
+                    addView(ImageView(this@MainActivity).apply {
+                        val bitmap = row.iconUrl?.let { icons[it] }
+                        if (bitmap != null) setImageBitmap(bitmap) else setImageResource(R.mipmap.yarrmedia_launcher)
+                        scaleType = ImageView.ScaleType.CENTER_CROP
+                        clipToOutline = true
+                        background = android.graphics.drawable.GradientDrawable().apply { cornerRadius = dp(10).toFloat(); setColor(0xFF232831.toInt()) }
+                    }, LinearLayout.LayoutParams(dp(44), dp(44)))
+                    addView(LinearLayout(this@MainActivity).apply {
+                        orientation = LinearLayout.VERTICAL
+                        setPadding(dp(14), 0, dp(10), 0)
+                        addView(TextView(this@MainActivity).apply { text = row.name; textSize = 17f; setTextColor(Color.WHITE) })
+                        addView(TextView(this@MainActivity).apply { text = row.detail; textSize = 13f; setTextColor(0xFFAAB0B8.toInt()) })
+                    }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
+                    if (row == current) addView(TextView(this@MainActivity).apply {
+                        text = "✓"; textSize = 20f; setTextColor(0xFFA9DDFF.toInt()); contentDescription = "Current server"
+                    })
+                }
+            }
+        }
         accountDialog?.dismiss()
         accountDialog = android.app.AlertDialog.Builder(this)
-            .setTitle("Choose server")
-            .setItems(labels.toTypedArray()) { _, which ->
+            .setTitle("Switch server")
+            .setAdapter(adapter) { _, which ->
+                val row = rows[which]
+                if (row == current) return@setAdapter
                 RemoteSession.clear(this)
                 browser?.stopLoading()
-                if (local && which == 0) {
+                if (row.local) {
                     RemoteSession.setChosen(this, null)
                     startWithSavedServer(saved)
                 } else {
-                    RemoteSession.setChosen(this, servers[which - (if (local) 1 else 0)].id)
+                    RemoteSession.setChosen(this, row.serverId)
                     showSplashOnly()
                     connectRemote()
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
+        // Owners' server pictures, loaded after the list is on screen.
+        rows.mapNotNull { it.iconUrl }.distinct().forEach { url ->
+            accountWorker.execute {
+                val bitmap = try {
+                    (URL(url).openConnection() as HttpURLConnection).run {
+                        connectTimeout = 4000; readTimeout = 4000
+                        try {
+                            if (responseCode != 200) null else {
+                                // Pictures are at most 256 KB but up to 2048 px: decode small.
+                                val bytes = inputStream.use { input ->
+                                    val out = java.io.ByteArrayOutputStream(); val buf = ByteArray(16384)
+                                    while (out.size() < 300 * 1024) { val n = input.read(buf); if (n < 0) break; out.write(buf, 0, n) }
+                                    out.toByteArray()
+                                }
+                                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+                                var sample = 1
+                                while (bounds.outWidth / (sample * 2) >= 128 && bounds.outHeight / (sample * 2) >= 128) sample *= 2
+                                android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size,
+                                    android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                            }
+                        } finally { disconnect() }
+                    }
+                } catch (_: Exception) { null }
+                if (bitmap != null) runOnUiThread { icons[url] = bitmap; adapter.notifyDataSetChanged() }
+            }
+        }
     }
 
     private fun startYarrSignIn() {
@@ -725,7 +832,7 @@ class MainActivity : ComponentActivity(), ShellHost {
                 if (isDestroyed || accountDialog !== waiting || waiting?.isShowing != true) return@runOnUiThread
                 if (code == null) {
                     showAccountDialog("Sign in to Yarr Media", accountMessageView(
-                        "Yarr Media could not be reached. Check this TV's internet connection.")) {
+                        "Yarr Media could not be reached. Check this $deviceWord's internet connection.")) {
                         it.setNegativeButton("Close", null)
                         it.setPositiveButton("Try again") { _, _ -> startYarrSignIn() }
                     }
@@ -763,12 +870,13 @@ class MainActivity : ComponentActivity(), ShellHost {
                     when (result) {
                         is YarrAccount.Poll.Granted -> {
                             YarrAccount.saveToken(this, result.token)
-                            if (browser == null) {
-                                // Nothing open yet (no server on this network): open
-                                // the account's server, or one shared with it.
+                            if (browser == null || loadingFailed) {
+                                // Nothing open yet, or the server couldn't be reached:
+                                // try home first, then the account's server from away.
                                 shown?.dismiss()
-                                showSplashOnly()
-                                connectRemote()
+                                val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
+                                if (validOrigin(saved)) startWithSavedServer(saved)
+                                else { showSplashOnly(); connectRemote() }
                             } else showYarrAccount()
                         }
                         is YarrAccount.Poll.SlowDown -> pollYarrSignIn(code, result.intervalSeconds, deadline, shown)
@@ -846,6 +954,7 @@ class MainActivity : ComponentActivity(), ShellHost {
         ))
         // Phone app: native tab bar and pull to refresh around the page (TV: unchanged).
         setContentView(AppShell.wrap(this, this, screen, view))
+        refreshServerChoices()
         showLoading()
         val remote = RemoteSession.current()?.takeIf { it.origin == origin }
         if (remote != null) {
@@ -947,6 +1056,17 @@ class MainActivity : ComponentActivity(), ShellHost {
                     }
                     return true
                 }
+                // Server switcher: the page shows its icon only when this
+                // account can open more than one server.
+                if (sameOrigin(url) && browser === web && message == "oewtv:servers:count") {
+                    result.confirm(switcherEntries().size.toString())
+                    return true
+                }
+                if (sameOrigin(url) && browser === web && message == "oewtv:servers:pick") {
+                    result.confirm("ACK")
+                    web.post { if (browser === web && !isFinishing) chooseServer() }
+                    return true
+                }
                 if (sameOrigin(url) && browser === web &&
                     message == "oewtv:settings:server") {
                     result.confirm("ACK")
@@ -1028,7 +1148,10 @@ class MainActivity : ComponentActivity(), ShellHost {
                 web: WebView, request: WebResourceRequest, error: WebResourceError
             ) {
                 if (browser === web && request.isForMainFrame)
-                    showLoadingFailure("Unable to reach your server")
+                    showLoadingFailure(
+                        if (!isTv && YarrAccount.savedToken(this@MainActivity) == null && !RemoteSession.isRemote(this@MainActivity, origin))
+                            "Can't reach your server on this network. Sign in to Yarr Media to watch away from home."
+                        else "Unable to reach your server")
                 super.onReceivedError(web, request, error)
             }
             override fun onReceivedHttpError(
@@ -1362,6 +1485,7 @@ class MainActivity : ComponentActivity(), ShellHost {
         super.onResume()
         playerLaunchPending = false
         if (browser != null && origin.isNotEmpty() && RemoteSession.isRemote(this, origin)) remotePassRefresh.run()
+        if (browser != null) refreshServerChoices()
         stopTvRepeat()
         // Read the player state via the JavaScript evaluation callback.
         // Never use JS prompt() here: after a second launch/resume it can

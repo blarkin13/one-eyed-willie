@@ -388,7 +388,7 @@ function remoteAddress(input) {
  return url.origin;
 }
 async function listServers(env,userId) {
- const result=await env.ACCOUNTS.prepare("SELECT id,display_name,local_url,public_url,public_ip,status,server_identity,connection_secret_hash,last_seen_at,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online,created_at FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC").bind(userId).all();
+ const result=await env.ACCOUNTS.prepare("SELECT id,display_name,local_url,public_url,public_ip,status,server_identity,connection_secret_hash,last_seen_at,CASE WHEN last_seen_at>=datetime('now','-150 seconds') THEN 1 ELSE 0 END AS online,created_at,(SELECT version FROM server_icons WHERE server_icons.server_id=servers.id) AS icon_version FROM servers WHERE owner_user_id=? ORDER BY created_at DESC,id DESC").bind(userId).all();
  return result.results||[];
 }
 async function serverMutation(req,env,user) {
@@ -769,7 +769,11 @@ function serverCardsHTML(servers) {
   const rename='<form method="post" action="/account/servers" class="account-form"><input type="hidden" name="action" value="rename"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-name-'+escapeHTML(s.id)+'">Server name</label><div class="account-form-row"><input id="server-name-'+escapeHTML(s.id)+'" required maxlength="80" name="name" value="'+escapeHTML(s.display_name)+'"><button class="account-secondary" type="submit">Save name</button></div></form>';
   const remove=linked?'':'<form method="post" action="/account/servers" class="account-remove"><input type="hidden" name="action" value="delete"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><button class="account-text-button" type="submit">Remove unused registration</button></form>';
   const address=linked?remoteAddressFormHTML(s):'';
-  return '<article class="account-server"><div class="account-server-header"><div><h3>'+escapeHTML(s.display_name)+'</h3><p class="account-note">'+description+'</p></div><span class="server-status '+statusClass+'"><span class="status-dot" aria-hidden="true"></span>'+state+'</span></div><details class="account-manage"><summary>Manage server</summary><div class="account-manage-body">'+rename+address+remove+'</div></details></article>';
+  const picture=linked?'<form method="post" action="/account/servers/picture" enctype="multipart/form-data" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'">'+
+   '<label for="server-picture-'+escapeHTML(s.id)+'">Server picture (PNG, up to 256 KB)</label><p class="account-small">Shown to you and to people you share this server with.</p>'+
+   '<div class="account-form-row"><input id="server-picture-'+escapeHTML(s.id)+'" name="picture" type="file" accept="image/png" required><button class="account-submit" type="submit">Upload</button></div></form>'+
+   (s.icon_version?'<form method="post" action="/account/servers/picture" enctype="multipart/form-data"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><input type="hidden" name="action" value="remove"><button class="account-text-button" type="submit">Remove picture</button></form>':''):'';
+  return '<article class="account-server"><div class="account-server-header">'+(s.icon_version?'<img class="server-picture" src="/api/server-icons/'+escapeHTML(s.id)+'.png?v='+s.icon_version+'" alt="" width="48" height="48">':'')+'<div><h3>'+escapeHTML(s.display_name)+'</h3><p class="account-note">'+description+'</p></div><span class="server-status '+statusClass+'"><span class="status-dot" aria-hidden="true"></span>'+state+'</span></div><details class="account-manage"><summary>Manage server</summary><div class="account-manage-body">'+rename+picture+address+remove+'</div></details></article>';
  }).join('')+'</div>';
 }
 function accountHTML(user,enabled,message='',servers=[],extra=null,isOwner=false) {
@@ -803,7 +807,7 @@ const accountCSS = `
 .account-dashboard{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(295px,.85fr);gap:22px;align-items:start}.account-primary-column,.account-aside{display:grid;gap:22px;min-width:0}.account-panel{padding:26px;background:#151515;border:1px solid #ffffff28;border-radius:15px;min-width:0}.panel-top{display:flex;align-items:center;justify-content:space-between;gap:15px;margin-bottom:22px;flex-wrap:wrap}.account-label,.account-count{font-size:12px;color:#c9c1b7;border:1px solid #ffffff30;border-radius:50px;padding:6px 10px;white-space:nowrap}
 .account-profile{display:flex;align-items:center;gap:16px;min-width:0}.account-profile strong{font-size:18px;display:block;overflow-wrap:anywhere}.account-profile p{color:#b8b0a6;font-size:14px;margin-top:5px;overflow-wrap:anywhere}.account-avatar{height:56px;width:56px;flex:0 0 56px;border-radius:50%;display:grid;place-items:center;color:#fff;font-size:24px;font-weight:800;background:linear-gradient(145deg,#ad3535,#5b1414)}.account-profile-actions{display:flex;justify-content:space-between;gap:15px;align-items:center;flex-wrap:wrap;margin-top:24px;padding-top:18px;border-top:1px solid #ffffff1e;color:#a9a29b;font-size:13px}.account-text-button{border:0;padding:5px 0;background:transparent;color:#eca1a1;font:700 13px system-ui,sans-serif;cursor:pointer;text-decoration:underline;text-underline-offset:3px}.account-text-button:hover{color:white}
 .account-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px;margin-bottom:24px}.account-stats>div{background:#1e1e1e;border:1px solid #ffffff18;padding:15px;border-radius:10px;display:flex;flex-direction:column;gap:3px}.account-stats strong{font-size:24px}.account-stats span{font-size:12px;color:#bdb4aa}.account-server-list{display:grid;gap:12px}.account-server{border:1px solid #ffffff20;border-radius:11px;padding:18px;background:#191919}.account-server-header{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}.account-note{font-size:14px;color:#bcb4ab;line-height:1.65}.server-status{display:inline-flex;align-items:center;gap:7px;padding:6px 10px;border-radius:50px;font-size:12px;font-weight:700;white-space:nowrap}.status-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:currentColor}.status-online{color:#a8e4be;background:#193225}.status-offline{color:#e9c391;background:#332719}.status-unpaired{color:#c9c0b6;background:#303030}
-.account-manage{margin-top:16px;padding-top:13px;border-top:1px solid #ffffff1d}.share-server{margin-top:18px}.share-server>h3{margin:0 0 10px}.share-libs{border:0;padding:0;margin:4px 0 12px;display:flex;flex-wrap:wrap;gap:8px 16px}.share-libs legend{padding:0;margin-bottom:8px;font-size:13px;color:#cfc6bb}.share-libs label{display:flex;align-items:center;gap:7px;font-size:14px}.share-actions{display:flex;gap:10px;align-items:center}.account-manage summary{cursor:pointer;color:#e8d7d2;font-size:13px;font-weight:750;list-style-position:inside}.account-manage-body{margin-top:15px}.account-form{display:grid;gap:10px;margin-top:16px}.account-form label{color:#ddd4ca;font-weight:700;font-size:13px}.account-form input{min-width:0;width:100%;background:#0d0d0d;border:1px solid #ffffff42;border-radius:8px;color:#fff;font:inherit;padding:12px;min-height:46px}.account-form input:focus-visible{outline:2px solid #ec8888;outline-offset:2px}.account-form-row{display:flex;align-items:center;gap:9px}.account-secondary{display:inline-flex;justify-content:center;align-items:center;padding:11px 14px;min-height:42px;border:1px solid #9c5959;border-radius:8px;background:transparent;color:#f5f1e8;text-decoration:none;font:700 13px system-ui,sans-serif;cursor:pointer;white-space:nowrap}.account-secondary:hover{background:#462323}.account-form .account-submit{width:100%;margin-top:5px}.account-remove{margin-top:16px}.account-small{font-size:12px;color:#aaa29b;line-height:1.65;margin-top:17px!important}.account-empty{padding:30px 16px;text-align:center;border:1px dashed #ffffff40;border-radius:12px}.account-empty h3{margin:8px 0}.account-empty p{color:#bcb4ab;line-height:1.6;font-size:14px;margin-bottom:18px}.empty-emblem{font-size:30px;color:#dd8989}.account-feedback{background:#281a1a;border-left:3px solid #a61e1e;border-radius:7px;padding:14px 16px;margin-bottom:24px;color:#f3dbd7;font-size:14px}.account-help h2{margin:10px 0 14px}.account-help .account-secondary{margin-top:20px}.account-signin{max-width:590px;margin:10px auto 0;text-align:center}.account-signin .account-panel{text-align:left;margin-top:30px}.account-signin .account-login h2{margin-bottom:13px}.account-signin .account-login .account-submit{width:100%;margin-top:22px}
+.account-manage{margin-top:16px;padding-top:13px;border-top:1px solid #ffffff1d}.server-picture{width:48px;height:48px;border-radius:10px;object-fit:cover;flex:none;margin-right:12px}.share-server{margin-top:18px}.share-server>h3{margin:0 0 10px}.share-libs{border:0;padding:0;margin:4px 0 12px;display:flex;flex-wrap:wrap;gap:8px 16px}.share-libs legend{padding:0;margin-bottom:8px;font-size:13px;color:#cfc6bb}.share-libs label{display:flex;align-items:center;gap:7px;font-size:14px}.share-actions{display:flex;gap:10px;align-items:center}.account-manage summary{cursor:pointer;color:#e8d7d2;font-size:13px;font-weight:750;list-style-position:inside}.account-manage-body{margin-top:15px}.account-form{display:grid;gap:10px;margin-top:16px}.account-form label{color:#ddd4ca;font-weight:700;font-size:13px}.account-form input{min-width:0;width:100%;background:#0d0d0d;border:1px solid #ffffff42;border-radius:8px;color:#fff;font:inherit;padding:12px;min-height:46px}.account-form input:focus-visible{outline:2px solid #ec8888;outline-offset:2px}.account-form-row{display:flex;align-items:center;gap:9px}.account-secondary{display:inline-flex;justify-content:center;align-items:center;padding:11px 14px;min-height:42px;border:1px solid #9c5959;border-radius:8px;background:transparent;color:#f5f1e8;text-decoration:none;font:700 13px system-ui,sans-serif;cursor:pointer;white-space:nowrap}.account-secondary:hover{background:#462323}.account-form .account-submit{width:100%;margin-top:5px}.account-remove{margin-top:16px}.account-small{font-size:12px;color:#aaa29b;line-height:1.65;margin-top:17px!important}.account-empty{padding:30px 16px;text-align:center;border:1px dashed #ffffff40;border-radius:12px}.account-empty h3{margin:8px 0}.account-empty p{color:#bcb4ab;line-height:1.6;font-size:14px;margin-bottom:18px}.empty-emblem{font-size:30px;color:#dd8989}.account-feedback{background:#281a1a;border-left:3px solid #a61e1e;border-radius:7px;padding:14px 16px;margin-bottom:24px;color:#f3dbd7;font-size:14px}.account-help h2{margin:10px 0 14px}.account-help .account-secondary{margin-top:20px}.account-signin{max-width:590px;margin:10px auto 0;text-align:center}.account-signin .account-panel{text-align:left;margin-top:30px}.account-signin .account-login h2{margin-bottom:13px}.account-signin .account-login .account-submit{width:100%;margin-top:22px}
 @media(max-width:850px){.account-dashboard{grid-template-columns:1fr}.account-main{padding:42px 0 65px}}@media(max-width:520px){.account-panel{padding:20px}.account-stats>div{padding:12px}.account-form-row{flex-direction:column;align-items:stretch}.account-form-row button{width:100%}.account-top .account-open{width:100%}.account-main h1{font-size:40px}}@media(prefers-reduced-motion:reduce){.account-open,.account-submit{transition:none}.account-open:hover,.account-submit:hover{transform:none}}
 `;
 // ---------------------------------------------------------------------------
@@ -959,9 +963,9 @@ async function deviceMe(req,env) {
  if(!auth)return json({error:'unauthorized'},401);
  const pro=await proStatus(env,auth.user.id);
  const servers=(await listServers(env,auth.user.id)).filter(s=>s.status==='paired'&&s.server_identity)
-  .map(s=>({id:s.id,server_identity:s.server_identity,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s),role:'owner'}));
+  .map(s=>({id:s.id,server_identity:s.server_identity,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s),role:'owner',icon_url:serverIconUrl(s)}));
  for(const s of await sharedServers(env,auth.user.id))
-  servers.push({id:s.id,server_identity:s.server_identity,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s),role:'barnacle',owner_name:s.owner_name||''});
+  servers.push({id:s.id,server_identity:s.server_identity,display_name:s.display_name,online:!!s.online,remote_address:serverOrigin(env,s),role:'barnacle',owner_name:s.owner_name||'',icon_url:serverIconUrl(s)});
  return json({user:auth.user,device:auth.device,pro:{active:pro.active,until:pro.until},servers});
 }
 
@@ -1083,6 +1087,51 @@ async function ownedServer(env,userId,ref) {
  // Owner-only for now. Shared access will add a server_members table and check it here.
  return env.ACCOUNTS.prepare("SELECT id,server_identity,public_url,public_ip,display_name FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL AND (id=? OR server_identity=?)").bind(userId,id,id).first();
 }
+// ---- Server pictures ----------------------------------------------------------
+// An owner can set a PNG for each server; it is shown to them and to the people
+// they share it with. Served at versioned addresses so it can be cached.
+const SERVER_ICON_MAX=256*1024;
+function serverIconUrl(s){return s?.icon_version?ACCOUNTS_SITE+'/api/server-icons/'+s.id+'.png?v='+s.icon_version:null;}
+function pngSize(bytes){
+ const sig=[137,80,78,71,13,10,26,10];
+ if(bytes.length<33||!sig.every((b,i)=>bytes[i]===b))return null;
+ if(String.fromCharCode(bytes[12],bytes[13],bytes[14],bytes[15])!=='IHDR')return null;
+ const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ return {width:v.getUint32(16),height:v.getUint32(20)};
+}
+async function serverIconImage(req,env,id) {
+ if(!/^[A-Za-z0-9-]{8,64}$/.test(id))return new Response('Not found',{status:404});
+ const row=await env.ACCOUNTS.prepare("SELECT png FROM server_icons WHERE server_id=?").bind(id).first();
+ if(!row)return new Response('Not found',{status:404,headers:{'cache-control':'no-store'}});
+ const body=row.png instanceof ArrayBuffer?row.png:new Uint8Array(row.png).buffer;
+ return new Response(body,{headers:{'content-type':'image/png','cache-control':'public, max-age=31536000, immutable',
+  'x-content-type-options':'nosniff','content-security-policy':"default-src 'none'; sandbox",'cross-origin-resource-policy':'cross-origin'}});
+}
+async function accountServerIcon(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return redirect('/account');
+ if(!sameSiteForm(req))return json({error:'forbidden'},403);
+ const done=v=>redirect('/account?picture='+v+'#servers');
+ if(Number(req.headers.get('content-length')||0)>SERVER_ICON_MAX+20000)return done('too_large');
+ let form;try{form=await req.formData();}catch(_){return done('invalid');}
+ const server=await env.ACCOUNTS.prepare("SELECT id FROM servers WHERE id=? AND owner_user_id=?").bind(String(form.get('id')||''),user.id).first();
+ if(!server)return done('not_found');
+ if(form.get('action')==='remove'){
+  await env.ACCOUNTS.prepare("DELETE FROM server_icons WHERE server_id=?").bind(server.id).run();
+  return done('removed');
+ }
+ const file=form.get('picture');
+ if(!file||typeof file.arrayBuffer!=='function')return done('invalid');
+ const bytes=new Uint8Array(await file.arrayBuffer());
+ if(bytes.length>SERVER_ICON_MAX)return done('too_large');
+ const size=pngSize(bytes);
+ if(!size)return done('not_png');
+ if(size.width<32||size.height<32||size.width>2048||size.height>2048)return done('size');
+ await env.ACCOUNTS.prepare("INSERT INTO server_icons(server_id,png) VALUES(?,?) ON CONFLICT(server_id) DO UPDATE SET png=excluded.png,version=server_icons.version+1,updated_at=CURRENT_TIMESTAMP").bind(server.id,bytes).run();
+ await audit(env,user.id,'server_picture_set',server.id,req);
+ return done('saved');
+}
+
 // ---- Barnacles: people the owner shares a server with --------------------------
 // A barnacle has their own (free) Yarr account and no media; they watch the
 // owner's chosen libraries under the owner's Pro, with their own watch history.
@@ -1099,7 +1148,7 @@ async function serverAccess(env,userId,ref) {
  return {server:row,role:'barnacle',owner_user_id:row.owner_user_id,libraries:shareLibraryIds(row.library_ids)};
 }
 async function sharedServers(env,userId) {
- return (await env.ACCOUNTS.prepare("SELECT servers.id,servers.server_identity,servers.public_url,servers.public_ip,servers.display_name,servers.last_seen_at,CASE WHEN servers.last_seen_at>=datetime('now','-3 minutes') THEN 1 ELSE 0 END AS online,users.display_name AS owner_name FROM server_shares JOIN servers ON servers.id=server_shares.server_id JOIN users ON users.id=server_shares.owner_user_id WHERE server_shares.barnacle_user_id=? AND server_shares.status='active' AND servers.status='paired' AND servers.server_identity IS NOT NULL ORDER BY server_shares.accepted_at DESC").bind(userId).all()).results||[];
+ return (await env.ACCOUNTS.prepare("SELECT servers.id,servers.server_identity,servers.public_url,servers.public_ip,servers.display_name,servers.last_seen_at,CASE WHEN servers.last_seen_at>=datetime('now','-3 minutes') THEN 1 ELSE 0 END AS online,users.display_name AS owner_name,(SELECT version FROM server_icons WHERE server_icons.server_id=servers.id) AS icon_version FROM server_shares JOIN servers ON servers.id=server_shares.server_id JOIN users ON users.id=server_shares.owner_user_id WHERE server_shares.barnacle_user_id=? AND server_shares.status='active' AND servers.status='paired' AND servers.server_identity IS NOT NULL ORDER BY server_shares.accepted_at DESC").bind(userId).all()).results||[];
 }
 async function passRequest(req,env) {
  let who=await deviceFromRequest(req,env);
@@ -1201,6 +1250,7 @@ async function accountDelete(req,env) {
  if(form.get('confirm')!=='DELETE')return redirect('/account?delete=confirm');
  await audit(env,null,'account_deleted',await digest('user\0'+user.id),req);
  const cleanupStatements=[env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE owner_user_id=?").bind(user.id),
+  env.ACCOUNTS.prepare("DELETE FROM server_icons WHERE server_id IN (SELECT id FROM servers WHERE owner_user_id=?)").bind(user.id),
   env.ACCOUNTS.prepare("DELETE FROM server_shares WHERE owner_user_id=? OR barnacle_user_id=? OR (barnacle_user_id IS NULL AND invite_email=?) OR server_id IN (SELECT id FROM servers WHERE owner_user_id=?)").bind(user.id,user.id,String(user.email||'').trim().toLowerCase(),user.id)];
  if(env.YARR_STRIPE_TEST_ENABLED==='1'||env.YARR_ONE_TIME_PRO_ENABLED==='1'){
   // Delete account identity and its usable Pro license while retaining a
@@ -1223,7 +1273,7 @@ async function accountShares(env,user) {
  const [servers,outgoing,incoming]=await Promise.all([
   env.ACCOUNTS.prepare("SELECT id,display_name,libraries_json FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL ORDER BY created_at").bind(user.id).all().then(r=>r.results||[]),
   env.ACCOUNTS.prepare("SELECT server_shares.id,server_shares.server_id,server_shares.invite_email,server_shares.status,server_shares.library_ids,users.display_name AS barnacle_name FROM server_shares LEFT JOIN users ON users.id=server_shares.barnacle_user_id WHERE server_shares.owner_user_id=? ORDER BY server_shares.created_at").bind(user.id).all().then(r=>r.results||[]),
-  env.ACCOUNTS.prepare("SELECT server_shares.id,server_shares.status,server_shares.server_id,servers.display_name AS server_name,users.display_name AS owner_name,users.email AS owner_email FROM server_shares JOIN servers ON servers.id=server_shares.server_id JOIN users ON users.id=server_shares.owner_user_id WHERE server_shares.barnacle_user_id=? OR (server_shares.barnacle_user_id IS NULL AND server_shares.status='pending' AND server_shares.invite_email=?) ORDER BY server_shares.created_at").bind(user.id,email).all().then(r=>r.results||[])
+  env.ACCOUNTS.prepare("SELECT server_shares.id,server_shares.status,server_shares.server_id,servers.display_name AS server_name,users.display_name AS owner_name,users.email AS owner_email,(SELECT version FROM server_icons WHERE server_icons.server_id=servers.id) AS icon_version FROM server_shares JOIN servers ON servers.id=server_shares.server_id JOIN users ON users.id=server_shares.owner_user_id WHERE server_shares.barnacle_user_id=? OR (server_shares.barnacle_user_id IS NULL AND server_shares.status='pending' AND server_shares.invite_email=?) ORDER BY server_shares.created_at").bind(user.id,email).all().then(r=>r.results||[])
  ]);
  return {servers:servers.map(s=>({...s,libraries:cleanServerLibraries((()=>{try{return JSON.parse(s.libraries_json||'null')}catch(_){return null}})())})),outgoing,incoming};
 }
@@ -1286,7 +1336,7 @@ function sharedWithYouPanelHTML(extra) {
  return '<section class="account-panel" id="shared-with-you"><div class="panel-top"><div><p class="account-kicker">Barnacle</p><h2>Shared with you</h2></div></div><div class="account-server-list">'+list.map(x=>{
   const from=escapeHTML(x.owner_name||x.owner_email||'Someone');
   const action=(name,label,cls)=>'<form method="post" action="/account/shares"><input type="hidden" name="action" value="'+name+'"><input type="hidden" name="id" value="'+escapeHTML(x.id)+'"><button class="'+cls+'" type="submit">'+label+'</button></form>';
-  return '<article class="account-server"><div class="account-server-header"><div><h3>'+escapeHTML(x.server_name)+'</h3><p class="account-note">'+
+  return '<article class="account-server"><div class="account-server-header">'+(x.icon_version?'<img class="server-picture" src="/api/server-icons/'+escapeHTML(x.server_id)+'.png?v='+x.icon_version+'" alt="" width="48" height="48">':'')+'<div><h3>'+escapeHTML(x.server_name)+'</h3><p class="account-note">'+
    (x.status==='active'?'Shared by '+from:from+' invited you to watch their library')+'</p>'+
    (x.status==='active'?'<p class="account-small"><a href="'+APP_SITE+'/__yarr/use?server='+escapeHTML(x.server_id)+'">Open in your browser</a> · or sign in on the Yarr Media TV app</p>':'')+'</div>'+
    (x.status==='active'?action('leave','Leave','account-text-button'):'<div class="share-actions">'+action('accept','Accept','account-submit')+action('decline','Decline','account-text-button')+'</div>')+
@@ -1354,7 +1404,7 @@ function devicesPanelHTML(extra) {
 }
 function remoteAddressFormHTML(s) {
  const detected=s.public_ip?'https://'+s.public_ip.replaceAll('.','-')+'.sslip.io':'';
- return '<p class="account-small">'+(s.public_url?'Using your custom address.':detected?'Reached at '+escapeHTML(detected)+' (found automatically).':'Address not found yet; it appears after the server checks in.')+' <a href="'+APP_SITE+'/">Open app.yarr.media</a></p>'+
+ return '<p class="account-small">'+(s.public_url?'Using your custom address.':detected?'Reached at '+escapeHTML(detected)+' (found automatically).':'Address not found yet; it appears after the server checks in.')+' <a href="'+APP_SITE+'/__yarr/use?server='+escapeHTML(s.id)+'">Open in your browser</a></p>'+
   '<p class="account-small"><a href="/account/servers/check?id='+escapeHTML(s.id)+'">Check remote access</a></p>'+
   '<form method="post" action="/account/servers/address" class="account-form"><input type="hidden" name="id" value="'+escapeHTML(s.id)+'"><label for="server-address-'+escapeHTML(s.id)+'">Custom HTTPS address (optional)</label><div class="account-form-row"><input id="server-address-'+escapeHTML(s.id)+'" maxlength="260" name="address" placeholder="Leave empty to use the automatic address" value="'+escapeHTML(s.public_url||'')+'"><button class="account-secondary" type="submit">Save address</button></div></form>';
 }
@@ -1363,6 +1413,8 @@ const ACCOUNT_MESSAGES={
  checkout:{success:'Stripe received your purchase. Your Pro status will update when the payment is confirmed.',cancel:'Checkout was cancelled; no test payment was made.'},
  device:{revoked:'That device has been signed out.',invalid:'That device could not be found.'},
  delete:{confirm:'Type DELETE to confirm account deletion.'},
+ picture:{saved:'Server picture saved. People you share with see it next time they open the server list.',removed:'Server picture removed.',
+  too_large:'That picture is over 256 KB. Try a smaller PNG.',not_png:'Choose a PNG file.',size:'Use a PNG between 32 and 2048 pixels on each side.',invalid:'That upload did not work. Try again.',not_found:'That server could not be found.'},
  share:{invited:'Invite saved. Ask them to sign in at yarr.media with that Google account and accept it under Shared with you.',
   updated:'Libraries updated. It takes effect within the hour on devices that are already watching.',
   removed:'Barnacle removed. Devices that are already watching lose access within the hour.',
@@ -1497,6 +1549,18 @@ async function appServerFor(env,user,chosen='') {
  const shared=(await sharedServers(env,user.id))[0];
  return shared?serverAccess(env,user.id,shared.id):null;
 }
+// app.yarr.media/__yarr/servers: every server this account can open, for the
+// in-app server switcher (shown only when there is more than one).
+async function appServerList(req,env) {
+ const user=await currentUser(req,env);
+ if(!user)return json({error:'signin'},401);
+ const own=(await env.ACCOUNTS.prepare("SELECT id,display_name,CASE WHEN last_seen_at>=datetime('now','-3 minutes') THEN 1 ELSE 0 END AS online,(SELECT version FROM server_icons WHERE server_icons.server_id=servers.id) AS icon_version FROM servers WHERE owner_user_id=? AND status='paired' AND server_identity IS NOT NULL ORDER BY created_at").bind(user.id).all()).results||[];
+ const icon=s=>s.icon_version?'/__yarr/server-icons/'+s.id+'.png?v='+s.icon_version:null;
+ const servers=own.map(s=>({id:s.id,name:s.display_name,role:'owner',owner_name:'',online:!!s.online,icon_url:icon(s)}))
+  .concat((await sharedServers(env,user.id)).map(s=>({id:s.id,name:s.display_name,role:'barnacle',owner_name:s.owner_name||'',online:!!s.online,icon_url:icon(s)})));
+ const current=await appServerFor(env,user,getCookie(req,APP_SERVER_COOKIE)||'');
+ return new Response(JSON.stringify({current:current?.server.id||null,servers}),{headers:{'content-type':'application/json','cache-control':'no-store'}});
+}
 // app.yarr.media/__yarr/use?server=ID: open that server (yours or one shared with you).
 async function appUseServer(req,env,u) {
  const user=await currentUser(req,env);
@@ -1528,6 +1592,8 @@ async function appHostRoutes(req,env,u) {
  if(p==='/__yarr/sw.js'&&m==='GET')return new Response(APP_SW_SOURCE,{headers:{'content-type':'text/javascript; charset=utf-8','cache-control':'no-cache','service-worker-allowed':'/','x-content-type-options':'nosniff'}});
  if(p==='/__yarr/connection'&&m==='GET')return appConnection(req,env,u);
  if(p==='/__yarr/use'&&m==='GET')return appUseServer(req,env,u);
+ if(p==='/__yarr/servers'&&m==='GET')return appServerList(req,env);
+ if(p.startsWith('/__yarr/server-icons/')&&p.endsWith('.png')&&(m==='GET'||m==='HEAD'))return serverIconImage(req,env,p.slice(21,-4));
  if(p.startsWith('/__yarr/'))return json({error:'not_found'},404);
  if(p==='/account'||p.startsWith('/account/')||p.startsWith('/auth/'))return redirect(ACCOUNTS_SITE+p+u.search);
  // Without the service worker yet (first visit, or a cleared browser): start it.
@@ -1560,6 +1626,8 @@ async function accountsV2Routes(req,env,u) {
  if(m==='GET'&&p==='/remote/open')return remoteOpen(req,env);
  if(m==='POST'&&p==='/account/devices')return accountDevicesAction(req,env);
  if(m==='POST'&&p==='/account/shares')return accountSharesAction(req,env);
+ if(m==='POST'&&p==='/account/servers/picture')return accountServerIcon(req,env);
+ if((m==='GET'||m==='HEAD')&&p.startsWith('/api/server-icons/')&&p.endsWith('.png'))return serverIconImage(req,env,p.slice(18,-4));
  if(m==='POST'&&p==='/account/servers/address')return accountRemoteAddress(req,env);
  if(m==='GET'&&p==='/account/servers/check')return accountReachability(req,env,u);
  if((m==='GET'||m==='HEAD')&&p==='/install.sh'&&!u.hostname.startsWith('app.'))return installScript(req,env,'deploy/install.sh','text/x-shellscript');

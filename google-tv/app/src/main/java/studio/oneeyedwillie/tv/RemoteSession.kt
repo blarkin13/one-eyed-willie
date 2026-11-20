@@ -53,6 +53,29 @@ object RemoteSession {
         return usable.singleOrNull { it.online }
     }
 
+    /** One row of the server switcher. [local] rows open the server on this
+     *  network (falling back to the account when away); others open [serverId]
+     *  through yarr.media. */
+    data class Entry(val name: String, val detail: String, val serverId: String?, val local: Boolean, val iconUrl: String?)
+
+    /** The switcher's rows: this TV's own home server appears once (opened on
+     *  the local network when it can be), then servers shared with you. */
+    fun entries(choices: List<YarrAccount.RemoteServer>, homeIdentity: String?, hasLocal: Boolean): List<Entry> {
+        val rows = choices.map { s ->
+            val home = hasLocal && s.role != "barnacle" && !homeIdentity.isNullOrBlank() && s.identity == homeIdentity
+            Entry(s.name.ifBlank { "Yarr Media server" },
+                (if (s.role == "barnacle") "Shared by " + s.ownerName.ifBlank { "a friend" } else "Yours") +
+                    (if (s.online) "" else " · offline"),
+                s.id, home, s.iconUrl)
+        }
+        return if (hasLocal && rows.none { it.local })
+            listOf(Entry("Server on this network", "Yours", null, true, null)) + rows else rows
+    }
+
+    /** Which row is open now: the remote server in use, otherwise the local one. */
+    fun currentEntry(rows: List<Entry>, remoteServerId: String?): Entry? =
+        if (remoteServerId != null) rows.firstOrNull { it.serverId == remoteServerId } else rows.firstOrNull { it.local }
+
     /** Servers worth offering in Choose server (they have an address). */
     fun choices(servers: List<YarrAccount.RemoteServer>) = servers.filter { !it.remoteAddress.isNullOrBlank() }
 
@@ -85,6 +108,8 @@ object RemoteSession {
     // ---- State -------------------------------------------------------------------
 
     fun current(): Active? = active
+
+    fun homeIdentity(context: Context): String? = prefs(context).getString("home_identity", null)
 
     /** True when [origin] is the server this TV is watching remotely. */
     fun isRemote(context: Context, origin: String): Boolean =
