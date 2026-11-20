@@ -191,7 +191,7 @@ class TvHomeFitTests(unittest.TestCase):
         self.assertEqual(page.locator("#recent-tv .tile-button").count(), 1)
         self.assertEqual(
             page.locator("#recent-library-3 .tile-button").first.get_attribute("href"),
-            "/movies?library_id=3&key=k92"
+            "/movie?library_id=3&key=k92"
         )
 
     def test_first_selected_poster_is_not_clipped_at_left_edge(self):
