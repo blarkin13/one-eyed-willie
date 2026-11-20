@@ -140,13 +140,18 @@ async function replyToThread(request,env,thread){
  * Forward first; a storage error must never silently drop a customer email.
  */
 export async function receiveSupportMail(message,env){
- const alias=String(message.to||'').toLowerCase().trim();
+ const recipient=String(message.to||'').toLowerCase().trim();
+ // Temporary, non-public acceptance alias: only the exact synthetic subject is archived.
+ // It appears in the Support mailbox while retaining its original envelope recipient.
+ const pilot=env.SUPPORT_MAIL_TEST_ALIAS_ENABLED==='true'&&recipient==='mail-test@yarr.media';
+ const alias=pilot?'support@yarr.media':recipient;
  const forward=env.SUPPORT_MAIL_FORWARD_TO;
  if(!forward||!emailOnly(forward))throw Error('Mail forwarding destination is not configured');
  // A forwarding failure must reach Cloudflare so the SMTP sender gets a
  // retry/bounce. Storage failures after forwarding must NOT cause re-forwarding.
  await message.forward(forward);
  if(!ALIASES.has(alias)||env.SUPPORT_MAIL_INBOX_ENABLED!=='true'||!storeConfigured(env))return;
+ if(pilot&&safeMailHeader(message.headers.get('subject')).trim()!=='Yarr mailbox acceptance test')return;
  try{
   if(!Number.isFinite(message.rawSize)||message.rawSize>5*1024*1024)return;
   const sender=emailOnly(message.headers.get('reply-to'))||emailOnly(message.from);
@@ -166,7 +171,7 @@ export async function receiveSupportMail(message,env){
   if(Number(occupied?.bytes||0)+raw.byteLength>200*1024*1024)return;
   if(headerId){
    const duplicate=await db.prepare("SELECT id FROM support_mail_messages WHERE recipient=? AND message_id=? AND direction='incoming'")
-    .bind(alias,headerId).first();
+    .bind(recipient,headerId).first();
    if(duplicate)return;
   }
   let existing=null,candidate=null;
@@ -190,7 +195,7 @@ export async function receiveSupportMail(message,env){
    }
    statements.push(db.prepare(
     'INSERT INTO support_mail_messages (id,thread_id,direction,sender,recipient,subject,body_text,message_id,in_reply_to,provider_id,raw_key,raw_size,status,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-   ).bind(id,threadId,'incoming',sender,alias,subject,mimeText(raw),headerId,candidate,null,key,raw.length,'received',ts,ts));
+   ).bind(id,threadId,'incoming',sender,recipient,subject,mimeText(raw),headerId,candidate,null,key,raw.length,'received',ts,ts));
    statements.push(db.prepare('UPDATE support_mail_threads SET updated_at=?,status=\'open\' WHERE id=?').bind(ts,threadId));
    // Cloudflare D1.batch is a transaction; no partial empty thread rows.
    await db.batch(statements);

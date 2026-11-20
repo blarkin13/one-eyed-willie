@@ -41,3 +41,17 @@ test('owner workspace links appear only for the configured site owner',async()=>
  for(const alias of ['support','billing','privacy','legal'])assert.ok(privacy.includes('mailto:'+alias+'@yarr.media'));
  assert.match(privacy,/Customer correspondence/);
 });
+
+test('private workspace uses standard Yarr branding, footer and active navigation',async()=>{
+ const worker=await loadWorker(),env=makeEnv({YARR_OWNER_ACCOUNT_ID:'owner'});
+ const owner=await signedInUser(env,{id:'owner'});
+ for(const path of ['/owner/','/mail/']){
+ const res=await request(worker,env,'GET',root+path,{headers:{cookie:owner.cookie}});assert.equal(res.status,200);const html=await res.text();
+ assert.match(html,/<header class="site-header"/);assert.match(html,/<footer class="site-footer"/);
+ assert.match(html,/<span class="site-brand-label">YARR/);assert.match(html,/account-main owner-main/);
+ assert.ok(html.includes('href="'+path+'" aria-current="page"'));
+ assert.match(html,/<meta name="robots" content="noindex,nofollow,noarchive">/);
+ assert.doesNotMatch(html,/<link rel="canonical"/);assert.equal(res.headers.get('cache-control'),'no-store');
+ for(const alias of ['support','billing','privacy','legal'])assert.ok(html.includes('mailto:'+alias+'@yarr.media">'+alias+'@yarr.media'));
+ }
+});
