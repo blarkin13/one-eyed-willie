@@ -113,9 +113,9 @@ html,body{max-width:100%}
 `;
 /* Shared metadata for every public marketing, legal, and setup-guide page.
    Account and app pages have no public canonical URL and remain noindex. */
-const SEO_ARTWORK=PUBLIC_SITE+'/assets/yarr-media-og-v2.jpg';
-const SEO_ORG_ID=PUBLIC_SITE+'/#organization';
-const SEO_WEBSITE_ID=PUBLIC_SITE+'/#website';
+const SEO_ARTWORK='https://yarr.media/assets/yarr-media-og-v2.jpg';
+const SEO_ORG_ID='https://yarr.media/#organization';
+const SEO_WEBSITE_ID='https://yarr.media/#website';
 function seoPlain(value){
  return String(value||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"')
   .replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>');
