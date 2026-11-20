@@ -407,13 +407,7 @@ function renderBrowse(){
   songs.append(trackTable(sorted,{album:true,artist:true,thumb:true}));
  }
  buildAlpha(letters);
- showFirstBackdrop();
-}
-function showFirstBackdrop(tries=0){
- if(!window.__willieShowBackdrop){if(tries<20)setTimeout(()=>showFirstBackdrop(tries+1),100);return}
- if(window.__willieBackdropElement()?.isConnected&&!$('browse').hidden&&$('browse').contains(window.__willieBackdropElement()))return;
- const first=$('browse').querySelector('#items .tile-button,#song-list tr.row');
- if(first)window.__willieShowBackdrop(first);
+
 }
 function buildAlpha(letters){
  const nav=$('alpha-nav');nav.replaceChildren();
