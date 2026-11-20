@@ -1,0 +1,28 @@
+name: Yarr owner smoke
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/yarr-owner-links-and-smoke]
+jobs:
+  owner-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test owner workspace plus all account routes
+        run: node --test --no-warnings cloudflare/yarr/test/*.test.mjs
+      - name: Verify live public homepage and private route authorization
+        run: |
+          set -eu
+          check() {
+            code=$(curl -sS --max-time 15 -o /dev/null -w '%{http_code}' "https://yarr.media$1")
+            printf '%s -> %s\n' "$1" "$code"
+            test "$code" = "$2"
+          }
+          check / 200
+          check /owner/ 303
+          check /mail/ 303
+          check /api/support-mail/threads 404
+          check /mail/mail.js 404

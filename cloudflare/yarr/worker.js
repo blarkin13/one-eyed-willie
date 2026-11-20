@@ -61,7 +61,7 @@ const page = `<!doctype html>
 <div class="tile"><b>02 / ORGANIZE</b><h3>Add your collections</h3><p>Choose media folders and let Yarr Media assemble your libraries.</p></div>
 <div class="tile"><b>03 / ENJOY</b><h3>Watch locally</h3><p>Stream on your home network. Pro remote connectivity is being developed.</p></div></div></section>
 <section id="availability" class="section reveal"><div class="eyebrow">Get Yarr Media</div><h2>Yarr Media downloads are available.</h2><div class="launch"><strong>Install the server and Google TV app from the Downloads section below.</strong><p>Self-host Yarr Media for free, or purchase Pro for account-linked remote access. Media files are not included.</p></div></section></main>
-<footer class="footer"><div><div class="footer-title">Yarr Media</div><div>Your collection. Your server.</div><small>Free local streaming. Optional $29 one-time Pro upgrade.</small></div><div><div class="footer-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a><a href="/how2s">Setup guides</a></div><div><div class="footer-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="footer-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a><a href="/refunds">Refund Policy</a></div></footer>
+<footer class="footer"><div><div class="footer-title">Yarr Media</div><div>Your collection. Your server.</div><small>Free local streaming. Optional $29 one-time Pro upgrade.</small></div><div><div class="footer-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a><a href="/how2s">Setup guides</a></div><div><div class="footer-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="footer-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a><a href="/refunds">Refund Policy</a></div><div><div class="site-foot-title">Contact</div><a href="mailto:support@yarr.media">Support</a><a href="mailto:billing@yarr.media">Billing</a><a href="mailto:privacy@yarr.media">Privacy</a><a href="mailto:legal@yarr.media">Legal</a></div></footer>
 </div></body></html>`;
 
 
@@ -79,7 +79,7 @@ const SITE_CHROME_CSS = `
 .site-nav{display:flex;align-items:center;gap:22px;flex-wrap:wrap}.site-nav a{color:#d9d3c9;text-decoration:none;font-size:14px;font-weight:500}.site-nav a:hover{color:#fff}
 .site-actions{display:flex;align-items:center;gap:10px}.site-actions a{display:inline-flex;justify-content:center;align-items:center;padding:10px 14px;min-height:42px;border-radius:8px;border:1px solid #ffffff48;text-decoration:none;color:#f5f1e8;font-size:13px;font-weight:750;white-space:nowrap;transition:background .2s ease,transform .2s ease}
 .site-actions a:hover{background:#ffffff18;transform:translateY(-2px)}.site-actions .site-app-link{background:#a61e1e;color:white;border-color:#a61e1e}.site-actions .site-app-link:hover{background:#c32c2c}
-.site-footer{border-top:1px solid #ffffff29;padding:34px 0 45px;color:#aaa49b;font-size:13px;display:grid;grid-template-columns:1.35fr repeat(3,minmax(0,1fr));gap:24px}
+.site-footer{border-top:1px solid #ffffff29;padding:34px 0 45px;color:#aaa49b;font-size:13px;display:grid;grid-template-columns:1.35fr repeat(4,minmax(0,1fr));gap:24px}
 .site-footer .site-foot-title{color:#f5f1e8;font-size:14px;font-weight:800;margin:0 0 12px}.site-footer a{display:block;color:#c8c2b9;text-decoration:none;margin:9px 0;line-height:1.5}.site-footer a:hover{text-decoration:underline;text-decoration-color:#a61e1e;color:#fff}
 .site-footer small{display:block;margin-top:12px;color:#999188;line-height:1.6}
 .site-header a:focus-visible,.site-footer a:focus-visible{outline:2px solid #ef9393;outline-offset:4px}
@@ -224,6 +224,8 @@ const LEGAL_PAGE_DATA = {
  ['Signed-in TVs and apps','When you sign in a TV or app with a code, the account stores the device name, type, app version, sign-in date and last-used date, plus a hashed credential. You can sign a device out at any time from My Account.'],
  ['Remote access','When you open your server remotely, the website issues a short-lived signed pass naming your account and server. Your media streams directly between your server and your device; it is not stored on the website.'],
  ['Payments','One-time Pro purchases are processed by Stripe. Card details are entered with Stripe and are not received by Yarr Media. We retain purchase references, payment and tax amounts, and entitlement status to manage Pro, refunds, and required business records.'],
+ ['Customer correspondence','When you contact Yarr Media about support, billing, privacy or legal matters, we receive the information you choose to send, including your email address, message and attachments. We use it to respond, manage requests or disputes and meet our legal obligations. For access, correction or deletion inquiries contact privacy@yarr.media.'],
+ ['Website statistics','We count requests to public website pages in aggregate, without recording individual visitor identifiers in those counters. Published download totals are based on aggregate software release download counts.'],
  ['Security records','Sign-ins, device approvals, plan changes and account deletion are logged with a one-way hash of the network address, and kept for up to one year.'],
  ['Retention and deletion','Sessions expire after seven days and device credentials after one year unless renewed. You can permanently delete your account from My Account; this removes any Pro license, signs out every device and unlinks your servers. A minimal, anonymized deletion record and purchase and tax records required by law may be kept.'],
  ['Your choices','You can sign out, sign out individual devices, or delete your account at any time from My Account.'],
@@ -757,13 +759,14 @@ function serverCardsHTML(servers) {
   return '<article class="account-server"><div class="account-server-header"><div><h3>'+escapeHTML(s.display_name)+'</h3><p class="account-note">'+description+'</p></div><span class="server-status '+statusClass+'"><span class="status-dot" aria-hidden="true"></span>'+state+'</span></div><details class="account-manage"><summary>Manage server</summary><div class="account-manage-body">'+rename+address+remove+'</div></details></article>';
  }).join('')+'</div>';
 }
-function accountHTML(user,enabled,message='',servers=[],extra=null) {
+function accountHTML(user,enabled,message='',servers=[],extra=null,isOwner=false) {
  const signedIn=!!user,title=signedIn?'My Account':'Sign in to Yarr Media';
  const paired=servers.filter(s=>s.status==='paired'&&!!s.server_identity),online=paired.filter(s=>!!s.online);
  const feedback=message?'<div class="account-feedback" role="status">'+escapeHTML(message)+'</div>':'';
  const main=signedIn?
   '<div class="account-top"><div><p class="account-kicker">Account overview</p><h1>My Account</h1><p class="account-subtitle">Manage your profile and connected home servers.</p></div></div>'+
   feedback+
+  (isOwner?'<section class="account-panel" aria-label="Owner workspace"><h2>Owner workspace</h2><p><a class="account-secondary" href="https://yarr.media/owner/">Owner dashboard</a> <a class="account-secondary" href="https://yarr.media/mail/">Yarr Mail</a></p></section>':'')+
   '<div class="account-dashboard">'+
   '<div class="account-primary-column">'+
    '<section class="account-panel" id="profile"><div class="panel-top"><div><p class="account-kicker">Profile</p><h2>Account details</h2></div><span class="account-label">Google account</span></div><div class="account-profile"><div class="account-avatar" aria-hidden="true">'+escapeHTML((user.display_name||user.email||'Y').trim().charAt(0).toUpperCase())+'</div><div><strong>'+escapeHTML(user.display_name||'Yarr Media member')+'</strong><p>'+escapeHTML(user.email||'')+'</p></div></div><div class="account-profile-actions"><span>Your account is used to identify and pair your servers.</span><form method="post" action="/auth/logout"><button type="submit" class="account-text-button">Sign out</button></form></div></section>'+
@@ -1533,7 +1536,7 @@ export default { async fetch(req,env,ctx) {
    const servers=user?await listServers(env,user.id):[];
    const extra=user?await accountExtras(env,user):null;
    const shown=accountMessage(u)||message2||(u.searchParams.get('account')==='deleted'?'Your account has been deleted.':'');
-   return html(accountHTML(user,authReady(env),shown,servers,extra),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com")});
+   return html(accountHTML(user,authReady(env),shown,servers,extra,ownerAllowed(user,env)),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com")});
   }
   if(req.method==='GET'||req.method==='HEAD') {
    if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /owner/\nDisallow: /mail/\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
