@@ -80,6 +80,12 @@
 .glance-config-detail input,.glance-config-detail select{max-width:280px;min-height:44px;
  background:#111;color:#eee;border:1px solid #555;border-radius:9px;padding:9px}
 .glance-config-grid :focus-visible,.glance-config-detail :focus-visible{outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:3px}
+.glance-weather-test{min-height:44px;padding:10px 17px;border-radius:9px;
+ border:1px solid #8a8a8a;background:#151515;color:#f5f5f5;font:inherit;font-weight:700;cursor:pointer}
+.glance-weather-test:focus-visible{outline:2px solid var(--oew-tv-select-color,#A61E1E);outline-offset:3px}
+.glance-weather-test:disabled{opacity:.55;cursor:wait}
+.glance-weather-result{margin:9px 0;color:#d6e2e3;font-size:.9rem;line-height:1.5}
+.glance-weather-result:empty{display:none}
 
 @media(max-width:700px){
  .connection-item>summary{padding:13px;gap:10px;flex-wrap:wrap}
@@ -489,11 +495,33 @@ function addGlanceIntegrationCards(){
     [['60','1 minute'],['120','2 minutes'],['300','5 minutes'],['600','10 minutes']]);
   const feedback=document.createElement('p');feedback.className='message';
   feedback.setAttribute('role','status');feedback.setAttribute('aria-live','polite');
-  form.append(flags,settings,feedback);
+  let weatherTest=null,weatherResult=null;
+  if(def.id==='weather'){
+    weatherTest=document.createElement('button');weatherTest.type='button';
+    weatherTest.className='glance-weather-test';
+    weatherTest.textContent='Save ZIP & Test Forecast';
+    settings.append(weatherTest);
+    weatherResult=document.createElement('p');weatherResult.className='glance-weather-result';
+    weatherResult.setAttribute('role','status');weatherResult.setAttribute('aria-live','polite');
+  }
+  form.append(flags,settings);
+  if(weatherResult)form.append(weatherResult);
+  form.append(feedback);
   card.append(head,note,form);list.append(card);
-  glanceControls[def.id]={state,switches,options,form,feedback,saved:null};
-  form.addEventListener('submit',e=>e.preventDefault());
-  form.addEventListener('change',()=>saveGlanceSettings(def.id));
+  glanceControls[def.id]={state,switches,options,form,feedback,saved:null,weatherTest,weatherResult};
+  form.addEventListener('submit',event=>{
+    event.preventDefault();
+    if(def.id==='weather')saveWeatherAndTest();
+  });
+  form.addEventListener('change',event=>{
+    // TV virtual keyboards can submit ZIP input without firing a blur/change.
+    // An explicit save/test action handles Done, OK and pointer clicks.
+    if(def.id==='weather' && event.target?.name==='zip_code')return;
+    if(def.id==='weather' && event.target?.name==='enabled' && event.target.checked)
+      saveWeatherAndTest();
+    else saveGlanceSettings(def.id);
+  });
+  if(weatherTest)weatherTest.addEventListener('click',()=>saveWeatherAndTest());
  }
 }
 function renderGlanceSetting(id,value){
@@ -525,10 +553,37 @@ async function saveGlanceSettings(id){
   });
   renderGlanceSetting(id,updated);
   controls.feedback.textContent='Saved. Newly opened screens will use these settings.';
+  return updated;
  }catch(error){
   renderGlanceSetting(id,controls.saved);
   controls.feedback.textContent='Could not save: '+error.message;
+  return null;
  }finally{inputs.forEach(input=>input.disabled=false);}
+}
+async function saveWeatherAndTest(){
+ const controls=glanceControls.weather;
+ const zip=(controls.options.zip_code?.value||'').trim();
+ const feedback=controls.weatherResult;
+ if(!/^[0-9]{5}$/.test(zip)){
+   feedback.textContent='Enter a valid five-digit US ZIP code, then select Save ZIP & Test Forecast.';
+   // A failed enable must never leave the switch visually enabled.
+   if(controls.saved)controls.switches.enabled.checked=!!controls.saved.enabled;
+   controls.options.zip_code?.focus();
+   return;
+ }
+ controls.weatherTest.disabled=true;
+ feedback.textContent='Saving ZIP and checking the National Weather Service forecast…';
+ try{
+   const saved=await saveGlanceSettings('weather');
+   if(!saved){feedback.textContent='The ZIP was not saved. Check the error above and retry.';return;}
+   const data=await fetchJson('/api/glance/weather/preview?zip_code='+
+     encodeURIComponent(saved.zip_code),{cache:'no-store'});
+   feedback.textContent='ZIP saved: '+saved.zip_code+' · '+data.location+
+     ' · '+data.period+': '+data.temperature+'°'+data.unit+' · '+data.conditions+
+     '. Source: '+data.source+(saved.enabled?'. Weather is enabled.':'. Enable Weather above to display it.');
+ }catch(error){
+   feedback.textContent='ZIP saved, but forecast could not be checked: '+error.message;
+ }finally{controls.weatherTest.disabled=false;}
 }
 
 // Convert all integration cards into compact, keyboard-accessible rows.
@@ -565,12 +620,16 @@ function initConnectionDirectory(){
      const text=document.createElement('div');
      const title=document.createElement('strong');title.className='visibility-title';title.textContent='Integrations page';
      const note=document.createElement('p');note.className='visibility-explanation';
-     note.textContent='Hide this tile from the server and TVs without disconnecting the service.';
+     const optionalWidget=['clock','weather','news','ambient'].includes(serviceId);
+     note.textContent=optionalWidget
+       ?'This tile appears on the Integrations page only after you enable the widget above. Unchecking this hides that tile, not the widget itself.'
+       :'Hide this tile from the server and TVs without disconnecting the service.';
      text.append(title,note);
      const label=document.createElement('label');label.className='connection-visibility-label';
      const input=document.createElement('input');input.type='checkbox';input.checked=true;
      input.setAttribute('aria-label','Show '+title.textContent.replace('Integrations page',serviceId)+' in Integrations');
-     const labelText=document.createElement('span');labelText.textContent='Show in Integrations';
+     const labelText=document.createElement('span');
+     labelText.textContent=optionalWidget?'Show when enabled':'Show in Integrations';
      label.append(input,labelText);
      const feedback=document.createElement('p');feedback.className='connection-visibility-feedback';
      feedback.setAttribute('role','status');

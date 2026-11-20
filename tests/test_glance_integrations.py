@@ -33,7 +33,7 @@ class GlanceSettingsTests(unittest.TestCase):
         updated = glance.save_setting("clock", glance.WidgetConfig(
             enabled=True, home=False, pause=True, idle=False,
             clock_zone="America/Chicago", clock_format="24h"))
-        self.assertTrue(all_configs["ambient"]["enabled"])
+        self.assertFalse(all_configs["ambient"]["enabled"])
         self.assertEqual(all_configs["ambient"]["idle_timeout_seconds"], 120)
         self.assertTrue(updated["enabled"])
         self.assertFalse(updated["home"])
@@ -62,6 +62,29 @@ class GlanceSettingsTests(unittest.TestCase):
         self.assertEqual(ambient["idle_timeout_seconds"], 300)
         self.assertTrue(glance.one_setting("weather")["idle"])
 
+    def test_legacy_weather_enabled_without_zip_is_not_advertised(self):
+        with library.db() as conn:
+            glance._settings_table(conn)
+            conn.execute("INSERT INTO app_settings(key,value) VALUES(?,?)",
+                         ("glance_weather", '{"enabled":true,"zip_code":""}'))
+            conn.commit()
+        setting = glance.one_setting("weather")
+        self.assertFalse(setting["enabled"])
+        self.assertEqual(setting["zip_code"], "")
+
+    def test_widgets_appear_in_hub_only_after_setup_and_enable(self):
+        hub = (ROOT / "server/connections_hub.html").read_text()
+        settings = (ROOT / "server/arr_connections.html").read_text()
+        self.assertIn("service.id!=='time-adrift'&&!connected[service.id]", hub)
+        self.assertIn("weather:!!glanceSettings.weather?.enabled&&/^[0-9]{5}$/.test(", hub)
+        self.assertNotIn("if(glanceNames.includes(service.id)){", hub)
+        self.assertIn("id:'weather'", hub)
+        self.assertIn("Save ZIP & Test Forecast", settings)
+        self.assertIn("async function saveWeatherAndTest()", settings)
+        self.assertIn("form.addEventListener('submit',event=>", settings)
+        self.assertIn("'/api/glance/weather/preview?zip_code='", settings)
+        self.assertIn("weatherTest.addEventListener('click'", settings)
+
     def test_bad_zip_timezone_or_news_source_rejected(self):
         with self.assertRaises(ValidationError):
             glance.WidgetConfig(zip_code="hello")
@@ -84,7 +107,7 @@ class GlanceSettingsTests(unittest.TestCase):
         for name in ("clock", "weather", "news"):
             self.assertIn("id:'" + name + "'", hub)
             self.assertIn("'/api/glance/settings/'+id", settings)
-        self.assertIn("Turn off '+service.title", hub)
+        self.assertIn("glanceNames.includes(service.id)?'Enabled · View details'", hub)
         self.assertIn("glance.js?v=1", shell)
         self.assertIn("function createStrip(where)", widget)
         self.assertIn("async function home()", widget)
@@ -114,10 +137,30 @@ class GlanceProviderTests(unittest.IsolatedAsyncioTestCase):
         with self.assertRaises(HTTPException) as caught:
             await glance.weather()
         self.assertEqual(caught.exception.status_code, 404)
-        glance.save_setting("weather", glance.WidgetConfig(enabled=True))
+        with self.assertRaises(HTTPException) as caught:
+            glance.save_setting("weather", glance.WidgetConfig(enabled=True))
+        self.assertEqual(caught.exception.status_code, 422)
         with self.assertRaises(HTTPException) as caught:
             await glance.weather()
-        self.assertEqual(caught.exception.status_code, 422)
+        self.assertEqual(caught.exception.status_code, 404)
+
+    async def test_weather_preview_works_without_enabling_and_does_not_lose_zip(self):
+        glance.save_setting("weather", glance.WidgetConfig(enabled=False, zip_code="75001"))
+        self.assertEqual(glance.one_setting("weather")["zip_code"], "75001")
+        self.assertFalse(glance.one_setting("weather")["enabled"])
+        replies = [
+            {"places": [{"latitude": "33", "longitude": "-96.8",
+                         "place name": "Addison", "state abbreviation": "TX"}]},
+            {"properties": {"forecast": "https://api.weather.gov/gridpoints/FWD/1,2/forecast"}},
+            {"properties": {"periods": [{"name": "Tonight", "temperature": 70,
+                                        "temperatureUnit": "F", "shortForecast": "Fair"}]}}
+        ]
+        with patch.object(glance, "_json_from", new=AsyncMock(side_effect=replies)) as request:
+            forecast = await glance.preview_weather("75001")
+        self.assertEqual(forecast["temperature"], 70)
+        self.assertEqual(request.await_count, 3)
+        self.assertEqual(glance.one_setting("weather")["zip_code"], "75001")
+        self.assertFalse(glance.one_setting("weather")["enabled"])
 
     async def test_weather_uses_only_nws_forecast_host(self):
         glance.save_setting("weather", glance.WidgetConfig(enabled=True, zip_code="75001"))
