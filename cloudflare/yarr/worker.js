@@ -57,7 +57,7 @@ const page = `<!doctype html>
 <div class="tile"><b>01 / INSTALL</b><h3>Run your server</h3><p>Host Yarr Media on compatible home hardware with your own storage.</p></div>
 <div class="tile"><b>02 / ORGANIZE</b><h3>Add your collections</h3><p>Choose media folders and let Yarr Media assemble your libraries.</p></div>
 <div class="tile"><b>03 / ENJOY</b><h3>Watch locally</h3><p>Stream on your home network. Pro remote connectivity is being developed.</p></div></div></section>
-<section id="availability" class="section reveal"><div class="eyebrow">Development preview</div><h2>Yarr Media downloads are available.</h2><div class="launch"><strong>Install the server and Google TV app from the Downloads section below.</strong><p>Self-host Yarr Media for free, or purchase Pro for account-linked remote access. Media files are not included.</p></div></section></main>
+<section id="availability" class="section reveal"><div class="eyebrow">Get Yarr Media</div><h2>Yarr Media downloads are available.</h2><div class="launch"><strong>Install the server and Google TV app from the Downloads section below.</strong><p>Self-host Yarr Media for free, or purchase Pro for account-linked remote access. Media files are not included.</p></div></section></main>
 <footer class="footer"><div><div class="footer-title">Yarr Media</div><div>Your collection. Your server.</div><small>Free local streaming. Optional $29 one-time Pro upgrade.</small></div><div><div class="footer-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a><a href="/how2s">Setup guides</a></div><div><div class="footer-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="footer-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>
 </div></body></html>`;
 
@@ -207,7 +207,7 @@ const LEGAL_PAGE_DATA = {
  ['Information used for accounts','If you sign in with Google, the website receives a verified account identifier, email address, display name and, if provided by Google, a profile picture URL. It stores associated account and session records to operate sign-in.'],
  ['Paired server information','Account-linked records can include server display names, identifiers, pairing status, connection credential hashes and connection status. Network diagnostics may exchange connection information to evaluate server access.'],
  ['Your media','Yarr Media is designed to operate from your own server. The public website does not provide a public media-storage service. Media access and metadata processing on your installed server are separate from the marketing website.'],
- ['Service providers','The preview runs on Cloudflare infrastructure and uses Google sign-in. These providers may process technical information needed to deliver their respective services.'],
+ ['Service providers','The service runs on Cloudflare infrastructure and uses Google sign-in. These providers may process technical information needed to deliver their respective services.'],
  ['Signed-in TVs and apps','When you sign in a TV or app with a code, the account stores the device name, type, app version, sign-in date and last-used date, plus a hashed credential. You can sign a device out at any time from My Account.'],
  ['Remote access','When you open your server remotely, the website issues a short-lived signed pass naming your account and server. Your media streams directly between your server and your device; it is not stored on the website.'],
  ['Payments','One-time Pro purchases are processed by Stripe. Card details are entered with Stripe and are not received by Yarr Media. We retain purchase references, payment and tax amounts, and entitlement status to manage Pro, refunds, and required business records.'],
@@ -222,11 +222,11 @@ const LEGAL_PAGE_DATA = {
  ['Controls','You can clear cookies in your browser. Removing essential sign-in cookies will sign you out or interrupt an in-progress login.'],
  ['Advertising','No advertising or analytics cookies are intentionally set by this marketing-page implementation. Infrastructure providers may independently receive standard connection information.']]},
  '/terms': {title:'Terms of Use',eyebrow:'Legal',description:'Terms for Yarr Media self-hosted software and one-time Pro purchases.',heading:'Terms of Use',intro:'These terms cover the Yarr Media self-hosted server, account functions, and optional Pro purchase.',sections:[
- ['Preview status','Yarr Media software is available for compatible devices. Features may change, and access depends on your hardware, networking, and software version.'],
+ ['Software availability','Yarr Media software is available for compatible devices. Features may change, and access depends on your hardware, networking, and software version.'],
  ['Your own media','You are responsible for ensuring you have the rights to store, organize and play files on your server and for complying with applicable laws. Yarr Media does not supply movies or television programs.'],
  ['Third-party services','Optional integrations and Google sign-in are subject to the terms and availability of their respective providers.'],
- ['Accounts and security','Keep account credentials secure and use the preview only for authorized access to your own installations. Do not attempt unauthorized access or interfere with the service.'],
- ['Pro subscription','Yarr Media Pro is a $29 USD one-time purchase plus applicable tax, associated with your account. It is not a recurring subscription. Refunded or disputed purchases may result in revocation of Pro access, subject to applicable law.'],
+ ['Accounts and security','Keep account credentials secure and use the service only for authorized access to your own installations. Do not attempt unauthorized access or interfere with the service.'],
+ ['Pro purchase','Yarr Media Pro is a $29 USD one-time purchase plus applicable tax, associated with your account. It is not a recurring subscription. Refunded or disputed purchases may result in revocation of Pro access, subject to applicable law.'],
  ['Remote access','Pro remote access connects your devices to your own server. It depends on your server being online and reachable and on your home internet connection, and may be unavailable at times.'],
  ['Changes and contact','Terms updates will be published here. Product questions can be raised through the Yarr Media project repository.']]}
 };
@@ -244,7 +244,7 @@ function infoPage(path) {
   '<header class="nav"><a class="brand" href="/">YARR <span>MEDIA</span></a><nav class="navlinks" aria-label="Main"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/account">My Account</a><a href="/app">Open App</a></nav></header>'+
   '<main><div class="eyebrow">'+legalEscape(data.eyebrow)+'</div><h1>'+legalEscape(data.heading)+'</h1><p class="intro">'+legalEscape(data.intro||data.body)+'</p>'+items+
   (isLegal?'':'<a class="cta" href="/#plans">Compare Free and Pro</a>')+'</main>'+
-  '<footer class="foot"><span>Yarr Media · Development preview</span><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/">Home</a></footer></div></body></html>');
+  '<footer class="foot"><span>Yarr Media · Your collection. Your server.</span><a href="/terms">Terms</a><a href="/privacy">Privacy</a><a href="/cookies">Cookies</a><a href="/">Home</a></footer></div></body></html>');
 }
 
 const SITE = "https://yarr.larki-brian.workers.dev";
@@ -759,7 +759,7 @@ function accountHTML(user,enabled,message='',servers=[],extra=null) {
    (extra?devicesPanelHTML(extra)+DANGER_HTML:'')+
   '</div>'+
   '<aside class="account-aside"><section class="account-panel account-pair-panel" id="pair-server"><div class="panel-top"><div><p class="account-kicker">Add a connection</p><h2>Pair a server</h2></div></div><p class="account-note">On your installed Yarr Media server, open <strong>Settings → General → Connect to Yarr</strong>, then enter the pairing code here.</p><form class="account-form" method="post" action="/account/pair"><label for="pairing-code">Pairing code</label><input id="pairing-code" name="code" required maxlength="22" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="XXXX-XXXX-XXXX-XXXX"><button class="account-submit" type="submit">Pair server</button></form><p class="account-small">Pairing links your installation to this account. Remote access is a planned Pro feature and is not enabled by pairing alone.</p></section>'+
-   (extra?planPanelHTML(extra):'<section class="account-panel account-help"><p class="account-kicker">About your plan</p><h2>Yarr Media preview</h2><p class="account-note">Your personal libraries are hosted on your server. Pro remote access is still in development.</p><a href="/free-vs-pro" class="account-secondary">Compare Free and Pro</a></section>')+'</aside></div>'
+   (extra?planPanelHTML(extra):'<section class="account-panel account-help"><p class="account-kicker">About your plan</p><h2>Yarr Media</h2><p class="account-note">Your personal libraries stay on your server. Pro enables account-linked remote access.</p><a href="/free-vs-pro" class="account-secondary">Compare Free and Pro</a></section>')+'</aside></div>'
   :
   '<div class="account-signin"><p class="account-kicker">Your Yarr Media account</p><h1>Sign in</h1><p class="account-subtitle">Connect your home server to your account, review paired devices and manage your library connections.</p>'+feedback+
    '<div class="account-panel account-login"><h2>Continue to your account</h2><p class="account-note">Use your Google account to sign in securely.</p>'+
