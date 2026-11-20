@@ -32,6 +32,11 @@
 .menu-anchor{position:relative}
 .tool-menu{position:absolute;z-index:45;right:0;top:calc(100% + 9px);width:240px;padding:7px;background:#1d1d1d;border:1px solid #555555;border-radius:14px;box-shadow:0 18px 45px #000b}
 .tool-menu[hidden]{display:none}
+.genre-menu{max-height:min(420px,65vh);overflow-y:auto;overscroll-behavior:contain}
+.tool-menu button small{color:#9a9a9a;font-weight:600;margin-left:auto;padding-left:10px}
+.tool-dot{display:none;position:absolute;width:7px;height:7px;border-radius:50%;right:6px;top:6px;background:var(--accent)}
+.tool.is-active{color:#fff;border-color:var(--accent)}
+.tool.is-active .tool-dot{display:block}
 .tool-menu h4{margin:0;padding:9px 11px 10px;color:#a9a9a9;font-size:.72rem;font-weight:750;text-transform:uppercase;letter-spacing:.09em}
 .tool-menu button{display:flex;justify-content:space-between;width:100%;min-height:42px;border:0;border-radius:9px;padding:10px 11px;background:transparent;color:#e1e1e1;text-align:left;font:inherit;font-size:.86rem;cursor:pointer}
 .tool-menu button:hover,.tool-menu button:focus-visible{background:#3a3a3a;color:#fff}
@@ -219,7 +224,10 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
     <div class="tool-menu" id="library-menu" role="menu" hidden></div>
    </div>
    <button class="tool" type="button" id="scan" title="Scan music folders" aria-label="Scan music folders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 11a8 8 0 1 0-2.1 5.4"/><path d="M20 4v7h-7"/></svg></button>
-   <a class="tool" href="/settings/libraries" title="Manage music folders" aria-label="Manage music folders"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></a>
+   <div class="menu-anchor" id="genre-anchor" hidden>
+    <button class="tool" type="button" id="genre-toggle" aria-label="Filter by genre" aria-haspopup="menu" aria-expanded="false" title="Filter by genre"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16l-6.5 7.5v5L10.5 20v-7.5z"/></svg><span class="tool-dot" aria-hidden="true"></span></button>
+    <div class="tool-menu genre-menu" id="genre-menu" role="menu" hidden></div>
+   </div>
   </div>
  </div>
  <p class="library-subtitle" id="library-subtitle">Loading your music…</p>
@@ -228,8 +236,8 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
 <div id="browse">
  <div class="music-bar">
   <div class="view-tabs" role="tablist" aria-label="Browse by">
-   <button type="button" role="tab" data-view="albums" aria-selected="true">Albums</button>
-   <button type="button" role="tab" data-view="artists" aria-selected="false">Artists</button>
+   <button type="button" role="tab" data-view="artists" aria-selected="true">Artists</button>
+   <button type="button" role="tab" data-view="albums" aria-selected="false">Albums</button>
    <button type="button" role="tab" data-view="songs" aria-selected="false">Songs</button>
   </div>
   <span class="count-label" id="results-count"></span>
@@ -267,6 +275,7 @@ const audio=$('audio');
 const ICON_PLAY='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
 const ICON_PAUSE='<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
 const ICON_SHUFFLE='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>';
+let genreFilter='';
 let tracks=[],libraries=[],libraryFilter='',view='albums',sortKey='title',query='';
 let queue=[],order=[],pos=-1,shuffle=false,repeat='off';
 
@@ -281,10 +290,39 @@ function sortName(s){return String(s||'').replace(/^(the|a|an)\s+/i,'').toLocale
 function initial(s){const c=(sortName(s)[0]||'#').toUpperCase();return /^[A-Z]$/.test(c)?c:'#'}
 
 /* ---------- Data shaping ---------- */
+// A song's genres: its artist's genres from Lidarr plus the song's own genre tag.
+function genresOf(t){
+ const artist=lidarrArtist(t.artist);
+ const album=artist?.albums?.find(x=>x.title.toLocaleLowerCase()===String(t.album).toLocaleLowerCase());
+ const out=new Set(album?album.genres:(artist?.genres||[]));
+ if(t.genre)out.add(t.genre);
+ return out;
+}
 function filtered(){
  const q=query.toLocaleLowerCase();
  return tracks.filter(t=>(!libraryFilter||String(t.library_id)===libraryFilter)&&
-  (!q||(t.title+' '+t.artist+' '+t.album+' '+(t.genre||'')).toLocaleLowerCase().includes(q)));
+  (!genreFilter||genresOf(t).has(genreFilter))&&
+  (!q||(t.title+' '+t.artist+' '+t.album+' '+[...genresOf(t)].join(' ')).toLocaleLowerCase().includes(q)));
+}
+function buildGenreMenu(){
+ // Count albums per genre within the selected library, most common first.
+ const albumsByGenre=new Map();
+ for(const t of tracks){
+  if(libraryFilter&&String(t.library_id)!==libraryFilter)continue;
+  for(const g of genresOf(t)){if(!albumsByGenre.has(g))albumsByGenre.set(g,new Set());albumsByGenre.get(g).add(t.artist+'\u0000'+t.album)}
+ }
+ const genres=[...albumsByGenre].sort((a,b)=>b[1].size-a[1].size||a[0].localeCompare(b[0]));
+ if(genreFilter&&!albumsByGenre.has(genreFilter))genreFilter='';
+ $('genre-anchor').hidden=!genres.length;
+ $('genre-toggle').classList.toggle('is-active',!!genreFilter);
+ $('genre-toggle').title=genreFilter?'Genre: '+genreFilter:'Filter by genre';
+ const menu=$('genre-menu');menu.replaceChildren(el('h4','','Genre'));
+ for(const [g,set] of [['',null],...genres]){
+  const b=el('button','',g||'All genres');b.type='button';b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(g===genreFilter));
+  if(set)b.append(el('small','',String(set.size)));
+  b.addEventListener('click',()=>{genreFilter=g;store.set('genre',g);closeMenus();buildGenreMenu();renderBrowse();if(tvMode)$('genre-toggle').focus({preventScroll:true})});
+  menu.append(b);
+ }
 }
 function albumsOf(list){
  const map=new Map();
@@ -310,11 +348,15 @@ function sortList(items){
 }
 
 /* ---------- Covers ---------- */
-function cover(track,label,round){
+// Lidarr artwork by artist name (photo + backdrop); empty if Lidarr is not connected.
+let lidarrArtists=new Map();
+const lidarrArtist=name=>lidarrArtists.get(String(name||'').toLocaleLowerCase());
+const lidarrImage=(a,kind)=>a&&a.images.includes(kind)?'/api/lidarr/artist/'+a.id+'/image/'+kind:null;
+function cover(track,label,round,imageUrl){
  const box=el('div','cover music-cover cover--'+(label.length%6));
  const init=el('div','cover-initial',(label.trim()[0]||'♪').toUpperCase());init.setAttribute('aria-hidden','true');
  box.append(el('div','cover-top'),init,el('div','cover-title',round?'':label));
- if(track){const img=new Image();img.loading='lazy';img.alt='';img.decoding='async';img.src=artUrl(track);img.onerror=()=>img.remove();box.append(img)}
+ if(track){const img=new Image();img.loading='lazy';img.alt='';img.decoding='async';img.src=imageUrl||artUrl(track);img.onerror=()=>{if(imageUrl&&img.src.indexOf('/api/music/')<0)img.src=artUrl(track);else img.remove()};box.append(img)}
  return box;
 }
 function playOverlay(handler,label){
@@ -333,13 +375,14 @@ function renderBrowse(){
  renderSortMenu();
  $('status').textContent='';
  if(!tracks.length){$('status').textContent='No music found. Add a Music library in Settings and scan its folders.';$('alpha-nav').hidden=true;$('results-count').textContent='';return}
- if(!list.length){$('status').textContent='Nothing matches “'+query+'”.';$('alpha-nav').hidden=true;$('results-count').textContent='';return}
+ if(!list.length){$('status').textContent='Nothing matches'+(query?' “'+query+'”':'')+(genreFilter?' in '+genreFilter:'')+'.';$('alpha-nav').hidden=true;$('results-count').textContent='';return}
  const letters=new Map();
  if(view==='albums'){
-  $('results-count').textContent=albums.length+' albums';
+  $('results-count').textContent=albums.length+' albums'+(genreFilter?' · '+genreFilter:'');
   for(const a of sortList(albums)){
    const tile=el('article','tile');const link=el('a','tile-button');link.href='?album='+encodeURIComponent(a.key);
    link.setAttribute('aria-label',a.title+' by '+a.artist);link.addEventListener('click',e=>{e.preventDefault();go({album:a.key})});
+   link.dataset.hoverBackdrop=artUrl(a.tracks[0]);link.dataset.hoverSoft='1';
    const c=cover(a.tracks[0],a.title);c.append(playOverlay(()=>playList(a.tracks,0),'Play '+a.title));
    link.append(c,el('h3','',a.title),el('div','tile-meta',[a.artist,a.year].filter(Boolean).join(' · ')));
    tile.title=a.title;tile.append(link);items.append(tile);
@@ -347,17 +390,19 @@ function renderBrowse(){
    if(sortKey==='artist'&&!letters.has(initial(a.artist)))letters.set(initial(a.artist),tile);
   }
  }else if(view==='artists'){
-  $('results-count').textContent=artists.length+' artists';
+  $('results-count').textContent=artists.length+' artists'+(genreFilter?' · '+genreFilter:'');
   for(const r of sortList(artists)){
    const tile=el('article','tile artist-tile');const link=el('a','tile-button');link.href='?artist='+encodeURIComponent(r.name);
    link.addEventListener('click',e=>{e.preventDefault();go({artist:r.name})});
-   const c=cover(r.tracks[0],r.name,true);c.append(playOverlay(()=>playList(r.tracks,0,true),'Shuffle '+r.name));
+   const la=lidarrArtist(r.name),fanart=lidarrImage(la,'fanart');
+   link.dataset.hoverBackdrop=fanart||artUrl(r.tracks[0]);if(!fanart)link.dataset.hoverSoft='1';
+   const c=cover(r.tracks[0],r.name,true,lidarrImage(la,'poster'));c.append(playOverlay(()=>playList(r.tracks,0,true),'Shuffle '+r.name));
    link.append(c,el('h3','',r.name),el('div','tile-meta',r.albums.length+' album'+(r.albums.length===1?'':'s')+' · '+r.tracks.length+' songs'));
    tile.append(link);items.append(tile);
    if(sortKey==='title'&&!letters.has(initial(r.name)))letters.set(initial(r.name),tile);
   }
  }else{
-  $('results-count').textContent=list.length+' songs · '+longFmt(total);
+  $('results-count').textContent=list.length+' songs · '+longFmt(total)+(genreFilter?' · '+genreFilter:'');
   const sorted=sortList([...list]);
   songs.append(trackTable(sorted,{album:true,artist:true,thumb:true}));
  }
@@ -587,8 +632,8 @@ document.addEventListener('keydown',e=>{
 });
 
 /* ---------- Menus & controls ---------- */
-function closeMenus(){for(const id of ['sort','library']){$(id+'-menu').hidden=true;$(id+'-toggle').setAttribute('aria-expanded','false')}}
-for(const id of ['sort','library'])$(id+'-toggle').addEventListener('click',e=>{e.stopPropagation();const m=$(id+'-menu'),open=m.hidden;closeMenus();m.hidden=!open;$(id+'-toggle').setAttribute('aria-expanded',String(open));if(open)m.querySelector('button')?.focus()});
+function closeMenus(){for(const id of ['sort','library','genre']){$(id+'-menu').hidden=true;$(id+'-toggle').setAttribute('aria-expanded','false')}}
+for(const id of ['sort','library','genre'])$(id+'-toggle').addEventListener('click',e=>{e.stopPropagation();const m=$(id+'-menu'),open=m.hidden;closeMenus();m.hidden=!open;$(id+'-toggle').setAttribute('aria-expanded',String(open));if(open)m.querySelector('button')?.focus()});
 document.addEventListener('click',e=>{if(!e.target.closest('.menu-anchor'))closeMenus()});
 for(const b of document.querySelectorAll('[data-view]'))b.addEventListener('click',()=>{view=b.dataset.view;store.set('view',view);sortKey=store.get('sort.'+view,SORTS[view][0][0]);renderBrowse()});
 let searchTimer;$('search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{query=$('search').value.trim();renderBrowse()},120)});
@@ -603,7 +648,7 @@ function buildLibraryMenu(){
  const menu=$('library-menu');menu.replaceChildren(el('h4','','Music library'));
  for(const [id,name] of [['','All music libraries'],...libraries.map(l=>[String(l.id),l.name])]){
   const b=el('button','',name);b.type='button';b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(id===libraryFilter));
-  b.addEventListener('click',()=>{libraryFilter=id;closeMenus();buildLibraryMenu();go({},true);if(tvMode)$('library-toggle').focus({preventScroll:true})});menu.append(b)}
+  b.addEventListener('click',()=>{libraryFilter=id;closeMenus();buildLibraryMenu();buildGenreMenu();go({},true);if(tvMode)$('library-toggle').focus({preventScroll:true})});menu.append(b)}
  $('library-anchor').hidden=false;
 }
 function applyAppearance(lib){
@@ -619,13 +664,21 @@ function applyAppearance(lib){
  $('library-header-art').src=lib?.header_image_url||'/assets/library-header-music.png';
  if(lib?.name&&libraries.length===1)$('page-title').textContent=lib.name;
 }
+async function loadLidarrArtists(){
+ try{const r=await fetch('/api/lidarr/artists',{cache:'no-store'});if(!r.ok)return;
+  const list=(await r.json()).artists||[];
+  lidarrArtists=new Map(list.filter(a=>Number.isInteger(a.id)&&Array.isArray(a.images)).map(a=>[String(a.name).toLocaleLowerCase(),a]));
+ }catch{}
+}
 async function loadCatalog(){
  const r=await fetch('/api/music/catalog',{cache:'no-store'});if(!r.ok)throw Error('Music catalog unavailable');
- tracks=(await r.json()).tracks||[];route();
+ tracks=(await r.json()).tracks||[];await lidarrReady;buildGenreMenu();route();
 }
+let lidarrReady=Promise.resolve();
 async function boot(){
+ lidarrReady=loadLidarrArtists();
  libraryFilter=new URLSearchParams(location.search).get('library_id')||'';
- view=store.get('view','albums');if(!SORTS[view])view='albums';sortKey=store.get('sort.'+view,'title');
+ genreFilter=store.get('genre','');view=store.get('view','artists');if(!SORTS[view])view='artists';sortKey=store.get('sort.'+view,'title');
  repeat=store.get('repeat','off');const vol=Number(store.get('volume','100'));audio.volume=vol/100;$('volume').value=vol;setBar($('volume'),vol);
  updatePlayButton();updateModeButtons();applyAppearance(null);
  try{
@@ -741,7 +794,7 @@ window.__willieCatalogRemoteNavigate=direction=>{
  enableTv();
  const active=document.activeElement;
  // Open Sort / Library menus: Up/Down through options, Left/Right closes.
- const menu=['sort','library'].map(id=>$(id+'-menu')).find(m=>!m.hidden);
+ const menu=['sort','library','genre'].map(id=>$(id+'-menu')).find(m=>!m.hidden);
  if(menu){
   const opts=vis(menu.querySelectorAll('button')),i=opts.indexOf(active);
   if(direction==='up'||direction==='down'){
@@ -781,7 +834,7 @@ window.__willieCatalogRemoteNavigate=direction=>{
 };
 // Back on an album/artist page returns to the library instead of leaving Music.
 window.__willieCloseSeasonMenu=()=>{
- if(['sort','library'].some(id=>!$(id+'-menu').hidden)){closeMenus();return true}
+ if(['sort','library','genre'].some(id=>!$(id+'-menu').hidden)){closeMenus();return true}
  if(!$('detail-view').hidden){go({});return true}
  return false;
 };

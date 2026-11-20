@@ -431,7 +431,7 @@ document.addEventListener('DOMContentLoaded', () => {
  * Only the active hovered/focused title fetches metadata, with a short delay
  * and a bounded cache. The app remains readable under a permanent dark veil. */
 document.addEventListener('DOMContentLoaded',()=>{
-  if(!['home','movies','tv','explore'].includes(document.body.dataset.page))return;
+  if(!['home','movies','tv','explore','music'].includes(document.body.dataset.page))return;
   const backdrop=document.createElement('div');
   backdrop.className='willie-hover-backdrop';
   backdrop.setAttribute('aria-hidden','true');
@@ -441,7 +441,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   const cache=new Map();
   let active=null,showTimer=null,hideTimer=null,generation=0,visible=-1,currentUrl='';
   const valid=url=>typeof url==='string'&&(
-    url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/'));
+    url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/')||
+    /^\/api\/(music\/tracks\/\d+\/art|lidarr\/artist\/\d+\/image\/(fanart|poster))$/.test(url));
   function clear(){
     generation++;active=null;currentUrl='';visible=-1;
     for(const layer of layers)layer.classList.remove('is-visible');
@@ -485,6 +486,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(cache.size>90)cache.delete(cache.keys().next().value);
     return promise;
   }
+  let soft=false;
   function apply(url,serial){
     if(serial!==generation)return;
     if(!valid(url)){clear();return}
@@ -494,6 +496,7 @@ document.addEventListener('DOMContentLoaded',()=>{
       if(serial!==generation)return;
       const index=visible===0?1:0;
       layers[index].style.backgroundImage='url("'+url+'")';
+      layers[index].classList.toggle('is-soft',soft);
       layers[index].classList.add('is-visible');
       layers[1-index].classList.remove('is-visible');
       visible=index;currentUrl=url;
@@ -508,12 +511,13 @@ document.addEventListener('DOMContentLoaded',()=>{
     if(!element){clear();return}
     showTimer=setTimeout(async()=>{
       const url=await lookup(element);
+      soft=element.dataset.hoverSoft==='1';
       if(serial!==generation)return;
       apply(url,serial);
     },180);
   }
   const onLibraryToolbar=target=>
-    ['movies','tv'].includes(document.body.dataset.page) &&
+    ['movies','tv','music'].includes(document.body.dataset.page) &&
     target instanceof Element &&
     Boolean(target.closest('#library-masthead .library-head-actions'));
   const locate=target=>target instanceof Element?
