@@ -5,6 +5,7 @@ from threading import Lock
 import io
 import mimetypes
 import os
+import re
 
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, Response
@@ -256,3 +257,111 @@ def _embedded_art(path):
     if not data or len(data) > 15_000_000 or mime not in ("image/jpeg", "image/png"):
         return None, None
     return data, mime
+
+
+# ---------------------------------------------------------------------------
+# Full-screen player: audio details and lyrics for one track, read on demand.
+# Lyrics come only from the user's own files: a sidecar .lrc next to the track,
+# or lyrics embedded in its tags (ID3 USLT, Vorbis LYRICS, MP4 ©lyr).
+LYRICS_MAX = 64 * 1024
+_LRC_TIME = re.compile(r"\[(\d{1,3}):(\d{1,2}(?:[.:]\d{1,3})?)\]")
+_LRC_OFFSET = re.compile(r"^\[offset:\s*([+-]?\d+)\s*\]", re.I | re.M)
+
+
+def parse_lyrics(text):
+    """{"synced": [{"time": s, "text": line}, ...] or None, "plain": str}."""
+    text = (text or "").replace("\r\n", "\n").replace("\r", "\n")[:LYRICS_MAX].strip()
+    if not text:
+        return None
+    offset = 0.0
+    found = _LRC_OFFSET.search(text)
+    if found:
+        offset = int(found.group(1)) / 1000.0
+    synced, plain = [], []
+    for raw in text.split("\n"):
+        stamps = list(_LRC_TIME.finditer(raw))
+        line = _LRC_TIME.sub("", raw).strip()
+        if stamps:
+            for stamp in stamps:
+                seconds = int(stamp.group(1)) * 60 + float(stamp.group(2).replace(":", "."))
+                synced.append({"time": round(max(0.0, seconds - offset), 2), "text": line})
+            plain.append(line)
+        elif re.match(r"^\[[a-z]+:.*\]$", raw.strip(), re.I):
+            continue   # LRC header such as [ar:...] or [offset:...]
+        else:
+            plain.append(raw.rstrip())
+    synced.sort(key=lambda x: x["time"])
+    plain_text = "\n".join(plain).strip()
+    if not synced and not plain_text:
+        return None
+    return {"synced": synced if len(synced) >= 2 else None, "plain": plain_text}
+
+
+def _embedded_lyrics(audio):
+    tags = getattr(audio, "tags", None)
+    if not tags:
+        return None
+    try:
+        for key in list(tags.keys()):
+            name = str(key)
+            if name.startswith("USLT"):            # MP3
+                return str(tags[key].text)
+            if name.lower() in ("lyrics", "unsyncedlyrics", "unsynced lyrics"):   # FLAC, Ogg, Opus
+                value = tags[key]
+                return str(value[0] if isinstance(value, list) else value)
+            if name == "\xa9lyr":                   # MP4 / M4A
+                return str(tags[key][0])
+    except (KeyError, IndexError, TypeError, ValueError, AttributeError):
+        return None
+    return None
+
+
+def _read_lyrics(path, audio):
+    sidecar = path.with_suffix(".lrc")
+    try:
+        if sidecar.is_file() and sidecar.stat().st_size <= LYRICS_MAX:
+            parsed = parse_lyrics(sidecar.read_bytes().decode("utf-8-sig", errors="replace"))
+            if parsed:
+                return {**parsed, "source": "lrc"}
+    except OSError:
+        pass
+    parsed = parse_lyrics(_embedded_lyrics(audio)) if audio is not None else None
+    return {**parsed, "source": "embedded"} if parsed else None
+
+
+@router.get("/tracks/{track_id}/details")
+def music_track_details(track_id: int):
+    path = _safe_track(track_id)
+    audio = None
+    try:
+        audio = AudioFile(str(path))
+    except (OSError, ValueError, TypeError, KeyError, MutagenError):
+        audio = None
+    info = getattr(audio, "info", None)
+    easy = {}
+    try:
+        tagged = AudioFile(str(path), easy=True)
+        for key in ("composer", "albumartist", "organization", "copyright"):
+            value = tagged.get(key) if tagged else None
+            if value:
+                easy[key] = str(value[0])[:200]
+    except (OSError, ValueError, TypeError, KeyError, MutagenError, AttributeError):
+        pass
+    bitrate = getattr(info, "bitrate", None)
+    try:
+        size = path.stat().st_size
+    except OSError:
+        size = None
+    return {
+        "format": path.suffix.lstrip(".").upper(),
+        "bitrate_kbps": round(bitrate / 1000) if bitrate else None,
+        "sample_rate": getattr(info, "sample_rate", None),
+        "bit_depth": getattr(info, "bits_per_sample", None),
+        "channels": getattr(info, "channels", None),
+        "size_bytes": size,
+        "composer": easy.get("composer"),
+        "album_artist": easy.get("albumartist"),
+        "label": easy.get("organization"),
+        "copyright": easy.get("copyright"),
+        "lyrics": _read_lyrics(path, audio),
+    }
