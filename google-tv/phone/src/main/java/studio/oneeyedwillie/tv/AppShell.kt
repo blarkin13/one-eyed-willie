@@ -55,6 +55,28 @@ object AppShell {
     private var navLinks = emptyList<ShellLogic.NavLink>()
     private var documentStartStyle = false
 
+    /**
+     * Pull-to-refresh that leaves sideways swipes alone. A plain
+     * SwipeRefreshLayout at the top of the page grabbed any swipe with a little
+     * downward drift, including swipes along a row of posters, which made rows
+     * feel stuck (always on first load, since the page starts at the top).
+     */
+    private class SidewaysAwareRefresh(context: android.content.Context) : SwipeRefreshLayout(context) {
+        private val slop = android.view.ViewConfiguration.get(context).scaledTouchSlop
+        private var startX = 0f
+        private var startY = 0f
+        private var sideways = false
+        override fun onInterceptTouchEvent(ev: android.view.MotionEvent): Boolean {
+            when (ev.actionMasked) {
+                android.view.MotionEvent.ACTION_DOWN -> { startX = ev.x; startY = ev.y; sideways = false }
+                android.view.MotionEvent.ACTION_MOVE -> if (!sideways) {
+                    sideways = ShellLogic.isSideways(ev.x - startX, ev.y - startY, slop.toFloat())
+                }
+            }
+            return !sideways && super.onInterceptTouchEvent(ev)
+        }
+    }
+
     /** App-only styling, added before the page's own scripts run. Plex-like:
      *  Home is rows of posters (no hero, no changing background); libraries are
      *  a plain three-column poster grid. Only inside the phone app. */
@@ -182,7 +204,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     fun wrap(activity: Activity, host: ShellHost, screen: FrameLayout, web: WebView): View {
         val index = screen.indexOfChild(web)
         screen.removeView(web)
-        val pull = SwipeRefreshLayout(activity).apply {
+        val pull = SidewaysAwareRefresh(activity).apply {
             setColorSchemeColors(ACTIVE)
             setProgressBackgroundColorSchemeColor(0xFF1B1E24.toInt())
             addView(web, ViewGroup.LayoutParams(-1, -1))

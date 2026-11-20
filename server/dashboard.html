@@ -293,7 +293,10 @@ function makeHomeFeature(shelf){
  homeFeatureState.set(feature,{serial:0});
  return feature;
 }
+// The phone app hides the feature panel: don't do its work (details, artwork) while swiping.
+const homeFeatureShown=()=>!document.documentElement.classList.contains('yarr-app');
 function updateHomeFeature(link,item){
+ if(!homeFeatureShown())return;
  const shelf=link.closest('.shelf');
  if(!shelf)return;
  const feature=makeHomeFeature(shelf),state=homeFeatureState.get(feature);
@@ -360,6 +363,7 @@ function updateHomeFeature(link,item){
  });
 }
 function selectHomePoster(event){
+ if(!homeFeatureShown())return;
  const link=event.target?.closest?.('body[data-page="home"] .shelf-track .tile-button');
  if(link?._homeItem)updateHomeFeature(link,link._homeItem);
 }
@@ -371,6 +375,7 @@ document.addEventListener('pointerover',selectHomePoster,{passive:true});
 let mobileHomeScrollFrame=0;
 document.addEventListener('scroll',event=>{
  const track=event.target;
+ if(!homeFeatureShown())return;
  if(!window.matchMedia('(max-width:700px)').matches ||
     !track?.classList?.contains('shelf-track'))return;
  if(mobileHomeScrollFrame)cancelAnimationFrame(mobileHomeScrollFrame);

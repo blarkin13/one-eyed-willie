@@ -48,4 +48,11 @@ class ShellLogicTest {
         val links = listOf(ShellLogic.NavLink("", "/radarr", "Radarr", "radarr"))
         assertEquals(listOf("Radarr"), ShellLogic.moreLinks(links).map { it.name })
     }
+
+    @Test fun sidewaysSwipesAreNotPullToRefresh() {
+        assertTrue(ShellLogic.isSideways(40f, 12f, 16f))     // along a poster row, drifting down
+        assertTrue(ShellLogic.isSideways(-40f, 30f, 16f))
+        assertFalse(ShellLogic.isSideways(10f, 40f, 16f))    // a real pull down
+        assertFalse(ShellLogic.isSideways(8f, 2f, 16f))      // not moved enough to decide
+    }
 }
