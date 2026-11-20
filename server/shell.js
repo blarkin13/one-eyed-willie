@@ -246,11 +246,76 @@ document.addEventListener('DOMContentLoaded', () => {
     const app=/OneEyedWillieTV\/1|YarrMediaAndroid\/1/.test(navigator.userAgent);
     const prune=()=>nav.querySelectorAll('a[data-nav-id]').forEach(a=>{
       const id=a.dataset.navId;
-      if(['home','movies','tv','music'].includes(id)||id.startsWith('library:')||(id==='settings'&&app))return;
+      if(['home','movies','tv','music','servers'].includes(id)||id.startsWith('library:')||(id==='settings'&&app))return;
       a.remove();
     });
     prune();new MutationObserver(prune).observe(nav,{childList:true});
   }).catch(()=>{});
+  // Server switcher: an icon that appears only when this account can open more
+  // than one server (its own and/or ones shared with it). In the TV and phone
+  // apps the app shows the list; at app.yarr.media this page does.
+  const inApp=/OneEyedWillieTV\/1|YarrMediaAndroid\/1/.test(navigator.userAgent);
+  const webApp=location.hostname==='app.yarr.media';
+  let serverList=null;
+  const svgIcon=(paths,size)=>{const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 24 24');svg.setAttribute('width',size);svg.setAttribute('height',size);svg.setAttribute('aria-hidden','true');
+    svg.setAttribute('fill','none');svg.setAttribute('stroke','currentColor');svg.setAttribute('stroke-width','1.8');
+    svg.setAttribute('stroke-linecap','round');svg.setAttribute('stroke-linejoin','round');
+    paths.forEach(d=>{const p=document.createElementNS('http://www.w3.org/2000/svg','path');p.setAttribute('d',d);svg.append(p)});return svg};
+  const serversIcon=size=>svgIcon(['M4 5h16v5H4z','M4 14h16v5H4z','M8 7.5h.01','M8 16.5h.01','M12 7.5h5','M12 16.5h5'],size);
+  async function serverCount(){
+    if(inApp){try{return Number(prompt('oewtv:servers:count',''))||0}catch(_){return 0}}
+    if(!webApp)return 0;
+    try{const r=await fetch('/__yarr/servers',{cache:'no-store'});if(!r.ok)return 0;serverList=await r.json();return serverList.servers.length}catch(_){return 0}
+  }
+  function showServerWindow(){
+    if(!serverList||document.querySelector('.yarr-server-window'))return;
+    const shade=document.createElement('div');shade.className='yarr-server-window';
+    shade.innerHTML='<style>.yarr-server-window{position:fixed;inset:0;z-index:9999;background:#000b;display:grid;place-items:center;padding:18px}'+
+      '.yarr-server-window [role=dialog]{width:min(420px,100%);max-height:80vh;overflow:auto;background:#14171c;color:#f2f2f2;border:1px solid #ffffff22;border-radius:16px;padding:18px 0 10px;box-shadow:0 20px 60px #000a}'+
+      '.yarr-server-window h2{margin:0 20px 10px;font-size:1.15rem}.yarr-server-window button.server{display:flex;align-items:center;gap:14px;width:100%;border:0;background:none;color:inherit;font:inherit;text-align:left;padding:11px 20px;cursor:pointer}'+
+      '.yarr-server-window button.server:hover,.yarr-server-window button.server:focus-visible{background:#ffffff12;outline:0}.yarr-server-window .icon{width:44px;height:44px;border-radius:10px;background:#232831;display:grid;place-items:center;overflow:hidden;flex:none}'+
+      '.yarr-server-window .icon img{width:100%;height:100%;object-fit:cover}.yarr-server-window .name{font-weight:650}.yarr-server-window small{display:block;color:#9aa0a6;font-size:.82rem;margin-top:2px}'+
+      '.yarr-server-window .check{margin-left:auto;color:#a9ddff;font-weight:800}.yarr-server-window .close{display:block;margin:8px auto 0;border:0;background:none;color:#9aa0a6;font:inherit;cursor:pointer;padding:8px 16px}</style>';
+    const box=document.createElement('div');box.setAttribute('role','dialog');box.setAttribute('aria-modal','true');box.setAttribute('aria-label','Switch server');
+    const title=document.createElement('h2');title.textContent='Switch server';box.append(title);
+    serverList.servers.forEach(server=>{
+      const b=document.createElement('button');b.type='button';b.className='server';
+      const icon=document.createElement('span');icon.className='icon';
+      if(server.icon_url){const img=document.createElement('img');img.alt='';img.onerror=()=>img.replaceWith(serversIcon(24));img.src=server.icon_url;icon.append(img)}else icon.append(serversIcon(24));
+      const text=document.createElement('span');const name=document.createElement('span');name.className='name';name.textContent=server.name||'Yarr Media server';
+      const sub=document.createElement('small');sub.textContent=(server.role==='barnacle'?'Shared by '+(server.owner_name||'a friend'):'Yours')+(server.online?'':' · offline');
+      text.append(name,sub);b.append(icon,text);
+      if(server.id===serverList.current){const c=document.createElement('span');c.className='check';c.textContent='✓';c.setAttribute('aria-label','Current server');b.append(c);b.setAttribute('aria-current','true')}
+      b.addEventListener('click',()=>{if(server.id===serverList.current){shade.remove();return}location.href='/__yarr/use?server='+encodeURIComponent(server.id)});
+      box.append(b);
+    });
+    const close=document.createElement('button');close.type='button';close.className='close';close.textContent='Close';close.addEventListener('click',()=>shade.remove());box.append(close);
+    shade.append(box);shade.addEventListener('click',e=>{if(e.target===shade)shade.remove()});
+    document.addEventListener('keydown',function esc(e){if(e.key==='Escape'){shade.remove();document.removeEventListener('keydown',esc)}});
+    document.body.append(shade);box.querySelector('button.server')?.focus();
+  }
+  function openServers(){if(inApp)prompt('oewtv:servers:pick','');else showServerWindow()}
+  async function refreshServerSwitch(){
+    const count=await serverCount();
+    window.yarrServers={count,open:openServers};
+    window.dispatchEvent(new CustomEvent('yarr-servers',{detail:{count}}));
+    let link=nav.querySelector('a[data-nav-id="servers"]');
+    if(count<2){link?.remove();return}
+    if(link)return;
+    link=document.createElement('a');link.href='#servers';link.className='nav-link';link.title='Switch server';
+    link.setAttribute('aria-label','Switch server');link.dataset.navId='servers';link.append(serversIcon(24));
+    const caption=document.createElement('span');caption.className='nav-text';caption.textContent='Servers';link.append(caption);
+    link.addEventListener('click',e=>{e.preventDefault();openServers()});
+    placeServerSwitch(link);
+  }
+  // The switch-server icon sits just above Settings, whatever order the sidebar is in.
+  function placeServerSwitch(link=nav.querySelector('a[data-nav-id="servers"]')){
+    if(!link)return;
+    const settings=nav.querySelector('a[data-nav-id="settings"]');
+    settings?nav.insertBefore(link,settings):nav.append(link);
+  }
+  if(inApp||webApp){refreshServerSwitch();window.addEventListener('yarr-servers-changed',refreshServerSwitch)}
   // Do not show unconfigured library types, including during initial paint.
   // The successful /api/libraries result below decides which to reveal.
   for(const kind of ['movies','tv','music']){
@@ -372,7 +437,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     // Only actual custom library entries are appended; standard collections
     // share the existing Movies and TV Shows menu destinations.
-    const links=new Map([...nav.querySelectorAll('a[data-nav-id]')].map(a=>[a.dataset.navId,a]));
+    const links=new Map([...nav.querySelectorAll('a[data-nav-id]')].filter(a=>a.dataset.navId!=='servers').map(a=>[a.dataset.navId,a]));
     if(layout&&Array.isArray(layout.order)){
       const hidden=new Set(Array.isArray(layout.hidden)?layout.hidden:[]);
       for(const id of layout.order){
@@ -391,6 +456,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       }
     }
+    placeServerSwitch();
   }).catch(()=>{
     // On network failure never reveal library links that may not exist.
   });

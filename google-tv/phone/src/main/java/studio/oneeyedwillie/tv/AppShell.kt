@@ -71,6 +71,9 @@ html.yarr-app button:active,html.yarr-app .filter-link:active{opacity:.75}
 html.yarr-app .yarr-app-bar{display:flex;align-items:center;gap:10px;height:54px;padding:0 16px}
 html.yarr-app .yarr-app-bar img{width:34px;height:34px}
 html.yarr-app .yarr-app-bar strong{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;color:#fff}
+html.yarr-app .yarr-app-switch{margin-left:auto;width:40px;height:40px;border:0;border-radius:20px;background:#1c1f24;color:#fff;display:grid;place-items:center;padding:0}
+html.yarr-app .yarr-app-switch[hidden]{display:none}
+html.yarr-app .yarr-app-switch svg{width:22px;height:22px}
 html.yarr-app body[data-page="home"] .workspace>.content{padding:0 0 28px!important}
 html.yarr-app body[data-page="home"] .home-feature{display:none!important}
 html.yarr-app body[data-page="home"] .shelf{padding:0!important;margin:20px 0 0!important;height:auto!important;min-height:0!important}
@@ -112,6 +115,15 @@ html.yarr-app #items{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap
  var bar=document.createElement('header');bar.className='yarr-app-bar';
  bar.innerHTML='<img src="/assets/logo.svg?v=moon-sail-v1" alt=""><strong>Yarr Media</strong>';
  c.prepend(bar);
+ // Switch server: only when this account can open more than one.
+ var sw=document.createElement('button');sw.type='button';sw.className='yarr-app-switch';sw.hidden=true;
+ sw.setAttribute('aria-label','Switch server');
+ sw.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 5h16v5H4z"/><path d="M4 14h16v5H4z"/><path d="M8 7.5h.01"/><path d="M8 16.5h.01"/><path d="M12 7.5h5"/><path d="M12 16.5h5"/></svg>';
+ sw.onclick=function(){if(window.yarrServers)window.yarrServers.open()};
+ bar.append(sw);
+ function show(n){sw.hidden=!(n>1)}
+ if(window.yarrServers)show(window.yarrServers.count);
+ window.addEventListener('yarr-servers',function(e){show(e.detail&&e.detail.count)});
  [['movies-heading','/movies'],['tv-heading','/tv'],['music-heading','/music']].forEach(function(p){
   var h=document.getElementById(p[0]);if(!h||h.closest('a'))return;
   var a=document.createElement('a');a.href=p[1];a.className='yarr-shelf-link';

@@ -65,6 +65,17 @@ class TvBehaviourIsGatedTests(unittest.TestCase):
 
 
 class DistributionTests(unittest.TestCase):
+    def test_signed_out_phone_away_from_home_is_offered_sign_in(self):
+        # A fresh phone install only knows the home address; when that can't be
+        # reached it must point to signing in rather than a dead end.
+        self.assertIn('if (!isTv) addView(loadingSignIn', MAIN)
+        self.assertIn('setOnClickListener { startYarrSignIn() }', MAIN)
+        self.assertIn("Sign in to Yarr Media to watch away from home.", MAIN)
+        # After signing in from the failed screen it connects again (home first, then away).
+        self.assertIn("if (browser == null || loadingFailed) {", MAIN)
+        # The TV keeps its wording.
+        self.assertIn('if (isTv) "TV Server Connection" else "Server connection"', MAIN)
+
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()
         self.assertIn(":phone:assembleDebug :phone:assembleLean", ci)
