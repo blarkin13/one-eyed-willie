@@ -1570,7 +1570,7 @@ export default { async fetch(req,env) {
    let database='unavailable';try{await env.ACCOUNTS.prepare('SELECT 1 AS ok').first();database='ready'}catch(_){}
    return json({service:'yarr',status:'staging',database,authentication:authReady(env)?'configured':'not_configured',media_proxy:false},database==='ready'?200:503);
   }
-  if(req.method==='GET'&&u.pathname==='/robots.txt')return new Response('User-agent: *\nDisallow: /\n',{headers:{'content-type':'text/plain; charset=utf-8'}});
+  if(req.method==='GET'&&u.pathname==='/robots.txt'&&u.hostname!=='yarr.media'&&u.hostname!=='www.yarr.media')return new Response('User-agent: *\nDisallow: /\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
   if(req.method==='GET'&&u.pathname==='/auth/google/start')return googleStart(req,env);
   if(req.method==='GET'&&u.pathname==='/auth/google/callback')return googleCallback(req,env);
   if(req.method==='POST'&&u.pathname==='/auth/logout') {
