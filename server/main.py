@@ -11,6 +11,7 @@ from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.music import router as music_router
 from server.lidarr import router as lidarr_router
+from server.bazarr import router as bazarr_router
 from server.remote_config import router as remote_config_router
 from server.yarr_pairing import router as yarr_pairing_router
 from server.yarr_ice_probe import router as yarr_ice_probe_router
@@ -113,6 +114,7 @@ app.include_router(router)
 app.include_router(connections_router)
 app.include_router(music_router)
 app.include_router(lidarr_router)
+app.include_router(bazarr_router)
 app.include_router(remote_config_router)
 app.include_router(yarr_pairing_router)
 app.include_router(yarr_ice_probe_router)
@@ -452,6 +454,16 @@ def integration_brand_svg(brand: str):
     )
 
 
+@app.get("/assets/brand/bazarr.png")
+def bazarr_brand_png():
+    return FileResponse(
+        Path(__file__).with_name("bazarr-official.png"),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=86400",
+                 "X-Content-Type-Options": "nosniff"},
+    )
+
+
 @app.get("/assets/brand/opensubtitles.png")
 def opensubtitles_brand_png():
     return FileResponse(
@@ -729,6 +741,11 @@ def sonarr_series_page(series_id: int):
 @app.get("/sabnzbd")
 def sabnzbd_dashboard_page():
     return TextFileResponse(Path(__file__).with_name("sab_dashboard.html"), media_type="text/html")
+
+
+@app.get("/bazarr")
+def bazarr_dashboard_page():
+    return TextFileResponse(Path(__file__).with_name("bazarr_dashboard.html"), media_type="text/html")
 
 
 @app.get("/settings/integrations")

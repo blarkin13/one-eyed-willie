@@ -21,7 +21,7 @@ class IntegrationsRenameTests(unittest.TestCase):
         self.assertIn("{id:'connections',href:'/integrations',name:'Integrations'",shell)
         self.assertNotIn("href:'/connections',name:'Connections'",shell)
         self.assertIn(("connections","Integrations"),NAV)
-        self.assertEqual(set(CONNECTION_SERVICE_IDS),{"radarr","sonarr","lidarr","sabnzbd","plex","opensubtitles","time-adrift","clock","weather","news","ambient"})
+        self.assertEqual(set(CONNECTION_SERVICE_IDS),{"radarr","sonarr","lidarr","bazarr","sabnzbd","plex","opensubtitles","time-adrift","clock","weather","news","ambient"})
 
     def test_hub_and_server_settings_use_integrations_label(self):
         hub=(ROOT/"connections_hub.html").read_text()

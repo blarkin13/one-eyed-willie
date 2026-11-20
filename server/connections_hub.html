@@ -167,6 +167,7 @@ const entries=[
  {id:'radarr',title:'Radarr',dashboard:'/radarr',config:'#connections',description:'Manage movies, releases, and quality profiles.',image:'/assets/brand/radarr.svg'},
  {id:'sonarr',title:'Sonarr',dashboard:'/sonarr',config:'#connections',description:'Manage series, seasons, and episodes.',image:'/assets/brand/sonarr.svg'},
  {id:'lidarr',title:'Lidarr',dashboard:'/lidarr',config:'#connections',description:'Manage music artists and albums through Lidarr.',image:'/assets/brand/lidarr.svg'},
+ {id:'bazarr',title:'Bazarr',dashboard:'/bazarr',config:'#connections',description:'Find and download missing subtitles for movies and TV.',image:'/assets/brand/bazarr.png'},
  {id:'sabnzbd',title:'SABnzbd',dashboard:'/sabnzbd',config:'#sab-heading',description:'Monitor downloads, history, and queue controls.',image:'/assets/brand/sabnzbd.svg'},
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.',image:'/assets/brand/plex.svg'},
  {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'},
@@ -220,7 +221,7 @@ async function statusPost(url,payload){
 async function showConnected(){
  const root=document.getElementById('connected-services');
  const message=document.getElementById('connections-message');
- const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings','/api/glance/settings'];
+ const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings','/api/glance/settings','/api/bazarr/connection'];
  const [settled,visibility]=await Promise.all([
   Promise.allSettled(urls.map(status)),
   status('/api/settings/connections/visibility').catch(()=>({visible:{}}))
@@ -236,9 +237,10 @@ async function showConnected(){
  const lidarr=settled[4].status==='fulfilled'?settled[4].value:{};
  const timeAdrift=settled[5].status==='fulfilled'?settled[5].value:{};
  const glanceSettings=settled[6].status==='fulfilled'?settled[6].value.integrations||{}:{};
+ const bazarr=settled[7].status==='fulfilled'?settled[7].value:{};
  const glanceNames=['clock','weather','news','ambient'];
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
-   lidarr:!!lidarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
+   lidarr:!!lidarr.connected,bazarr:!!bazarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
    opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled,
    clock:!!glanceSettings.clock?.enabled,
    weather:!!glanceSettings.weather?.enabled&&/^[0-9]{5}$/.test(glanceSettings.weather.zip_code||''),
