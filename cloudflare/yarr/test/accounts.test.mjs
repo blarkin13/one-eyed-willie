@@ -165,105 +165,59 @@ test('passes are off until a signing key is configured', async()=>{
  assert.deepEqual((await (await request(worker,env,'GET',PUB+'/api/passes/keys')).json()).keys,[]);
 });
 
-const STRIPE_ENV={STRIPE_SECRET_KEY:'sk_test_x',STRIPE_WEBHOOK_SECRET:'whsec_test',STRIPE_PRO_PRICE_ID:'price_pro'};
-async function signedEvent(event,secret='whsec_test',t=Math.floor(Date.now()/1000)){
- const payload=JSON.stringify(event);
- const key=await webcrypto.subtle.importKey('raw',new TextEncoder().encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
- const mac=Buffer.from(await webcrypto.subtle.sign('HMAC',key,new TextEncoder().encode(t+'.'+payload))).toString('hex');
- return {body:payload,headers:{'stripe-signature':'t='+t+',v1='+mac,'content-type':'application/json'}};
-}
+const ONE_TIME_TEST_ENV={YARR_STRIPE_TEST_ENABLED:'1',STRIPE_SECRET_KEY:'sk_test_x',STRIPE_WEBHOOK_SECRET:'whsec_test',STRIPE_PRO_PRICE_ID:'price_pro'};
 
-test('Stripe: checkout, signed webhooks, Pro on and off, replay protection', async()=>{
- const worker=await loadWorker(),env=makeEnv({...STRIPE_ENV,STRIPE_AUTOMATIC_TAX:'1'});
- const user=await signedInUser(env);
- let sub={id:'sub_1',status:'active',customer:'cus_1',metadata:{user_id:user.id},cancel_at_period_end:false,items:{data:[{current_period_end:Math.floor(Date.now()/1000)+30*86400}]}};
- const mock=mockFetch((url,method)=>{
-  if(url==='https://api.stripe.com/v1/checkout/sessions'&&method==='POST')return jsonResponse({id:'cs_1',url:'https://checkout.stripe.com/c/pay/cs_1'});
-  if(url==='https://api.stripe.com/v1/subscriptions/sub_1'&&method==='GET')return jsonResponse(sub);
-  if(url==='https://api.stripe.com/v1/subscriptions/sub_1'&&method==='DELETE'){sub={...sub,status:'canceled'};return jsonResponse(sub);}
- });
+test('payments: the $29 one-time checkout is the only purchase path', async()=>{
+ const worker=await loadWorker();
+ const off=makeEnv(),user=await signedInUser(off);
+ assert.match(await (await request(worker,off,'GET',ACC+'/',{headers:{cookie:user.cookie}})).text(),/not on sale yet/);
+ const env=makeEnv(ONE_TIME_TEST_ENV),buyer=await signedInUser(env);
+ const mock=mockFetch(()=>null); // any Stripe call from the removed subscription code would throw
  try{
-  const page=await request(worker,env,'GET',ACC+'/',{headers:{cookie:user.cookie}});
-  assert.match(await page.text(),/Upgrade to Pro/);
+  const page=await request(worker,env,'GET',ACC+'/',{headers:{cookie:buyer.cookie}});
+  const html=await page.text();
+  assert.match(html,/\$29 one-time purchase/);
+  assert.match(html,/action="\/api\/stripe\/checkout"/);
+  assert.doesNotMatch(html,/billing\/portal|billing\/checkout|Manage billing|Billing history/);
   assert.match(page.headers.get('content-security-policy'),/form-action 'self' https:\/\/checkout\.stripe\.com/);
-
-  const co=await request(worker,env,'POST',ACC+'/account/billing/checkout',{headers:formHeaders(user),form:{}});
-  assert.equal(co.headers.get('location'),'https://checkout.stripe.com/c/pay/cs_1');
-  const sent=new URLSearchParams(mock.calls.at(-1).body);
-  assert.equal(sent.get('client_reference_id'),user.id);
-  assert.equal(sent.get('subscription_data[metadata][user_id]'),user.id);
-  assert.equal(sent.get('line_items[0][price]'),'price_pro');
-  assert.equal(sent.get('automatic_tax[enabled]'),'true');
-  assert.equal(sent.get('customer_email'),user.email);
-
-  const bad=await signedEvent({id:'evt_x',type:'customer.subscription.updated',data:{object:{id:'sub_1'}}},'wrong');
-  assert.equal((await request(worker,env,'POST',PUB+'/api/stripe/webhook',bad)).status,400);
-  const stale=await signedEvent({id:'evt_x',type:'customer.subscription.updated',data:{object:{id:'sub_1'}}},'whsec_test',Math.floor(Date.now()/1000)-3600);
-  assert.equal((await request(worker,env,'POST',PUB+'/api/stripe/webhook',stale)).status,400,'old signatures are refused');
-
-  const done=await signedEvent({id:'evt_1',type:'checkout.session.completed',data:{object:{mode:'subscription',subscription:'sub_1',client_reference_id:user.id}}});
-  assert.equal((await request(worker,env,'POST',PUB+'/api/stripe/webhook',done)).status,200);
-  const replay=await request(worker,env,'POST',PUB+'/api/stripe/webhook',done);
-  assert.equal((await replay.json()).duplicate,true);
-  let row=env.ACCOUNTS.raw.prepare("SELECT status,provider_customer_id,current_period_end FROM subscriptions").get();
-  assert.equal(row.status,'active');
-  assert.equal(row.provider_customer_id,'cus_1');
-  assert.ok(row.current_period_end);
-  assert.match(await (await request(worker,env,'GET',ACC+'/',{headers:{cookie:user.cookie}})).text(),/Yarr Media Pro/);
-
-  sub={...sub,status:'canceled'};
-  const ended=await signedEvent({id:'evt_2',type:'customer.subscription.deleted',data:{object:{id:'sub_1'}}});
-  await request(worker,env,'POST',PUB+'/api/stripe/webhook',ended);
-  row=env.ACCOUNTS.raw.prepare("SELECT COUNT(*) n, MAX(status) s FROM subscriptions").get();
-  assert.equal(row.n,1,'one row per Stripe subscription');
-  assert.equal(row.s,'canceled');
-  assert.match(await (await request(worker,env,'GET',ACC+'/',{headers:{cookie:user.cookie}})).text(),/Upgrade to Pro/);
+  assert.doesNotMatch(page.headers.get('content-security-policy'),/billing\.stripe\.com/);
+  for(const path of ['/account/billing/checkout','/account/billing/portal']){
+   const r=await request(worker,env,'POST',ACC+path,{headers:formHeaders(buyer),form:{}});
+   assert.ok(!(r.headers.get('location')||'').includes('stripe.com'),path);
+  }
+  const old=await request(worker,env,'POST',PUB+'/api/stripe/webhook',{body:'{}'});
+  assert.notEqual(old.status,200,'the subscription webhook on yarr.media is gone');
  }finally{mock.restore();}
+ assert.equal(mock.calls.filter(c=>c.url.includes('api.stripe.com')).length,0);
 });
 
-test('Stripe: a failed webhook is forgotten so Stripe can retry it', async()=>{
- const worker=await loadWorker(),env=makeEnv(STRIPE_ENV);
- await signedInUser(env);
- const mock=mockFetch(()=>jsonResponse({error:{type:'api_error'}},500));
- try{
-  const ev=await signedEvent({id:'evt_9',type:'customer.subscription.updated',data:{object:{id:'sub_9'}}});
-  assert.equal((await request(worker,env,'POST',PUB+'/api/stripe/webhook',ev)).status,500);
-  assert.equal(env.ACCOUNTS.raw.prepare("SELECT COUNT(*) n FROM billing_events").get().n,0);
- }finally{mock.restore();}
-});
-
-test('billing stays off without Stripe keys', async()=>{
+test('manual Pro grants still count and show on the account page', async()=>{
  const worker=await loadWorker(),env=makeEnv();
  const user=await signedInUser(env);
- assert.match(await (await request(worker,env,'GET',ACC+'/',{headers:{cookie:user.cookie}})).text(),/not on sale yet/);
- const co=await request(worker,env,'POST',ACC+'/account/billing/checkout',{headers:formHeaders(user),form:{}});
- assert.equal(co.headers.get('location'),'/account?billing=unavailable');
- assert.equal((await request(worker,env,'POST',PUB+'/api/stripe/webhook',{body:'{}'})).status,503);
+ env.ACCOUNTS.raw.prepare("INSERT INTO subscriptions(id,user_id,status,provider) VALUES('m1',?,'active','manual')").run(user.id);
+ const html=await (await request(worker,env,'GET',ACC+'/',{headers:{cookie:user.cookie}})).text();
+ assert.match(html,/Yarr Media Pro/);
+ assert.match(html,/No end date/);
+ env.ACCOUNTS.raw.prepare("UPDATE subscriptions SET current_period_end=datetime('now','-10 days')").run();
+ assert.match(await (await request(worker,env,'GET',ACC+'/',{headers:{cookie:user.cookie}})).text(),/not on sale yet/,'expired grants end');
 });
 
-test('account deletion cancels billing first, then removes everything', async()=>{
- const worker=await loadWorker(),env=makeEnv(STRIPE_ENV);
+test('account deletion removes everything without calling Stripe', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
  const user=await signedInUser(env);
  pairedServer(env,user.id);
  const db=env.ACCOUNTS.raw;
- db.prepare("INSERT INTO subscriptions(id,user_id,status,provider,provider_subscription_id,provider_customer_id) VALUES('p1',?,'active','stripe','sub_1','cus_1')").run(user.id);
+ db.prepare("INSERT INTO subscriptions(id,user_id,status,provider) VALUES('m1',?,'active','manual')").run(user.id);
  db.prepare("INSERT INTO devices(id,owner_user_id,device_name,device_type,token_hash,token_expires_at) VALUES('d1',?,'TV','google_tv','h',datetime('now','+1 day'))").run(user.id);
  const unconfirmed=await request(worker,env,'POST',ACC+'/account/delete',{headers:formHeaders(user),form:{confirm:'delete'}});
  assert.equal(unconfirmed.headers.get('location'),'/account?delete=confirm');
-
- let mock=mockFetch(()=>jsonResponse({error:{type:'api_error'}},500));
- try{
-  const failed=await request(worker,env,'POST',ACC+'/account/delete',{headers:formHeaders(user),form:{confirm:'DELETE'}});
-  assert.equal(failed.headers.get('location'),'/account?delete=billing');
-  assert.equal(db.prepare("SELECT COUNT(*) n FROM users").get().n,1,'not deleted while still billing');
- }finally{mock.restore();}
-
- mock=mockFetch((url,method)=>method==='DELETE'&&url.endsWith('/subscriptions/sub_1')?jsonResponse({id:'sub_1',status:'canceled'}):null);
+ const mock=mockFetch(()=>null);
  try{
   const ok=await request(worker,env,'POST',ACC+'/account/delete',{headers:formHeaders(user),form:{confirm:'DELETE'}});
   assert.equal(ok.headers.get('location'),PUB+'/?account=deleted');
   assert.match(ok.headers.get('set-cookie'),/Max-Age=0/);
  }finally{mock.restore();}
+ assert.equal(mock.calls.length,0);
  for(const t of ['users','sessions','servers','devices','subscriptions','user_identities'])
   assert.equal(db.prepare('SELECT COUNT(*) n FROM '+t).get().n,0,t);
  assert.equal(db.prepare("SELECT user_id,event FROM audit_log WHERE event='account_deleted'").get().user_id,null);
