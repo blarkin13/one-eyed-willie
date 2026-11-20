@@ -33,6 +33,25 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
+      - name: Use the permanent app signing key
+        # Created once with google-tv/create-signing-key.sh. Without it, builds
+        # get a throwaway key and can't install over an earlier build.
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASSWORD" ]; then
+            echo "::warning::No ANDROID_KEYSTORE_BASE64 secret: APKs are signed with a throwaway key and won't install over earlier builds."
+            # Same signing path with a key made just for this build.
+            KEYSTORE_PASSWORD="$(openssl rand -hex 16)"; echo "::add-mask::$KEYSTORE_PASSWORD"
+            keytool -genkeypair -keystore "$RUNNER_TEMP/yarr-media-app-signing.p12" -storetype PKCS12 \
+              -alias yarr-media -keyalg RSA -keysize 2048 -validity 30 -dname "CN=Throwaway" \
+              -storepass "$KEYSTORE_PASSWORD" -keypass "$KEYSTORE_PASSWORD" -noprompt
+          else
+            printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/yarr-media-app-signing.p12"
+          fi
+          echo "YARR_KEYSTORE=$RUNNER_TEMP/yarr-media-app-signing.p12" >> "$GITHUB_ENV"
+          echo "YARR_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
       - name: Run unit tests
         run: gradle --no-daemon :app:testDebugUnitTest
       - name: Build debug APK
@@ -63,6 +82,17 @@ jobs:
           name: yarr-media-android-lean-apk
           path: google-tv/phone/build/outputs/apk/lean/phone-lean.apk
           if-no-files-found: error
+      - name: Show signing certificates
+        # The same fingerprint on every build means each one installs over the last.
+        run: |
+          APKSIGNER="$(ls -d "$ANDROID_HOME"/build-tools/*/ | sort -V | tail -1)apksigner"
+          {
+            echo "### Signing certificates"
+            for apk in app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/lean/app-lean.apk \
+                       phone/build/outputs/apk/debug/phone-debug.apk phone/build/outputs/apk/lean/phone-lean.apk; do
+              echo "- \`$(basename "$apk")\`: $("$APKSIGNER" verify --print-certs "$apk" | grep -m1 'SHA-256 digest' | sed 's/.*: //')"
+            done
+          } | tee -a "$GITHUB_STEP_SUMMARY"
       - name: Report APK sizes
         run: |
           ls -l app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/lean/app-lean.apk

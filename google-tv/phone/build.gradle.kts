@@ -6,6 +6,12 @@ plugins {
     id("org.jetbrains.kotlin.android")
 }
 
+// Permanent app signing key (create it once with create-signing-key.sh). CI
+// passes it in YARR_KEYSTORE / YARR_KEYSTORE_PASSWORD so every build installs
+// over the previous one and keeps the app's data (server, sign-in). Without
+// them (local builds, forks) the usual per-machine debug key is used.
+val yarrKeystore = System.getenv("YARR_KEYSTORE")?.let { file(it) }?.takeIf { it.isFile }
+
 android {
     // Same namespace as the TV app so the shared code's R and imports resolve.
     namespace = "studio.oneeyedwillie.tv"
@@ -24,7 +30,18 @@ android {
             manifest.srcFile("src/main/AndroidManifest.xml")
         }
     }
+    signingConfigs {
+        if (yarrKeystore != null) create("yarr") {
+            storeFile = yarrKeystore
+            storePassword = System.getenv("YARR_KEYSTORE_PASSWORD")
+            keyAlias = "yarr-media"
+            keyPassword = System.getenv("YARR_KEYSTORE_PASSWORD")
+        }
+    }
     buildTypes {
+        getByName("debug") {
+            if (yarrKeystore != null) signingConfig = signingConfigs.getByName("yarr")
+        }
         create("lean") {
             initWith(getByName("debug"))
             isDebuggable = false
@@ -32,6 +49,7 @@ android {
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android.txt"), "../app/proguard-rules.pro")
             matchingFallbacks += "debug"
+            if (yarrKeystore != null) signingConfig = signingConfigs.getByName("yarr")
         }
     }
     compileOptions {
