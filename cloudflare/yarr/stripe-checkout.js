@@ -6,17 +6,19 @@ const stripeHeaders = {'content-type':'application/x-www-form-urlencoded'};
 const reply = (body,status=200)=>new Response(JSON.stringify(body),{status,headers:{'content-type':'application/json; charset=utf-8','cache-control':'no-store'}});
 const stripeMode = env => env.YARR_STRIPE_MODE==='live'?'live':env.YARR_STRIPE_TEST_ENABLED==='1'?'test':null;
 const expectedLive = env => stripeMode(env)==='live';
+// Both standard and restricted Stripe live secret keys can authenticate Checkout.
+const validLiveSecretKey = value => /^(?:sk|rk)_live_/.test(value||'');
 const stripeReady = env => {
  const mode=stripeMode(env);
  if(!mode || !env.ACCOUNTS || !/^price_/.test(env.STRIPE_PRO_PRICE_ID||''))return false;
  return mode==='live'
-  ? env.YARR_ONE_TIME_PRO_ENABLED==='1' && /^sk_live_/.test(env.STRIPE_SECRET_KEY||'') && /^whsec_/.test(env.STRIPE_WEBHOOK_SECRET||'')
+  ? env.YARR_ONE_TIME_PRO_ENABLED==='1' && validLiveSecretKey(env.STRIPE_SECRET_KEY) && /^whsec_/.test(env.STRIPE_WEBHOOK_SECRET||'')
   : /^sk_test_/.test(env.STRIPE_SECRET_KEY||'');
 };
 const webhookReady = env => {
  if(!env.ACCOUNTS || !/^whsec_/.test(env.STRIPE_WEBHOOK_SECRET||''))return false;
  return expectedLive(env)
-  ? env.YARR_ONE_TIME_PRO_ENABLED==='1' && /^sk_live_/.test(env.STRIPE_SECRET_KEY||'')
+  ? env.YARR_ONE_TIME_PRO_ENABLED==='1' && validLiveSecretKey(env.STRIPE_SECRET_KEY)
   : stripeMode(env)==='test';
 };
 export const proCheckoutAvailable = env => stripeReady(env) && (

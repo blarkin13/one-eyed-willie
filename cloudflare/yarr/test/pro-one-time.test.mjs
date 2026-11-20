@@ -1,11 +1,19 @@
 // Integration acceptance for Yarr one-time Pro, using the real account Worker and in-memory D1.
 import {test} from 'node:test';
+import {proCheckoutAvailable} from '../stripe-checkout.js';
 import assert from 'node:assert/strict';
 import {loadWorker,makeEnv,signedInUser,pairedServer,request,newPassKey,digest,mockFetch,jsonResponse} from './harness.mjs';
 
 const ACC='https://accounts.yarr.media';
 const PUB='https://yarr.media';
 const PRO_PRICE='price_test_yarr_pro_29';
+
+test('restricted live Stripe key is accepted only with the live checkout flag',()=>{
+ const env={ACCOUNTS:{},YARR_STRIPE_MODE:'live',YARR_ONE_TIME_PRO_ENABLED:'1',STRIPE_PRO_PRICE_ID:'price_live_yarr_pro',STRIPE_SECRET_KEY:'rk_live_example',STRIPE_WEBHOOK_SECRET:'whsec_example',YARR_LIVE_CHECKOUT_ENABLED:'0'};
+ assert.equal(proCheckoutAvailable(env),false);
+ assert.equal(proCheckoutAvailable({...env,YARR_LIVE_CHECKOUT_ENABLED:'1'}),true);
+ assert.equal(proCheckoutAvailable({...env,YARR_LIVE_CHECKOUT_ENABLED:'1',STRIPE_SECRET_KEY:'rk_test_example'}),false);
+});
 
 test('test-only account dashboard shows one-time Checkout, never the subscription plan',async()=>{
  const worker=await loadWorker();
