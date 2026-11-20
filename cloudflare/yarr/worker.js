@@ -1,5 +1,6 @@
 import {createProCheckout,proStripeWebhook,proCheckoutAvailable} from './stripe-checkout.js';
 import {oneTimeProEnabled,oneTimeProActive} from './entitlements.js';
+import {how2Html,HOW2_PATHS} from './how2s.js';
 // Yarr staging: public product landing page plus isolated, disabled account APIs.
 // Product name and public domain remain provisional. No home-server media proxy.
 const JSON_HEADERS = {'content-type':'application/json; charset=utf-8','cache-control':'no-store','x-content-type-options':'nosniff'};
@@ -57,7 +58,7 @@ const page = `<!doctype html>
 <div class="tile"><b>02 / ORGANIZE</b><h3>Add your collections</h3><p>Choose media folders and let Yarr Media assemble your libraries.</p></div>
 <div class="tile"><b>03 / ENJOY</b><h3>Watch locally</h3><p>Stream on your home network. Pro remote connectivity is being developed.</p></div></div></section>
 <section id="availability" class="section reveal"><div class="eyebrow">Development preview</div><h2>We're preparing Yarr Media for release.</h2><div class="launch"><strong>Public downloads and Pro purchasing are not available yet.</strong><p>Yarr Media is under active development. This site describes the planned product tiers; it does not activate remote access or require a payment.</p></div></section></main>
-<footer class="footer"><div><div class="footer-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="footer-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a></div><div><div class="footer-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="footer-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>
+<footer class="footer"><div><div class="footer-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="footer-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a><a href="/how2s">Setup guides</a></div><div><div class="footer-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="footer-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>
 </div></body></html>`;
 
 
@@ -65,7 +66,7 @@ const page = `<!doctype html>
 const APK_URL = "https://github.com/blarkin13/one-eyed-willie/releases/latest/download/yarr-media-google-tv.apk";
 const DOWNLOADS_PLACEHOLDERS = '<section id="downloads" class="section reveal" aria-labelledby="downloads-title"><div class="eyebrow">Get Yarr Media</div><h2 id="downloads-title">Downloads</h2><p class="section-intro">Install the server on the computer that holds your media, then watch on your TV or in any browser.</p><div class="features"><article class="tile"><b>SERVER · LINUX</b><h3>One-line install</h3><p>On Ubuntu, Debian or another Linux computer (Intel or ARM), run:</p><p><code style="display:block;margin:12px 0;padding:12px;border-radius:8px;background:#0a0a0a;border:1px solid #ffffff2a;color:#f5f1e8;font:13px ui-monospace,monospace;overflow-wrap:anywhere;user-select:all">curl -fsSL https://yarr.media/install.sh | sudo bash</code></p><p>It sets up Docker if needed, keeps itself updated, and prepares remote access. Or with apt: <a href="/apt">add the Yarr Media repository</a>.</p></article><article class="tile"><b>GOOGLE TV</b><h3>Android TV app</h3><p><a href="'+APK_URL+'">Download the APK</a>, or on the TV open the free Downloader app and enter <strong>yarr.media/tv</strong>. Sign in from Settings → Yarr account.</p></article><article class="tile"><b>ANY BROWSER</b><h3>app.yarr.media</h3><p>Open <a href="https://app.yarr.media/">app.yarr.media</a> on a phone, tablet or computer. At home it is free; away from home it needs Pro.</p></article></div></section>';
 const SITE_HEADER = '<header class="site-header" role="banner"><a href="/" class="site-brand" aria-label="Yarr Media home"><img src="/favicon.svg?v=moon-sail-v1" alt="" aria-hidden="true"><span class="site-brand-label">YARR<span class="brand-dot">.</span><span class="brand-media">MEDIA</span></span></a><nav class="site-nav" aria-label="Main navigation"><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/how-it-works">How it works</a><a href="/#downloads">Downloads</a></nav><div class="site-actions"><a href="/account">My Account</a><a class="site-app-link" href="/app">Open App</a></div></header>';
-const SITE_FOOTER = '<footer class="site-footer" role="contentinfo"><div><div class="site-foot-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="site-foot-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a></div><div><div class="site-foot-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="site-foot-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>';
+const SITE_FOOTER = '<footer class="site-footer" role="contentinfo"><div><div class="site-foot-title">Yarr Media</div><div>Your collection. Your server.</div><small>Development preview. Public downloads and Pro purchases are not yet available.</small></div><div><div class="site-foot-title">Product</div><a href="/features">Features</a><a href="/free-vs-pro">Free vs Pro</a><a href="/remote-access">Remote access</a><a href="/how-it-works">How it works</a><a href="/how2s">Setup guides</a></div><div><div class="site-foot-title">Account</div><a href="/account">My Account</a><a href="/app">Open App</a></div><div><div class="site-foot-title">Legal</div><a href="/terms">Terms of Use</a><a href="/privacy">Privacy Policy</a><a href="/cookies">Cookie Policy</a></div></footer>';
 const SITE_CHROME_CSS = `
 :root{color-scheme:dark;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0a0a0a;color:#f5f1e8}html{background:#0a0a0a}body{margin:0;min-height:100vh;background:#0a0a0a;color:#f5f1e8;font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif}a{color:inherit}.wrap{max-width:1180px;margin:auto;padding:0 24px}
 .site-header{max-width:100%;min-height:90px;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:18px 0;border-bottom:1px solid #ffffff29}
@@ -111,7 +112,7 @@ function siteChrome(html) {
  const footer=/<footer class="(?:footer|foot|note)">[\s\S]*?<\/footer>/;
  if(!header.test(out)||!footer.test(out)||!out.includes('</style>'))throw Error('Public site chrome missing');
  out=out.replace(header,SITE_HEADER).replace(footer,SITE_FOOTER);
- return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>').replaceAll('href=\"/app\"','href=\"'+APP_SITE+'/\"').replaceAll('href=\"/account\"','href=\"'+ACCOUNTS_SITE+'/\"').replaceAll('href=\"/\"','href=\"'+PUBLIC_SITE+'/\"').replaceAll('href=\"/#downloads\"','href=\"'+PUBLIC_SITE+'/#downloads\"').replace(/href=\"\/(features|free-vs-pro|how-it-works|remote-access|terms|privacy|cookies)\"/g,(_,path)=>'href=\"'+PUBLIC_SITE+'/'+path+'\"');
+ return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>').replaceAll('href=\"/app\"','href=\"'+APP_SITE+'/\"').replaceAll('href=\"/account\"','href=\"'+ACCOUNTS_SITE+'/\"').replaceAll('href=\"/\"','href=\"'+PUBLIC_SITE+'/\"').replaceAll('href=\"/#downloads\"','href=\"'+PUBLIC_SITE+'/#downloads\"').replace(/href=\"\/(features|free-vs-pro|how-it-works|remote-access|how2s|terms|privacy|cookies)\"/g,(_,path)=>'href=\"'+PUBLIC_SITE+'/'+path+'\"');
 }
 
 const PUBLIC_PAGE_DATA = {
@@ -167,7 +168,7 @@ const LEGAL_PAGE_DATA = {
  ['Changes and contact','These preview disclosures will be reviewed and updated before a paid public launch. Product questions can be raised through the Yarr Media project repository.']]}
 };
 const PUBLIC_SITE = 'https://yarr.media';
-const PUBLIC_URLS = ['/',...Object.keys(PUBLIC_PAGE_DATA),...Object.keys(LEGAL_PAGE_DATA)];
+const PUBLIC_URLS = ['/',...Object.keys(PUBLIC_PAGE_DATA),...HOW2_PATHS,...Object.keys(LEGAL_PAGE_DATA)];
 const legalEscape = value => String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function infoPage(path) {
  const data=PUBLIC_PAGE_DATA[path]||LEGAL_PAGE_DATA[path];
@@ -1581,6 +1582,11 @@ export default { async fetch(req,env) {
   if(req.method==='GET'||req.method==='HEAD') {
    if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
    if(u.pathname==='/sitemap.xml')return new Response(req.method==='HEAD'?null:'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+PUBLIC_URLS.map(p=>'<url><loc>'+PUBLIC_SITE+p+'</loc></url>').join('')+'</urlset>',{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=3600'}});
+   if(u.pathname==='/how2s'||u.pathname.startsWith('/how2s/')){
+    const guide=how2Html(u.pathname);
+    if(!guide)return redirect('/how2s');
+    return new Response(req.method==='HEAD'?null:siteChrome(guide),{headers:{...HTML_HEADERS,'cache-control':'public, max-age=300'}});
+   }
    const info=infoPage(u.pathname);
    if(info)return new Response(req.method==='HEAD'?null:info,{headers:{...HTML_HEADERS,'cache-control':'public, max-age=300'}});
   }
