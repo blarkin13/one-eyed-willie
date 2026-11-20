@@ -102,9 +102,9 @@ object YarrAccount {
     }
 
     /** Network calls below block; run them off the main thread. */
-    fun requestCode(deviceName: String): DeviceCode {
+    fun requestCode(deviceName: String, deviceType: String = "google_tv"): DeviceCode {
         val reply = call("POST", "/api/device/code", json = JSONObject()
-            .put("device_name", deviceName.take(60)).put("device_type", "google_tv"))
+            .put("device_name", deviceName.take(60)).put("device_type", deviceType))
         if (reply.status != 201) error("Could not get a sign-in code (HTTP ${reply.status})")
         val b = reply.body
         return DeviceCode(b.getString("device_code"), b.getString("user_code"),

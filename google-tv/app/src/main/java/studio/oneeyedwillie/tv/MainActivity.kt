@@ -48,6 +48,7 @@ class MainActivity : ComponentActivity() {
     private val prefs by lazy { getSharedPreferences("server", MODE_PRIVATE) }
     private var browser: WebView? = null
     private var origin = ""
+    private val isTv by lazy { AppKind.isTv(this) }
     private val pendingProgressPrefs by lazy { getSharedPreferences("oew_tv_pending_progress", MODE_PRIVATE) }
     // D-pad focus must not turn a text field into an editing session.
     private var tvTextEditing = false
@@ -137,7 +138,7 @@ class MainActivity : ComponentActivity() {
             setOnClickListener {
                 val web = browser
                 val saved = prefs.getString("url", "")?.trim()?.trimEnd('/').orEmpty()
-                if (web != null) {
+                if (web != null && isTv) {
                     if (RemoteSession.isRemote(this@MainActivity, origin)) remotePassRefresh.run()
                     web.reload()
                 } else if (validOrigin(saved)) startWithSavedServer(saved) else showUnconfigured()
@@ -172,7 +173,7 @@ class MainActivity : ComponentActivity() {
     // Play the two uploaded real-world recordings once on cold startup.
     // The clips are quiet and layered, never restarted during navigation.
     private fun playStartupSoundOnce() {
-        if (playedStartupSound) return
+        if (playedStartupSound || !isTv) return
         playedStartupSound = true
         // MediaPlayer.create() decodes and prepares synchronously. Doing that on
         // the main thread held up the very first frame, so it runs on its own
@@ -280,11 +281,29 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         NavTrace.init(applicationContext)
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
-                View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        if (isTv) {
+            window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
+                    View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        } else {
+            // Phone: normal status and navigation bars. Android 15 draws apps
+            // edge to edge, so keep the page clear of the bars and the notch.
+            window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(Color.BLACK))
+            if (android.os.Build.VERSION.SDK_INT >= 35) {
+                findViewById<View>(android.R.id.content).setOnApplyWindowInsetsListener { v, insets ->
+                    val bars = insets.getInsets(android.view.WindowInsets.Type.systemBars() or
+                        android.view.WindowInsets.Type.displayCutout() or android.view.WindowInsets.Type.ime())
+                    v.setPadding(bars.left, bars.top, bars.right, bars.bottom)
+                    insets
+                }
+            }
+        }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
                 val web = browser
+                if (!isTv) {
+                    if (web != null && web.canGoBack()) web.goBack() else finish()
+                    return
+                }
                 if (web == null) { showConnectionSettings(); return }
                 if (tvTextEditing) {
                     finishTvTextEditing(web)
@@ -572,7 +591,7 @@ class MainActivity : ComponentActivity() {
     }
 
     // ---- Yarr account (sign in with a code shown on the TV) -------------------
-    private fun accountMessageView(lines: String, code: String? = null): View =
+    private fun accountMessageView(lines: String, code: String? = null, openUrl: String? = null): View =
         LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(24), dp(12), dp(24), dp(4))
@@ -584,6 +603,16 @@ class MainActivity : ComponentActivity() {
                 typeface = android.graphics.Typeface.MONOSPACE
                 gravity = Gravity.CENTER
                 setPadding(0, dp(16), 0, dp(8))
+            })
+            if (openUrl != null) addView(Button(this@MainActivity).apply {
+                text = "Open sign-in page"
+                setOnClickListener {
+                    try {
+                        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(openUrl)).addCategory(Intent.CATEGORY_BROWSABLE))
+                    } catch (_: android.content.ActivityNotFoundException) {
+                        android.widget.Toast.makeText(this@MainActivity, "No browser is installed", android.widget.Toast.LENGTH_LONG).show()
+                    }
+                }
             })
         }
 
@@ -630,7 +659,7 @@ class MainActivity : ComponentActivity() {
         }
         val waiting = accountDialog
         accountWorker.execute {
-            val code = try { YarrAccount.requestCode(name) } catch (e: Exception) { null }
+            val code = try { YarrAccount.requestCode(name, if (isTv) "google_tv" else "android") } catch (e: Exception) { null }
             runOnUiThread {
                 if (isDestroyed || accountDialog !== waiting || waiting?.isShowing != true) return@runOnUiThread
                 if (code == null) {
@@ -642,7 +671,10 @@ class MainActivity : ComponentActivity() {
                     return@runOnUiThread
                 }
                 showAccountDialog("Sign in to Yarr Media", accountMessageView(
-                    "On your phone or computer, go to\n${code.verificationUri.removePrefix("https://")}\nand enter this code:", code.userCode)) {
+                    if (isTv) "On your phone or computer, go to\n${code.verificationUri.removePrefix("https://")}\nand enter this code:"
+                    else "Open the sign-in page and approve this phone, or enter this code at ${code.verificationUri.removePrefix("https://")}:",
+                    code.userCode,
+                    if (isTv) null else code.verificationUri + "?code=" + Uri.encode(code.userCode))) {
                     it.setNegativeButton("Cancel", null)
                 }
                 val shown = accountDialog
@@ -693,7 +725,7 @@ class MainActivity : ComponentActivity() {
             return
         // Wait for the first selected artwork as well as the shelf data.
         // Never block indefinitely for titles that have no backdrop.
-        val artworkGraceElapsed =
+        val artworkGraceElapsed = !isTv ||
             android.os.SystemClock.uptimeMillis() - splashStartedAt >= 3500L
         web.evaluateJavascript(
             """(() => {
@@ -770,8 +802,12 @@ class MainActivity : ComponentActivity() {
             // The server sends TV-only first-paint CSS for this WebView.
             // Without it, the desktop sidebar flashes before onPageFinished
             // injects the remote-navigation styling.
-            if (!userAgentString.contains("OneEyedWillieTV/1"))
+            if (isTv && !userAgentString.contains("OneEyedWillieTV/1"))
                 userAgentString = userAgentString + " OneEyedWillieTV/1"
+            // The phone app gets the server's normal touch layout; this marker
+            // only adds the app's own connection settings to the Settings page.
+            if (!isTv && !userAgentString.contains("YarrMediaAndroid/1"))
+                userAgentString = userAgentString + " YarrMediaAndroid/1"
             javaScriptEnabled = true
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
@@ -968,10 +1004,10 @@ class MainActivity : ComponentActivity() {
                 super.onPageFinished(web, url)
                 if (browser === web && sameOrigin(url.orEmpty())) {
                     val completedSerial = pageLoadSerial
-                    installRemoteNavigation(web)
+                    if (isTv) installRemoteNavigation(web)
                     // A page with autofocus must not leave the keyboard open
                     // before its inputs receive the TV read-only focus guard.
-                    if (!tvTextEditing)
+                    if (isTv && !tvTextEditing)
                         (getSystemService(INPUT_METHOD_SERVICE) as InputMethodManager)
                             .hideSoftInputFromWindow(web.windowToken, 0)
                     waitForStartupContent(web, completedSerial)

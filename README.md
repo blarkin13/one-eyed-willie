@@ -47,6 +47,7 @@ until you delete it.
 | --- | --- |
 | Home network | Open `http://<server-ip>:8787` in any browser. |
 | Google TV | Install the APK from [Releases](https://github.com/blarkin13/one-eyed-willie/releases/latest) (on the TV: Downloader app → `yarr.media/tv`). It finds the server on your network. |
+| Android phone | Install the phone app: open `yarr.media/android` on the phone. It finds the server at home; sign in to your Yarr account in **Settings → This Phone's Connection** to watch away from home (Pro). |
 | Anywhere (Pro) | [app.yarr.media](https://app.yarr.media) after the steps below. |
 
 ### Remote access (Pro)
@@ -72,7 +73,7 @@ code shown at [yarr.media/activate](https://yarr.media/activate).
 | Path | What |
 | --- | --- |
 | `server/` | The media server: FastAPI + SQLite, web UI, FFmpeg/HLS playback, metadata, integrations, the remote-access gate (`remote_access.py`). |
-| `google-tv/` | Android / Google TV app (WebView shell + native Media3 player). |
+| `google-tv/` | Google TV app (`app/`) and the separate Android phone app (`phone/`, same code): WebView shell + native Media3 player. |
 | `cloudflare/yarr/` | The yarr.media Worker: website, accounts (Google sign-in), TV sign-in, passes, Stripe, D1 migrations, deploy script. |
 | `deploy/` | Installer, `.deb` packaging and apt publishing, Caddy configs, the development server's updater. |
 | `tests/`, `cloudflare/yarr/test/` | Python tests (incl. Playwright browser tests) and Worker tests. |

@@ -220,6 +220,9 @@ class PlayerActivity : ComponentActivity() {
         }
         window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_FULLSCREEN or
             View.SYSTEM_UI_FLAG_HIDE_NAVIGATION or View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
+        // Phone app: turn the phone sideways either way; the TV is always landscape.
+        if (!AppKind.isTv(this))
+            requestedOrientation = android.content.pm.ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
 
         title = intent.getStringExtra("title")?.takeIf { it.isNotBlank() } ?: "Now Playing"
         // Letterbox/pillarbox bands are whatever sits behind the video. The stock
@@ -235,6 +238,13 @@ class PlayerActivity : ComponentActivity() {
         surface.addView(playerView)
         applySubtitleAppearance()
         chrome = createControls()
+        // Phone app: tap the video to show or hide the controls (a TV uses the remote).
+        if (!AppKind.isTv(this)) playerView.setOnClickListener {
+            if (chrome.visibility == View.VISIBLE) {
+                handler.removeCallbacks(hideChrome)
+                chrome.visibility = View.GONE
+            } else showChrome()
+        }
         surface.addView(chrome, FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
         ))
