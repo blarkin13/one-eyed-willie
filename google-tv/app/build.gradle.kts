@@ -26,6 +26,11 @@ android {
             matchingFallbacks += "debug"
         }
     }
+    sourceSets {
+        // AppShell: a no-op here. The phone app (../phone) has the real one with
+        // its native tab bar; the shared code calls it either way.
+        getByName("main") { java.srcDirs("src/tvShell/java") }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
