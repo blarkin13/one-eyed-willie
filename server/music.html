@@ -56,6 +56,8 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .cover-play{position:absolute;right:10px;bottom:10px;z-index:2;width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:0 6px 18px #0009;opacity:0;transform:translateY(6px);transition:opacity .15s,transform .15s;cursor:pointer}
 .cover-play svg{width:20px;height:20px;margin-left:2px}
 .tile:hover .cover-play,.tile:focus-within .cover-play{opacity:1;transform:none}
+.artist-tile .cover-play{right:auto;left:50%;bottom:auto;top:50%;width:54px;height:54px;transform:translate(-50%,-50%) scale(.85)}
+.artist-tile:hover .cover-play,.artist-tile:focus-within .cover-play{transform:translate(-50%,-50%)}
 .alpha-nav{position:fixed;top:50%;right:9px;transform:translateY(-50%);z-index:12;display:flex;flex-direction:column;background:#0a1421e8;backdrop-filter:blur(12px);padding:5px 3px;border-radius:14px}
 .alpha-nav[hidden]{display:none}
 .alpha-nav button{background:none;border:0;color:#c3d3e4;min-width:25px;min-height:20px;font-size:11px;font-weight:700;padding:0 2px;cursor:pointer}
