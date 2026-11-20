@@ -105,14 +105,77 @@ html,body{max-width:100%}
 @media(max-width:620px){.site-header{gap:12px}.site-header .site-brand .site-wordmark{width:clamp(130px,34vw,185px)}.site-actions{display:flex;flex-wrap:wrap;justify-content:flex-end;gap:7px}.site-actions a{font-size:12px;padding:8px 10px;min-height:38px}.site-nav{gap:10px 16px;justify-content:center}}
 @media(max-width:430px){.site-header{grid-template-columns:1fr;grid-template-areas:"brand" "actions" "nav"}.site-actions{justify-self:stretch;width:100%;display:grid;grid-template-columns:repeat(2,minmax(0,1fr))}.site-actions a{min-width:0;white-space:normal;text-align:center}}
 @media(prefers-reduced-motion:reduce){.site-actions a{transition:none}.site-actions a:hover{transform:none}}
+/* The wordmark is text (not an image): keep the same accent colors on all pages. */
+.site-header .site-brand .site-brand-label{display:inline-block;white-space:nowrap;font-weight:900}
+.site-header .site-brand .brand-dot{color:#9b9b9b!important}
+.site-header .site-brand .brand-media{color:#c62838!important}
+@media(max-width:620px){.site-header .site-brand .site-brand-label{font-size:clamp(17px,4.5vw,23px)}}
 `;
+/* Shared metadata for every public marketing, legal, and setup-guide page.
+   Account and app pages have no public canonical URL and remain noindex. */
+const SEO_ARTWORK=PUBLIC_SITE+'/assets/yarr-media-og-v2.jpg';
+const SEO_ORG_ID=PUBLIC_SITE+'/#organization';
+const SEO_WEBSITE_ID=PUBLIC_SITE+'/#website';
+function seoPlain(value){
+ return String(value||'').replace(/&amp;/g,'&').replace(/&quot;/g,'"')
+  .replace(/&#39;|&apos;/g,"'").replace(/&lt;/g,'<').replace(/&gt;/g,'>');
+}
+function seoEnhance(html){
+ const canonical=html.match(/<link rel="canonical" href="(https:\/\/yarr\.media\/[^"]*)">/i)?.[1];
+ if(!canonical)return html; // Private account, authentication and app pages.
+ const title=seoPlain(html.match(/<title>([^<]+)<\/title>/i)?.[1]||'Yarr Media');
+ const description=seoPlain(html.match(/<meta name="description" content="([^"]+)">/i)?.[1]||'Yarr Media is a self-hosted media server for your personal movie and TV libraries.');
+ const pathname=new URL(canonical).pathname;
+ const org={'@type':'Organization','@id':SEO_ORG_ID,name:'Yarr Media',url:PUBLIC_SITE,
+  logo:{'@type':'ImageObject',url:PUBLIC_SITE+'/favicon.svg'}};
+ const website={'@type':'WebSite','@id':SEO_WEBSITE_ID,url:PUBLIC_SITE+'/',name:'Yarr Media',
+  publisher:{'@id':SEO_ORG_ID},inLanguage:'en-US'};
+ const page={'@type':pathname==='/how2s'?'CollectionPage':'WebPage',
+  '@id':canonical+'#webpage',url:canonical,name:title,description,
+  isPartOf:{'@id':SEO_WEBSITE_ID},inLanguage:'en-US'};
+ const graph=[org,website,page];
+ if(pathname==='/'){
+  graph.push({'@type':'SoftwareApplication',name:'Yarr Media',
+   url:PUBLIC_SITE+'/',description,
+   applicationCategory:'MultimediaApplication',operatingSystem:'Linux',
+   downloadUrl:PUBLIC_SITE+'/install.sh',
+   offers:[{'@type':'Offer',name:'Yarr Media Free',price:'0',priceCurrency:'USD',url:PUBLIC_SITE+'/#downloads'},
+    {'@type':'Offer',name:'Yarr Media Pro',price:'29',priceCurrency:'USD',url:'https://accounts.yarr.media/'}]});
+ }else{
+  const crumbs=[{'@type':'ListItem',position:1,name:'Home',item:PUBLIC_SITE+'/'}];
+  if(pathname.startsWith('/how2s/'))crumbs.push({'@type':'ListItem',position:2,name:'Setup guides',item:PUBLIC_SITE+'/how2s'});
+  crumbs.push({'@type':'ListItem',position:crumbs.length+1,name:title.replace(/\s*[|—-]\s*Yarr Media$/,''),
+   item:canonical});
+  graph.push({'@type':'BreadcrumbList',itemListElement:crumbs});
+  if(pathname.startsWith('/how2s/')){
+   graph.push({'@type':'TechArticle',headline:title.replace(/\s*[|—-]\s*Yarr Media$/,''),
+    description,mainEntityOfPage:canonical,inLanguage:'en-US',
+    author:{'@id':SEO_ORG_ID},publisher:{'@id':SEO_ORG_ID}});
+  }
+ }
+ const attr=v=>String(v).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+ const metadata='<link rel="canonical" href="'+attr(canonical)+'">'+
+  '<meta property="og:locale" content="en_US"><meta property="og:type" content="'+(pathname.startsWith('/how2s/')?'article':'website')+'">'+
+  '<meta property="og:site_name" content="Yarr Media"><meta property="og:url" content="'+attr(canonical)+'">'+
+  '<meta property="og:title" content="'+attr(title)+'"><meta property="og:description" content="'+attr(description)+'">'+
+  '<meta property="og:image" content="'+attr(SEO_ARTWORK)+'"><meta property="og:image:secure_url" content="'+attr(SEO_ARTWORK)+'">'+
+  '<meta property="og:image:type" content="image/jpeg"><meta property="og:image:width" content="1200">'+
+  '<meta property="og:image:height" content="630"><meta property="og:image:alt" content="Yarr Media moon and sail logo">'+
+  '<meta name="twitter:card" content="summary_large_image"><meta name="twitter:title" content="'+attr(title)+'">'+
+  '<meta name="twitter:description" content="'+attr(description)+'"><meta name="twitter:image" content="'+attr(SEO_ARTWORK)+'">'+
+  '<script type="application/ld+json">'+JSON.stringify({'@context':'https://schema.org','@graph':graph}).replace(/</g,'\\u003c')+'</script>';
+ return html.replace(/<meta\s+(?:property="og:[^"]+"|name="twitter:[^"]+")[^>]*>/gi,'')
+  .replace(/<link rel="canonical" href="[^"]+">/gi,'')
+  .replace('</head>',metadata+'</head>');
+}
+
 function siteChrome(html) {
  let out=html;
  const header=/<header class="nav">[\s\S]*?<\/header>|<nav class="nav">[\s\S]*?<\/nav>/;
  const footer=/<footer class="(?:footer|foot|note)">[\s\S]*?<\/footer>/;
  if(!header.test(out)||!footer.test(out)||!out.includes('</style>'))throw Error('Public site chrome missing');
  out=out.replace(header,SITE_HEADER).replace(footer,SITE_FOOTER);
- return out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>').replaceAll('href=\"/app\"','href=\"'+APP_SITE+'/\"').replaceAll('href=\"/account\"','href=\"'+ACCOUNTS_SITE+'/\"').replaceAll('href=\"/\"','href=\"'+PUBLIC_SITE+'/\"').replaceAll('href=\"/#downloads\"','href=\"'+PUBLIC_SITE+'/#downloads\"').replace(/href=\"\/(features|free-vs-pro|how-it-works|remote-access|how2s|terms|privacy|cookies)\"/g,(_,path)=>'href=\"'+PUBLIC_SITE+'/'+path+'\"');
+ return seoEnhance(out.replace('</style>',SITE_CHROME_CSS+'</style>').replace('</head>','<link rel="icon" type="image/svg+xml" href="/favicon.svg?v=moon-sail-v1"></head>').replaceAll('href=\"/app\"','href=\"'+APP_SITE+'/\"').replaceAll('href=\"/account\"','href=\"'+ACCOUNTS_SITE+'/\"').replaceAll('href=\"/\"','href=\"'+PUBLIC_SITE+'/\"').replaceAll('href=\"/#downloads\"','href=\"'+PUBLIC_SITE+'/#downloads\"').replace(/href=\"\/(features|free-vs-pro|how-it-works|remote-access|how2s|terms|privacy|cookies)\"/g,(_,path)=>'href=\"'+PUBLIC_SITE+'/'+path+'\"'));
 }
 
 const PUBLIC_PAGE_DATA = {
