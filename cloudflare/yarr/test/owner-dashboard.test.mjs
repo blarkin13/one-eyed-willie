@@ -29,3 +29,15 @@ test('mail mutations reject non-owner and foreign origins',async()=>{
  const response=await request(worker,env,'PATCH',p,{headers:{cookie:owner.cookie,origin:'https://evil.example'},json:{status:'closed'}});
  assert.equal(response.status,403);
 });
+
+test('owner workspace links appear only for the configured site owner',async()=>{
+ const worker=await loadWorker(),env=makeEnv({YARR_OWNER_ACCOUNT_ID:'owner'});
+ const owner=await signedInUser(env,{id:'owner'}),other=await signedInUser(env,{id:'other',email:'other@example.com'});
+ const url='https://accounts.yarr.media/';
+ const get=async who=>(await request(worker,env,'GET',url,{headers:{cookie:who.cookie}})).text();
+ assert.match(await get(owner),/https:\/\/yarr\.media\/owner\//);
+ assert.doesNotMatch(await get(other),/https:\/\/yarr\.media\/owner\//);
+ const privacy=await (await request(worker,env,'GET','https://yarr.media/privacy')).text();
+ for(const alias of ['support','billing','privacy','legal'])assert.ok(privacy.includes('mailto:'+alias+'@yarr.media'));
+ assert.match(privacy,/Customer correspondence/);
+});
