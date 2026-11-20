@@ -94,7 +94,7 @@ class MobileHomeLayoutTest(unittest.TestCase):
                 data = page.evaluate("""() => {
                   const dock=document.querySelector('.sidebar .side-nav');
                   const track=document.querySelector('#recent-movies .shelf-track');
-                  const m=document.querySelector('#recent-movies .home-feature-meta');
+                  const m=document.querySelector('#recent-movies').closest('.shelf').querySelector('.home-feature-meta');
                   const r=dock.getBoundingClientRect();
                   return {width:document.documentElement.scrollWidth,
                           dockBottom:r.bottom, dockHeight:r.height,
@@ -116,7 +116,7 @@ class MobileHomeLayoutTest(unittest.TestCase):
           const posters=[...track.querySelectorAll('.tile')];
           track.scrollLeft=posters[2].offsetLeft-posters[0].offsetLeft;
         }""")
-        page.wait_for_function("""() => document.querySelector('#recent-movies .home-feature-title')
+        page.wait_for_function("""() => document.querySelector('#recent-movies').closest('.shelf').querySelector('.home-feature-title')
                                      ?.textContent.includes('Mobile Movie 2')""", timeout=5000)
 
 
