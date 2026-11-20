@@ -81,7 +81,7 @@ class MobileHomeLayoutTest(unittest.TestCase):
         page.route("**/api/home", lambda route: route.fulfill(json=DATA))
         page.route("**/api/home/revision", lambda route: route.fulfill(json={"revision": 1}))
         page.route("**/api/movies/details*", lambda route: route.fulfill(json={
-            "title": "Mobile Movie", "year": 2026, "network": "Extremely long metadata",
+            "year": 2026, "network": "Extremely long metadata",
             "overview": "A brief description suitable for a phone home screen."}))
         page.goto(f"http://127.0.0.1:{self.port}/")
         page.wait_for_selector("#recent-movies .shelf-track .tile-button", timeout=20000)
