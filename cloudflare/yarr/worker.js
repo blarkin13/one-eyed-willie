@@ -212,7 +212,7 @@ const LEGAL_PAGE_DATA = {
  ['Remote access','When you open your server remotely, the website issues a short-lived signed pass naming your account and server. Your media streams directly between your server and your device; it is not stored on the website.'],
  ['Payments','One-time Pro purchases are processed by Stripe. Card details are entered with Stripe and are not received by Yarr Media. We retain purchase references, payment and tax amounts, and entitlement status to manage Pro, refunds, and required business records.'],
  ['Security records','Sign-ins, device approvals, plan changes and account deletion are logged with a one-way hash of the network address, and kept for up to one year.'],
- ['Retention and deletion','Sessions expire after seven days and device credentials after one year unless renewed. You can permanently delete your account from My Account; this cancels Pro, signs out every device and unlinks your servers. A minimal, anonymized deletion record and billing records required by law may be kept.'],
+ ['Retention and deletion','Sessions expire after seven days and device credentials after one year unless renewed. You can permanently delete your account from My Account; this removes any Pro license, signs out every device and unlinks your servers. A minimal, anonymized deletion record and purchase and tax records required by law may be kept.'],
  ['Your choices','You can sign out, sign out individual devices, or delete your account at any time from My Account.'],
  ['Changes','Changes to this notice will be published here as the product develops.']]},
  '/cookies': {title:'Cookie Policy',eyebrow:'Cookies',description:'Essential Yarr Media session and Google sign-in cookies.',heading:'Cookie Policy',intro:'The Yarr Media public marketing pages do not require sign-in. The account area uses essential cookies for authentication.',sections:[
@@ -777,10 +777,10 @@ const accountCSS = `
 @media(max-width:850px){.account-dashboard{grid-template-columns:1fr}.account-main{padding:42px 0 65px}}@media(max-width:520px){.account-panel{padding:20px}.account-stats>div{padding:12px}.account-form-row{flex-direction:column;align-items:stretch}.account-form-row button{width:100%}.account-top .account-open{width:100%}.account-main h1{font-size:40px}}@media(prefers-reduced-motion:reduce){.account-open,.account-submit{transition:none}.account-open:hover,.account-submit:hover{transform:none}}
 `;
 // ---------------------------------------------------------------------------
-// Accounts v2: remote-access passes, Google TV sign-in, Pro billing (Stripe),
-// account deletion and scheduled cleanup. Everything here is inert until its
-// secrets are set: no PASS_SIGNING_KEY means no passes, no Stripe keys means Pro
-// cannot be bought. Owner-only for now: a pass is only ever issued to the
+// Accounts v2: remote-access passes, Google TV sign-in, Pro status, account
+// deletion and scheduled cleanup. Inert until its secrets are set: no
+// PASS_SIGNING_KEY means no passes. Pro is bought with the one-time $29
+// checkout in stripe-checkout.js. Owner-only for now: a pass is only ever issued to the
 // account that paired the server.
 // ---------------------------------------------------------------------------
 const DEV_SITE = 'https://yarr-dev.larki-brian.workers.dev';
@@ -792,7 +792,6 @@ const DEVICE_CODE_SECONDS = 10*60;
 const DEVICE_TOKEN_DAYS = 365;
 const PRO_GRACE_DAYS = 3;
 const DEVICE_TYPES = new Set(['google_tv','android','web']);
-const STRIPE_API = 'https://api.stripe.com/v1';
 
 const sqlTime = date => date.toISOString().replace('T',' ').slice(0,19);
 const parseSqlTime = value => value ? Date.parse(String(value).replace(' ','T')+'Z') : NaN;
@@ -842,28 +841,24 @@ async function readForm(req,max=2000) {
 const sameSiteForm = req => validOrigin(req) && req.headers.get('sec-fetch-site')!=='cross-site';
 
 // ---- Pro status ------------------------------------------------------------
-// Pro = any subscription that is active/trialing (within its period, plus a few
-// days for a late renewal webhook) or past_due within the grace period. A
-// 'manual' row with no end date is Pro indefinitely (used for testing/comps).
+// Pro = an active one-time license, or an active manual grant in subscriptions
+// (no end date = indefinitely; used for the owner, testing and comps).
 async function proStatus(env,userId) {
- // One-time entitlements are the authority for the new $29 Pro license.
- // The flag keeps the existing production schema compatible until migration approval.
+ // The one-time $29 license (stripe-checkout.js) is the purchase path. The
+ // subscriptions table now only holds manual grants (provider 'manual').
  const oneTime=await oneTimeProActive(env,userId);
- const rows=(await env.ACCOUNTS.prepare("SELECT status,provider,current_period_end,cancel_at_period_end,provider_customer_id FROM subscriptions WHERE user_id=?").bind(userId).all()).results||[];
+ const rows=(await env.ACCOUNTS.prepare("SELECT status,current_period_end FROM subscriptions WHERE user_id=?").bind(userId).all()).results||[];
  const now=Date.now(),grace=PRO_GRACE_DAYS*86400000;
- let active=false,until=null,forever=false,stripeCustomer=null,cancelling=false;
+ let active=false,until=null,forever=false;
  for(const r of rows){
-  if(r.provider==='stripe'&&r.provider_customer_id)stripeCustomer=r.provider_customer_id;
+  if(r.status!=='active'&&r.status!=='trialing')continue;
   const end=parseSqlTime(r.current_period_end);
-  let ok=false;
-  if(r.status==='active'||r.status==='trialing')ok=!r.current_period_end||end+grace>now;
-  else if(r.status==='past_due')ok=!!r.current_period_end&&end+grace>now;
-  if(!ok)continue;
+  if(r.current_period_end&&!(end+grace>now))continue;
   active=true;
   if(!r.current_period_end)forever=true;
-  else if(!until||end>until){until=end;cancelling=!!r.cancel_at_period_end;}
+  else if(!until||end>until)until=end;
  }
- return {active:active||oneTime,until:(forever||oneTime)?null:(until?new Date(until).toISOString():null),forever:forever||oneTime,one_time:oneTime,stripe_customer:stripeCustomer,cancelling:oneTime?false:cancelling};
+ return {active:active||oneTime,until:(forever||oneTime)?null:(until?new Date(until).toISOString():null),forever:forever||oneTime,one_time:oneTime};
 }
 
 // ---- Device (TV/app) credentials --------------------------------------------
@@ -1091,123 +1086,6 @@ async function remoteOpen(req,env) {
  return new Response(null,{status:303,headers:{location:target.toString(),'cache-control':'no-store','referrer-policy':'no-referrer'}});
 }
 
-// ---- Stripe ------------------------------------------------------------------
-const billingReady = env => Boolean(env.STRIPE_SECRET_KEY&&env.STRIPE_WEBHOOK_SECRET&&env.STRIPE_PRO_PRICE_ID) && env.YARR_STRIPE_TEST_ENABLED!=='1' && env.YARR_ONE_TIME_PRO_ENABLED!=='1' && env.YARR_STRIPE_MODE!=='live';
-function stripeForm(params,prefix='',out=new URLSearchParams()) {
- for(const [k,v] of Object.entries(params)){
-  if(v===undefined||v===null)continue;
-  const key=prefix?prefix+'['+k+']':k;
-  if(typeof v==='object')stripeForm(v,key,out);else out.append(key,String(v));
- }
- return out;
-}
-async function stripe(env,method,path,params=null) {
- const r=await fetch(STRIPE_API+path,{method,headers:{authorization:'Bearer '+env.STRIPE_SECRET_KEY,...(params?{'content-type':'application/x-www-form-urlencoded'}:{})},body:params?stripeForm(params):undefined});
- const data=await r.json().catch(()=>({}));
- if(!r.ok)throw Object.assign(Error('stripe_'+(data?.error?.type||r.status)),{status:r.status,stripe:data?.error});
- return data;
-}
-const STRIPE_STATUS={active:'active',trialing:'trialing',past_due:'past_due',unpaid:'past_due',canceled:'canceled',incomplete:'incomplete',incomplete_expired:'expired',paused:'expired'};
-async function saveStripeSubscription(env,sub,userHint=null) {
- const customer=typeof sub.customer==='string'?sub.customer:sub.customer?.id;
- let userId=sub.metadata?.user_id||userHint;
- if(!userId){
-  const known=await env.ACCOUNTS.prepare("SELECT user_id FROM subscriptions WHERE provider='stripe' AND (provider_subscription_id=? OR provider_customer_id=?) LIMIT 1").bind(sub.id,customer||'').first();
-  userId=known?.user_id;
- }
- if(!userId)return false;
- const exists=await env.ACCOUNTS.prepare("SELECT id FROM users WHERE id=?").bind(userId).first();
- if(!exists)return false;
- const periodEnd=sub.current_period_end??sub.items?.data?.[0]?.current_period_end??null;
- await env.ACCOUNTS.prepare(
-  "INSERT INTO subscriptions(id,user_id,plan,status,provider,provider_customer_id,provider_subscription_id,current_period_end,cancel_at_period_end) VALUES(?,?,'pro',?,'stripe',?,?,?,?) "+
-  "ON CONFLICT(provider,provider_subscription_id) WHERE provider_subscription_id IS NOT NULL DO UPDATE SET status=excluded.status,provider_customer_id=excluded.provider_customer_id,current_period_end=excluded.current_period_end,cancel_at_period_end=excluded.cancel_at_period_end,updated_at=CURRENT_TIMESTAMP"
- ).bind(crypto.randomUUID(),userId,STRIPE_STATUS[sub.status]||'expired',customer||null,sub.id,periodEnd?sqlTime(new Date(periodEnd*1000)):null,sub.cancel_at_period_end?1:0).run();
- return true;
-}
-async function verifyStripeSignature(env,header,payload) {
- const parts=Object.create(null),sigs=[];
- for(const item of String(header||'').split(',')){
-  const [k,v]=item.split('=');
-  if(k==='v1')sigs.push(v);else if(k)parts[k]=v;
- }
- const t=Number(parts.t);
- if(!Number.isFinite(t)||!sigs.length||Math.abs(Date.now()/1000-t)>300)return false;
- const key=await crypto.subtle.importKey('raw',new TextEncoder().encode(env.STRIPE_WEBHOOK_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']);
- const mac=new Uint8Array(await crypto.subtle.sign('HMAC',key,new TextEncoder().encode(parts.t+'.'+payload)));
- const hex=[...mac].map(b=>b.toString(16).padStart(2,'0')).join('');
- return sigs.some(s=>{
-  if(typeof s!=='string'||s.length!==hex.length)return false;
-  let diff=0;for(let i=0;i<hex.length;i++)diff|=hex.charCodeAt(i)^s.charCodeAt(i);
-  return diff===0;
- });
-}
-async function stripeWebhook(req,env) {
- if(!billingReady(env))return json({error:'billing_not_configured'},503);
- const payload=await req.text();
- if(payload.length>256000)return json({error:'too_large'},413);
- if(!await verifyStripeSignature(env,req.headers.get('stripe-signature'),payload))return json({error:'invalid_signature'},400);
- let event;try{event=JSON.parse(payload);}catch(_){return json({error:'invalid_json'},400);}
- if(typeof event.id!=='string'||typeof event.type!=='string')return json({error:'invalid_event'},400);
- const fresh=await env.ACCOUNTS.prepare("INSERT OR IGNORE INTO billing_events(provider,event_id,event_type,payload_hash) VALUES('stripe',?,?,?)").bind(event.id,event.type.slice(0,80),await digest(payload)).run();
- if(fresh.meta.changes!==1)return json({received:true,duplicate:true});
- try{
-  const obj=event.data?.object||{};
-  let subId=null,userHint=null;
-  if(event.type==='checkout.session.completed'&&obj.mode==='subscription'){subId=obj.subscription;userHint=obj.client_reference_id||obj.metadata?.user_id||null;}
-  else if(event.type.startsWith('customer.subscription.'))subId=obj.id;
-  else if(event.type.startsWith('invoice.'))subId=typeof obj.subscription==='string'?obj.subscription:obj.parent?.subscription_details?.subscription||null;
-  if(subId){
-   // Events can arrive out of order; always store Stripe's current view.
-   const sub=await stripe(env,'GET','/subscriptions/'+encodeURIComponent(subId));
-   const saved=await saveStripeSubscription(env,sub,userHint);
-   const owner=await env.ACCOUNTS.prepare("SELECT user_id FROM subscriptions WHERE provider='stripe' AND provider_subscription_id=?").bind(sub.id).first();
-   if(owner)await env.ACCOUNTS.prepare("UPDATE billing_events SET user_id=? WHERE provider='stripe' AND event_id=?").bind(owner.user_id,event.id).run();
-   if(saved&&event.type!=='invoice.paid')await audit(env,owner?.user_id,'subscription_'+(STRIPE_STATUS[sub.status]||sub.status),event.type);
-  }
-  return json({received:true});
- }catch(e){
-  // Let Stripe retry: forget the event so the retry is processed.
-  await env.ACCOUNTS.prepare("DELETE FROM billing_events WHERE provider='stripe' AND event_id=?").bind(event.id).run();
-  return json({error:'processing_failed'},500);
- }
-}
-async function billingCheckout(req,env) {
- const user=await currentUser(req,env);
- if(!user)return redirect('/account');
- if(!sameSiteForm(req))return json({error:'forbidden'},403);
- if(!billingReady(env))return redirect('/account?billing=unavailable');
- const pro=await proStatus(env,user.id);
- if(pro.active)return redirect('/account?billing=already');
- const params={mode:'subscription',line_items:{0:{price:env.STRIPE_PRO_PRICE_ID,quantity:1}},
-  success_url:ACCOUNTS_SITE+'/?billing=success',cancel_url:ACCOUNTS_SITE+'/?billing=cancelled',
-  client_reference_id:user.id,metadata:{user_id:user.id},subscription_data:{metadata:{user_id:user.id}},
-  allow_promotion_codes:'true'};
- if(pro.stripe_customer)params.customer=pro.stripe_customer;else if(user.email)params.customer_email=user.email;
- if(env.STRIPE_AUTOMATIC_TAX==='1'){
-  params.automatic_tax={enabled:'true'};
-  params.billing_address_collection='required';
-  if(pro.stripe_customer)params.customer_update={address:'auto',name:'auto'};
- }
- try{
-  const session=await stripe(env,'POST','/checkout/sessions',params);
-  await audit(env,user.id,'checkout_started','',req);
-  return new Response(null,{status:303,headers:{location:session.url,'cache-control':'no-store'}});
- }catch(_){return redirect('/account?billing=error');}
-}
-async function billingPortal(req,env) {
- const user=await currentUser(req,env);
- if(!user)return redirect('/account');
- if(!sameSiteForm(req))return json({error:'forbidden'},403);
- if(!billingReady(env))return redirect('/account?billing=unavailable');
- const pro=await proStatus(env,user.id);
- if(!pro.stripe_customer)return redirect('/account?billing=none');
- try{
-  const session=await stripe(env,'POST','/billing_portal/sessions',{customer:pro.stripe_customer,return_url:ACCOUNTS_SITE+'/'});
-  return new Response(null,{status:303,headers:{location:session.url,'cache-control':'no-store'}});
- }catch(_){return redirect('/account?billing=error');}
-}
-
 // ---- Account management --------------------------------------------------------
 async function accountDevicesAction(req,env) {
  const user=await currentUser(req,env);
@@ -1266,13 +1144,6 @@ async function accountDelete(req,env) {
  if(!sameSiteForm(req))return json({error:'forbidden'},403);
  let form;try{form=await readForm(req,300);}catch(e){return json({error:e.message},e.status||400);}
  if(form.get('confirm')!=='DELETE')return redirect('/account?delete=confirm');
- // Stop billing first; never delete an account that is still being charged.
- const subs=(await env.ACCOUNTS.prepare("SELECT provider_subscription_id FROM subscriptions WHERE user_id=? AND provider='stripe' AND status IN ('active','trialing','past_due','incomplete') AND provider_subscription_id IS NOT NULL").bind(user.id).all()).results||[];
- if(subs.length){
-  if(!env.STRIPE_SECRET_KEY)return redirect('/account?delete=billing');
-  try{for(const s of subs)await stripe(env,'DELETE','/subscriptions/'+encodeURIComponent(s.provider_subscription_id));}
-  catch(e){if(e.status!==404)return redirect('/account?delete=billing');}
- }
  await audit(env,null,'account_deleted',await digest('user\0'+user.id),req);
  const cleanupStatements=[env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE owner_user_id=?").bind(user.id)];
  if(env.YARR_STRIPE_TEST_ENABLED==='1'||env.YARR_ONE_TIME_PRO_ENABLED==='1'){
@@ -1296,21 +1167,17 @@ async function accountExtras(env,user) {
   proStatus(env,user.id),
   env.ACCOUNTS.prepare("SELECT id,device_name,device_type,created_at,last_seen_at FROM devices WHERE owner_user_id=? AND revoked_at IS NULL AND token_hash IS NOT NULL ORDER BY created_at DESC").bind(user.id).all().then(r=>r.results||[])
  ]);
- return {pro,devices,billing:billingReady(env),one_time_checkout:proCheckoutAvailable(env),live_checkout:env.YARR_STRIPE_MODE==='live'};
+ return {pro,devices,one_time_checkout:proCheckoutAvailable(env),live_checkout:env.YARR_STRIPE_MODE==='live'};
 }
 function planPanelHTML(extra) {
  const p=extra.pro;
  let body;
  if(p.active){
-  const until=p.forever?'No end date':(p.cancelling?'Ends ':'Renews ')+new Date(p.until).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'});
-  body='<h2>Yarr Media Pro</h2><p class="account-note">'+(p.one_time?'One-time Pro license active; no recurring payments. Remote-access availability depends on the installed server and app.':'Pro license active. '+escapeHTML(until)+'. Remote-access availability depends on the installed server and app.')+'</p>'+
-   (extra.billing&&p.stripe_customer?'<form method="post" action="/account/billing/portal"><button class="account-secondary" type="submit">Manage billing</button></form>':'');
+  const note=p.one_time?'One-time Pro license active; no recurring payments.':'Pro active. '+escapeHTML(p.forever?'No end date':'Until '+new Date(p.until).toLocaleDateString('en-US',{year:'numeric',month:'long',day:'numeric',timeZone:'UTC'}))+'.';
+  body='<h2>Yarr Media Pro</h2><p class="account-note">'+note+' Remote-access availability depends on the installed server and app.</p>';
  }else if(extra.one_time_checkout){
   body='<h2>Free</h2><p class="account-note">Yarr Media Pro — $29 one-time purchase, plus applicable tax. '+(extra.live_checkout?'Access your own media remotely.':'Sandbox checkout for test accounts only; remote access is still in development.')+'</p>'+
    '<form method="post" action="/api/stripe/checkout"><input type="hidden" name="product" value="pro"><button class="account-submit" type="submit">'+(extra.live_checkout?'Buy Pro — $29':'Test Pro checkout')+'</button></form>';
- }else if(extra.billing){
-  body='<h2>Free</h2><p class="account-note">Upgrade to Pro to watch your own library away from home.</p><form method="post" action="/account/billing/checkout"><button class="account-submit" type="submit">Upgrade to Pro</button></form>'+
-   (p.stripe_customer?'<form method="post" action="/account/billing/portal"><button class="account-text-button" type="submit">Billing history</button></form>':'');
  }else{
   body='<h2>Free</h2><p class="account-note">Pro remote access is not on sale yet.</p>';
  }
@@ -1332,9 +1199,8 @@ function remoteAddressFormHTML(s) {
 const DANGER_HTML='<section class="account-panel" id="delete-account"><p class="account-kicker">Danger zone</p><h2>Delete account</h2><p class="account-note">Permanently deletes your account, revokes any one-time Pro license without a refund or transfer, signs out devices, and unlinks servers. Media on your own server is not touched. Required purchase and tax records are retained without your Yarr user ID.</p><details class="account-manage"><summary>Delete my account</summary><div class="account-manage-body"><form method="post" action="/account/delete" class="account-form"><label for="confirm-delete">Type DELETE to confirm</label><input id="confirm-delete" name="confirm" required autocomplete="off" pattern="DELETE"><button class="account-secondary" type="submit">Permanently delete</button></form></div></details></section>';
 const ACCOUNT_MESSAGES={
  checkout:{success:'Stripe received your purchase. Your Pro status will update when the payment is confirmed.',cancel:'Checkout was cancelled; no test payment was made.'},
- billing:{success:'Thanks! Pro will show here as soon as Stripe confirms the payment.',cancelled:'Checkout was cancelled. You have not been charged.',unavailable:'Pro is not on sale yet.',already:'You already have Pro.',none:'No billing history yet.',error:'Billing is temporarily unavailable. Please try again.'},
  device:{revoked:'That device has been signed out.',invalid:'That device could not be found.'},
- delete:{confirm:'Type DELETE to confirm account deletion.',billing:'Your subscription could not be cancelled, so the account was not deleted. Please try again.'},
+ delete:{confirm:'Type DELETE to confirm account deletion.'},
  remote:{pro_required:'Remote access needs Pro.',no_address:'Add a remote HTTPS address for that server first.',not_found:'That server is not linked to your account.',unavailable:'Remote access is not available yet.'},
  server:{address_saved:'Remote address saved.',bad_address:'Use a public https:// address on port 443, without a path.',
   reach_ok:'Remote access works: yarr.media reached your server from the internet.',
@@ -1503,9 +1369,6 @@ async function accountsV2Routes(req,env,u) {
  }
  if(m==='POST'&&p==='/api/passes')return passRequest(req,env);
  if(m==='GET'&&p==='/remote/open')return remoteOpen(req,env);
- if(m==='POST'&&p==='/api/stripe/webhook')return stripeWebhook(req,env);
- if(m==='POST'&&p==='/account/billing/checkout')return billingCheckout(req,env);
- if(m==='POST'&&p==='/account/billing/portal')return billingPortal(req,env);
  if(m==='POST'&&p==='/account/devices')return accountDevicesAction(req,env);
  if(m==='POST'&&p==='/account/servers/address')return accountRemoteAddress(req,env);
  if(m==='GET'&&p==='/account/servers/check')return accountReachability(req,env,u);
@@ -1640,7 +1503,7 @@ export default { async fetch(req,env) {
    const servers=user?await listServers(env,user.id):[];
    const extra=user?await accountExtras(env,user):null;
    const shown=accountMessage(u)||message2||(u.searchParams.get('account')==='deleted'?'Your account has been deleted.':'');
-   return html(accountHTML(user,authReady(env),shown,servers,extra),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com https://billing.stripe.com")});
+   return html(accountHTML(user,authReady(env),shown,servers,extra),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com")});
   }
   if(req.method==='GET'||req.method==='HEAD') {
    if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
