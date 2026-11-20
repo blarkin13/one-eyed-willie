@@ -439,6 +439,8 @@ document.addEventListener('DOMContentLoaded',()=>{
   for(const layer of layers){layer.className='willie-hover-backdrop-layer';backdrop.append(layer)}
   document.body.prepend(backdrop);
   const cache=new Map();
+  // The backdrop stays until another title is hovered or selected.
+  const sticky=true;
   let active=null,showTimer=null,hideTimer=null,generation=0,visible=-1,currentUrl='';
   const valid=url=>typeof url==='string'&&(
     url.startsWith('/api/artwork/')||url.startsWith('https://image.tmdb.org/t/p/')||
@@ -534,7 +536,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else if(!document.activeElement?.closest?.('#app-nav') &&
+      else if(!sticky&&!document.activeElement?.closest?.('#app-nav') &&
               !onLibraryToolbar(document.activeElement))select(null);
     },130);
   });
@@ -550,11 +552,28 @@ document.addEventListener('DOMContentLoaded',()=>{
     hideTimer=setTimeout(()=>{
       const focused=locate(document.activeElement);
       if(focused&&focused.isConnected)select(focused);
-      else if(!document.activeElement?.closest?.('#app-nav') &&
+      else if(!sticky&&!document.activeElement?.closest?.('#app-nav') &&
               !onLibraryToolbar(document.activeElement))select(null);
     },140);
   });
-  document.addEventListener('visibilitychange',()=>{if(document.hidden)select(null)});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden&&!sticky)select(null)});
+  // Pages can show an item's backdrop without hover/focus (Music: first item on load).
+  window.__willieShowBackdrop=element=>{if(element instanceof Element&&locate(element))select(locate(element))};
+  window.__willieBackdropElement=()=>active;
+  // Always show something: on load, and whenever the shown title leaves the
+  // page (re-sort, filter, tab change), use the first visible title.
+  const firstTitle=()=>[...document.querySelectorAll(
+    '.content [data-hover-kind],.content [data-hover-backdrop]')]
+    .find(node=>!node.closest('[hidden]')&&node.getClientRects().length>0);
+  let ensureTimer=null;
+  const ensureBackdrop=()=>{
+    if(active&&active.isConnected&&!active.closest('[hidden]'))return;
+    const first=firstTitle();
+    if(first)select(first);
+  };
+  new MutationObserver(()=>{clearTimeout(ensureTimer);ensureTimer=setTimeout(ensureBackdrop,250)})
+    .observe(document.body,{childList:true,subtree:true,attributes:true,attributeFilter:['hidden']});
+  ensureBackdrop();
 });
 
 // Media pages load the shared context menu as a versioned deferred script.
