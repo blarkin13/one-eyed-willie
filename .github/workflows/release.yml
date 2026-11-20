@@ -2,6 +2,8 @@ name: Release
 # main            -> server image ghcr.io/blarkin13/yarr-media:edge
 # tag vX.Y.Z      -> server image :X.Y.Z and :stable, plus a GitHub Release with
 #                    the Google TV APK, the installer and the .deb package.
+# Actions tab -> Release -> Run workflow with a version (e.g. 0.15.0) does the
+#                    same as pushing the tag; the workflow creates the tag.
 # The installer (yarr.media/install.sh) uses :stable unless told otherwise.
 concurrency:
   group: release-${{ github.ref }}
@@ -22,10 +24,31 @@ on:
       - 'Dockerfile'
       - '.github/workflows/release.yml'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version, e.g. 0.15.0 (empty = just rebuild edge)'
+        required: false
+        default: ''
 permissions:
   contents: read
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+    steps:
+      - id: v
+        env:
+          INPUT: ${{ inputs.version }}
+        run: |
+          v=""
+          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then v="${GITHUB_REF_NAME#v}"; fi
+          if [[ -n "${INPUT:-}" ]]; then v="${INPUT#v}"; fi
+          if [[ -n "$v" && ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then echo "Version must look like 1.2.3" >&2; exit 1; fi
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+
   image:
+    needs: version
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -45,9 +68,9 @@ jobs:
         with:
           images: ghcr.io/blarkin13/yarr-media
           tags: |
-            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
-            type=semver,pattern={{version}}
-            type=raw,value=stable,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' && needs.version.outputs.version == '' }}
+            type=raw,value=${{ needs.version.outputs.version }},enable=${{ needs.version.outputs.version != '' }}
+            type=raw,value=stable,enable=${{ needs.version.outputs.version != '' }}
       - uses: docker/build-push-action@v6
         with:
           context: .
@@ -59,8 +82,8 @@ jobs:
           cache-to: type=gha,mode=max
 
   release:
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: image
+    if: needs.version.outputs.version != ''
+    needs: [version, image]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -81,15 +104,22 @@ jobs:
         working-directory: google-tv
         run: gradle --no-daemon :app:assembleLean
       - name: Build .deb package
-        run: bash deploy/deb/build.sh "${GITHUB_REF_NAME#v}" dist
+        run: bash deploy/deb/build.sh "${{ needs.version.outputs.version }}" dist
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: v${{ needs.version.outputs.version }}
         run: |
           cp google-tv/app/build/outputs/apk/lean/app-lean.apk dist/yarr-media-google-tv.apk
           cp deploy/install.sh dist/install.sh
-          gh release create "$GITHUB_REF_NAME" --title "Yarr Media $GITHUB_REF_NAME" --generate-notes \
-            dist/yarr-media-google-tv.apk dist/install.sh dist/*.deb
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Made by hand in the GitHub UI: just attach (or replace) the files.
+            gh release upload "$TAG" --clobber dist/yarr-media-google-tv.apk dist/install.sh dist/*.deb
+          else
+            # Creates the tag at this commit if it does not exist yet.
+            gh release create "$TAG" --target "$GITHUB_SHA" --title "Yarr Media $TAG" --generate-notes \
+              dist/yarr-media-google-tv.apk dist/install.sh dist/*.deb
+          fi
       - name: Publish apt repository (yarr.media/apt)
         if: env.APT_SIGNING_KEY != ''
         run: |
@@ -106,5 +136,5 @@ jobs:
           bash deploy/deb/publish-apt.sh ../apt dist/*.deb
           cd ../apt
           git add -A
-          git -c user.name="Yarr Media release" -c user.email="release@yarr.media" commit -qm "apt: $GITHUB_REF_NAME"
+          git -c user.name="Yarr Media release" -c user.email="release@yarr.media" commit -qm "apt: v${{ needs.version.outputs.version }}"
           git push origin HEAD:apt-repo
