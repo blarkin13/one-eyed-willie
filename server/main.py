@@ -399,19 +399,19 @@ body:is([data-page="movies"],[data-page="tv"]) #items {
   grid-template-columns:repeat(5,minmax(0,1fr))!important;
   gap:22px 20px!important;
 }
-body:is([data-page="movies"],[data-page="tv"]) .library-head {
+body:is([data-page="movies"],[data-page="tv"],[data-page="music"]) .library-head {
   padding:7px 7px 4px!important;gap:4px!important;margin-bottom:5px!important;
 }
-body:is([data-page="movies"],[data-page="tv"]) .library-trivia {
+body:is([data-page="movies"],[data-page="tv"],[data-page="music"]) .library-trivia {
   gap:1px!important;padding-top:0!important;
 }
-body:is([data-page="movies"],[data-page="tv"]) .trivia-question {
+body:is([data-page="movies"],[data-page="tv"],[data-page="music"]) .trivia-question {
   min-height:1.45em!important;line-height:1.2!important;
 }
-body:is([data-page="movies"],[data-page="tv"]) .trivia-answer {
+body:is([data-page="movies"],[data-page="tv"],[data-page="music"]) .trivia-answer {
   min-height:1.4em!important;
 }
-body:is([data-page="movies"],[data-page="tv"]) .library-head + .section-heading {
+body:is([data-page="movies"],[data-page="tv"],[data-page="music"]) .library-head + .section-heading {
   margin-bottom:5px!important;
 }
 /* Android TV uses an 85px icon-only rail. Never draw text outside its bounds. */

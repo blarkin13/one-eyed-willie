@@ -22,7 +22,47 @@
 .library-header-icon .library-fa-icon>i{display:none}
 .fontawesome-ready .library-header-icon .library-fa-icon>i{display:inline-block}
 .fontawesome-ready .library-header-icon .library-fa-icon>.library-fa-fallback{display:none!important}
-.library-subtitle{width:100%;max-width:none!important;text-align:left;margin:0;color:#e9e9e9;font-weight:600;font-size:clamp(1rem,1.07vw,1.25rem)}
+/* Compact, fixed trivia lines: changing question/answer lengths never
+   resize the header or move the grid, on Movies, TV or custom libraries. */
+.library-trivia{position:relative;z-index:0;width:100%;max-width:min(100%,1040px);
+ display:flex;flex-direction:column;justify-content:flex-start;gap:5px;padding-top:2px}
+.library-trivia .trivia-question{margin:0;max-width:100%;height:2.72em;min-height:0;
+ flex:none;overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;
+ -webkit-line-clamp:2;line-clamp:2;
+ font-size:clamp(1rem,1.07vw,1.25rem);line-height:1.36;letter-spacing:-.018em;
+ font-weight:600;color:#e1eaf5;text-wrap:pretty;overflow-wrap:break-word;
+ transition:opacity .35s ease,transform .35s ease}
+.library-trivia .trivia-question.is-changing{opacity:0;transform:translateY(5px)}
+.library-trivia .trivia-answer{display:flex;align-items:flex-start;gap:10px;
+ height:2.8em;min-height:0;flex:none;overflow:hidden;
+ font-size:clamp(.94rem,1vw,1.14rem);
+ opacity:0;visibility:hidden;transform:translateY(6px);
+ transition:opacity .42s ease,transform .42s ease,visibility .42s}
+.library-trivia .trivia-answer.revealed{opacity:1;visibility:visible;transform:none}
+.trivia-answer-label{font-size:.7rem;line-height:1.5;font-weight:800;letter-spacing:.12em;
+ text-transform:uppercase;color:#8ebfe9;flex:none}
+.library-trivia .trivia-answer p{margin:0;line-height:1.4;
+ font-size:inherit;font-weight:650;color:#b4daf8;min-width:0;
+ max-width:890px;overflow-wrap:anywhere;text-wrap:pretty;
+ overflow:hidden;display:-webkit-box;-webkit-box-orient:vertical;
+ -webkit-line-clamp:2;line-clamp:2}
+/* Explicitly cover the built-in Movies landing page as well as TV and
+   user-created library routes. Keep both boxes the same height through
+   rotating trivia and ignore older TV min-height rules. */
+body[data-page="movies"] #library-masthead .trivia-question,
+body[data-page="tv"] #library-masthead .trivia-question{
+ height:2.72em!important;min-height:0!important;max-height:2.72em!important;
+}
+body[data-page="movies"] #library-masthead .trivia-answer,
+body[data-page="tv"] #library-masthead .trivia-answer{
+ height:2.8em!important;min-height:0!important;max-height:2.8em!important;
+}
+@media(min-width:1600px){.library-trivia{max-width:1120px}.library-trivia .trivia-question{font-size:clamp(1.07rem,1.15vw,1.4rem)}.library-trivia .trivia-answer{font-size:clamp(.96rem,1.04vw,1.25rem)}.trivia-answer-label{font-size:.72rem}}
+@media(min-width:761px) and (max-width:1200px){.library-trivia .trivia-question{font-size:clamp(1.02rem,1.55vw,1.22rem)}.library-trivia .trivia-answer{font-size:clamp(.94rem,1.32vw,1.1rem)}}
+@media(min-width:761px) and (hover:none){.library-trivia .trivia-question{font-size:clamp(1.02rem,1.55vw,1.22rem)}.library-trivia .trivia-answer{font-size:clamp(.94rem,1.32vw,1.1rem)}}
+@media(max-width:760px){.library-trivia .trivia-question{font-size:clamp(1.1rem,3.7vw,1.5rem);line-height:1.4}.library-trivia .trivia-answer{font-size:clamp(1rem,3.3vw,1.32rem)}.trivia-answer-label{font-size:.64rem}}
+@media(prefers-reduced-motion:reduce){.library-trivia :is(.trivia-question,.trivia-answer){transition:none;transform:none}}
+
 .library-head-actions{display:flex;align-items:center;gap:10px;flex:0 0 auto;position:relative;z-index:11}
 .library-head-actions .search-box input{width:clamp(185px,19vw,270px)}
 .tool{display:grid;place-items:center;position:relative;width:44px;height:44px;border:1px solid #515151;border-radius:11px;background:#232323;color:#e1e1e1;padding:10px;cursor:pointer;flex:none}
@@ -230,7 +270,13 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
    </div>
   </div>
  </div>
- <p class="library-subtitle" id="library-subtitle">Loading your music…</p>
+ <div class="library-trivia" id="page-description" aria-label="Rotating music trivia">
+  <p class="trivia-question" id="trivia-question" aria-live="off"></p>
+  <div class="trivia-answer" id="trivia-answer" aria-hidden="true">
+   <span class="trivia-answer-label">Answer</span>
+   <p id="trivia-answer-text" aria-live="polite"></p>
+  </div>
+ </div>
 </div>
 
 <div id="browse">
@@ -242,7 +288,7 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
   </div>
   <span class="count-label" id="results-count"></span>
  </div>
- <p class="status-line" id="status" role="status"></p>
+ <p class="status-line" id="status" role="status">Loading your music…</p>
  <div id="items"></div>
  <div id="song-list"></div>
 </div>
@@ -370,7 +416,6 @@ function renderBrowse(){
  items.replaceChildren();songs.replaceChildren();
  const albums=albumsOf(list),artists=artistsOf(list);
  const total=list.reduce((s,t)=>s+(t.duration||0),0);
- $('library-subtitle').textContent=tracks.length?artistsOf(tracks).length+' artists · '+albumsOf(tracks).length+' albums · '+tracks.length+' songs · '+longFmt(tracks.reduce((s,t)=>s+(t.duration||0),0)):'';
  for(const b of document.querySelectorAll('[data-view]'))b.setAttribute('aria-selected',String(b.dataset.view===view));
  renderSortMenu();
  $('status').textContent='';
@@ -691,7 +736,7 @@ async function boot(){
   // Restore the last queue (paused) so the player survives reloads.
   try{const last=JSON.parse(store.get('last','null'));if(last?.ids?.length){const byId=new Map(tracks.map(t=>[t.id,t]));const q=last.ids.map(i=>byId.get(i)).filter(Boolean);
    if(q.length===last.ids.length){queue=q;order=last.order;pos=last.pos;shuffle=!!last.shuffle;updateModeButtons();load(false)}}}catch{}
- }catch(error){$('library-subtitle').textContent='Unable to load music: '+error.message}
+ }catch(error){$('status').textContent='Unable to load music: '+error.message}
 }
 // Align the player with the content column, whatever width the sidebar has.
 function alignPlayer(){const w=document.querySelector('.workspace');if(w&&innerWidth>900)$('player').style.left=Math.max(0,w.getBoundingClientRect().left)+'px';else $('player').style.left=''}
@@ -855,5 +900,136 @@ route=function(){
 };
 window.removeEventListener('popstate',_route);window.addEventListener('popstate',route);
 
+/* ---- Rotating music trivia (same carousel as Movies/TV) ---- */
+{
+const type='music';
+/* Library trivia is a hands-free question → answer → next-question carousel.
+   Saved API questions are preferred; original local questions work without a
+   connection. Timers pause while the app is in the background. */
+const TRIVIA_QUESTION_MS=6200;
+const TRIVIA_ANSWER_MS=5200;
+const fallbackTrivia={music:[
+  {question:'How many keys does a standard modern piano have?',answer:'88.'},
+  {question:'Which band released the album “Abbey Road” in 1969?',answer:'The Beatles.'},
+  {question:'What does BPM stand for in music?',answer:'Beats per minute.'},
+  {question:'Which singer was nicknamed “Ol’ Blue Eyes”?',answer:'Frank Sinatra.'},
+  {question:'How many lines are there on a standard musical staff?',answer:'Five.'},
+  {question:'What is the best-selling album of all time?',answer:'Michael Jackson’s “Thriller”.'},
+  {question:'Which composer kept writing music after losing his hearing?',answer:'Ludwig van Beethoven.'},
+  {question:'What does “a cappella” mean?',answer:'Singing without instrumental accompaniment.'},
+  {question:'In what city did jazz first develop?',answer:'New Orleans.'},
+  {question:'How many strings does a standard guitar have?',answer:'Six.'},
+  {question:'Which instrument did Louis Armstrong famously play?',answer:'The trumpet.'},
+  {question:'What format did the compact disc begin replacing in the 1980s?',answer:'Vinyl records and cassette tapes.'}
+ ]};
+function triviaStorage(key,fallback){
+ try{return JSON.parse(localStorage.getItem(key))??fallback}catch(_){return fallback}
+}
+function storeTrivia(key,value){
+ try{localStorage.setItem(key,JSON.stringify(value))}catch(_){}
+}
+function nextOfflineTrivia(){
+ const key='oew-trivia-fallback-'+type;
+ const old=Number(triviaStorage(key,-1));
+ const index=(old+1)%fallbackTrivia[type].length;
+ storeTrivia(key,index);
+ return fallbackTrivia[type][index];
+}
+function nextTriviaFromQueue(){
+ const key='oew-trivia-batch-'+type;
+ const queue=triviaStorage(key,[]);
+ if(!Array.isArray(queue)||!queue.length)return null;
+ while(queue.length){
+  const item=queue.shift();
+  if(item&&typeof item.question==='string'&&item.question.trim()&&
+    typeof item.answer==='string'&&item.answer.trim()){
+   storeTrivia(key,queue);
+   return item;
+  }
+ }
+ storeTrivia(key,[]);
+ return null;
+}
+let triviaTimer=null,triviaPhase='question',triviaCurrent=null;
+let triviaFetching=false,triviaLastFetch=0;
+const triviaQuestion=$('trivia-question'),triviaAnswer=$('trivia-answer');
+const triviaAnswerText=$('trivia-answer-text');
+function scheduleTrivia(callback,delay){
+ clearTimeout(triviaTimer);
+ if(!document.hidden)triviaTimer=setTimeout(callback,delay);
+}
+function revealTriviaAnswer(){
+ if(document.hidden)return;
+ triviaPhase='answer';
+ // Only expose the answer (including to screen readers) after the question.
+ triviaAnswer.setAttribute('aria-hidden','false');
+ triviaAnswerText.textContent=triviaCurrent?.answer||'';
+ triviaAnswer.classList.add('revealed');
+ scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS);
+}
+function showNextTrivia(){
+ triviaPhase='question';
+ triviaCurrent=nextTriviaFromQueue()||nextOfflineTrivia();
+ triviaAnswer.classList.remove('revealed');
+ triviaAnswer.setAttribute('aria-hidden','true');
+ triviaAnswerText.textContent='';
+ triviaQuestion.classList.add('is-changing');
+ // The question crossfades; no layout changes to the controls or poster grid.
+ setTimeout(()=>{
+  if(document.hidden)return;
+  triviaQuestion.textContent=triviaCurrent.question;
+  triviaQuestion.classList.remove('is-changing');
+ },180);
+ scheduleTrivia(revealTriviaAnswer,TRIVIA_QUESTION_MS);
+ if((triviaStorage('oew-trivia-batch-'+type,[])||[]).length<5)fetchTriviaBatch();
+}
+async function fetchTriviaBatch(){
+ if(triviaFetching||Date.now()-triviaLastFetch<12000)return;
+ triviaFetching=true;triviaLastFetch=Date.now();
+ try{
+  const controller=new AbortController();
+  const timeout=setTimeout(()=>controller.abort(),3500);
+  let response;
+  try{
+   response=await fetch('https://opentdb.com/api.php?amount=40&category='+
+     '12'+'&type=multiple&encode=url3986',
+     {signal:controller.signal,mode:'cors',cache:'no-store'});
+  }finally{clearTimeout(timeout)}
+  if(!response.ok)return;
+  const data=await response.json();
+  if(data.response_code!==0||!Array.isArray(data.results))return;
+  const historyKey='oew-trivia-history-'+type;
+  const seen=new Set(triviaStorage(historyKey,[]));
+  const queueKey='oew-trivia-batch-'+type;
+  const fresh=[];
+  for(const row of data.results){
+   if(!row.question||!row.correct_answer)continue;
+   try{
+    const question=decodeURIComponent(row.question),answer=decodeURIComponent(row.correct_answer);
+    if(seen.has(question)||!question.trim()||!answer.trim())continue;
+    seen.add(question);
+    fresh.push({question,answer});
+   }catch(_){/* Skip malformed API content. */}
+  }
+  if(!fresh.length)return;
+  storeTrivia(historyKey,[...seen].slice(-300));
+  const existing=triviaStorage(queueKey,[]);
+  storeTrivia(queueKey,[...(Array.isArray(existing)?existing:[]),...fresh].slice(0,70));
+ }catch(_){/* Continue rotating local trivia when the provider is unavailable. */}
+ finally{triviaFetching=false}
+}
+document.addEventListener('visibilitychange',()=>{
+ clearTimeout(triviaTimer);
+ if(document.hidden)return;
+ if(triviaPhase==='answer')scheduleTrivia(showNextTrivia,TRIVIA_ANSWER_MS);
+ else{
+  triviaQuestion.classList.remove('is-changing');
+  if(triviaCurrent)triviaQuestion.textContent=triviaCurrent.question;
+  scheduleTrivia(revealTriviaAnswer,TRIVIA_QUESTION_MS);
+ }
+});
+window.addEventListener('pagehide',()=>clearTimeout(triviaTimer));
+showNextTrivia();
+}
 boot();
 </script></body></html>
