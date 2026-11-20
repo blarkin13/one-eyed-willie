@@ -7,6 +7,7 @@
 <script src="/assets/library-appearance.js?v=music-2"></script>
 <script defer src="/assets/shell.js?v=music-2"></script>
 <style>
+:root{--accent:var(--oew-tv-select-color,#A61E1E);--accent-hi:color-mix(in srgb,var(--accent) 80%,#fff);--accent-soft:color-mix(in srgb,var(--accent) 55%,#fff)}
 /* Masthead: same structure and sizing as Movies/TV (catalog.html). */
 .music-main{padding-bottom:150px}
 #library-masthead[hidden]{display:none}
@@ -52,7 +53,7 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .music-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;z-index:1}
 .artist-tile .music-cover{border-radius:50%}
 .artist-tile h3,.artist-tile .tile-meta{text-align:center}
-.cover-play{position:absolute;right:10px;bottom:10px;z-index:2;width:46px;height:46px;border-radius:50%;border:0;background:#8b5cf6;color:#fff;display:grid;place-items:center;box-shadow:0 6px 18px #0009;opacity:0;transform:translateY(6px);transition:opacity .15s,transform .15s;cursor:pointer}
+.cover-play{position:absolute;right:10px;bottom:10px;z-index:2;width:46px;height:46px;border-radius:50%;border:0;background:var(--accent);color:#fff;display:grid;place-items:center;box-shadow:0 6px 18px #0009;opacity:0;transform:translateY(6px);transition:opacity .15s,transform .15s;cursor:pointer}
 .cover-play svg{width:20px;height:20px;margin-left:2px}
 .tile:hover .cover-play,.tile:focus-within .cover-play{opacity:1;transform:none}
 .alpha-nav{position:fixed;top:50%;right:9px;transform:translateY(-50%);z-index:12;display:flex;flex-direction:column;background:#0a1421e8;backdrop-filter:blur(12px);padding:5px 3px;border-radius:14px}
@@ -76,8 +77,8 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .detail-meta a{color:#fff;font-weight:700;text-decoration:none}
 .detail-meta a:hover{text-decoration:underline}
 .detail-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
-.btn-play{display:inline-flex;align-items:center;gap:9px;border:0;border-radius:999px;background:#8b5cf6;color:#fff;font-weight:750;padding:12px 24px;min-height:46px;cursor:pointer;font-size:.95rem}
-.btn-play:hover{background:#9d74ff}
+.btn-play{display:inline-flex;align-items:center;gap:9px;border:0;border-radius:999px;background:var(--accent);color:#fff;font-weight:750;padding:12px 24px;min-height:46px;cursor:pointer;font-size:.95rem}
+.btn-play:hover{background:var(--accent-hi)}
 .btn-ghost{display:inline-flex;align-items:center;gap:9px;border:1px solid #5a6f88;border-radius:999px;background:#0b1626aa;color:#eaf2fb;font-weight:650;padding:12px 22px;min-height:46px;cursor:pointer;font-size:.95rem}
 .btn-ghost:hover{background:#22364d}
 .btn-play svg,.btn-ghost svg{width:18px;height:18px}
@@ -91,7 +92,7 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .tracks td{padding:0 12px;height:56px;border-bottom:1px solid #18263590;color:#d8e4f1;font-size:.92rem}
 .tracks tr.row{cursor:pointer}
 .tracks tr.row:hover td,.tracks tr.row:focus-visible td{background:#17263a}
-.tracks tr.row:focus-visible{outline:2px solid #a78bfa;outline-offset:-2px}
+.tracks tr.row:focus-visible{outline:2px solid var(--accent-soft);outline-offset:-2px}
 .tracks td:first-child{border-radius:9px 0 0 9px}.tracks td:last-child{border-radius:0 9px 9px 0}
 .tracks .num{width:46px;color:#8ea3ba;font-variant-numeric:tabular-nums;text-align:center}
 .tracks .dur{width:70px;text-align:right;color:#8ea3ba;font-variant-numeric:tabular-nums}
@@ -101,12 +102,12 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .tracks .t-thumb{width:40px;height:40px;border-radius:6px;object-fit:cover;flex:none;background:#24364e}
 .tracks .clip{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%}
 .tracks td.secondary{color:#9fb3c8}
-.tracks tr.playing .t-title,.tracks tr.playing .num{color:#b9a2ff}
+.tracks tr.playing .t-title,.tracks tr.playing .num{color:var(--accent-soft)}
 .tracks .num .play-ico{display:none}
 .tracks tr.row:hover .num .n{display:none}.tracks tr.row:hover .num .play-ico{display:inline}
 .disc-row td{height:44px;color:#9fb3c8;font-weight:700;font-size:.8rem;letter-spacing:.08em;text-transform:uppercase;cursor:default}
 .eq{display:inline-flex;gap:2px;align-items:flex-end;height:14px}
-.eq i{width:3px;background:#b9a2ff;animation:eq 1s ease-in-out infinite}
+.eq i{width:3px;background:var(--accent-soft);animation:eq 1s ease-in-out infinite}
 .eq i:nth-child(2){animation-delay:-.4s}.eq i:nth-child(3){animation-delay:-.7s}
 .paused .eq i{animation-play-state:paused}
 @keyframes eq{0%,100%{height:3px}50%{height:14px}}
@@ -126,14 +127,14 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .pbtn{background:none;border:0;color:#c9d7e6;width:40px;height:40px;border-radius:50%;display:grid;place-items:center;cursor:pointer;position:relative}
 .pbtn svg{width:20px;height:20px}
 .pbtn:hover{color:#fff}
-.pbtn.on{color:#b9a2ff}
-.pbtn.on::after{content:"";position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:#b9a2ff}
+.pbtn.on{color:var(--accent-soft)}
+.pbtn.on::after{content:"";position:absolute;bottom:3px;width:4px;height:4px;border-radius:50%;background:var(--accent-soft)}
 .pbtn.main{width:46px;height:46px;background:#f3f6fb;color:#0b1422}
 .pbtn.main:hover{transform:scale(1.05);color:#0b1422}
 .pbtn.main svg{width:20px;height:20px}
 .seek-row{display:flex;align-items:center;gap:10px;width:100%}
 .seek-row span{color:#93a8be;font-size:.75rem;font-variant-numeric:tabular-nums;min-width:38px;text-align:center}
-input[type=range].bar{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:linear-gradient(90deg,#b9a2ff var(--p,0%),#3a4d63 var(--p,0%));cursor:pointer}
+input[type=range].bar{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:4px;background:linear-gradient(90deg,var(--accent-soft) var(--p,0%),#3a4d63 var(--p,0%));cursor:pointer}
 input[type=range].bar::-webkit-slider-thumb{-webkit-appearance:none;width:13px;height:13px;border-radius:50%;background:#fff;opacity:0;transition:opacity .15s}
 input[type=range].bar:hover::-webkit-slider-thumb,input[type=range].bar:focus-visible::-webkit-slider-thumb{opacity:1}
 input[type=range].bar::-moz-range-thumb{width:13px;height:13px;border:0;border-radius:50%;background:#fff}
