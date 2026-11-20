@@ -143,6 +143,32 @@ test('Google callback records the identity and returns to the saved path', async
  assert.equal(env.ACCOUNTS.raw.prepare("SELECT event FROM audit_log").get().event,'signed_in');
 });
 
+test('Google callback returns owner workspace login to the canonical host', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
+ const start=await request(worker,env,'GET',PUB+'/auth/google/start?return='+encodeURIComponent('/owner/'));
+ const state=new URL(start.headers.get('location')).searchParams.get('state');
+ const nonce=new URL(start.headers.get('location')).searchParams.get('nonce');
+ const {privateKey,publicKey}=generateKeyPairSync('rsa',{modulusLength:2048});
+ const jwk={...publicKey.export({format:'jwk'}),kid:'k1',alg:'RS256',use:'sig'};
+ const now=Math.floor(Date.now()/1000);
+ const header=b64url(Buffer.from(JSON.stringify({alg:'RS256',kid:'k1',typ:'JWT'})));
+ const claims=b64url(Buffer.from(JSON.stringify({iss:'https://accounts.google.com',aud:'client-id',sub:'g-999',email:'new@example.com',email_verified:true,name:'New',nonce,iat:now,exp:now+600})));
+ const sig=createSign('RSA-SHA256').update(header+'.'+claims).sign(privateKey).toString('base64url');
+ const mock=mockFetch(url=>{
+  if(url==='https://oauth2.googleapis.com/token')return jsonResponse({id_token:header+'.'+claims+'.'+sig});
+  if(url==='https://www.googleapis.com/oauth2/v3/certs')return jsonResponse({keys:[jwk]});
+ });
+ try{
+  const cb=await request(worker,env,'GET',PUB+'/auth/google/callback?state='+state+'&code=abc',{headers:{cookie:'__Host-yarr_oauth='+state}});
+  assert.equal(cb.status,303);
+  assert.equal(cb.headers.get('location'),PUB+'/owner/');
+  assert.match(cb.headers.get('set-cookie'),/__Secure-yarr_session=/);
+ }finally{mock.restore();}
+ const identity=env.ACCOUNTS.raw.prepare("SELECT provider,subject,email FROM user_identities").get();
+ assert.deepEqual({...identity},{provider:'google',subject:'g-999',email:'new@example.com'});
+ assert.equal(env.ACCOUNTS.raw.prepare("SELECT event FROM audit_log").get().event,'signed_in');
+});
+
 test('remote-access passes: owner only, Pro only, signed, verifiable', async()=>{
  const worker=await loadWorker();
  const key=await newPassKey('k-2026');

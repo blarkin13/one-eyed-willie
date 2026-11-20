@@ -347,7 +347,8 @@ async function googleCallback(req,env) {
   const session=random();
   await env.ACCOUNTS.prepare("INSERT INTO sessions(id,user_id,token_hash,expires_at) VALUES(?,?,?,datetime('now','+7 days'))").bind(crypto.randomUUID(),user.id,await digest(session)).run();
   const hostOnly=HOST_ONLY_SITES.has(site),returnTo=safeReturnPath(row.return_to);
-  const headers=new Headers({'location':hostOnly?(returnTo||'/account'):ACCOUNTS_SITE+(returnTo||'/account'),'cache-control':'no-store'});
+  const ownerReturn=site===PUBLIC_SITE&&(returnTo==='/owner/'||returnTo==='/mail/');
+  const headers=new Headers({'location':ownerReturn?PUBLIC_SITE+returnTo:hostOnly?(returnTo||'/account'):ACCOUNTS_SITE+(returnTo||'/account'),'cache-control':'no-store'});
   headers.append('set-cookie',cleared);
   headers.append('set-cookie',hostOnly?cookie('__Host-yarr_session',session,SESSION_SECONDS):sharedSessionCookie(session,SESSION_SECONDS));
   return new Response(null,{status:303,headers});
