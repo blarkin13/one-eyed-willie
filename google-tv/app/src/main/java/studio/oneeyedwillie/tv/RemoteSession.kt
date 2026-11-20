@@ -10,7 +10,8 @@ import java.net.URI
  *
  * When the home server can't be reached on the local network, a TV that is
  * signed in to a Yarr account asks yarr.media for its server's internet address
- * and a short-lived signed pass. Video and pages then come straight from the
+ * and a short-lived signed pass. That can also be a server someone shares with
+ * this account (the TV is then a "barnacle" there), chosen with Choose server. Video and pages then come straight from the
  * home server; yarr.media only issues the pass. The pass goes to the server as
  * the `yarr_pass` cookie (WebView) or an `Authorization: Yarr-Pass` header
  * (player and native calls), only ever to that server's origin, and is renewed
@@ -30,6 +31,9 @@ object RemoteSession {
         object NoServer : Connect()
         object NoAddress : Connect()
         object ProRequired : Connect()
+        object OwnerProRequired : Connect()
+        /** More than one server and nothing says which: ask. */
+        data class Choose(val servers: List<YarrAccount.RemoteServer>) : Connect()
         data class Failed(val message: String) : Connect()
     }
 
@@ -38,12 +42,24 @@ object RemoteSession {
 
     // ---- Pure helpers (unit tested) ------------------------------------------
 
-    /** Prefer this TV's home server, then one that is online, then any with an address. */
-    fun chooseServer(servers: List<YarrAccount.RemoteServer>, homeIdentity: String?): YarrAccount.RemoteServer? {
+    /** The server picked with Choose server, then this TV's home server, then the
+     *  only one (or only online one); null when it's genuinely ambiguous. */
+    fun chooseServer(servers: List<YarrAccount.RemoteServer>, homeIdentity: String?,
+                     chosenId: String? = null): YarrAccount.RemoteServer? {
         val usable = servers.filter { !it.remoteAddress.isNullOrBlank() }
-        return usable.firstOrNull { !homeIdentity.isNullOrBlank() && it.identity == homeIdentity }
-            ?: usable.firstOrNull { it.online } ?: usable.firstOrNull()
+        usable.firstOrNull { !chosenId.isNullOrBlank() && it.id == chosenId }?.let { return it }
+        usable.firstOrNull { !homeIdentity.isNullOrBlank() && it.identity == homeIdentity }?.let { return it }
+        if (usable.size == 1) return usable[0]
+        return usable.singleOrNull { it.online }
     }
+
+    /** Servers worth offering in Choose server (they have an address). */
+    fun choices(servers: List<YarrAccount.RemoteServer>) = servers.filter { !it.remoteAddress.isNullOrBlank() }
+
+    fun label(server: YarrAccount.RemoteServer): String =
+        server.name.ifBlank { "Yarr Media server" } +
+            (if (server.role == "barnacle") " · shared by " + server.ownerName.ifBlank { "a friend" } else " · yours") +
+            (if (server.online) "" else " (offline)")
 
     fun needsRefresh(expiresAtMillis: Long, nowMillis: Long): Boolean =
         expiresAtMillis - nowMillis < REFRESH_BEFORE_MS
@@ -74,6 +90,13 @@ object RemoteSession {
     fun isRemote(context: Context, origin: String): Boolean =
         active?.origin == origin || prefs(context).getString("origin", null) == origin
 
+    /** The server picked with Choose server (null: use this network's server first). */
+    fun chosen(context: Context): String? = prefs(context).getString("chosen_server", null)
+
+    fun setChosen(context: Context, serverId: String?) {
+        prefs(context).edit().apply { if (serverId == null) remove("chosen_server") else putString("chosen_server", serverId) }.apply()
+    }
+
     fun rememberHomeServer(context: Context, identity: String) {
         if (identity.isNotBlank()) prefs(context).edit().putString("home_identity", identity).apply()
     }
@@ -91,8 +114,10 @@ object RemoteSession {
             return Connect.Failed(e.message ?: "Could not reach yarr.media")
         } ?: return Connect.SignedOut
         if (servers.isEmpty()) return Connect.NoServer
-        val server = chooseServer(servers, prefs(context).getString("home_identity", null))
-            ?: return Connect.NoAddress
+        val usable = choices(servers)
+        if (usable.isEmpty()) return Connect.NoAddress
+        val server = chooseServer(servers, prefs(context).getString("home_identity", null), chosen(context))
+            ?: return Connect.Choose(usable)
         return when (val reply = YarrAccount.pass(token, server.id)) {
             is YarrAccount.PassReply.Granted -> {
                 val origin = (reply.remoteAddress ?: server.remoteAddress!!).trimEnd('/')
@@ -101,6 +126,7 @@ object RemoteSession {
                 Connect.Ok(origin)
             }
             YarrAccount.PassReply.ProRequired -> Connect.ProRequired
+            YarrAccount.PassReply.OwnerProRequired -> Connect.OwnerProRequired
             YarrAccount.PassReply.SignedOut -> Connect.SignedOut
             YarrAccount.PassReply.ServerNotFound -> Connect.NoServer
             is YarrAccount.PassReply.Failed -> Connect.Failed(reply.message)
