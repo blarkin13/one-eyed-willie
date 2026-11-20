@@ -45,6 +45,73 @@ class HomeDashboardTests(unittest.TestCase):
         self.assertEqual(data["totals"], {"movies": 2, "tv": 1})
         self.assertEqual(data["continue_watching"], [])
         self.assertTrue(data["playback_available"])
+        self.assertEqual(
+            [(lib["name"], [item["title"] for item in lib["items"]])
+             for lib in data["recent_libraries"]],
+            [("Movies", ["Arrival", "Alien"]), ("TV Shows", ["Severance"])]
+        )
+
+    def test_recently_added_is_separate_for_each_movie_library(self):
+        with library.db() as connection:
+            connection.execute(
+                "INSERT INTO libraries(id,name,kind,path) "
+                "VALUES(3,'Horror','movies','/media/Horror')"
+            )
+            media = [
+                (4, 3, '/media/Horror/The Thing (1982)/The Thing.mkv',
+                 'The Thing', 10, '2026-11-18 10:00:00'),
+                (5, 3, '/media/Horror/Get Out (2017)/Get Out.mkv',
+                 'Get Out', 999999, '2026-11-17 10:00:00'),
+                (6, 1, '/media/Movies/Dune (2021)/Dune.mkv',
+                 'Dune', 0, '2026-11-19 10:00:00'),
+                (7, 3, '/media/Horror/Alien (1979)/Alien.mkv',
+                 'Alien', 30, '2026-11-16 10:00:00'),
+            ]
+            for media_id, lib_id, path, title, mtime, added in media:
+                connection.execute(
+                    "INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                    "VALUES(?,?,?,?,100,?,?)",
+                    (media_id, lib_id, path, title, mtime, added)
+                )
+        data = home_shelves()
+        shelves = {row["name"]: row for row in data["recent_libraries"]}
+        self.assertEqual(list(shelves), ["Movies", "Horror", "TV Shows"])
+        self.assertEqual(
+            [item["title"] for item in shelves["Movies"]["items"]],
+            ["Dune", "Arrival", "Alien"]
+        )
+        self.assertEqual(
+            [item["title"] for item in shelves["Horror"]["items"]],
+            ["The Thing", "Get Out", "Alien"]
+        )
+        self.assertEqual(
+            {item["library_id"] for item in shelves["Movies"]["items"]}, {1}
+        )
+        self.assertEqual(
+            {item["library_id"] for item in shelves["Horror"]["items"]}, {3}
+        )
+        self.assertEqual(data["totals"], {"movies": 6, "tv": 1})
+
+    def test_recently_added_limit_applies_separately_to_libraries(self):
+        with library.db() as connection:
+            connection.execute(
+                "INSERT INTO libraries(id,name,kind,path) "
+                "VALUES(3,'Horror','movies','/media/Horror')"
+            )
+            for number in range(20):
+                path = f'/media/Horror/Film {number} (2020)/Film {number}.mkv'
+                connection.execute(
+                    "INSERT INTO media(library_id,path,title,size,mtime_ns,added_at) "
+                    "VALUES(3,?,?,100,0,?)",
+                    (path, f'Film {number}', f'2026-11-16 10:00:{number:02d}')
+                )
+        shelves = {row["name"]: row["items"]
+                   for row in home_shelves()["recent_libraries"]}
+        self.assertEqual([item["title"] for item in shelves["Movies"]],
+                         ["Arrival", "Alien"])
+        self.assertEqual(len(shelves["Horror"]), 16)
+        self.assertEqual([item["title"] for item in shelves["Horror"][:2]],
+                         ["Film 19", "Film 18"])
 
     def test_unfinished_progress_and_completion(self):
         saved = update_playback(PlaybackUpdate(
