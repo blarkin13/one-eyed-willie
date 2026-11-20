@@ -66,6 +66,7 @@ html.yarr-app ::-webkit-scrollbar{display:none}
 html.yarr-app .sidebar,html.yarr-app .willie-hover-backdrop,html.yarr-app #willie-ambient-effects{display:none!important}
 html.yarr-app .workspace{margin:0!important}
 html.yarr-app .workspace>.content{padding:16px 16px 28px!important}
+html.yarr-app body[data-page="music"] .workspace>.content{padding-bottom:calc(var(--player-space,0px) + 28px)!important}
 html.yarr-app #items::before,html.yarr-app .shelf-track::before,html.yarr-app .explore-grid::before,html.yarr-app .movie-grid::before,html.yarr-app .tv-grid::before{display:none!important}
 html.yarr-app .cover,html.yarr-app .tile-button{transition:transform .12s ease,opacity .12s ease}
 html.yarr-app .tile-button:active,html.yarr-app a:active>.cover{transform:scale(.97);opacity:.88}
