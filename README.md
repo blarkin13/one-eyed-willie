@@ -1,152 +1,110 @@
 # Yarr Media
 
-Lightweight, self-hosted Movies, TV and Music media server. Modern interface, with pirate identity limited to the name and logo.
+Self-hosted movies, TV and music. Run the server on a computer that holds your
+media, then watch on Google TV, in any browser at home, or anywhere at
+[app.yarr.media](https://app.yarr.media) with Pro.
 
-## Install the server
+Your media stays on your server. Video streams straight from your server to
+your screen; it is never uploaded to or relayed through Yarr Media.
 
-On any 64-bit Linux computer (Intel/AMD or ARM) that can see your media:
+## Install
+
+On a 64-bit Linux computer (Intel/AMD or ARM) that can see your media:
 
 ```bash
 curl -fsSL https://yarr.media/install.sh | sudo bash
 ```
 
-It installs Docker if needed, runs the prebuilt server image
-(`ghcr.io/blarkin13/yarr-media:stable`) plus an HTTPS front door for Pro remote
-access, updates nightly, and asks the router (UPnP) to forward port 443.
-Settings: `YARR_MEDIA_DIR`, `YARR_CHANNEL=stable|edge`, `YARR_NO_REMOTE=1`.
+The installer:
 
-On Ubuntu/Debian you can use apt instead; see https://yarr.media/apt.
-The Google TV app is attached to each GitHub Release (`yarr.media/tv`).
+- installs Docker if it is missing and asks which folder holds your media;
+- runs the server (`ghcr.io/blarkin13/yarr-media:stable`) on port **8787**;
+- adds an HTTPS front door for Pro remote access and asks your router (UPnP) to
+  forward port **443**;
+- updates everything nightly (`sudo yarr-media-update` updates now).
 
-Releases: pushing a `vX.Y.Z` tag publishes the `stable` image, the APK, the
-installer and the `.deb` (`.github/workflows/release.yml`); every change to
-main publishes the `edge` image. The apt repository needs the
-`APT_SIGNING_KEY` secret, created once with `deploy/deb/create-apt-key.sh`.
+Run it again at any time to change settings; your library and watch history
+are kept. Options: `YARR_MEDIA_DIR=/path`, `YARR_CHANNEL=stable|edge`,
+`YARR_NO_REMOTE=1` (home network only), `YARR_PORT=8787`.
 
-## Music library (initial web implementation)
+**Ubuntu / Debian with apt**
 
-Music is a separate media type; it is not included in Movies/TV grouping or Continue Watching.
+```bash
+curl -fsSL https://yarr.media/apt/yarr-media.gpg | sudo tee /usr/share/keyrings/yarr-media.gpg > /dev/null
+echo "deb [signed-by=/usr/share/keyrings/yarr-media.gpg] https://yarr.media/apt stable main" \
+  | sudo tee /etc/apt/sources.list.d/yarr-media.list
+sudo apt update && sudo apt install yarr-media
+sudo yarr-media-setup
+```
 
-1. Open **Settings → Libraries → Add library** and select **Music**.
-2. Name the library, select a folder that is already mounted under `/media`, and save.
-3. Click **Scan** for that library (automatic scans also discover new audio files).
-4. Open **Music** in the sidebar to browse artists, albums, and tracks, search and play music.
+**Uninstall**: `cd /opt/yarr-media && sudo docker compose down && sudo rm -rf /opt/yarr-media`
+(or `sudo apt purge yarr-media`). Library data stays in `/var/lib/yarr-media`
+until you delete it.
 
-Supported indexing extensions: MP3, FLAC, M4A, AAC, OGG, Opus, WAV, AIFF, and ALAC. Playback depends on the client's available audio codecs. Music tags and embedded cover art are read with Mutagen; missing or unreadable tags fall back to folder and filename details. Audio media is streamed read-only from configured music library folders.
+## Watch
 
-**Current boundaries:** This is the first web-based Music catalog and player. Playlists, saved favorites, gapless playback, a player that survives full-page navigation, and native Google TV music browsing are not implemented yet. Lidarr can be added later as an optional connection; it is not required to use Music. 
+| Where | How |
+| --- | --- |
+| Home network | Open `http://<server-ip>:8787` in any browser. |
+| Google TV | Install the APK from [Releases](https://github.com/blarkin13/one-eyed-willie/releases/latest) (on the TV: Downloader app → `yarr.media/tv`). It finds the server on your network. |
+| Anywhere (Pro) | [app.yarr.media](https://app.yarr.media) after the steps below. |
 
-## Third-party integration branding
+### Remote access (Pro)
+
+1. In the app: **Settings → General → Connect to Yarr**, and pair the server with
+   your account at [yarr.media/account](https://yarr.media/account).
+2. Make sure TCP port **443** reaches the server (the installer tries UPnP; if
+   that fails, forward it on your router).
+3. On **My Account**, use **Check remote access**, then open
+   [app.yarr.media](https://app.yarr.media) anywhere.
+
+How it works: app.yarr.media serves only a small starter page and service
+worker. After you sign in, your browser talks directly to your server's own
+HTTPS address (derived from the public IP it reports to yarr.media). Every
+remote request carries a short-lived, signed **Yarr pass**, which the server
+checks itself; requests from your home network do not need one.
+
+On a Google TV, sign in from **Server settings → Yarr account** by entering the
+code shown at [yarr.media/activate](https://yarr.media/activate).
+
+## What's in this repository
+
+| Path | What |
+| --- | --- |
+| `server/` | The media server: FastAPI + SQLite, web UI, FFmpeg/HLS playback, metadata, integrations, the remote-access gate (`remote_access.py`). |
+| `google-tv/` | Android / Google TV app (WebView shell + native Media3 player). |
+| `cloudflare/yarr/` | The yarr.media Worker: website, accounts (Google sign-in), TV sign-in, passes, Stripe, D1 migrations, deploy script. |
+| `deploy/` | Installer, `.deb` packaging and apt publishing, Caddy configs, the development server's updater. |
+| `tests/`, `cloudflare/yarr/test/` | Python tests (incl. Playwright browser tests) and Worker tests. |
+| `docs/` | Feature notes ([features.md](docs/features.md)), integrations, playback, remote access, [development server](docs/development-server.md). |
+
+## Develop
+
+```bash
+pip install -r requirements.txt
+uvicorn server.main:app --reload --port 8787      # server
+python -m unittest discover -s tests              # Python tests (browser tests need Chrome + playwright)
+node --test cloudflare/yarr/test/*.test.mjs       # Worker tests (Node 22)
+```
+
+Google TV app: `cd google-tv && gradle :app:assembleDebug` (CI builds a debug
+and a smaller "lean" APK on every change).
+
+**Releases**: every merge to `main` publishes the `edge` image. A release is
+**Actions → Release → Run workflow** with a version (or pushing a `vX.Y.Z` tag):
+it publishes the `stable` image, a GitHub Release with the TV APK, installer
+and `.deb`, and the signed apt repository (needs the `APT_SIGNING_KEY` secret,
+created once with `deploy/deb/create-apt-key.sh`).
+
+**yarr.media Worker**: `bash cloudflare/yarr/deploy.sh` (add `dev` for the dev
+Worker and database). Database changes go in `cloudflare/yarr/migrations/`.
+
+## Credits
+
+### SABnzbd
 
 The SABnzbd icon bundled as `server/sabnzbd-official.svg` is the unmodified upstream `icons/logo-arrow.svg` from [SABnzbd's source repository](https://github.com/sabnzbd/sabnzbd/blob/develop/icons/logo-arrow.svg). **SABnzbd name and icon © the SABnzbd Team.** Their [branding terms](https://sabnzbd.org/wiki/contact) permit this use by applications connecting through the SABnzbd API; use does not imply endorsement or a guarantee of continued API compatibility. The icon is not licensed under SABnzbd's software license.
 
-## Initial milestone
-
-- Dockerized FastAPI server on port 8787
-- Health endpoint at `/health`
-- Media folders mounted read-only; no automatic changes to existing files
-- Persistent configuration and database directories
-
-Planned: local movie/TV scanning, TMDB/TVDB metadata, posters and cast, playback, and Radarr/Sonarr-powered Discover.
-
-## Run on Ubuntu NUC
-
-```bash
-cd /opt/one-eyed-willie
-git clone https://github.com/blarkin13/one-eyed-willie.git app
-cd app
-sudo docker compose up -d --build
-curl http://127.0.0.1:8787/health
-```
-
-The provided Compose example mounts `/media/brian/My Book` as `/media:ro`, with application data in `/opt/one-eyed-willie/data`. Do not expose port 8787 to the public internet until authentication is implemented.
-
-
-## GPU compatibility playback
-
-The Intel GPU path is opt-in. On the NUC, verify `/dev/dri/renderD128` exists, configure `WILLIE_RENDER_GID` to the render-device group ID, and deploy with the GPU override:
-
-```sh
-export WILLIE_RENDER_GID="$(stat -c '%g' /dev/dri/renderD128)"
-docker compose -f compose.remote.yaml -f compose.gpu.yaml up -d --build
-```
-
-The compatibility HLS transcoder requests VAAPI **decoding, GPU scaling, and H.264 encoding**. Unsupported codecs, drivers, or devices fall back to CPU software processing when FFmpeg cannot start hardware decoding. This does **not** force hardware decoding for Direct Play on client devices; browser/TV hardware support determines that. The player's diagnostics icon reports the server's selected engine. GPU playback requires verification using an actual media sample on the NUC.
-
-## In-player subtitle search
-
-The subtitle icon now includes an OpenSubtitles search, results, download and direct activation. Configure your own API key through the server environment (do not commit credentials to Git):
-
-```sh
-export OPENSUBTITLES_API_KEY='your-opensubtitles-api-key'
-# Optional provider bearer token if required for your account/downloads:
-export OPENSUBTITLES_TOKEN='your-token'
-docker compose -f compose.remote.yaml -f compose.gpu.yaml up -d --build
-```
-
-The optional credentials are passed through both Docker Compose modes. Without a key, local and embedded subtitles continue to function and the search panel shows a configuration message. Downloads stay in the private `/data/subtitles/opensubtitles` cache, never on the read-only media drive. Search/download uses OpenSubtitles' API and is subject to its account limits and provider availability. Downloads are restricted to HTTPS OpenSubtitles hosts; if the provider returns an unapproved external CDN host, that download is rejected rather than following an arbitrary URL. Verify provider responses with your account before relying on them.
-
-### OpenSubtitles settings
-
-Open **Settings → Connections → OpenSubtitles** to paste and verify an API key, with an optional account bearer token for provider downloads. The server saves credentials only under `/data/opensubtitles-settings.json` with restricted file permissions, never returns credential values, and applies changes immediately without restarting Docker. Environment-provided keys remain a fallback and are indicated as such in Settings; a Settings-saved key takes precedence. Removing a Settings-saved key falls back to the environment key if one exists. Previously downloaded subtitles remain available.
-
-
-## TV series ratings and episode controls
-
-Series and season pages show the US TV parental rating (such as TV-14 or TV-MA) when the configured TMDB source supplies it. This is a TV classification, not a movie MPAA rating. The interface does **not** present TMDB or TVmaze votes as IMDb scores.
-
-If you want an actual IMDb score in the series details row, obtain an OMDb API key and set it as an **optional private server environment variable** (never commit it to Git):
-
-```sh
-export OMDB_API_KEY='your-omdb-api-key'
-docker compose up -d --build
-```
-
-The optional key is passed through both Compose configurations. When the show has a validated IMDb ID, the server requests the score from OMDb and caches the result. Without a configured key, series still display a link to IMDb where the provider has an IMDb ID; no rating is invented. Series missing an external ID or parental classification show an unavailable label.
-
-**Shuffle Season** randomly orders all locally indexed episodes in the selected season, then offers the remaining episodes in that randomized order. The playlist is session-scoped to the player, not a persistent saved playlist, and normal Play/Resume clears it. Native Android TV builds need updating to use the playlist across player transitions.
-
-## Scheduled maintenance and video previews
-
-Open **Settings → Maintenance** to configure background tasks. The server checks for
-due jobs during the **4 AM Central** maintenance window, respecting DST, and retains
-last completion/result in its SQLite database across deployments.
-
-| Task | Cadence |
-| --- | --- |
-| Optimize SQLite database | Weekly |
-| Remove old generated maintenance bundles | Weekly |
-| Prune stale VTT conversion and HLS cache | Weekly |
-| Expire outdated cached metadata | Every 3 days |
-| Rescan all libraries | Weekly (existing background incremental scans also continue) |
-| Analyze codec, format, duration and resolution | Weekly; up to 40 files per batch |
-| Refresh show/season metadata on next use | Every 3 days |
-| Sample audio loudness (extensive analysis) | Weekly; up to 3 files per batch |
-| Generate video preview thumbnails | Daily, or via **Generate video previews now**; up to 4 video sets per batch |
-
-Preview generation defaults **on** and uses FFmpeg to extract up to six 320px
-JPEG frames per video into `/data/maintenance/previews`. The player displays
-them when seeking on the progress bar. Generated images never modify source
-videos and aren't served until the indexed video ID and file fingerprint match.
-Heavy analysis and thumbnail jobs run sequentially at reduced process priority
-and use bounded sample durations. Full-library completion requires multiple
-batches; the task cursor advances across the library.
-
-All task enable/disable settings, completion times and cursor positions persist
-in SQLite. **Run maintenance now** executes enabled jobs without waiting for
-the maintenance window. Only directories managed by Yarr Media are
-eligible for cleanup. Downloaded subtitle files, playback history, manual metadata
-matches, and the read-only media drive are never deleted. The generated
-maintenance-bundles directory is currently empty in a normal installation;
-the bundle cleanup option safely does nothing until the app creates bundles.
-Provider cache refresh only expires entries and does not guarantee external
-sources have new data.
-
-This app does not have Plex's full deep-video-analysis engine or its seek
-thumbnail index format. Its extensive analysis currently samples audio loudness;
-it does not perform whole-file scene detection, intros, credits, or loudness
-normalization. GPU/CPU use and throughput vary by the NUC's hardware.
-
-## Integration logo assets
+### Integration logos
 
 Connection-service logos are bundled locally and used only to identify supported third-party services. Lidarr and Plex pictograms are sourced from the [selfh.st icon collection](https://github.com/selfhst/icons), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) by that collection's contributors. OpenSubtitles' icon is from the [official OpenSubtitles.com Kodi add-on](https://github.com/opensubtitles-dev/service.subtitles.opensubtitles-com). Radarr, Sonarr, and SABnzbd keep their previously bundled logos. Logos and trademarks belong to their respective owners; their presence does not imply endorsement.
