@@ -38,6 +38,10 @@ binding = "ACCOUNTS"
 database_name = "yarr-accounts"
 database_id = "db4a0ec1-ab0b-49db-b95c-e84d8cef2bf0"
 
+[[r2_buckets]]
+binding = "MAIL_MESSAGES"
+bucket_name = "yarr-mail-private"
+
 [[vpc_services]]
 binding = "YARR_PRIVATE_API"
 service_id = "01a1edf8-3ad1-7803-8e7b-dbb44af621ea"
@@ -58,6 +62,10 @@ routes = []
 binding = "ACCOUNTS"
 database_name = "yarr-accounts-dev"
 database_id = "c8bfaaf7-c7b9-40fa-aac0-21edb134b77f"
+
+[[env.dev.r2_buckets]]
+binding = "MAIL_MESSAGES"
+bucket_name = "yarr-mail-dev-private"
 
 [env.dev.triggers]
 crons = ["17 9 * * *"]

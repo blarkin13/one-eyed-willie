@@ -8,3 +8,6 @@
 - Before storing production correspondence, approve retention/deletion/holds and backup/access rules, update privacy disclosure, and validate restore. No historical Gmail imports. No paid plan, live DNS or route change authorized by this PR.
 - Dashboard reports DB aggregate accounts, connected devices, servers, purchased entitlement records and Stripe checkout amounts/statuses (not reconciled net revenue; test rows may be included). Website analytics and release downloads are not connected; no fabricated metrics. No customer media telemetry.
 - Humperdinck source reference: PRs 224/226 and issue 227; inbound archiving there remained unverified at inspection. Reused bounded MIME and mail modules still require independent Yarr tests; original attachments are downloadable .eml, not rendered inline.
+
+## Provisioning follow-up (November 20)
+Production and dev buckets and 0013 D1 tables are provisioned. R2 bindings are now in Wrangler. Set YARR_OWNER_ANALYTICS_ENABLED=true after applying 0014. Page request totals start at activation, and GitHub public release asset counts are reported separately; neither is a unique visitor or complete installation count. Real customer mail must continue direct Gmail forwarding until independent send/receive and retention gates are met. The inbox and outbound flags remain independent; no paid services or secret reuse.
