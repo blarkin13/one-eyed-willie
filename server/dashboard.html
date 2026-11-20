@@ -698,6 +698,50 @@ function shelf(id,items,emptyTitle,emptyDescription,watching=false){
  if(first?._homeItem)updateHomeFeature(first,first._homeItem);
  fitHomeFeature();
 }
+function homeShelfIds(){
+ return [...document.querySelectorAll('.content .shelf > div[id]')].map(element=>element.id);
+}
+function renderRecentLibraries(libraries){
+ // Keep the first movie/TV shelf IDs for older remote-navigation clients.
+ document.querySelectorAll('.library-recent-extra').forEach(section=>section.remove());
+ const primary={movies:byId('recent-movies'),tv:byId('recent-tv')};
+ const first={
+  movies:libraries.find(lib=>lib.kind==='movies'),
+  tv:libraries.find(lib=>lib.kind==='tv')
+ };
+ for(const kind of ['movies','tv']){
+  const section=primary[kind].closest('.shelf');
+  const lib=first[kind];
+  section.hidden=!lib;
+  if(!lib)continue;
+  section.dataset.libraryId=String(lib.library_id);
+  section.querySelector('.shelf-title').textContent='Recently Added '+lib.name;
+  shelf(primary[kind].id,lib.items,'No media yet','');
+ }
+ let lastTv=primary.tv.closest('.shelf');
+ for(const lib of libraries){
+  if(lib.kind!=='movies'&&lib.kind!=='tv')continue;
+  if(first[lib.kind]===lib)continue;
+  const id='recent-library-'+lib.library_id;
+  const section=document.createElement('section');
+  section.className='shelf library-recent-extra';
+  section.dataset.libraryId=String(lib.library_id);
+  section.setAttribute('aria-labelledby',id+'-heading');
+  const heading=document.createElement('div');
+  heading.className='section-heading';
+  const titleWrap=document.createElement('div');
+  const title=document.createElement('h2');
+  title.id=id+'-heading';title.className='shelf-title';
+  title.textContent='Recently Added '+lib.name;
+  titleWrap.append(title);heading.append(titleWrap);
+  const target=document.createElement('div');
+  target.id=id;
+  section.append(heading,target);
+  if(lib.kind==='movies')primary.tv.closest('.shelf').before(section);
+  else {lastTv.after(section);lastTv=section;}
+  shelf(id,lib.items,'No media yet','');
+ }
+}
 let homeRevision=null,homeProgressRevision=null,homeRequestId=0,homePollTimer=null,homePollRunning=false;
 async function load({preserveFocus=false}={}){
  const request=++homeRequestId;
@@ -710,17 +754,21 @@ async function load({preserveFocus=false}={}){
   const focused=preserveFocus?document.activeElement?.closest?.('.shelf-track .tile-button'):null;
   const focusHref=focused?.getAttribute('href');
   const shelfPositions=preserveFocus?Object.fromEntries(
-   ['continue-watching','recent-movies','recent-tv'].map(id=>[
-    id,byId(id).querySelector('.shelf-track')?.scrollLeft||0
-   ])
+   homeShelfIds().map(id=>[id,byId(id).querySelector('.shelf-track')?.scrollLeft||0])
   ):{};
   const pageScroll=window.scrollY;
   shelf('continue-watching',data.continue_watching,'Nothing in progress yet','',true);
-  const configured=new Set(data.configured_library_kinds||[]);
-  byId('recent-movies').closest('.shelf').hidden=!configured.has('movies');
-  byId('recent-tv').closest('.shelf').hidden=!configured.has('tv');
-  if(configured.has('movies'))shelf('recent-movies',data.recent_movies,'No movies yet','');
-  if(configured.has('tv'))shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  if(Array.isArray(data.recent_libraries)){
+   renderRecentLibraries(data.recent_libraries);
+  }else{
+   // Fallback for older servers while versions overlap.
+   document.querySelectorAll('.library-recent-extra').forEach(section=>section.remove());
+   const configured=new Set(data.configured_library_kinds||[]);
+   byId('recent-movies').closest('.shelf').hidden=!configured.has('movies');
+   byId('recent-tv').closest('.shelf').hidden=!configured.has('tv');
+   if(configured.has('movies'))shelf('recent-movies',data.recent_movies,'No movies yet','');
+   if(configured.has('tv'))shelf('recent-tv',data.recent_tv,'No TV shows yet','');
+  }
   if(!preserveFocus){
     try{
       const previous=JSON.parse(sessionStorage.getItem('oew-continue-return')||'null');
