@@ -158,6 +158,42 @@ class TvHomeFitTests(unittest.TestCase):
         page.wait_for_timeout(300)
         return page.evaluate(MEASURE), page
 
+    def test_recent_movies_and_horror_are_separate_tv_shelves(self):
+        # The API returns a bounded list per library, never a combined movie
+        # shelf that allows Horror downloads to displace regular Movies.
+        home = dict(HOME)
+        movies = [item(91, "movies")]
+        horror = [dict(item(92, "movies"), library_id=3)]
+        tv = [item(93, "tv")]
+        home["recent_libraries"] = [
+            {"library_id": 1, "name": "Movies", "kind": "movies",
+             "items": movies},
+            {"library_id": 3, "name": "Horror", "kind": "movies",
+             "items": horror},
+            {"library_id": 2, "name": "TV Shows", "kind": "tv",
+             "items": tv},
+        ]
+        context = self.browser.new_context(user_agent=TV_UA,
+                                            viewport={"width": 960, "height": 540})
+        self.addCleanup(context.close)
+        page = context.new_page()
+        page.route("**/api/home", lambda r: r.fulfill(json=home))
+        page.route("**/api/home/revision", lambda r: r.fulfill(json={"revision": 1}))
+        page.route("**/api/movies/details*", lambda r: r.fulfill(json=DETAILS))
+        page.route("**/api/tv/show*", lambda r: r.fulfill(json=DETAILS))
+        page.goto("http://127.0.0.1:%d/" % self.port)
+        page.wait_for_selector("#recent-library-3 .tile-button")
+        labels = page.locator(".content > .shelf .shelf-title").all_text_contents()
+        self.assertEqual(labels, ["Continue Watching", "Recently Added Movies",
+                                  "Recently Added Horror", "Recently Added TV Shows"])
+        self.assertEqual(page.locator("#recent-movies .tile-button").count(), 1)
+        self.assertEqual(page.locator("#recent-library-3 .tile-button").count(), 1)
+        self.assertEqual(page.locator("#recent-tv .tile-button").count(), 1)
+        self.assertEqual(
+            page.locator("#recent-library-3 .tile-button").first.get_attribute("href"),
+            "/movies?library_id=3&key=k92"
+        )
+
     def test_first_selected_poster_is_not_clipped_at_left_edge(self):
         # In Android TV, injected focus styling must not override the inward
         # origin. The same protection is needed on ordinary browser Home.
