@@ -11,6 +11,7 @@ from .artwork import localize, local_show_poster, register_remote
 from .metadata import imdb_details, show_metadata as tmdb_show_metadata, show_metadata_by_id as tmdb_by_id, season_metadata, token_status, _call as tmdb_call, image_url as tmdb_image
 from .tvmaze import show_metadata as tvmaze_show_metadata, show_metadata_by_id as tvmaze_by_id, season_metadata as tvmaze_season_metadata, show_cast as tvmaze_show_cast, _get as tvmaze_get, image_url as tvmaze_image
 from .arr import sonarr_metadata
+from .viewer import current as current_viewer
 
 def _manual_table(conn):
     conn.execute("CREATE TABLE IF NOT EXISTS tv_manual_matches (library_id INTEGER NOT NULL, show_key TEXT NOT NULL, provider TEXT NOT NULL, provider_id INTEGER NOT NULL, PRIMARY KEY (library_id, show_key))")
@@ -129,15 +130,15 @@ def _bulk_watched(library_id, show_key, watched, season_number=None):
     with db() as conn:
         if watched:
             conn.executemany(
-                "INSERT INTO playback_progress(media_id,position_seconds,duration_seconds,"
-                "completed,updated_at) VALUES(?,0,0,1,CURRENT_TIMESTAMP) "
-                "ON CONFLICT(media_id) DO UPDATE SET completed=1,"
+                "INSERT INTO playback_progress(viewer,media_id,position_seconds,duration_seconds,"
+                "completed,updated_at) VALUES(?,?,0,0,1,CURRENT_TIMESTAMP) "
+                "ON CONFLICT(viewer,media_id) DO UPDATE SET completed=1,"
                 "position_seconds=duration_seconds,updated_at=CURRENT_TIMESTAMP",
-                [(id,) for id in ids],
+                [(current_viewer().id, id) for id in ids],
             )
         else:
-            conn.executemany("DELETE FROM playback_progress WHERE media_id=?",
-                             [(id,) for id in ids])
+            conn.executemany("DELETE FROM playback_progress WHERE viewer=? AND media_id=?",
+                             [(current_viewer().id, id) for id in ids])
     return {"watched": watched, "updated": len(ids)}
 
 
@@ -168,7 +169,8 @@ def local_show(library_id: int, show_key: str):
 
     with db() as conn:
         playback = {row["media_id"]: dict(row) for row in conn.execute(
-            "SELECT media_id,position_seconds,duration_seconds,completed FROM playback_progress"
+            "SELECT media_id,position_seconds,duration_seconds,completed FROM playback_progress WHERE viewer=?",
+            (current_viewer().id,)
         )}
         watched_ids = {id for id, state in playback.items() if state["completed"]}
     found = []

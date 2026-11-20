@@ -529,4 +529,10 @@ el('tv-ambient-off').onclick=()=>{
  ambientState.effect='off';drawAmbientButtons();saveAmbientOnTv();
 };
 el('tv-server-connection').onclick=()=>prompt('oewtv:settings:server','');
+// Barnacles (watching a shared server) keep only this TV's connection settings.
+fetch('/api/viewer',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(viewer=>{
+ if(viewer&&viewer.role==='barnacle')document.querySelectorAll('.settings-section').forEach(section=>{
+  if(!section.querySelector('#tv-server-connection'))section.remove();
+ });
+}).catch(()=>{});
 </script></body></html>

@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 from fastapi.responses import FileResponse
 from typing import Literal
 from PIL import Image, UnidentifiedImageError
+from .viewer import current as current_viewer
 
 MEDIA_ROOT = Path(os.environ.get("MEDIA_ROOT", "/media")).resolve()
 DB_PATH = Path(os.environ.get("DATABASE_PATH", "/data/library.sqlite3"))
@@ -66,7 +67,7 @@ class FolderRequest(BaseModel):
 # Bump when db() must change the schema again. The version is stored in the
 # database file itself (PRAGMA user_version), so a database that is already
 # current is opened without running any DDL.
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2  # 2: per-viewer watch history (barnacles)
 _MIGRATE_LOCK = threading.Lock()
 
 
@@ -94,6 +95,24 @@ def db():
     # the last moments of a progress save. FULL would fsync every commit.
     connection.execute("PRAGMA synchronous=NORMAL")
     return connection
+
+
+def _per_viewer_table(connection, name, create_sql, columns):
+    """Create a per-viewer table, or upgrade a pre-sharing one in place.
+
+    The old table had no viewer column; its rows are the owner's ('')."""
+    existing = [r[1] for r in connection.execute(f"PRAGMA table_info({name})")]
+    if not existing:
+        connection.execute(create_sql)
+        return
+    if "viewer" in existing:
+        return
+    old = name + "_before_viewers"
+    connection.execute(f"DROP TABLE IF EXISTS {old}")
+    connection.execute(f"ALTER TABLE {name} RENAME TO {old}")
+    connection.execute(create_sql)
+    connection.execute(f"INSERT INTO {name}(viewer,{columns}) SELECT '',{columns} FROM {old}")
+    connection.execute(f"DROP TABLE {old}")
 
 
 def _migrate(connection):
@@ -136,20 +155,26 @@ def _migrate(connection):
         connection.execute("ALTER TABLE media ADD COLUMN added_at TEXT")
         # Existing entries have no recorded first-seen time; migration time is the honest baseline.
         connection.execute("UPDATE media SET added_at=CURRENT_TIMESTAMP WHERE added_at IS NULL")
-    connection.execute("""CREATE TABLE IF NOT EXISTS playback_progress (
-        media_id INTEGER PRIMARY KEY,
+    # Watch history is per viewer: '' is the owner, 'u:<account id>' a barnacle
+    # (someone the owner shares with). History from before sharing existed is
+    # the owner's.
+    _per_viewer_table(connection, "playback_progress", """CREATE TABLE playback_progress (
+        viewer TEXT NOT NULL DEFAULT '',
+        media_id INTEGER NOT NULL,
         position_seconds REAL NOT NULL,
         duration_seconds REAL NOT NULL,
         completed INTEGER NOT NULL DEFAULT 0,
-        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
-    )""")
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (viewer, media_id)
+    )""", "media_id,position_seconds,duration_seconds,completed,updated_at")
     # Hide an entire Continue Watching title (including its next-episode
     # suggestion) until playback is explicitly started again. Group keys
     # survive poster refreshes and application restarts.
-    connection.execute("""CREATE TABLE IF NOT EXISTS continue_watching_hidden (
+    _per_viewer_table(connection, "continue_watching_hidden", """CREATE TABLE continue_watching_hidden (
+        viewer TEXT NOT NULL DEFAULT '',
         kind TEXT NOT NULL, library_id INTEGER NOT NULL, media_key TEXT NOT NULL,
-        PRIMARY KEY (kind,library_id,media_key)
-    )""")
+        PRIMARY KEY (viewer,kind,library_id,media_key)
+    )""", "kind,library_id,media_key")
     # A persistent revision lets open web/Google TV pages detect real media
     # changes without refreshing their entire poster grids every scan.
     connection.execute("""CREATE TABLE IF NOT EXISTS catalog_state (
@@ -216,7 +241,13 @@ def _library_view(conn, library_id=None):
 @router.get("/libraries")
 def libraries():
     with db() as connection:
-        return _library_view(connection)
+        result = _library_view(connection)
+    who = current_viewer()
+    if who.is_barnacle:
+        # Barnacles see only their libraries, and never where files live.
+        result = [{k: v for k, v in item.items() if k not in ("path", "folders")}
+                  for item in result if who.can_see(item["id"])]
+    return result
 
 
 def _validate_style(icon, font):

@@ -23,6 +23,7 @@ from .artwork import MEDIA_ROOT, register_local, register_remote, register_radar
 from .catalog import movie_info
 from .library import db
 from .metadata import _simple
+from .viewer import current as current_viewer
 
 router = APIRouter(prefix="/api/movies")
 SETTINGS_PATH = Path(os.environ.get("RADARR_CONFIG_PATH", "/data/radarr-settings.json"))
@@ -523,9 +524,9 @@ def _details(library_id, key, snapshot=None, *, enrich=True, include_video_forma
     with db() as conn:
         entry = conn.execute(
             "SELECT m.id,p.position_seconds,p.duration_seconds,p.completed "
-            "FROM media m LEFT JOIN playback_progress p ON p.media_id=m.id "
+            "FROM media m LEFT JOIN playback_progress p ON p.media_id=m.id AND p.viewer=? "
             "WHERE m.library_id=? AND m.path=? ORDER BY m.id LIMIT 1",
-            (library_id, str(video)),
+            (current_viewer().id, library_id, str(video)),
         ).fetchone()
     if enrich and not radarr.get("tmdb_id") and not _manual_movie_match(library_id, key):
         tmdb_id = _tmdb_id_for_title(parsed["title"], parsed["year"])
@@ -582,6 +583,8 @@ def movie_posters(batch: PosterBatch):
     snapshot = _snapshot()
     entries = []
     for item in batch.items:
+        if not current_viewer().can_see(item.library_id):
+            continue
         try:
             data = _details(item.library_id, item.key, snapshot=snapshot, enrich=False)
             entries.append({

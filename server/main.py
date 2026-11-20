@@ -160,6 +160,13 @@ def catalog_revision():
     return {"revision": revision}
 
 
+@app.get("/api/viewer")
+def get_viewer():
+    """Who is watching: the owner, or a barnacle (someone the owner shares with)."""
+    from .viewer import current
+    return current().public()
+
+
 @app.get("/api/catalog/all")
 def get_entire_catalog(
     request: Request,

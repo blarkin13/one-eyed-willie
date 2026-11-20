@@ -193,7 +193,7 @@ def _local_catalog():
         for library in libraries:
             entries = conn.execute(
                 "SELECT m.id,m.path,p.completed FROM media m "
-                "LEFT JOIN playback_progress p ON p.media_id=m.id WHERE m.library_id=?",
+                "LEFT JOIN playback_progress p ON p.media_id=m.id AND p.viewer='' WHERE m.library_id=?",
                 (library["id"],),
             ).fetchall()
             for entry in entries:
@@ -257,9 +257,9 @@ def import_watched(payload: ImportRequest):
             with db() as conn:
                 conn.executemany(
                     "INSERT INTO playback_progress "
-                    "(media_id,position_seconds,duration_seconds,completed,updated_at) "
-                    "VALUES(?,0,0,1,CURRENT_TIMESTAMP) "
-                    "ON CONFLICT(media_id) DO UPDATE SET "
+                    "(viewer,media_id,position_seconds,duration_seconds,completed,updated_at) "
+                    "VALUES('',?,0,0,1,CURRENT_TIMESTAMP) "
+                    "ON CONFLICT(viewer,media_id) DO UPDATE SET "
                     "completed=1,updated_at=CURRENT_TIMESTAMP",
                     [(id,) for id in sorted(matched)],
                 )

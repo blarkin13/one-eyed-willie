@@ -38,9 +38,15 @@
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
  const ua=navigator.userAgent,tv=ua.includes('OneEyedWillieTV/1'),phone=ua.includes('YarrMediaAndroid/1');
- if(!tv&&!phone)return;
  const grid=document.querySelector('.settings-grid');
  if(!grid)return;
+ // Barnacles can't change this server; in the apps they keep their own connection tile.
+ fetch('/api/viewer',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(viewer=>{
+  if(!viewer||viewer.role!=='barnacle')return;
+  grid.querySelectorAll('a.settings-tile').forEach(tile=>tile.remove());
+  if(!tv&&!phone){const note=document.createElement('p');note.textContent='The owner of this server manages its settings.';grid.replaceWith(note);}
+ }).catch(()=>{});
+ if(!tv&&!phone)return;
  const button=document.createElement('button');
  button.type='button';
  button.className='settings-tile';

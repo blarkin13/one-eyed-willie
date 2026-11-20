@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field
 
 from .catalog import episode_info, movie_info
 from .library import db
+from .viewer import current as current_viewer
 
 router = APIRouter(prefix="/api")
 
@@ -60,10 +61,12 @@ def _progress_revision(connection):
         "SELECT COUNT(*), COALESCE(MAX(updated_at), ''), "
         "COALESCE(SUM(position_seconds), 0), "
         "COALESCE(SUM(duration_seconds), 0), "
-        "COALESCE(SUM(completed), 0) FROM playback_progress"
+        "COALESCE(SUM(completed), 0) FROM playback_progress WHERE viewer=?",
+        (current_viewer().id,)
     ).fetchone()
     hidden = connection.execute(
-        "SELECT COUNT(*), COALESCE(SUM(rowid), 0) FROM continue_watching_hidden"
+        "SELECT COUNT(*), COALESCE(SUM(rowid), 0) FROM continue_watching_hidden WHERE viewer=?",
+        (current_viewer().id,)
     ).fetchone()
     return [row[0], row[1], round(row[2], 3), round(row[3], 3), row[4],
             hidden[0], hidden[1]]
@@ -101,8 +104,8 @@ def dismiss_continue_watching(media_id: int):
     with db() as connection:
         group = _media_group(connection, media_id)
         connection.execute(
-            "INSERT OR IGNORE INTO continue_watching_hidden(kind,library_id,media_key) "
-            "VALUES(?,?,?)", group
+            "INSERT OR IGNORE INTO continue_watching_hidden(viewer,kind,library_id,media_key) "
+            "VALUES(?,?,?,?)", (current_viewer().id, *group)
         )
     return {"dismissed": True, "media_id": media_id}
 
@@ -113,8 +116,8 @@ def started_continue_watching(media_id: int):
     with db() as connection:
         group = _media_group(connection, media_id)
         connection.execute(
-            "DELETE FROM continue_watching_hidden WHERE kind=? AND library_id=? "
-            "AND media_key=?", group
+            "DELETE FROM continue_watching_hidden WHERE viewer=? AND kind=? AND library_id=? "
+            "AND media_key=?", (current_viewer().id, *group)
         )
     return {"dismissed": False, "media_id": media_id}
 
@@ -139,16 +142,17 @@ def home_shelves():
             "SELECT id,name,kind,path,sort_order FROM libraries "
             "ORDER BY CASE kind WHEN 'movies' THEN 0 WHEN 'tv' THEN 1 ELSE 2 END, "
             "sort_order, id"
-        )}
+        ) if current_viewer().can_see(row["id"])}
         progress = {row["media_id"]: dict(row) for row in connection.execute(
             "SELECT media_id,position_seconds,duration_seconds,completed,updated_at "
-            "FROM playback_progress"
+            "FROM playback_progress WHERE viewer=?", (current_viewer().id,)
         )}
         watched_ids = {media_id for media_id, entry in progress.items() if entry["completed"]}
         hidden_groups = {
             (row["kind"], row["library_id"], row["media_key"])
             for row in connection.execute(
-                "SELECT kind,library_id,media_key FROM continue_watching_hidden"
+                "SELECT kind,library_id,media_key FROM continue_watching_hidden WHERE viewer=?",
+                (current_viewer().id,)
             )
         }
         rows = connection.execute(
@@ -291,12 +295,12 @@ def update_playback(item: PlaybackUpdate):
     if item.duration_seconds > 0 and item.position_seconds > item.duration_seconds:
         raise HTTPException(422, "Playback position cannot exceed duration")
     with db() as connection:
-        exists = connection.execute("SELECT id FROM media WHERE id=?", (item.media_id,)).fetchone()
-        if not exists:
+        exists = connection.execute("SELECT id,library_id FROM media WHERE id=?", (item.media_id,)).fetchone()
+        if not exists or not current_viewer().can_see(exists["library_id"]):
             raise HTTPException(404, "Media item not found")
         previous = connection.execute(
-            "SELECT duration_seconds,completed FROM playback_progress WHERE media_id=?",
-            (item.media_id,),
+            "SELECT duration_seconds,completed FROM playback_progress WHERE viewer=? AND media_id=?",
+            (current_viewer().id, item.media_id),
         ).fetchone()
         # A transient unknown duration must not wipe a previously probed one.
         duration = item.duration_seconds
@@ -311,14 +315,14 @@ def update_playback(item: PlaybackUpdate):
         ))
         connection.execute(
             """INSERT INTO playback_progress
-                (media_id,position_seconds,duration_seconds,completed,updated_at)
-                VALUES (?,?,?,?,CURRENT_TIMESTAMP)
-                ON CONFLICT(media_id) DO UPDATE SET
+                (viewer,media_id,position_seconds,duration_seconds,completed,updated_at)
+                VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+                ON CONFLICT(viewer,media_id) DO UPDATE SET
                   position_seconds=excluded.position_seconds,
                   duration_seconds=excluded.duration_seconds,
                   completed=excluded.completed,
                   updated_at=CURRENT_TIMESTAMP""",
-            (item.media_id, item.position_seconds, duration, int(completed)),
+            (current_viewer().id, item.media_id, item.position_seconds, duration, int(completed)),
         )
     return {"saved": True, "completed": completed,
             "position_seconds": item.position_seconds, "duration_seconds": duration}
