@@ -67,7 +67,8 @@ jobs:
       - name: Test Stripe one-time Checkout and signature validation
         run: node --test tests/test_yarr_stripe_checkout.mjs
       - name: Test catalog parsing
-        run: python -m unittest discover -s tests -v
+        # tests/run_all.py keeps output working after browser tests make the pipe non-blocking.
+        run: python tests/run_all.py
       - name: Test Yarr Direct host bridge (pytest)
         run: python -m pytest tests/test_yarr_direct_host.py -q
       - name: Build Docker image
