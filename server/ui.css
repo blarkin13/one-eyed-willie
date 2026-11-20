@@ -1109,3 +1109,56 @@ html body[data-page] select option,html body[data-page] select optgroup{
   .sidebar .brand-wordmark,.sidebar:hover .brand-wordmark,
   .sidebar:focus-within .brand-wordmark{display:none!important}
 }
+
+
+/* Mobile navigation: compact black dock, icon-only active state, safer scrolling
+   for installations with additional libraries. Desktop/TV rail is unchanged. */
+@media(max-width:700px){
+ .sidebar,.sidebar:hover,.sidebar:focus-within{
+  height:72px!important;padding:4px 14px!important
+ }
+ .sidebar .brand,.sidebar:hover .brand,.sidebar:focus-within .brand{
+  height:62px;min-height:62px;width:50px;min-width:50px
+ }
+ .sidebar .brand-logo-frame,.sidebar:hover .brand-logo-frame,
+ .sidebar:focus-within .brand-logo-frame{
+  width:50px;height:62px;flex-basis:50px
+ }
+ .sidebar .brand-logo,.sidebar:hover .brand-logo,
+ .sidebar:focus-within .brand-logo{width:50px;height:62px}
+ .workspace>.content,body[data-page="home"] .workspace>.content{
+  padding-top:8px!important
+ }
+ .sidebar .side-nav,.sidebar:hover .side-nav,.sidebar:focus-within .side-nav{
+  position:fixed;inset:auto 0 0 0;
+  height:calc(60px + env(safe-area-inset-bottom,0px));
+  padding:5px max(8px,env(safe-area-inset-left,0px))
+          calc(5px + env(safe-area-inset-bottom,0px))
+          max(8px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:row;align-items:center;
+  justify-content:space-around!important;gap:3px;
+  background:rgba(5,5,7,.96)!important;
+  border-top:1px solid rgba(255,255,255,.14);
+  overflow-x:auto!important;overflow-y:hidden!important;
+  overscroll-behavior-x:contain;scrollbar-width:none
+ }
+ .sidebar .side-nav::-webkit-scrollbar{display:none}
+ .sidebar .nav-link,.sidebar:hover .nav-link,.sidebar:focus-within .nav-link{
+  flex:1 0 46px;max-width:70px;
+  height:48px;min-height:48px;padding:0!important;
+  border:0!important;border-radius:10px;
+  background:transparent!important;
+ }
+ .sidebar .nav-link[aria-current="page"]{
+  color:#b89aff!important;background:transparent!important
+ }
+ .sidebar .nav-link[aria-current="page"]::before{
+  left:32%;right:32%;bottom:1px;top:auto;height:2px;width:auto;
+  background:#ac8bf5!important
+ }
+ .sidebar .nav-link .nav-icon{width:25px;height:25px}
+ .sidebar .nav-link:is(:focus-visible,:active){
+  outline:2px solid #b89aff!important;outline-offset:-2px!important;
+  transform:none!important
+ }
+}
