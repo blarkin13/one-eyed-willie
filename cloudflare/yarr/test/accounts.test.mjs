@@ -355,6 +355,9 @@ test('downloads: installer, TV shortcut, apt repository and page', async()=>{
  assert.doesNotMatch(home,/coming soon/i);
  const tv=await request(worker,env,'GET',PUB+'/tv');
  assert.equal(tv.headers.get('location'),'https://github.com/blarkin13/one-eyed-willie/releases/latest/download/yarr-media-google-tv.apk');
+ const phone=await request(worker,env,'GET',PUB+'/android');
+ assert.equal(phone.headers.get('location'),'https://github.com/blarkin13/one-eyed-willie/releases/latest/download/yarr-media-android.apk');
+ assert.match(home,/yarr\.media\/android/);
  const apt=await request(worker,env,'GET',PUB+'/apt');
  assert.match(await apt.text(),/signed-by=\/usr\/share\/keyrings\/yarr-media\.gpg/);
  const mock=mockFetch(url=>{

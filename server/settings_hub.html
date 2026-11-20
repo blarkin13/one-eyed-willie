@@ -37,7 +37,8 @@
 </section>
 <script>
 document.addEventListener('DOMContentLoaded',()=>{
- if(!navigator.userAgent.includes('OneEyedWillieTV/1'))return;
+ const ua=navigator.userAgent,tv=ua.includes('OneEyedWillieTV/1'),phone=ua.includes('YarrMediaAndroid/1');
+ if(!tv&&!phone)return;
  const grid=document.querySelector('.settings-grid');
  if(!grid)return;
  const button=document.createElement('button');
@@ -46,9 +47,9 @@ document.addEventListener('DOMContentLoaded',()=>{
  button.style.cssText='font:inherit;color:inherit;text-align:left;cursor:pointer';
  const icon=document.createElement('span');icon.className='settings-tile-icon';
  icon.textContent='⌁';icon.setAttribute('aria-hidden','true');
- const heading=document.createElement('h2');heading.textContent='This TV Connection';
+ const heading=document.createElement('h2');heading.textContent=tv?'This TV Connection':'This Phone’s Connection';
  const description=document.createElement('p');
- description.textContent='Change this TV device’s saved server IP address or port.';
+ description.textContent=tv?'Change this TV device’s saved server IP address or port.':'Change this phone’s saved server address or sign in to your Yarr account.';
  button.append(icon,heading,description);
  button.addEventListener('click',()=>prompt('oewtv:settings:server',''));
  grid.append(button);

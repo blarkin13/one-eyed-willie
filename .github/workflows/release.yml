@@ -100,9 +100,9 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.11.1'
-      - name: Build Google TV APK
+      - name: Build Google TV and Android phone APKs
         working-directory: google-tv
-        run: gradle --no-daemon :app:assembleLean
+        run: gradle --no-daemon :app:assembleLean :phone:assembleLean
       - name: Build .deb package
         run: bash deploy/deb/build.sh "${{ needs.version.outputs.version }}" dist
       - name: Publish GitHub Release
@@ -111,14 +111,15 @@ jobs:
           TAG: v${{ needs.version.outputs.version }}
         run: |
           cp google-tv/app/build/outputs/apk/lean/app-lean.apk dist/yarr-media-google-tv.apk
+          cp google-tv/phone/build/outputs/apk/lean/phone-lean.apk dist/yarr-media-android.apk
           cp deploy/install.sh dist/install.sh
           if gh release view "$TAG" >/dev/null 2>&1; then
             # Made by hand in the GitHub UI: just attach (or replace) the files.
-            gh release upload "$TAG" --clobber dist/yarr-media-google-tv.apk dist/install.sh dist/*.deb
+            gh release upload "$TAG" --clobber dist/yarr-media-google-tv.apk dist/yarr-media-android.apk dist/install.sh dist/*.deb
           else
             # Creates the tag at this commit if it does not exist yet.
             gh release create "$TAG" --target "$GITHUB_SHA" --title "Yarr Media $TAG" --generate-notes \
-              dist/yarr-media-google-tv.apk dist/install.sh dist/*.deb
+              dist/yarr-media-google-tv.apk dist/yarr-media-android.apk dist/install.sh dist/*.deb
           fi
       - name: Publish apt repository (yarr.media/apt)
         if: env.APT_SIGNING_KEY != ''

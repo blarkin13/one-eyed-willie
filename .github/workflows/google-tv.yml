@@ -1,4 +1,5 @@
 name: Yarr Media Google TV APK
+# Also builds the separate Android phone app (google-tv/phone).
 # Superseded feature-branch runs should not occupy the build queue.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.head_ref || github.ref_name }}
@@ -39,6 +40,9 @@ jobs:
       - name: Build lean APK
         # Not debuggable, unused code and resources removed (R8 shrink only).
         run: gradle --no-daemon :app:assembleLean
+      - name: Build Android phone app (debug + lean)
+        # Separate app (google-tv/phone) built from the same code.
+        run: gradle --no-daemon :phone:assembleDebug :phone:assembleLean
       - uses: actions/upload-artifact@v4
         with:
           name: yarr-media-google-tv-debug-apk
@@ -49,6 +53,16 @@ jobs:
           name: yarr-media-google-tv-lean-apk
           path: google-tv/app/build/outputs/apk/lean/app-lean.apk
           if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yarr-media-android-debug-apk
+          path: google-tv/phone/build/outputs/apk/debug/phone-debug.apk
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yarr-media-android-lean-apk
+          path: google-tv/phone/build/outputs/apk/lean/phone-lean.apk
+          if-no-files-found: error
       - name: Report APK sizes
         run: |
           ls -l app/build/outputs/apk/debug/app-debug.apk app/build/outputs/apk/lean/app-lean.apk
@@ -58,4 +72,6 @@ jobs:
             echo "|---|---|"
             echo "| debug | $(stat -c %s app/build/outputs/apk/debug/app-debug.apk) |"
             echo "| lean | $(stat -c %s app/build/outputs/apk/lean/app-lean.apk) |"
+            echo "| phone debug | $(stat -c %s phone/build/outputs/apk/debug/phone-debug.apk) |"
+            echo "| phone lean | $(stat -c %s phone/build/outputs/apk/lean/phone-lean.apk) |"
           } >> "$GITHUB_STEP_SUMMARY"

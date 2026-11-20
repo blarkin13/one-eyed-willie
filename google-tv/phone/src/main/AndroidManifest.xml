@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Yarr Media for Android phones. A normal launcher app: no TV requirement,
+     browsing rotates freely, video plays sideways in either direction. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <application android:label="Yarr Media" android:theme="@android:style/Theme.Material.NoActionBar"
+        android:usesCleartextTraffic="true" android:allowBackup="false"
+        android:icon="@mipmap/yarrmedia_launcher" android:roundIcon="@mipmap/yarrmedia_launcher">
+        <activity android:name=".PlayerActivity" android:exported="false"
+            android:screenOrientation="sensorLandscape"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden"/>
+        <activity android:name=".MainActivity" android:exported="true"
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden|keyboard|uiMode">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
