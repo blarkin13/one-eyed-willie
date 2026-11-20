@@ -30,3 +30,14 @@ test('email worker forwards, stores originals and deduplicates',async()=>{
  const mock=mockFetch(async(url,method,body)=>{assert.equal(url,'https://api.resend.com/emails');assert.match(JSON.parse(body).from,/support@yarr.media/);return jsonResponse({id:'12345678-1234-1234-1234-123456789abc'});});
  try{const reply=await request(worker,env,'POST',root+'threads/'+list.threads[0].id+'/reply',{headers:{...headers,origin:'https://yarr.media'},json:{body:'Test reply'}});assert.equal(reply.status,200);assert.equal(mock.calls.length,1);}finally{mock.restore();}
 });
+
+test('temporary test alias archives only the explicit acceptance subject',async()=>{
+ const objects=new Map();const env=makeEnv({YARR_OWNER_ACCOUNT_ID:'owner',SUPPORT_MAIL_INBOX_ENABLED:'true',SUPPORT_MAIL_TEST_ALIAS_ENABLED:'true',SUPPORT_MAIL_FORWARD_TO:'owner@example.com',MAIL_MESSAGES:{put:async(k,v)=>objects.set(k,v),delete:async(k)=>objects.delete(k)}});
+ const worker=await loadWorker();let forwarded=0;
+ const message=(subject)=>{const raw='From: tester@example.net\r\nTo: mail-test@yarr.media\r\nSubject: '+subject+'\r\nContent-Type: text/plain\r\n\r\nSynthetic test';return {to:'mail-test@yarr.media',from:'tester@example.net',headers:new Headers({subject,'message-id':'<pilot@example.net>'}),raw:new Blob([raw]).stream(),rawSize:new TextEncoder().encode(raw).length,forward:async()=>{forwarded++;}};};
+ await worker.email(message('Ordinary correspondence'),env);assert.equal(objects.size,0);
+ await worker.email(message('Yarr mailbox acceptance test'),env);await worker.email(message('Yarr mailbox acceptance test'),env);assert.equal(objects.size,1);
+ const thread=env.ACCOUNTS.raw.prepare('SELECT alias FROM support_mail_threads').get();assert.equal(thread.alias,'support@yarr.media');
+ const stored=env.ACCOUNTS.raw.prepare('SELECT recipient FROM support_mail_messages').get();assert.equal(stored.recipient,'mail-test@yarr.media');
+ env.SUPPORT_MAIL_TEST_ALIAS_ENABLED='false';await worker.email(message('Yarr mailbox acceptance test'),env);assert.equal(objects.size,1);assert.equal(forwarded,4);
+});

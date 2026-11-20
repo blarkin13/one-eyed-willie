@@ -2,7 +2,7 @@ name: Yarr owner smoke
 on:
   workflow_dispatch:
   push:
-    branches: [feature/yarr-owner-links-and-smoke]
+    branches: ['feature/yarr-owner-*']
 jobs:
   owner-smoke:
     runs-on: ubuntu-latest
