@@ -157,11 +157,16 @@ def report_heartbeat():
         if record.get("status") != "paired" or not record.get("poll_secret"):
             return False
         secret = record["poll_secret"]
-    _cloud("/api/connection/heartbeat", data={}, secret=secret)
+    reply = _cloud("/api/connection/heartbeat", data={}, secret=secret)
     with LOCK:
         current = _read()
         if current.get("status") == "paired" and current.get("poll_secret") == secret:
             current["last_heartbeat"] = int(time.time())
+            # yarr.media reports the public IP this server checked in from; the
+            # HTTPS front door uses it to know which address it may serve.
+            ip = reply.get("public_ip") if isinstance(reply, dict) else None
+            if isinstance(ip, str) and len(ip) <= 15:
+                current["public_ip"] = ip
             _save(current)
     return True
 
@@ -271,3 +276,12 @@ def automatic_tunnel_loop(stop):
                 _tunnel_message = "Automatic private connector setup failed; retrying"
         stop.wait(45)
     _stop_tunnel()
+
+
+def public_ip():
+    """Public IPv4 last reported by yarr.media for this paired server, or None."""
+    with LOCK:
+        record = _read()
+    if record.get("status") != "paired":
+        return None
+    return record.get("public_ip")

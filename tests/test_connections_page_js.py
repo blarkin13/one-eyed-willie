@@ -27,7 +27,8 @@ class ConnectionsPageTests(unittest.TestCase):
         for service in ("sab-form", "plex-form", "os-form"):
             with self.subTest(service=service):
                 self.assertIn('id="' + service + '"', self.html)
-        self.assertIn("build();initConnectionDirectory();refresh();", self.script)
+        # Start-up order: build the cards (incl. At a Glance cards), then the directory, then load state.
+        self.assertRegex(self.script, r"build\(\);(?:addGlanceIntegrationCards\(\);)?initConnectionDirectory\(\);refresh\(\);")
 
     def test_integration_logos_match_between_pages(self):
         from server.main import integration_brand_svg, opensubtitles_brand_png

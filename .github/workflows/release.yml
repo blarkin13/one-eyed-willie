@@ -1,0 +1,110 @@
+name: Release
+# main            -> server image ghcr.io/blarkin13/yarr-media:edge
+# tag vX.Y.Z      -> server image :X.Y.Z and :stable, plus a GitHub Release with
+#                    the Google TV APK, the installer and the .deb package.
+# The installer (yarr.media/install.sh) uses :stable unless told otherwise.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'server/**'
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - '.github/workflows/release.yml'
+    tags: ['v*.*.*']
+  # Pull requests build both architectures without publishing anything.
+  pull_request:
+    paths:
+      - 'requirements.txt'
+      - 'Dockerfile'
+      - '.github/workflows/release.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        if: github.event_name != 'pull_request'
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/blarkin13/yarr-media
+          tags: |
+            type=raw,value=edge,enable=${{ github.ref == 'refs/heads/main' }}
+            type=semver,pattern={{version}}
+            type=raw,value=stable,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      # Created once with deploy/deb/create-apt-key.sh. Without it the apt
+      # repository is simply not updated; everything else still releases.
+      APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Build Google TV APK
+        working-directory: google-tv
+        run: gradle --no-daemon :app:assembleLean
+      - name: Build .deb package
+        run: bash deploy/deb/build.sh "${GITHUB_REF_NAME#v}" dist
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp google-tv/app/build/outputs/apk/lean/app-lean.apk dist/yarr-media-google-tv.apk
+          cp deploy/install.sh dist/install.sh
+          gh release create "$GITHUB_REF_NAME" --title "Yarr Media $GITHUB_REF_NAME" --generate-notes \
+            dist/yarr-media-google-tv.apk dist/install.sh dist/*.deb
+      - name: Publish apt repository (yarr.media/apt)
+        if: env.APT_SIGNING_KEY != ''
+        run: |
+          sudo apt-get install -y -qq apt-utils >/dev/null
+          if git ls-remote --exit-code --heads origin apt-repo >/dev/null; then
+            git fetch --depth 1 origin apt-repo
+            git worktree add ../apt FETCH_HEAD
+            git -C ../apt checkout -B apt-repo
+          else
+            git worktree add --detach ../apt
+            git -C ../apt checkout --orphan apt-repo
+            git -C ../apt rm -rfq .
+          fi
+          bash deploy/deb/publish-apt.sh ../apt dist/*.deb
+          cd ../apt
+          git add -A
+          git -c user.name="Yarr Media release" -c user.email="release@yarr.media" commit -qm "apt: $GITHUB_REF_NAME"
+          git push origin HEAD:apt-repo

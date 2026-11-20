@@ -111,8 +111,9 @@ class TimeAdriftTests(unittest.TestCase):
         self.assertIn("toggle.setAttribute('aria-pressed',String(enabled))", hub)
         self.assertIn("Time Adrift disabled. Reopen any player", hub)
         self.assertIn("root.append(card)", hub)
-        # The on/off control is rendered even when Time Adrift is disabled.
-        self.assertIn("service.id!=='time-adrift'&&!connected[service.id]", hub)
+        # The on/off control is rendered even when Time Adrift is disabled
+        # (At a Glance cards are always shown too).
+        self.assertIn("service.id!=='time-adrift'&&!glanceNames.includes(service.id)&&", hub)
         # The previous Settings switch continues to use the same persisted API.
         settings = (ROOT / "server/arr_connections.html").read_text()
         self.assertIn("'/api/time-adrift/settings'", settings)
