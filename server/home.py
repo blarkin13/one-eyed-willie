@@ -122,6 +122,7 @@ def started_continue_watching(media_id: int):
 @router.get("/home")
 def home_shelves():
     recent = {"movies": OrderedDict(), "tv": OrderedDict()}
+    recent_by_library = {}
     # Candidates consist of (last activity, priority, media id, card).
     # A completed TV episode is replaced by the next available unwatched one.
     candidates = []
@@ -133,7 +134,12 @@ def home_shelves():
             "SELECT revision FROM catalog_state WHERE id=1"
         ).fetchone()[0]
         progress_revision = _progress_revision(connection)
-        libs = {row["id"]: row for row in connection.execute("SELECT id,kind,path FROM libraries")}
+        # Preserve configured sidebar order within each media kind.
+        libs = {row["id"]: row for row in connection.execute(
+            "SELECT id,name,kind,path,sort_order FROM libraries "
+            "ORDER BY CASE kind WHEN 'movies' THEN 0 WHEN 'tv' THEN 1 ELSE 2 END, "
+            "sort_order, id"
+        )}
         progress = {row["media_id"]: dict(row) for row in connection.execute(
             "SELECT media_id,position_seconds,duration_seconds,completed,updated_at "
             "FROM playback_progress"
@@ -160,13 +166,19 @@ def home_shelves():
             descriptions[media_id] = desc
             group = desc["group"]
             if group not in recent[desc["kind"]]:
-                recent[desc["kind"]][group] = {
+                card = {
                     "kind": desc["kind"], "title": desc["title"],
                     "year": desc["year"], "subtitle": desc["subtitle"],
                     "library_id": desc["library_id"], "key": desc["key"],
                     "media_id": media_id, "watched": media_id in watched_ids,
                     "added_at": row["added_at"],
                 }
+                recent[desc["kind"]][group] = card
+                # An independent 16-item shelf for each configured library.
+                # The globally sorted rows ensure that each shelf uses the
+                # newest first-seen media, without a different library
+                # pushing its titles out of the list.
+                recent_by_library.setdefault(desc["library_id"], OrderedDict())[group] = card
             if desc["kind"] == "tv":
                 # Parse once per indexed episode, not once per new Home card.
                 info = episode_info(row["path"], row["source_root"] or lib["path"])
@@ -245,12 +257,22 @@ def home_shelves():
     candidates.sort(key=lambda item: (item[0], item[1], item[2]), reverse=True)
     shelves = {
         "continue_watching": [card for _, _, _, card in candidates[:12]],
+        # Retained for compatibility with clients using the older Home API.
         "recent_movies": list(recent["movies"].values())[:16],
         "recent_tv": list(recent["tv"].values())[:16],
     }
-    attach_posters([item for items in shelves.values() for item in items])
+    library_shelves = [
+        {
+            "library_id": lib["id"], "name": lib["name"], "kind": lib["kind"],
+            "items": list(recent_by_library.get(lib["id"], {}).values())[:16],
+        }
+        for lib in libs.values() if lib["kind"] in ("movies", "tv")
+    ]
+    attach_posters([item for items in shelves.values() for item in items] +
+                   [item for lib in library_shelves for item in lib["items"]])
     return {
         **shelves,
+        "recent_libraries": library_shelves,
         "totals": {
             "movies": len(recent["movies"]),
             "tv": len(recent["tv"]),
