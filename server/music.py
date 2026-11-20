@@ -23,6 +23,9 @@ def _read_file_tags(path):
     title = path.stem
     duration = None
     track_number = None
+    disc_number = None
+    year = None
+    genre = None
     try:
         audio = AudioFile(str(path), easy=True)
         if audio is not None:
@@ -41,11 +44,22 @@ def _read_file_tags(path):
                     track_number = int(number.split("/")[0])
                 except ValueError:
                     pass
+            disc = tag("discnumber")
+            if disc:
+                try:
+                    disc_number = int(disc.split("/")[0])
+                except ValueError:
+                    pass
+            date = tag("originaldate", "date", "year")
+            if date and date[:4].isdigit():
+                year = int(date[:4])
+            genre = (tag("genre") or "").split(";")[0].strip()[:60] or None
             duration = round(float(audio.info.length), 2) if audio.info else None
     except (OSError, ValueError, TypeError, KeyError, MutagenError):
         pass
     return {"title": title, "artist": artist, "album": album,
-            "track_number": track_number, "duration": duration}
+            "track_number": track_number, "disc_number": disc_number,
+            "year": year, "genre": genre, "duration": duration}
 
 def _track(row):
     path = Path(row["path"])
@@ -53,7 +67,8 @@ def _track(row):
         metadata = _read_tags(str(path), path.stat().st_mtime_ns)
     except OSError:
         metadata = {"title": path.stem, "artist": path.parent.parent.name,
-                    "album": path.parent.name, "track_number": None, "duration": None}
+                    "album": path.parent.name, "track_number": None, "disc_number": None,
+                    "year": None, "genre": None, "duration": None}
     return {"id": row["id"], "library_id": row["library_id"],
             "added_at": row["added_at"], **metadata}
 
@@ -80,6 +95,7 @@ def music_catalog(library_id: int | None = None, search: str = ""):
         tracks = [track for track in tracks if query in
                   (track["title"]+" "+track["artist"]+" "+track["album"]).casefold()]
     tracks.sort(key=lambda track: (track["artist"].casefold(),track["album"].casefold(),
+                track.get("disc_number") or 1,
                 track["track_number"] if track["track_number"] is not None else 9999,
                 track["title"].casefold()))
     grouped = {}
