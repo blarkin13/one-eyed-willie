@@ -1,3 +1,5 @@
+import {ownerAllowed,ownerPage,ownerNotFound} from './owner-dashboard.js';
+import {handleSupportMail,receiveSupportMail} from './support-mail.js';
 import {createProCheckout,proStripeWebhook,proCheckoutAvailable} from './stripe-checkout.js';
 import {oneTimeProEnabled,oneTimeProActive} from './entitlements.js';
 import {how2Html,HOW2_PATHS} from './how2s.js';
@@ -811,6 +813,7 @@ const formatUserCode = code => code.slice(0,4)+'-'+code.slice(4);
 // Paths a sign-in may return to. Anything else goes to the account page.
 function safeReturnPath(value) {
  const v=String(value||'');
+ if(v==='/owner/'||v==='/mail/')return v;
  if(/^\/open-app(?:\?path=%2F[A-Za-z0-9%._~-]{0,300})?$/.test(v))return v;
  if(/^\/activate(?:\?code=[A-Z0-9-]{1,12})?$/.test(v))return v;
  if(/^\/remote\/open\?server=[A-Za-z0-9-]{1,64}(?:&return=%2F[A-Za-z0-9%._~-]{0,300})?$/.test(v))return v;
@@ -1393,6 +1396,16 @@ async function accountsV2Routes(req,env,u) {
 export default { async fetch(req,env) {
  const u=new URL(req.url);
  try {
+  // Owner workspace: restricted to the canonical public host and browser session; no device credentials.
+  if(u.pathname==='/owner'||u.pathname.startsWith('/owner/')||u.pathname==='/mail'||u.pathname.startsWith('/mail/')||u.pathname.startsWith('/api/support-mail/')){
+   if(u.hostname!=='yarr.media')return ownerNotFound();
+   const user=env.ACCOUNTS?await currentUser(req,env):null;
+   if(!user&&req.method==='GET'&&(u.pathname==='/owner'||u.pathname==='/owner/'||u.pathname==='/mail'||u.pathname==='/mail/'))return redirect('/auth/google/start?return='+encodeURIComponent(u.pathname.startsWith('/mail')?'/mail/':'/owner/'));
+   if(!ownerAllowed(user,env))return ownerNotFound();
+   if(u.pathname.startsWith('/api/support-mail/'))return handleSupportMail(req,env,{session:async()=>user});
+   return ownerPage(req,env,user);
+  }
+
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.svg')return new Response(req.method==='HEAD'?null:YARR_ICON_SVG,{headers:{'content-type':'image/svg+xml; charset=utf-8','cache-control':'public, max-age=3600','x-content-type-options':'nosniff'}});
   if((req.method==='GET'||req.method==='HEAD')&&u.pathname==='/favicon.ico')return redirect('/favicon.svg?v=moon-sail-v1');
   if(u.hostname==='www.yarr.media')return new Response(null,{status:301,headers:{location:'https://yarr.media'+u.pathname+u.search,'cache-control':'public, max-age=3600'}});
@@ -1517,7 +1530,7 @@ export default { async fetch(req,env) {
    return html(accountHTML(user,authReady(env),shown,servers,extra),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com")});
   }
   if(req.method==='GET'||req.method==='HEAD') {
-   if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
+   if(u.pathname==='/robots.txt')return new Response(req.method==='HEAD'?null:'User-agent: *\nAllow: /\nDisallow: /app\nDisallow: /account\nDisallow: /owner/\nDisallow: /mail/\nDisallow: /api/\nDisallow: /auth/\nSitemap: '+PUBLIC_SITE+'/sitemap.xml\n',{headers:{'content-type':'text/plain; charset=utf-8','cache-control':'public, max-age=3600'}});
    if(u.pathname==='/sitemap.xml')return new Response(req.method==='HEAD'?null:'<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+PUBLIC_URLS.map(p=>'<url><loc>'+PUBLIC_SITE+p+'</loc></url>').join('')+'</urlset>',{headers:{'content-type':'application/xml; charset=utf-8','cache-control':'public, max-age=3600'}});
    if(u.pathname==='/how2s'||u.pathname.startsWith('/how2s/')){
     const guide=how2Html(u.pathname);
@@ -1546,5 +1559,6 @@ export default { async fetch(req,env) {
   return json({error:'not_found'},404);
  }catch(_) {return json({error:'temporarily_unavailable'},503);}
 },
+async email(message,env) { await receiveSupportMail(message,env); },
 async scheduled(event,env,ctx) { ctx.waitUntil(cleanup(env)); }
 };
