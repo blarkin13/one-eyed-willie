@@ -1152,10 +1152,7 @@ html body[data-page] select option,html body[data-page] select optgroup{
  .sidebar .nav-link[aria-current="page"]{
   color:#b89aff!important;background:transparent!important
  }
- .sidebar .nav-link[aria-current="page"]::before{
-  left:32%;right:32%;bottom:1px;top:auto;height:2px;width:auto;
-  background:#ac8bf5!important
- }
+ .sidebar .nav-link[aria-current="page"]::before{display:none!important}
  .sidebar .nav-link .nav-icon{width:25px;height:25px}
  .sidebar .nav-link:is(:focus-visible,:active){
   outline:2px solid #b89aff!important;outline-offset:-2px!important;
