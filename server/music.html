@@ -175,6 +175,27 @@ input[type=range].bar::-moz-range-thumb{width:13px;height:13px;border:0;border-r
  #items{padding-right:28px;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:20px 14px}
  .view-tabs button{padding:8px 12px}
 }
+/* ---- Google TV remote: obvious selection, bigger targets, no unreachable controls ---- */
+html body.music-tv[data-page] :is(.pbtn,.view-tabs button,.tool,.btn-play,.btn-ghost,.back-link,.ext-links a,.bio-more,#now-sub,.tool-menu button):is(:focus,:focus-visible){
+ outline:3px solid var(--accent)!important;outline-offset:3px!important;filter:none!important;
+ box-shadow:0 0 0 6px color-mix(in srgb,var(--accent) 30%,transparent)!important}
+html body.music-tv[data-page] .pbtn.main:is(:focus,:focus-visible){transform:scale(1.12)}
+html body.music-tv[data-page] .view-tabs button:is(:focus,:focus-visible){background:#3a3a3a;color:#fff}
+html body.music-tv[data-page] tr.row:is(:focus,:focus-visible){outline:0!important;transform:none!important}
+.tracks tr.row:focus-visible{transform:none}
+html body.music-tv[data-page] tr.row:is(:focus,:focus-visible) td{background:#2a2a2a!important;color:#fff}
+html body.music-tv[data-page] tr.row:is(:focus,:focus-visible) td:first-child{box-shadow:inset 5px 0 0 var(--accent)!important}
+html body.music-tv[data-page] tr.row:is(:focus,:focus-visible) .t-title{color:#fff}
+body.music-tv .tracks td{height:64px;font-size:1rem}
+body.music-tv .player{padding:14px 28px}
+body.music-tv .pbtn{width:52px;height:52px}
+body.music-tv .pbtn svg{width:24px;height:24px}
+body.music-tv .pbtn.main{width:60px;height:60px}
+body.music-tv #now-sub{padding:4px 6px;border-radius:6px}
+body.music-tv .right,body.music-tv #alpha-nav,body.music-tv .cover-play{display:none!important}
+body.music-tv .player{grid-template-columns:minmax(220px,1fr) minmax(360px,2fr) minmax(40px,.3fr)}
+body.music-tv #seek:is(:focus,:focus-visible){outline:3px solid var(--accent)!important;outline-offset:6px!important;border-radius:4px}
+body.music-tv #seek::-webkit-slider-thumb{opacity:1}
 </style>
 </head>
 <body data-page="music"><div class="app-shell">
@@ -355,7 +376,7 @@ function renderSortMenu(){
  const menu=$('sort-menu');menu.replaceChildren(el('h4','','Sort '+view));
  const opts=SORTS[view];if(!opts.some(o=>o[0]===sortKey))sortKey=opts[0][0];
  for(const [k,label] of opts){const b=el('button','',label);b.type='button';b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(k===sortKey));
-  b.addEventListener('click',()=>{sortKey=k;store.set('sort.'+view,k);closeMenus();renderBrowse()});menu.append(b)}
+  b.addEventListener('click',()=>{sortKey=k;store.set('sort.'+view,k);closeMenus();renderBrowse();if(tvMode)$('sort-toggle').focus({preventScroll:true})});menu.append(b)}
 }
 
 /* ---------- Track table ---------- */
@@ -520,7 +541,7 @@ function load(autoplay){
  audio.src='/api/music/tracks/'+t.id+'/stream';
  $('now-title').textContent=t.title;$('now-sub').textContent=t.artist+' — '+t.album;$('now-sub').onclick=()=>go({album:t.artist+'\u0000'+t.album});
  const holder=$('now-art');holder.replaceChildren();const img=new Image();img.alt='';img.src=artUrl(t);img.onerror=()=>img.replaceWith(el('span','ph'));holder.append(img);
- $('player').hidden=false;
+ const wasHidden=$('player').hidden;$('player').hidden=false;if(tvMode&&wasHidden)requestAnimationFrame(()=>{const a=document.activeElement;if(a&&!a.closest('#player'))tvReveal(a,rowOf(a))});
  if(autoplay)audio.play().catch(()=>{});
  if('mediaSession' in navigator){
   navigator.mediaSession.metadata=new MediaMetadata({title:t.title,artist:t.artist,album:t.album,artwork:[{src:artUrl(t),sizes:'512x512'}]});
@@ -582,7 +603,7 @@ function buildLibraryMenu(){
  const menu=$('library-menu');menu.replaceChildren(el('h4','','Music library'));
  for(const [id,name] of [['','All music libraries'],...libraries.map(l=>[String(l.id),l.name])]){
   const b=el('button','',name);b.type='button';b.setAttribute('role','menuitemradio');b.setAttribute('aria-checked',String(id===libraryFilter));
-  b.addEventListener('click',()=>{libraryFilter=id;closeMenus();buildLibraryMenu();go({},true)});menu.append(b)}
+  b.addEventListener('click',()=>{libraryFilter=id;closeMenus();buildLibraryMenu();go({},true);if(tvMode)$('library-toggle').focus({preventScroll:true})});menu.append(b)}
  $('library-anchor').hidden=false;
 }
 function applyAppearance(lib){
@@ -620,5 +641,164 @@ async function boot(){
 // Align the player with the content column, whatever width the sidebar has.
 function alignPlayer(){const w=document.querySelector('.workspace');if(w&&innerWidth>900)$('player').style.left=Math.max(0,w.getBoundingClientRect().left)+'px';else $('player').style.left=''}
 addEventListener('resize',alignPlayer);new ResizeObserver(alignPlayer).observe(document.querySelector('.workspace'));
+/* ================= Google TV remote support =================
+   The TV app calls window.__willieCatalogRemoteNavigate(direction) before its
+   own spatial navigation. Music lays its screen out as ROWS (toolbar, tabs,
+   poster rows / track rows, player) so Up/Down always moves one visual row and
+   Left/Right stays inside it. Scrolling keeps the selection clear of the
+   fixed player bar. */
+let tvMode=false,tvContentReturn=null;
+function enableTv(){
+ if(tvMode)return;tvMode=true;document.body.classList.add('music-tv');
+ if(!audio.paused)tvAwake(true);
+}
+(function detectTv(n){if(window.WilliePlayer?.__androidTv)enableTv();else if(n<40)setTimeout(()=>detectTv(n+1),250)})(0);
+function tvAwake(on){if(tvMode)try{prompt('oewtv:awake:'+(on?'1':'0'),'')}catch{}}
+audio.addEventListener('playing',()=>tvAwake(true));
+audio.addEventListener('pause',()=>tvAwake(false));
+// The TV app re-checks only VIDEO when it resumes; re-assert for music.
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!audio.paused)setTimeout(()=>tvAwake(true),900)});
+
+const shown=e=>e&&e.isConnected&&!e.closest('[hidden]')&&e.getClientRects().length>0&&getComputedStyle(e).visibility!=='hidden';
+const vis=list=>[...list].filter(shown);
+function groupRows(items){
+ // Group elements into visual rows by their top edge, each sorted left->right.
+ const rows=[];
+ for(const e of items){const t=e.getBoundingClientRect().top;
+  const row=rows.find(r=>Math.abs(r.top-t)<12);row?row.items.push(e):rows.push({top:t,items:[e]})}
+ rows.sort((a,b)=>a.top-b.top);
+ return rows.map(r=>r.items.sort((a,b)=>a.getBoundingClientRect().left-b.getBoundingClientRect().left));
+}
+function contentRows(){
+ const rows=[];const add=items=>{items=vis(items);if(items.length)rows.push(items)};
+ if(!$('detail-view').hidden){
+  const d=$('detail-view');
+  add(d.querySelectorAll('.back-link'));
+  add(d.querySelectorAll('.detail-actions button'));
+  add(d.querySelectorAll('.bio-more'));
+  add(d.querySelectorAll('.ext-links a'));
+  for(const tr of vis(d.querySelectorAll('tr.row')))rows.push([tr]);
+  rows.push(...groupRows(vis(d.querySelectorAll('.tile-button'))));
+ }else{
+  add($('library-masthead').querySelectorAll('#search,.tool'));
+  add(document.querySelectorAll('.view-tabs button'));
+  rows.push(...groupRows(vis($('items').querySelectorAll('.tile-button'))));
+  for(const tr of vis($('song-list').querySelectorAll('tr.row')))rows.push([tr]);
+ }
+ return rows;
+}
+function playerRows(){
+ if($('player').hidden)return [];
+ return [vis(['now-sub','shuffle','previous','play-pause','next','repeat'].map($)),vis([$('seek')])].filter(r=>r.length);
+}
+function tvDefault(){
+ const rows=contentRows();
+ if(!$('detail-view').hidden)return $('detail-view').querySelector('.detail-actions button')||rows[0]?.[0];
+ return rows[2]?.[0]||rows[1]?.[0]||rows[0]?.[0];
+}
+let tvGlide=0;
+function tvScrollTo(top){
+ const root=document.scrollingElement||document.documentElement;
+ window.__willieTvCancelScroll?.();cancelAnimationFrame(tvGlide);
+ top=Math.max(0,Math.min(top,root.scrollHeight-innerHeight));
+ const from=root.scrollTop,delta=top-from;if(Math.abs(delta)<2)return;
+ if(matchMedia('(prefers-reduced-motion: reduce)').matches){root.scrollTop=top;return}
+ let start=null;const step=now=>{if(start===null)start=now;const t=Math.min(1,(now-start)/180);
+  root.scrollTop=from+delta*(1-Math.pow(1-t,3));if(t<1)tvGlide=requestAnimationFrame(step)};
+ tvGlide=requestAnimationFrame(step);
+}
+function tvReveal(el,rowIndex){
+ if(!el||el.closest('#player'))return;
+ const root=document.scrollingElement||document.documentElement;
+ const r=(el.closest('.tile')||el).getBoundingClientRect();
+ const playerH=$('player').hidden?0:$('player').getBoundingClientRect().height;
+ const absTop=root.scrollTop+r.top,absBottom=root.scrollTop+r.bottom;
+ const visibleH=innerHeight-playerH,margin=28;
+ // Header rows (toolbar, tabs, Back, Play) show the page from the very top,
+ // as long as the selection is not then hidden behind the player.
+ let target=root.scrollTop;
+ if(rowIndex!==undefined&&rowIndex<=1)target=0;
+ else if(absTop-margin<target)target=absTop-margin-12;
+ if(absBottom+margin>target+visibleH)target=absBottom+margin-visibleH;
+ tvScrollTo(target);
+}
+const rowOf=el=>contentRows().findIndex(row=>row.includes(el));
+function tvFocus(el,rowIndex){
+ if(!el)return true;
+ document.body.classList.remove('oew-tv-rail-open');
+ el.focus({preventScroll:true});tvReveal(el,rowIndex);return true;
+}
+function nearestByX(row,x){
+ let best=row[0],d=Infinity;
+ for(const e of row){const r=e.getBoundingClientRect(),c=r.left+r.width/2;if(Math.abs(c-x)<d){d=Math.abs(c-x);best=e}}
+ return best;
+}
+function toSidebar(){
+ const nav=document.querySelector('#app-nav .nav-link[aria-current="page"]')||document.querySelector('#app-nav .nav-link');
+ if(!nav)return true;document.body.classList.add('oew-tv-rail-open');nav.focus({preventScroll:true});return true;
+}
+window.__willieCatalogRemoteNavigate=direction=>{
+ enableTv();
+ const active=document.activeElement;
+ // Open Sort / Library menus: Up/Down through options, Left/Right closes.
+ const menu=['sort','library'].map(id=>$(id+'-menu')).find(m=>!m.hidden);
+ if(menu){
+  const opts=vis(menu.querySelectorAll('button')),i=opts.indexOf(active);
+  if(direction==='up'||direction==='down'){
+   const n=i<0?0:Math.max(0,Math.min(opts.length-1,i+(direction==='down'?1:-1)));opts[n]?.focus({preventScroll:true});return true}
+  const owner=menu.parentElement.querySelector('.tool');closeMenus();owner?.focus({preventScroll:true});return true;
+ }
+ if(active?.closest?.('#app-nav')){
+  if(direction==='right'){const d=tvDefault();return tvFocus(d,rowOf(d))}
+  return false; // the TV app moves through the sidebar itself
+ }
+ const content=contentRows(),player=playerRows(),all=[...content,...player];
+ let r=all.findIndex(row=>row.includes(active));
+ if(r<0){const d=tvDefault();return tvFocus(d,rowOf(d))}
+ const row=all[r],c=row.indexOf(active),inPlayer=r>=content.length;
+ if(active===$('seek')&&(direction==='left'||direction==='right')){
+  if(audio.duration)audio.currentTime=Math.max(0,Math.min(audio.duration-1,audio.currentTime+(direction==='right'?10:-10)));
+  return true;
+ }
+ if(direction==='left'){
+  if(c>0)return tvFocus(row[c-1],r);
+  return inPlayer?true:toSidebar();
+ }
+ if(direction==='right')return c<row.length-1?tvFocus(row[c+1],r):true;
+ const x=(()=>{const b=active.getBoundingClientRect();return b.left+b.width/2})();
+ if(direction==='down'){
+  if(!inPlayer)tvContentReturn=active;
+  if(r+1<all.length){const target=r+1>=content.length&&!inPlayer?$('play-pause'):nearestByX(all[r+1],x);return tvFocus(target,r+1)}
+  return true;
+ }
+ // up
+ if(inPlayer&&r===content.length){
+  const back=tvContentReturn&&shown(tvContentReturn)?tvContentReturn:content.at(-1)?.[0];
+  return tvFocus(back,content.findIndex(row=>row.includes(back)));
+ }
+ if(r>0)return tvFocus(nearestByX(all[r-1],x),r-1);
+ return true;
+};
+// Back on an album/artist page returns to the library instead of leaving Music.
+window.__willieCloseSeasonMenu=()=>{
+ if(['sort','library'].some(id=>!$(id+'-menu').hidden)){closeMenus();return true}
+ if(!$('detail-view').hidden){go({});return true}
+ return false;
+};
+// After every page change on TV, select the obvious first action.
+const _route=route;
+let tvLastUrl=location.href;
+route=function(){
+ _route();if(!tvMode)return;
+ const changed=location.href!==tvLastUrl;tvLastUrl=location.href;
+ requestAnimationFrame(()=>{
+  const a=document.activeElement;
+  // A rescan or re-render keeps the current selection when it still exists.
+  if(!changed&&a&&a!==document.body&&shown(a)){tvReveal(a,rowOf(a));return}
+  tvContentReturn=null;const d=tvDefault();tvFocus(d,rowOf(d));
+ });
+};
+window.removeEventListener('popstate',_route);window.addEventListener('popstate',route);
+
 boot();
 </script></body></html>
