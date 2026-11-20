@@ -1,9 +1,9 @@
-"""Expanded Radarr/Sonarr operations with strict endpoint allowlists and sanitized responses."""
+"""Expanded Radarr/Sonarr/Lidarr operations with strict endpoint allowlists and sanitized responses."""
 from datetime import date, timedelta
 from fastapi import APIRouter, HTTPException, Query, Path
 from pydantic import BaseModel, Field
 
-from .manager_control import _provider, _request, _positive_int, _text
+from .manager_control import _provider, _request, _positive_int, _text, _kind, ID_KEYS
 
 router = APIRouter(prefix="/api/managers")
 
@@ -15,13 +15,14 @@ def _json_date(value):
     return _text(value, 40)
 
 def _event(data, name):
-    related = data.get("series") or data.get("movie") or {}
+    related = data.get("series") or data.get("movie") or data.get("artist") or {}
     if not isinstance(related, dict):
         related = {}
     return {
         "id": _positive_int(data.get("id")),
-        "item_id": _positive_int(data.get("movieId" if name == "radarr" else "seriesId")),
-        "title": _text(data.get("title") or data.get("sourceTitle") or related.get("title")),
+        "item_id": _positive_int(data.get(ID_KEYS[name])),
+        "title": _text(data.get("title") or data.get("sourceTitle") or related.get("title") or
+                       related.get("artistName")),
         "status": _text(data.get("status") or data.get("eventType"), 80),
         "date": _json_date(data.get("date")),
         "timeleft": _text(data.get("timeleft"), 70),
@@ -89,11 +90,21 @@ def view_section(name: str, section: str, page: int = Query(1, ge=1, le=100)):
         end = start + timedelta(days=70)
         raw = _request(name, setting, "calendar", query={
             "start": start.isoformat(), "end": end.isoformat(),
-            "includeSeries": "true",
+            "includeSeries": "true", "includeArtist": "true",
         })
         events = []
         for item in _rows(raw)[:300]:
             if not isinstance(item, dict):
+                continue
+            if name == "lidarr":
+                artist = item.get("artist") if isinstance(item.get("artist"), dict) else {}
+                events.append({
+                    "item_id": _positive_int(item.get("artistId")),
+                    "title": _text(artist.get("artistName") or item.get("title"), 180),
+                    "subtitle": _text(item.get("title"), 180),
+                    "date": _json_date(item.get("releaseDate")),
+                    "monitored": bool(item.get("monitored")),
+                })
                 continue
             series = item.get("series") if isinstance(item.get("series"), dict) else {}
             events.append({
@@ -110,12 +121,23 @@ def view_section(name: str, section: str, page: int = Query(1, ge=1, le=100)):
         return {"section": section, "items": events}
     if section in ("missing", "cutoff"):
         raw = _request(name, setting, "wanted/" + section, query={
-            "page": page, "pageSize": 100, "sortKey": "airDateUtc" if name == "sonarr" else "title",
-            "sortDirection": "descending", "includeSeries": "true",
+            "page": page, "pageSize": 100,
+            "sortKey": {"sonarr": "airDateUtc", "lidarr": "releaseDate"}.get(name, "title"),
+            "sortDirection": "descending", "includeSeries": "true", "includeArtist": "true",
         })
         events = []
         for item in _rows(raw)[:100]:
             if not isinstance(item, dict):
+                continue
+            if name == "lidarr":
+                artist = item.get("artist") if isinstance(item.get("artist"), dict) else {}
+                events.append({
+                    "id": _positive_int(item.get("id")),
+                    "item_id": _positive_int(item.get("artistId")),
+                    "title": _text(artist.get("artistName"), 180),
+                    "subtitle": _text(item.get("title"), 160),
+                    "date": _json_date(item.get("releaseDate")),
+                })
                 continue
             series = item.get("series") if isinstance(item.get("series"), dict) else {}
             events.append({
@@ -131,7 +153,7 @@ def view_section(name: str, section: str, page: int = Query(1, ge=1, le=100)):
     if section in ("queue", "history", "blocklist"):
         raw = _request(name, setting, section, query={
             "page": page, "pageSize": 100, "sortKey": "date" if section != "queue" else "timeleft",
-            "sortDirection": "descending", "includeSeries": "true",
+            "sortDirection": "descending", "includeSeries": "true", "includeArtist": "true",
         })
         events = [_event(item, name) for item in _rows(raw)[:100] if isinstance(item, dict)]
         return {"section": section, "items": events, "page": page, "has_more": len(events) == 100}
@@ -160,12 +182,11 @@ def view_section(name: str, section: str, page: int = Query(1, ge=1, le=100)):
 @router.get("/{name}/details/{item_id}")
 def title_detail(name: str, item_id: int = Path(gt=0)):
     setting = _provider(name)
-    kind = "movie" if name == "radarr" else "series"
-    data = _request(name, setting, kind + "/" + str(item_id))
+    data = _request(name, setting, _kind(name) + "/" + str(item_id))
     if not isinstance(data, dict) or _positive_int(data.get("id")) != item_id:
         raise HTTPException(404, "Title not found")
     fields = {
-        "id": item_id, "title": _text(data.get("title")), "overview": _text(data.get("overview"), 2700),
+        "id": item_id, "title": _text(data.get("title") or data.get("artistName")), "overview": _text(data.get("overview"), 2700),
         "year": data.get("year"), "status": _text(data.get("status"), 65),
         "path": _text(data.get("path"), 320), "root_folder": _text(data.get("rootFolderPath"), 320),
         "monitored": bool(data.get("monitored")), "profile_id": _positive_int(data.get("qualityProfileId")),
@@ -211,6 +232,28 @@ def title_detail(name: str, item_id: int = Path(gt=0)):
                             "file_count": stats.get("episodeFileCount")})
         fields["episodes"] = ep[:2000]
         fields["seasons"] = sorted(seasons, key=lambda row: row["number"])
+    elif name == "lidarr":
+        fields["status"] = _text(data.get("status"), 65)
+        fields["series_type"] = _text(data.get("artistType"), 40)
+        stats = data.get("statistics") if isinstance(data.get("statistics"), dict) else {}
+        fields["size_on_disk"] = stats.get("sizeOnDisk")
+        albums = _request(name, setting, "album", query={"artistId": item_id})
+        rows = []
+        for row in _rows(albums)[:500]:
+            if not isinstance(row, dict):
+                continue
+            st = row.get("statistics") if isinstance(row.get("statistics"), dict) else {}
+            rows.append({
+                "id": _positive_int(row.get("id")),
+                "title": _text(row.get("title"), 200),
+                "type": _text(row.get("albumType"), 40),
+                "release_date": _json_date(row.get("releaseDate")),
+                "monitored": bool(row.get("monitored")),
+                "track_files": st.get("trackFileCount"),
+                "tracks": st.get("totalTrackCount") or st.get("trackCount"),
+            })
+        rows.sort(key=lambda r: r["release_date"], reverse=True)
+        fields["albums"] = rows
     else:
         moviefile = data.get("movieFile") if isinstance(data.get("movieFile"), dict) else {}
         fields["movie_file"] = {
@@ -426,7 +469,7 @@ def remove_title(name: str, item_id: int = Path(gt=0), change: LibraryRemoveInpu
     setting = _provider(name)
     if change is None or not change.preserve_files:
         raise HTTPException(422, "Only removal with preserved files is supported.")
-    resource = ("movie" if name == "radarr" else "series") + "/" + str(item_id)
+    resource = _kind(name) + "/" + str(item_id)
     record = _request(name, setting, resource)
     if not isinstance(record, dict) or _positive_int(record.get("id")) != item_id:
         raise HTTPException(404, "Title not found")

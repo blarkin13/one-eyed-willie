@@ -1,4 +1,4 @@
-"""Scoped Radarr/Sonarr dashboard API. Credentials never leave this server."""
+"""Scoped Radarr/Sonarr/Lidarr dashboard API. Credentials never leave this server."""
 import json
 import urllib.error
 import urllib.parse
@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException, Path
 from pydantic import BaseModel, Field
 
 from . import arr
+from . import lidarr as lidarr_settings
 
 router = APIRouter(prefix="/api/managers")
 
@@ -18,10 +19,16 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 OPENER = urllib.request.build_opener(urllib.request.ProxyHandler({}), NoRedirect)
 MAX_BYTES = 8 * 1024 * 1024
 
+KINDS = {"radarr": "movie", "sonarr": "series", "lidarr": "artist"}
+ID_KEYS = {"radarr": "movieId", "sonarr": "seriesId", "lidarr": "artistId"}
+
+def _kind(name):
+    return KINDS[name]
+
 def _provider(name):
-    if name not in ("radarr", "sonarr"):
+    if name not in KINDS:
         raise HTTPException(404, "Unknown media manager")
-    setting = arr._settings(name)
+    setting = lidarr_settings._settings() if name == "lidarr" else arr._settings(name)
     if not setting:
         raise HTTPException(409, "Connect " + name.title() + " in Settings → Connections.")
     return setting
@@ -33,17 +40,21 @@ def _request(name, settings, resource, method="GET", payload=None, query=None):
         "calendar", "wanted/missing", "wanted/cutoff", "blocklist",
         "system/status", "health", "diskspace", "release", "episode",
         "episodefile", "indexer", "downloadclient", "rootfolder", "tag",
+        "artist", "album",
     }
     parts = resource.split("/")
     indexed = len(parts) == 2 and parts[0] in (
-        "movie", "series", "episode", "queue"
+        "movie", "series", "episode", "queue", "artist", "album"
     ) and parts[1].isdigit() and int(parts[1]) > 0
     read_allowed = resource in read_only or indexed or (name == "sonarr" and resource == "episode/monitor")
     if not read_allowed:
         raise ValueError("Resource not permitted")
-    if name == "radarr" and parts[0] in ("series", "episode", "episodefile"):
-        raise ValueError("Resource not permitted")
-    if name == "sonarr" and parts[0] == "movie":
+    foreign = {
+        "radarr": ("series", "episode", "episodefile", "artist", "album"),
+        "sonarr": ("movie", "artist", "album"),
+        "lidarr": ("movie", "series", "episode", "episodefile"),
+    }
+    if parts[0] in foreign[name]:
         raise ValueError("Resource not permitted")
     if method == "GET":
         if resource == "episode/monitor" or (indexed and parts[0] == "queue"):
@@ -51,17 +62,17 @@ def _request(name, settings, resource, method="GET", payload=None, query=None):
     elif method == "PUT":
         if resource == "episode/monitor" and name == "sonarr":
             pass
-        elif not indexed or parts[0] not in ("movie", "series", "episode"):
+        elif not indexed or parts[0] not in ("movie", "series", "episode", "artist"):
             raise ValueError("Method not permitted")
     elif method == "POST":
         if resource not in ("command", "release"):
             raise ValueError("Method not permitted")
     elif method == "DELETE":
-        if not indexed or parts[0] not in ("movie", "series", "queue"):
+        if not indexed or parts[0] not in ("movie", "series", "artist", "queue"):
             raise ValueError("Method not permitted")
     else:
         raise ValueError("Method not permitted")
-    api_version = arr._version(name, settings)
+    api_version = "v1" if name == "lidarr" else arr._version(name, settings)
     url = settings["url"] + "/api/" + api_version + "/" + resource
     if query:
         url += "?" + urllib.parse.urlencode(query)
@@ -112,6 +123,14 @@ def _items(name, raw, profiles):
             has_file = bool(item.get("hasFile"))
             subtitle = str(item.get("year") or "")
             missing = not has_file
+        elif name == "lidarr":
+            files = int(stats.get("trackFileCount") or 0)
+            total = int(stats.get("totalTrackCount") or stats.get("trackCount") or 0)
+            albums = int(stats.get("albumCount") or 0)
+            has_file = files > 0
+            missing = total > files
+            subtitle = (str(albums) + " album" + ("" if albums == 1 else "s") + " · " +
+                        str(files) + " / " + str(total) + " tracks")
         else:
             files = int(stats.get("episodeFileCount") or 0)
             total = int(stats.get("episodeCount") or 0)
@@ -120,7 +139,7 @@ def _items(name, raw, profiles):
             subtitle = str(files) + " / " + str(total) + " episodes"
         rows.append({
             "id": ident,
-            "title": _text(item.get("title")),
+            "title": _text(item.get("title") or item.get("artistName")),
             "year": item.get("year"),
             "monitored": bool(item.get("monitored")),
             "profile_id": profile,
@@ -140,10 +159,11 @@ def _events(raw, name):
     for item in records[:40]:
         if not isinstance(item, dict):
             continue
-        series = item.get("series") or item.get("movie") or {}
+        series = item.get("series") or item.get("movie") or item.get("artist") or {}
         if not isinstance(series, dict):
             series = {}
-        title = _text(item.get("title") or item.get("sourceTitle") or series.get("title") or "Download")
+        title = _text(item.get("title") or item.get("sourceTitle") or series.get("title") or
+                      series.get("artistName") or "Download")
         results.append({
             "title": title,
             "status": _text(item.get("status") or item.get("eventType"), 65),
@@ -162,7 +182,7 @@ def _events(raw, name):
 @router.get("/{name}/dashboard")
 def dashboard(name: str):
     setting = _provider(name)
-    kind = "movie" if name == "radarr" else "series"
+    kind = _kind(name)
     records = _request(name, setting, kind)
     if not isinstance(records, list):
         raise HTTPException(502, name.title() + " returned an invalid library.")
@@ -178,6 +198,7 @@ def dashboard(name: str):
         queue_data = _request(name, setting, "queue", query={
             "page": 1, "pageSize": 40, "sortKey": "timeleft", "sortDirection": "ascending",
             "includeUnknownMovieItems": "true", "includeUnknownSeriesItems": "true",
+            "includeUnknownArtistItems": "true",
         })
         queue = _events(queue_data, name)
     except HTTPException:
@@ -211,7 +232,7 @@ def update_item(name: str, item_id: int = Path(gt=0), change: ItemChange = None)
     setting = _provider(name)
     if change is None or (change.monitored is None and change.quality_profile_id is None):
         raise HTTPException(422, "Choose a monitoring or quality profile change.")
-    resource = ("movie" if name == "radarr" else "series") + "/" + str(item_id)
+    resource = _kind(name) + "/" + str(item_id)
     record = _request(name, setting, resource)
     if not isinstance(record, dict) or _positive_int(record.get("id")) != item_id:
         raise HTTPException(404, "Title not found.")
@@ -244,18 +265,19 @@ def run_command(name: str, change: CommandInput):
     if change.action == "rss":
         payload = {"name": "RssSync"}
     elif change.action in ("search", "refresh") and change.item_id:
-        resource = ("movie" if name == "radarr" else "series") + "/" + str(change.item_id)
+        resource = _kind(name) + "/" + str(change.item_id)
         existing = _request(name, setting, resource)
         if not isinstance(existing, dict) or _positive_int(existing.get("id")) != change.item_id:
             raise HTTPException(404, "Title not found.")
-        if change.action == "search":
-            payload = ({"name": "MoviesSearch", "movieIds": [change.item_id]}
-                       if name == "radarr" else
-                       {"name": "SeriesSearch", "seriesId": change.item_id})
-        else:
-            payload = ({"name": "RefreshMovie", "movieId": change.item_id}
-                       if name == "radarr" else
-                       {"name": "RefreshSeries", "seriesId": change.item_id})
+        search, refresh_cmd = {
+            "radarr": ({"name": "MoviesSearch", "movieIds": [change.item_id]},
+                       {"name": "RefreshMovie", "movieId": change.item_id}),
+            "sonarr": ({"name": "SeriesSearch", "seriesId": change.item_id},
+                       {"name": "RefreshSeries", "seriesId": change.item_id}),
+            "lidarr": ({"name": "ArtistSearch", "artistId": change.item_id},
+                       {"name": "RefreshArtist", "artistId": change.item_id}),
+        }[name]
+        payload = search if change.action == "search" else refresh_cmd
     else:
         raise HTTPException(422, "Unsupported command or missing title.")
     result = _request(name, setting, "command", method="POST", payload=payload)

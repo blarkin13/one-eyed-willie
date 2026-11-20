@@ -712,6 +712,7 @@ def download_services_page():
 
 @app.get("/radarr")
 @app.get("/sonarr")
+@app.get("/lidarr")
 def manager_dashboard_page():
     return TextFileResponse(Path(__file__).with_name("manager_dashboard.html"), media_type="text/html")
 

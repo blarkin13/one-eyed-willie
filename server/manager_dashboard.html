@@ -137,10 +137,11 @@ gap:14px;align-items:center;padding:14px 17px;border:1px solid #304158;border-ra
 <div id="manager-detail-body"></div></dialog>
 </main></div></div>
 <script>
-const managerName=location.pathname==='/sonarr'?'sonarr':'radarr';
+const managerName={'/sonarr':'sonarr','/lidarr':'lidarr'}[location.pathname]||'radarr';
 document.body.dataset.page=managerName;
 const $=id=>document.getElementById(id);
-const label=managerName==='radarr'?'Radarr':'Sonarr';
+const label={radarr:'Radarr',sonarr:'Sonarr',lidarr:'Lidarr'}[managerName];
+const isMusic=managerName==='lidarr';
 document.title=label+' · Yarr Media';
 $('manager-title').textContent=label;
 const serviceLogo=document.createElement('img');
@@ -154,14 +155,19 @@ serviceLogo.onerror=()=>{
  serviceLogo.replaceWith(fallback);
 };
 $('manager-logo').append(serviceLogo);
-$('manager-description').textContent=managerName==='radarr'
- ?'Monitor movies, review downloads, edit quality profiles, and search for releases.'
- :'Monitor series, review downloads, edit quality profiles, and search for episodes.';
-$('total-label').textContent=managerName==='radarr'?'Movies':'Series';
-$('missing-label').textContent=managerName==='radarr'?'Movies missing files':'Series with missing episodes';
-$('library-heading').textContent=managerName==='radarr'?'Managed movies':'Managed series';
+$('manager-description').textContent={
+ radarr:'Monitor movies, review downloads, edit quality profiles, and search for releases.',
+ sonarr:'Monitor series, review downloads, edit quality profiles, and search for episodes.',
+ lidarr:'Monitor artists, review downloads, edit quality profiles, and search for albums.'}[managerName];
+$('total-label').textContent={radarr:'Movies',sonarr:'Series',lidarr:'Artists'}[managerName];
+$('missing-label').textContent={radarr:'Movies missing files',sonarr:'Series with missing episodes',lidarr:'Artists with missing tracks'}[managerName];
+$('library-heading').textContent={radarr:'Managed movies',sonarr:'Managed series',lidarr:'Managed artists'}[managerName];
 $('manager-library-help').hidden=managerName!=='sonarr';
-$('manager-add').href='/explore?type='+(managerName==='radarr'?'movies':'tv');
+if(isMusic){
+ $('manager-add').href='#';$('manager-add').textContent='Add artists in Lidarr';
+ $('manager-add').target='_blank';$('manager-add').rel='noopener noreferrer';
+ $('manager-search').placeholder='Filter managed artists…';
+}else $('manager-add').href='/explore?type='+(managerName==='radarr'?'movies':'tv');
 
 let activeData=null,waiting=false;
 const endpoint='/api/managers/'+managerName;
@@ -295,6 +301,7 @@ async function refresh(){
   $('manager-monitored').textContent=String(activeData.monitored||0);
   $('manager-missing').textContent=String(activeData.missing||0);
   $('manager-queued').textContent=String((activeData.queue||[]).length);
+  if(isMusic&&activeData.address)$('manager-add').href=activeData.address+'/add/search';
   renderEvents('manager-queue',activeData.queue,'No active download activity.');
   renderEvents('manager-history',activeData.history,'No recent activity.');
   showLibrary();
@@ -522,6 +529,7 @@ async function loadDetails(itemId){
     if(success){detailDialog.close();refresh()}
   }));
   if(managerName==='sonarr')renderSeasons(container,data);
+  if(isMusic)renderAlbums(container,data);
   setDetailMessage('');
  }catch(error){setDetailMessage(error.message)}
 }
@@ -535,6 +543,22 @@ async function openDetails(itemId){
  $('manager-detail-body').replaceChildren();
  if(!detailDialog.open)detailDialog.showModal();
  await loadDetails(itemId);
+}
+function renderAlbums(container,data){
+ const section=document.createElement('section');section.className='manager-seasons';
+ const albums=data.albums||[];
+ section.append(textNode('h3','Albums ('+albums.length+')'));
+ if(!albums.length)section.append(textNode('p','No albums found for this artist.','manager-empty'));
+ for(const album of albums){
+  const row=document.createElement('div');row.className='manager-episode';
+  const info=document.createElement('div');
+  info.append(textNode('strong',album.title||'Untitled'));
+  const tracks=Number.isInteger(album.tracks)?(album.track_files??0)+' / '+album.tracks+' tracks':null;
+  info.append(textNode('small',[album.release_date?album.release_date.slice(0,10):null,album.type,tracks,
+    album.monitored?'Monitored':'Not monitored'].filter(Boolean).join(' · ')));
+  row.append(info);section.append(row);
+ }
+ container.append(section);
 }
 function episodeLabel(ep){
  const numbers=Number.isInteger(ep.season)?
