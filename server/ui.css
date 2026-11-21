@@ -1157,3 +1157,13 @@ html body[data-page] select option,html body[data-page] select optgroup{
   transform:none!important
  }
 }
+
+/* Mobile browser: the YARR.MEDIA wordmark beside the logo, as on yarr.media
+   (white, grey dot, crimson MEDIA). The TV/desktop rail is unchanged. */
+@media(max-width:700px){
+ html:not(.yarr-app) .sidebar,html:not(.yarr-app) .sidebar:hover,html:not(.yarr-app) .sidebar:focus-within{width:auto!important}
+ html:not(.yarr-app) .sidebar .brand,html:not(.yarr-app) .sidebar:hover .brand,
+ html:not(.yarr-app) .sidebar:focus-within .brand{width:auto!important;display:flex!important;align-items:center;gap:8px}
+ html:not(.yarr-app) .sidebar .brand-wordmark,html:not(.yarr-app) .sidebar:hover .brand-wordmark,
+ html:not(.yarr-app) .sidebar:focus-within .brand-wordmark{display:inline-flex!important;max-width:none;font-size:21px}
+}

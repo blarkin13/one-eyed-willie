@@ -113,7 +113,7 @@ class AppShellStylingTest(base.MobileHomeLayoutTest):
         })""")
         self.assertEqual(data["features"], 0)
         self.assertEqual(data["backdrop"], 0)
-        self.assertEqual(data["bar"], "Yarr Media")
+        self.assertEqual(data["bar"], "YARR.MEDIA")
         self.assertEqual(data["link"], "/movies")
         self.assertTrue(data["chevron"])
         self.assertEqual(data["watermark"], "none")

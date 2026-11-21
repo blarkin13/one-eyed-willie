@@ -100,7 +100,9 @@ html.yarr-app .tile-button:active,html.yarr-app a:active>.cover{transform:scale(
 html.yarr-app button:active,html.yarr-app .filter-link:active{opacity:.75}
 html.yarr-app .yarr-app-bar{display:flex;align-items:center;gap:10px;height:54px;padding:0 16px}
 html.yarr-app .yarr-app-bar img{width:34px;height:34px}
-html.yarr-app .yarr-app-bar strong{font-size:1.3rem;font-weight:800;letter-spacing:-.02em;color:#fff}
+html.yarr-app .yarr-app-bar strong{font:900 1.3rem/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.01em;color:#f5f1e8;white-space:nowrap}
+html.yarr-app .yarr-app-bar strong .dot{color:#9b9b9b}
+html.yarr-app .yarr-app-bar strong .media{color:#c62838}
 html.yarr-app .yarr-app-switch{margin-left:auto;width:40px;height:40px;border:0;border-radius:20px;background:#1c1f24;color:#fff;display:grid;place-items:center;padding:0}
 html.yarr-app .yarr-app-switch[hidden]{display:none}
 html.yarr-app .yarr-app-switch svg{width:22px;height:22px}
@@ -143,7 +145,7 @@ html.yarr-app #items{grid-template-columns:repeat(3,minmax(0,1fr))!important;gap
  var b=document.body;if(!b||b.dataset.page!=='home'||document.querySelector('.yarr-app-bar'))return;
  var c=document.querySelector('.workspace>.content');if(!c)return;
  var bar=document.createElement('header');bar.className='yarr-app-bar';
- bar.innerHTML='<img src="/assets/logo.svg?v=moon-sail-v1" alt=""><strong>Yarr Media</strong>';
+ bar.innerHTML='<img src="/assets/logo.svg?v=moon-sail-v1" alt=""><strong aria-label="Yarr Media">YARR<span class="dot">.</span><span class="media">MEDIA</span></strong>';
  c.prepend(bar);
  // Switch server: only when this account can open more than one.
  var sw=document.createElement('button');sw.type='button';sw.className='yarr-app-switch';sw.hidden=true;
