@@ -182,8 +182,19 @@ def report_heartbeat():
             ip = reply.get("public_ip") if isinstance(reply, dict) else None
             if isinstance(ip, str) and len(ip) <= 15:
                 current["public_ip"] = ip
+            # Whether the owner has Pro (downloads for offline use need it).
+            if isinstance(reply, dict) and isinstance(reply.get("owner_pro"), bool):
+                current["owner_pro"] = reply["owner_pro"]
             _save(current)
     return True
+
+
+def pro_state():
+    """{"paired": bool, "owner_pro": bool} as last reported by yarr.media."""
+    with LOCK:
+        record = _read()
+    paired = record.get("status") == "paired" and bool(record.get("poll_secret"))
+    return {"paired": paired, "owner_pro": paired and record.get("owner_pro") is True}
 
 
 def heartbeat_loop(stop):
