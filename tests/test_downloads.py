@@ -131,6 +131,44 @@ class DownloadsTests(unittest.TestCase):
         self.assertTrue(self.mkv.is_file())
 
 
+@unittest.skipUnless(FFMPEG, "ffmpeg required")
+class MusicDownloadTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        root = Path(temp.name)
+        musicdir = root / "media" / "Music"
+        self.song = musicdir / "Slayer" / "Reign in Blood" / "01 Angel of Death.flac"
+        self.song.parent.mkdir(parents=True)
+        subprocess.run([FFMPEG, "-loglevel", "error", "-f", "lavfi", "-i", "sine=duration=1", str(self.song)], check=True)
+        self.pro = {"paired": True, "owner_pro": True}
+        for p in [patch.object(library, "DB_PATH", root / "db.sqlite3"), patch.object(library, "MEDIA_ROOT", root / "media"),
+                  patch.object(yarr_pairing, "pro_state", side_effect=lambda: dict(self.pro))]:
+            p.start()
+            self.addCleanup(p.stop)
+        from server import music
+        music._read_tags.cache_clear()
+        created = library.create_library(library.LibraryRequest(name="Music", kind="music", path=str(musicdir), icon="music"))
+        library.scan_library(created["id"])
+        self.track = music.music_catalog()["tracks"][0]["id"]
+        self.library_id = created["id"]
+        app = FastAPI()
+        app.include_router(downloads.router)
+        self.client = TestClient(app)
+
+    def test_songs_download_resumably_with_pro_only(self):
+        whole = self.client.get(f"/api/downloads/music/{self.track}")
+        self.assertEqual(whole.content, self.song.read_bytes())
+        part = self.client.get(f"/api/downloads/music/{self.track}", headers={"Range": "bytes=10-"})
+        self.assertEqual((part.status_code, part.content), (206, self.song.read_bytes()[10:]))
+        self.pro = {"paired": True, "owner_pro": False}
+        self.assertEqual(self.client.get(f"/api/downloads/music/{self.track}").status_code, 403)
+        friend = Viewer(id="u:y", role="barnacle", name="Y", libraries=(self.library_id,))
+        stranger = Viewer(id="u:x", role="barnacle", name="X", libraries=(self.library_id + 9,))
+        self.assertTrue(barnacle_access.allowed(friend, "GET", f"/api/downloads/music/{self.track}", {}))
+        self.assertFalse(barnacle_access.allowed(stranger, "GET", f"/api/downloads/music/{self.track}", {}))
+
+
 class ProStatusFromHeartbeatTests(unittest.TestCase):
     def test_heartbeat_reply_sets_owner_pro(self):
         temp = tempfile.TemporaryDirectory()

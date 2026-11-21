@@ -48,6 +48,7 @@ _RULES = [
     ({"GET"}, r"/api/downloads/options/" + _ID, "media"),
     ({"POST"}, r"/api/downloads/prepare/" + _ID, "media"),
     ({"GET", "HEAD"}, r"/api/downloads/jobs/[a-f0-9]{32}(/file)?", None),
+    ({"GET", "HEAD"}, r"/api/downloads/music/" + _ID, "media"),
     ({"GET"}, r"/api/stream/subtitles/" + _ID + r"/[A-Za-z0-9_.:-]+\.vtt", "media"),
     ({"GET"}, r"/api/maintenance/preview/" + _ID + r"(/[A-Za-z0-9_.-]+)?", "media"),
     # Their own history

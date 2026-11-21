@@ -341,5 +341,21 @@ def download_file(job_id: str):
                                  "Accept-Ranges": "bytes"})
 
 
+@router.get("/music/{track_id}")
+@router.head("/music/{track_id}")
+def download_music(track_id: int):
+    """A song for offline use: the original file, resumable. Pro, like video downloads."""
+    _require_access()
+    from . import music
+    path = music._safe_track(track_id)
+    with db() as conn:
+        row = conn.execute("SELECT library_id FROM media WHERE id=?", (track_id,)).fetchone()
+    if row is None or not current_viewer().can_see(row["library_id"]):
+        raise HTTPException(404, "Track not found")
+    return FileResponse(path, media_type="application/octet-stream", filename=None,
+                        headers={"Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+                                 "Accept-Ranges": "bytes"})
+
+
 def _valid_id(job_id):
     return len(job_id) == 32 and all(c in "0123456789abcdef" for c in job_id)

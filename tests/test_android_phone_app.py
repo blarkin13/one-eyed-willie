@@ -122,6 +122,18 @@ class DistributionTests(unittest.TestCase):
         # A dropped connection mid-session shows the app's offline screen (phone only).
         self.assertIn("!isTv && (initialPageLoaded || failedAfterLoad)) connectionLost()", MAIN)
 
+    def test_music_albums_download_and_play_offline(self):
+        phone_src = TV / "phone/src/main/java/studio/oneeyedwillie/tv"
+        shell = (phone_src / "AppShell.kt").read_text()
+        service = (phone_src / "DownloadService.kt").read_text()
+        player = (phone_src / "OfflinePlayerActivity.kt").read_text()
+        self.assertIn('if (page.optString("kind") == "album") return offerAlbum(activity, target, page)', shell)
+        self.assertIn('"/api/downloads/music/${start.mediaId}"', service)
+        self.assertIn('if (item.kind == "track") { playSongs(item); return }', player)
+        music_page = (ROOT / "server/music.html").read_text()
+        self.assertIn("kind:'album'", music_page)
+        self.assertIn("shell.js?v=music-3", music_page)
+
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()
         self.assertIn(":phone:assembleDebug :phone:assembleLean", ci)

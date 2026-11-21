@@ -5,7 +5,7 @@
 <title>Yarr Media · Music</title>
 <link rel="stylesheet" href="/assets/ui.css?v=music-2">
 <script src="/assets/library-appearance.js?v=music-2"></script>
-<script defer src="/assets/shell.js?v=music-2"></script>
+<script defer src="/assets/shell.js?v=music-3"></script>
 <style>
 :root{--accent:var(--oew-tv-select-color,#A61E1E);--accent-hi:color-mix(in srgb,var(--accent) 80%,#fff);--accent-soft:color-mix(in srgb,var(--accent) 55%,#fff)}
 /* Masthead: same structure and sizing as Movies/TV (catalog.html). */
@@ -613,6 +613,12 @@ function button(cls,icon,label,handler){const b=el('button',cls);b.type='button'
 function backButton(){const b=el('button','back-link');b.type='button';b.append(svg('<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M15 18l-6-6 6-6"/></svg>'),document.createTextNode('Back'));
  b.addEventListener('click',()=>history.length>1?history.back():go({}));return b}
 function artistLink(name){const a=el('a','',name);a.href='?artist='+encodeURIComponent(name);a.addEventListener('click',e=>{e.preventDefault();go({artist:name})});return a}
+function albumDownloadButton(a){
+ const b=window.YarrDownload.button({kind:'album',title:a.title,artist:a.artist,poster_url:'/api/music/tracks/'+a.tracks[0].id+'/art',
+  tracks:a.tracks.map(t=>({media_id:t.id,title:t.title,artist:t.artist,disc:t.disc_number||1,track:t.track_number||null,duration:t.duration||0}))});
+ b.classList.add('btn-ghost');b.title='Download album';b.setAttribute('aria-label','Download album to play offline');
+ return b;
+}
 function renderAlbum(key){
  const a=albumsOf(tracks).find(x=>x.key===key);const out=$('detail-view');out.replaceChildren(backButton());
  if(!a){out.append(el('p','status-line','Album not found.'));return}
@@ -621,7 +627,9 @@ function renderAlbum(key){
  const meta=el('p','detail-meta');meta.append(artistLink(a.artist),document.createTextNode(' · '+[a.year,genre,a.tracks.length+' songs',longFmt(total)].filter(Boolean).join(' · ')));
  out.append(detailHeader({art:a.tracks[0],eyebrow:'Album',title:a.title,meta,actions:[
   button('btn-play',ICON_PLAY,'Play',()=>playList(a.tracks,0)),
-  button('btn-ghost',ICON_SHUFFLE,'Shuffle',()=>playList(a.tracks,0,true))]}));
+  button('btn-ghost',ICON_SHUFFLE,'Shuffle',()=>playList(a.tracks,0,true)),
+  // Phone app: download the album to play offline (Pro; shown only when allowed).
+  ...(window.YarrDownload?[albumDownloadButton(a)]:[])]}));
  out.append(trackTable(a.tracks,{discs:true,albumArtist:a.artist}));
  const more=albumsOf(tracks).filter(x=>x.artist===a.artist&&x.key!==a.key);
  if(more.length){out.append(el('h2','sub-heading','More by '+a.artist),miniGrid(more))}

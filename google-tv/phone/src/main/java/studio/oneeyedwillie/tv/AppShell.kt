@@ -283,6 +283,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     /** The page's Download button: pick a quality, then the phone downloads it in the background. */
     private fun offerDownload(activity: Activity, page: org.json.JSONObject) {
         val target = (activity as? ShellHost)?.shellServerTarget() ?: return toast(activity, "Connect to your server first.")
+        if (page.optString("kind") == "album") return offerAlbum(activity, target, page)
         val mediaId = page.optLong("media_id")
         if (mediaId <= 0) return
         val key = OfflineLogic.key(target.serverId ?: target.origin, mediaId)
@@ -308,6 +309,58 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                             else "Downloading to watch offline is part of Pro. On a shared server, the owner's Pro covers you.")
                         .button("OK", primary = true).show()
                     else -> chooseQuality(activity, target, key, page, options, next)
+                }
+            }
+        }.start()
+    }
+
+    /** An album: every song not already on the phone, as originals, with its album art. */
+    private fun offerAlbum(activity: Activity, target: ServerTarget, page: org.json.JSONObject) {
+        val songs = page.optJSONArray("tracks") ?: return
+        val serverKey = target.serverId ?: target.origin
+        val missing = (0 until songs.length()).mapNotNull { songs.optJSONObject(it) }
+            .filter { it.optLong("media_id") > 0 && OfflineStore.find(activity, OfflineLogic.key(serverKey, it.optLong("media_id"))) == null }
+        val album = page.optString("title")
+        val artist = page.optString("artist")
+        if (missing.isEmpty()) {
+            Sheet(activity, "Already downloaded", listOf(album, artist).filter { it.isNotBlank() }.joinToString(" · "))
+                .button("Open Downloads", primary = true) { openDownloads(activity) }.button("Close").show()
+            return
+        }
+        Thread {
+            val allowed = try { OfflineNet.json(activity, target, "/api/downloads/status").optBoolean("allowed") } catch (_: Exception) { null }
+            activity.runOnUiThread {
+                if (activity.isFinishing) return@runOnUiThread
+                when (allowed) {
+                    null -> toast(activity, "Couldn't reach your server. Try again in a moment.")
+                    false -> Sheet(activity, "Downloads need Yarr Media Pro")
+                        .text("Downloading to play offline is part of Pro. On a shared server, the owner's Pro covers you.")
+                        .button("OK", primary = true).show()
+                    else -> {
+                        var wifiOnly = true
+                        val minutes = (missing.sumOf { it.optDouble("duration", 0.0) } / 60).toInt()
+                        Sheet(activity, "Download album", listOf(album, artist).filter { it.isNotBlank() }.joinToString(" · "))
+                            .text(missing.size.toString() + (if (missing.size == 1) " song" else " songs") +
+                                (if (minutes > 0) " · $minutes min" else "") + ", in their original quality.")
+                            .toggle("Only download on Wi-Fi", true) { wifiOnly = it }
+                            .button("Download", primary = true) {
+                                val base = System.currentTimeMillis()
+                                missing.forEachIndexed { i, song ->
+                                    val id = song.optLong("media_id")
+                                    OfflineStore.add(activity, OfflineItem(id = OfflineItem.newId(), key = OfflineLogic.key(serverKey, id),
+                                        mediaId = id, kind = "track", title = song.optString("title"),
+                                        subtitle = song.optString("artist").ifBlank { artist }, showTitle = album,
+                                        season = song.optInt("disc", 1), episode = if (song.isNull("track")) null else song.optInt("track"),
+                                        posterUrl = "/api/music/tracks/$id/art", origin = target.origin, remote = target.remote,
+                                        serverId = target.serverId, quality = "original", wifiOnly = wifiOnly, addedAt = base + i))
+                                }
+                                if (android.os.Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                                    != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                                    activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4207)
+                                DownloadService.kick(activity)
+                                toast(activity, "Downloading the album. Find it in More → Downloads.")
+                            }.button("Cancel").show()
+                    }
                 }
             }
         }.start()
