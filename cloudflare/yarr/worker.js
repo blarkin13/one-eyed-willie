@@ -1053,7 +1053,11 @@ async function issuePass(env,user,server,device=null,lifetime=PASS_SECONDS,acces
  const barnacle=access?.role==='barnacle';
  // Barnacles ride on the owner's Pro; they don't pay.
  const pro=await proStatus(env,barnacle?access.owner_user_id:user.id);
- if(!pro.active)return barnacle?{error:'owner_pro_required',status:402}:{error:'pro_required',status:402};
+ if(!pro.active){
+  // Recorded so a refusal can be traced (which account, which server).
+  await audit(env,user.id,'pass_refused',(barnacle?'owner_pro_required ':'pro_required ')+server.id);
+  return barnacle?{error:'owner_pro_required',status:402}:{error:'pro_required',status:402};
+ }
  const now=Math.floor(Date.now()/1000);
  const proUntil=pro.until?Math.floor(Date.parse(pro.until)/1000)+PRO_GRACE_DAYS*86400:null;
  const exp=Math.min(now+lifetime,proUntil||Infinity);
@@ -1775,7 +1779,10 @@ export default { async fetch(req,env,ctx) {
    const message2=message||pairStatuses[u.searchParams.get('pair')]||statuses[u.searchParams.get('server')]||'';
    const servers=user?await listServers(env,user.id):[];
    const extra=user?await accountExtras(env,user):null;
-   const shown=accountMessage(u)||message2||(u.searchParams.get('account')==='deleted'?'Your account has been deleted.':'');
+   let shown=accountMessage(u)||message2||(u.searchParams.get('account')==='deleted'?'Your account has been deleted.':'');
+   // The message travels in the address: don't tell an account that has Pro that it needs Pro
+   // (for example after switching Google accounts in the same browser).
+   if(u.searchParams.get('remote')==='pro_required'&&extra?.pro?.active)shown='';
    return html(accountHTML(user,authReady(env),shown,servers,extra,ownerAllowed(user,env)),200,{'content-security-policy':HTML_HEADERS['content-security-policy'].replace("form-action 'self'","form-action 'self' https://checkout.stripe.com")});
   }
   if(req.method==='GET'||req.method==='HEAD') {

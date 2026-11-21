@@ -241,3 +241,18 @@ test('owners set a server picture that the people they share with see', async()=
  assert.equal(await pictureResult(upload(t,t.owner,{action:'remove'})),'removed');
  assert.equal((await request(t.worker,t.env,'GET',ACC+'/api/server-icons/'+t.server.id+'.png')).status,404);
 });
+
+test('"needs Pro" is not shown to an account that has Pro, and refusals are recorded', async()=>{
+ const t=await setup();
+ const page=async user=>(await (await request(t.worker,t.env,'GET',ACC+'/?remote=pro_required',{headers:{cookie:user.cookie}})).text());
+ assert.doesNotMatch(await page(t.owner),/Remote access needs Pro/);
+ assert.match(await page(t.friend),/Remote access needs Pro/);
+ const r=await request(t.worker,t.env,'GET',ACC+'/remote/open?server='+t.server.id,{headers:{cookie:t.friend.cookie},redirect:'manual'});
+ assert.match(r.headers.get('location')||'',/remote=not_found/);
+ // A friend with their own server and no Pro is refused for their own server, and it's recorded.
+ const own=pairedServer(t.env,t.friend.id,{id:'99999999-2222-3333-4444-555555555555',identity:'ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee'});
+ t.db.prepare("UPDATE servers SET public_ip='76.183.183.205' WHERE id=?").run(own.id);
+ const refused=await request(t.worker,t.env,'GET',ACC+'/remote/open?server='+own.id,{headers:{cookie:t.friend.cookie},redirect:'manual'});
+ assert.match(refused.headers.get('location')||'',/remote=pro_required/);
+ assert.equal(t.db.prepare("SELECT detail FROM audit_log WHERE event='pass_refused'").get().detail,'pro_required '+own.id);
+});
