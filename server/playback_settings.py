@@ -2,6 +2,7 @@
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 from .library import db
+from . import personal_settings
 
 router = APIRouter(prefix="/api/settings/playback")
 
@@ -24,12 +25,7 @@ def get_preferences():
     defaults = PlaybackPreferences().model_dump()
     with db() as conn:
         _settings_table(conn)
-        rows = conn.execute(
-            "SELECT key,value FROM app_settings WHERE key IN "
-            "('auto_play_next','tv_theme_music','movie_theme_music','theme_volume',"
-            "'theme_loop','theme_fade')"
-        ).fetchall()
-    values = {row["key"]: row["value"] for row in rows}
+        values = personal_settings.read(conn, defaults)
     for key in defaults:
         if key not in values:
             continue
@@ -51,7 +47,7 @@ def update_preferences(preferences: PlaybackPreferences):
         conn.executemany(
             "INSERT INTO app_settings(key,value) VALUES(?,?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            [(key, str(value) if key == "theme_volume" else
+            [(personal_settings.key(key), str(value) if key == "theme_volume" else
               ("true" if value else "false"))
              for key, value in values.items()]
         )

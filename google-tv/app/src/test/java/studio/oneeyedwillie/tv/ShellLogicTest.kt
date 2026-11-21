@@ -55,4 +55,12 @@ class ShellLogicTest {
         assertFalse(ShellLogic.isSideways(10f, 40f, 16f))    // a real pull down
         assertFalse(ShellLogic.isSideways(8f, 2f, 16f))      // not moved enough to decide
     }
+
+    @org.junit.Test
+    fun readsOneCookieFromAHeader() {
+        org.junit.Assert.assertEquals("abc.1.sig", ShellLogic.cookieValue("yarr_pass=x; yarr_profile=abc.1.sig; other=1", "yarr_profile"))
+        org.junit.Assert.assertNull(ShellLogic.cookieValue("yarr_pass=x", "yarr_profile"))
+        org.junit.Assert.assertNull(ShellLogic.cookieValue(null, "yarr_profile"))
+        org.junit.Assert.assertNull(ShellLogic.cookieValue("yarr_profile=", "yarr_profile"))
+    }
 }

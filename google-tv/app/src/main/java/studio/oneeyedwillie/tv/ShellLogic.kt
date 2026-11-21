@@ -37,4 +37,9 @@ object ShellLogic {
     }
 
     fun hasMusic(links: List<NavLink>) = links.any { it.id == "music" }
+
+    /** One cookie's value from a "a=1; b=2" Cookie header, or null. */
+    fun cookieValue(header: String?, name: String): String? =
+        header?.split(';')?.map { it.trim() }?.firstOrNull { it.startsWith("$name=") }
+            ?.substringAfter('=')?.takeIf { it.isNotBlank() }
 }

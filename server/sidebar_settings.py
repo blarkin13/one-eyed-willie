@@ -7,6 +7,7 @@ from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from typing import Literal
 from .library import db
+from . import personal_settings
 
 router = APIRouter(prefix="/api/settings")
 NAV = (
@@ -33,10 +34,8 @@ class TvAppearanceRequest(BaseModel):
 def get_tv_appearance():
     with db() as conn:
         _settings_table(conn)
-        row = conn.execute(
-            "SELECT value FROM app_settings WHERE key='tv_selection_color'"
-        ).fetchone()
-    selected = row["value"] if row else DEFAULT_SELECTION_COLOR
+        selected = personal_settings.read(conn, ["tv_selection_color"]).get(
+            "tv_selection_color", DEFAULT_SELECTION_COLOR)
     if selected not in SelectionColor.__args__:
         selected = DEFAULT_SELECTION_COLOR
     return {"selection_color": selected}
@@ -47,9 +46,9 @@ def save_tv_appearance(preferences: TvAppearanceRequest):
     with db() as conn:
         _settings_table(conn)
         conn.execute(
-            "INSERT INTO app_settings(key,value) VALUES('tv_selection_color',?) "
+            "INSERT INTO app_settings(key,value) VALUES(?,?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            (preferences.selection_color,),
+            (personal_settings.key("tv_selection_color"), preferences.selection_color),
         )
     return preferences.model_dump()
 

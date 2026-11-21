@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const target=document.getElementById('app-nav');
   if(!target)return;
   const page=document.body.dataset.page||'home';
-  const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback'].includes(page);
+  const inSettings=['settings','general','appearance','libraries','remote','metadata','connections','maintenance','playback','people'].includes(page);
   // Integration dashboards live under Integrations, including on TV.
   const active=['connectionshub','services','radarr','sonarr','sabnzbd'].includes(page)
     ?'connections':inSettings?'settings':page;
@@ -241,6 +241,17 @@ document.addEventListener('DOMContentLoaded', () => {
   // Barnacles (people the owner shares with) only watch and listen: keep the
   // library links, and Settings only in the apps (for their connection).
   fetch('/api/viewer',{cache:'no-store'}).then(r=>r.ok?r.json():null).then(viewer=>{
+    if(viewer&&viewer.profiles_active&&viewer.profile)addProfileSwitch(viewer);
+    if(viewer&&viewer.role==='kid'){
+      // Kid profiles: just their libraries (no Settings or server tools).
+      document.documentElement.classList.add('yarr-kid');
+      const prune=()=>nav.querySelectorAll('a[data-nav-id]').forEach(a=>{
+        const id=a.dataset.navId;
+        if(['home','movies','tv','music','servers','profile'].includes(id)||id.startsWith('library:'))return;
+        a.remove();
+      });
+      prune();new MutationObserver(prune).observe(nav,{childList:true});
+    }
     if(!viewer||viewer.role!=='barnacle')return;
     document.documentElement.classList.add('yarr-barnacle');
     const app=/OneEyedWillieTV\/1|YarrMediaAndroid\/1/.test(navigator.userAgent);
@@ -251,6 +262,22 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     prune();new MutationObserver(prune).observe(nav,{childList:true});
   }).catch(()=>{});
+  // Who's watching: the current profile's avatar; opens the profile picker.
+  function addProfileSwitch(viewer){
+    if(nav.querySelector('a[data-nav-id="profile"]'))return;
+    const here=location.pathname+location.search;
+    const link=document.createElement('a');link.href='/who?next='+encodeURIComponent(here);link.className='nav-link profile-nav-link';
+    link.title='Switch profile ('+viewer.profile.name+')';link.setAttribute('aria-label','Switch profile, now '+viewer.profile.name);
+    link.dataset.navId='profile';
+    const badge=document.createElement('span');badge.className='nav-icon profile-avatar';badge.setAttribute('aria-hidden','true');
+    badge.textContent=(viewer.profile.name||'?').trim().charAt(0).toUpperCase();
+    badge.style.cssText='display:grid;place-items:center;width:26px;height:26px;border-radius:30%;color:#fff;font:800 14px/1 system-ui,sans-serif;background:'+
+      (/^#[0-9a-f]{6}$/i.test(viewer.profile.color)?viewer.profile.color:'#9b9b9b');
+    const caption=document.createElement('span');caption.className='nav-text';caption.textContent='Switch profile';
+    link.append(badge,caption);
+    const place=()=>{const settings=nav.querySelector('a[data-nav-id="settings"]');settings?nav.insertBefore(link,settings):nav.append(link)};
+    place();window.addEventListener('yarr-servers',place);
+  }
   // Server switcher: an icon that appears only when this account can open more
   // than one server (its own and/or ones shared with it). In the TV and phone
   // apps the app shows the list; at app.yarr.media this page does.

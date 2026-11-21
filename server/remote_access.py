@@ -49,8 +49,8 @@ OPEN_PATHS = {"/remote/start", "/health"}
 # The yarr.media app runs in the browser at these origins and talks to this
 # server directly (see the service worker in cloudflare/yarr/worker.js).
 APP_ORIGINS = {o.strip().rstrip("/") for o in os.environ.get("YARR_APP_ORIGINS", "https://app.yarr.media").split(",") if o.strip()}
-CORS_ALLOW_HEADERS = "authorization, content-type, range, if-range, if-none-match, if-modified-since, accept, accept-language, x-requested-with"
-CORS_EXPOSE_HEADERS = "content-length, content-range, accept-ranges, etag, last-modified, content-disposition, location"
+CORS_ALLOW_HEADERS = "authorization, x-yarr-profile, x-yarr-parent-pin, content-type, range, if-range, if-none-match, if-modified-since, accept, accept-language, x-requested-with"
+CORS_EXPOSE_HEADERS = "x-yarr-profile-set, content-length, content-range, accept-ranges, etag, last-modified, content-disposition, location"
 
 
 def _cors_headers(origin):

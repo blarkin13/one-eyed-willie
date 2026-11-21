@@ -18,6 +18,7 @@ from server.yarr_pairing import router as yarr_pairing_router
 from server.yarr_ice_probe import router as yarr_ice_probe_router
 from server.yarr_direct_gateway import router as yarr_direct_gateway_router
 from server.remote_access import RemotePassMiddleware, tls_router as remote_tls_router
+from server.profiles import ProfileMiddleware, router as profiles_router
 from server.yarr_pairing import heartbeat_loop as yarr_heartbeat_loop
 from server.yarr_pairing import automatic_tunnel_loop as yarr_automatic_tunnel_loop
 from server.home import router as home_router
@@ -117,8 +118,12 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Yarr Media", version="0.15.0", lifespan=lifespan)
 # Requests from outside the home (marked by the internet-facing proxy) need a
 # Yarr pass; the LAN is unaffected. See server/remote_access.py.
+# Household profiles refine the owner per device (added first, so it runs
+# inside RemotePassMiddleware and sees who the pass says it is).
+app.add_middleware(ProfileMiddleware)
 app.add_middleware(RemotePassMiddleware)
 app.include_router(router)
+app.include_router(profiles_router)
 app.include_router(connections_router)
 app.include_router(music_router)
 app.include_router(music_top_router)
@@ -173,9 +178,24 @@ def catalog_revision():
 
 @app.get("/api/viewer")
 def get_viewer():
-    """Who is watching: the owner, or a barnacle (someone the owner shares with)."""
+    """Who is watching: the owner (or a household profile), or a barnacle."""
     from .viewer import current
-    return current().public()
+    from .profiles import household
+    who = current()
+    return {**who.public(), "profiles_active": (not who.is_barnacle) and household().active}
+
+
+@app.get("/who")
+def who_page():
+    """Who's watching? (household profiles)"""
+    return TextFileResponse(Path(__file__).with_name("who.html"), media_type="text/html",
+                            headers={"Cache-Control": "no-store"})
+
+
+@app.get("/settings/people")
+def people_settings_page():
+    return TextFileResponse(Path(__file__).with_name("people_settings.html"), media_type="text/html",
+                            headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/api/catalog/all")

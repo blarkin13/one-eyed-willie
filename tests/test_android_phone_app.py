@@ -132,7 +132,17 @@ class DistributionTests(unittest.TestCase):
         self.assertIn('if (item.kind == "track") { playSongs(item); return }', player)
         music_page = (ROOT / "server/music.html").read_text()
         self.assertIn("kind:'album'", music_page)
-        self.assertIn("shell.js?v=music-3", music_page)
+        self.assertIn("shell.js?v=profiles-1", music_page)
+
+    def test_native_requests_carry_the_chosen_profile(self):
+        shared = TV / "app/src/main/java/studio/oneeyedwillie/tv"
+        phone_src = TV / "phone/src/main/java/studio/oneeyedwillie/tv"
+        self.assertIn("CookieHandler.setDefault(this)", (shared / "WebCookies.kt").read_text())
+        for source in (shared / "MainActivity.kt", shared / "PlayerActivity.kt", phone_src / "DownloadService.kt"):
+            self.assertIn("WebCookies.install()", source.read_text(), source.name)
+        net = (phone_src / "OfflineNet.kt").read_text()
+        self.assertIn('setRequestProperty("X-Yarr-Profile", it)', net)
+        self.assertIn("WebCookies.profileToken(target.origin)", net)
 
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()

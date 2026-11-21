@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en"><head>
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yarr Media · People</title>
+<link rel="stylesheet" href="/assets/ui.css?v=wordmark-1"><script defer src="/assets/shell.js?v=profiles-1"></script>
+<style>
+.people-list{display:grid;gap:12px;margin:0 0 22px}
+.person-row{display:flex;align-items:center;gap:16px;flex-wrap:wrap;padding:14px 16px;border:1px solid var(--line,#2a2f38);border-radius:14px;background:#101010}
+.person-row .avatar{width:52px;height:52px;border-radius:22%;display:grid;place-items:center;color:#fff;font:800 1.5rem system-ui;flex:none}
+.person-row .who{flex:1;min-width:160px}.person-row .who strong{display:block;font-size:1.05rem}
+.person-row .who small{color:#9b9b9b}
+.person-row .actions{display:flex;gap:8px;flex-wrap:wrap}
+.person-row .actions button{min-height:40px}
+.edit-panel{flex-basis:100%;display:grid;gap:12px;padding-top:10px;border-top:1px solid #ffffff14;margin-top:4px}
+.edit-panel[hidden]{display:none}
+.colors{display:flex;gap:8px;flex-wrap:wrap}
+.colors button{width:34px;height:34px;border-radius:50%;border:2px solid transparent;cursor:pointer}
+.colors button[aria-pressed=true]{border-color:#fff}
+.inline{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+.inline label{display:grid;gap:6px;font-size:.85rem;color:#b8b8b8}
+.inline input,.inline select{min-height:44px}
+.kind-choice{display:flex;gap:16px;flex-wrap:wrap;color:#ddd;font-size:.92rem}
+.kind-choice label{display:flex;gap:8px;align-items:center}
+.note{color:#9b9b9b;font-size:.88rem;line-height:1.6}
+#message{min-height:1.3em}
+.danger{color:#ff8a8a!important}
+.forget{display:flex;gap:8px;align-items:center;font-size:.88rem;color:#ccc}
+</style></head>
+<body data-page="people"><div class="app-shell">
+<aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
+<div class="workspace"><main class="content">
+<div class="page-head"><div><p class="eyebrow">Settings</p><h1>People</h1>
+<p>Everyone in your home can have their own profile with their own watch history and TV settings.</p></div></div>
+<p id="message" class="status-line" role="status"></p>
+
+<section id="gate" class="form-card" hidden>
+ <h2>Parent PIN</h2><p>Enter the parent PIN to change profiles.</p>
+ <form id="gate-form" class="inline"><label>PIN<input id="gate-pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off"></label>
+ <button class="primary-button" type="submit">Continue</button></form>
+</section>
+
+<section id="setup" class="form-card" hidden>
+ <h2>Add a person</h2>
+ <p class="note">Once there's more than one person, the apps open on <b>Who's watching?</b>. Tap a name and go, no PIN needed.
+ <b>Family</b> keeps the watch history you have now, for watching together. You get your own profile too.</p>
+ <form id="setup-form" class="inline">
+  <label>Your name<input id="setup-owner" maxlength="30" required autocomplete="off"></label>
+  <label>Their name<input id="setup-name" maxlength="30" required autocomplete="off"></label>
+  <div class="kind-choice" role="radiogroup" aria-label="Profile type">
+   <label><input type="radio" name="setup-kind" value="adult" checked> Adult</label>
+   <label><input type="radio" name="setup-kind" value="kid"> Kid</label>
+  </div>
+  <button class="primary-button" type="submit">Add</button>
+ </form>
+</section>
+
+<section id="manage" hidden>
+ <div class="people-list" id="people"></div>
+ <form id="add-form" class="form-card inline" aria-labelledby="add-heading">
+  <h2 id="add-heading" style="flex-basis:100%;margin:0">Add a person</h2>
+  <label>Name<input id="add-name" maxlength="30" required autocomplete="off"></label>
+  <div class="kind-choice" role="radiogroup" aria-label="Profile type">
+   <label><input type="radio" name="add-kind" value="adult" checked> Adult</label>
+   <label><input type="radio" name="add-kind" value="kid"> Kid</label>
+  </div>
+  <button class="primary-button" type="submit">Add</button>
+ </form>
+ <section class="form-card">
+  <h2>Parent PIN</h2>
+  <p class="note" id="parent-note">Optional. With a parent PIN, a TV or phone on a kid profile needs it to switch to another profile, and changing profiles here needs it too.</p>
+  <form id="parent-form" class="inline"><label>New parent PIN<input id="parent-pin" type="password" inputmode="numeric" pattern="[0-9]*" minlength="4" maxlength="8" autocomplete="new-password"></label>
+  <button class="primary-button" type="submit">Save PIN</button><button class="secondary-button" type="button" id="parent-clear" hidden>Remove parent PIN</button></form>
+ </section>
+ <p class="note">Profiles organise your household; they aren't passwords. Anyone at home can pick an adult profile unless it has a PIN.</p>
+</section>
+</main></div></div>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const COLORS=['#C62838','#9B9B9B','#E07B39','#D4A72C','#3E9C6B','#2F86A6','#7457C6','#C2417F'];
+let state=null,parentPin=null;
+const say=t=>{$('message').textContent=t||''};
+async function api(path,opts={}){
+ const headers={'content-type':'application/json',...(parentPin?{'x-yarr-parent-pin':parentPin}:{})};
+ const r=await fetch(path,{...opts,headers:{...headers,...(opts.headers||{})},cache:'no-store'});
+ const body=await r.json().catch(()=>({}));
+ if(!r.ok){const d=body.detail;throw new Error(Array.isArray(d)?'Check the details and try again.':d==='pin_required'?'Enter the parent PIN.':String(d||'That didn’t work.'))}
+ return body;
+}
+async function load(){
+ state=await api('/api/profiles');
+ if(state.current&&state.current.kind==='kid'){say('Ask a parent to change profiles.');return}
+ if(state.parent_pin&&!parentPin){$('gate').hidden=false;$('setup').hidden=true;$('manage').hidden=true;$('gate-pin').focus();return}
+ $('gate').hidden=true;
+ $('setup').hidden=state.active;$('manage').hidden=!state.active;
+ if(state.active)render();
+ $('parent-clear').hidden=!state.parent_pin;
+ $('parent-note').firstChild&&($('parent-form').querySelector('label').firstChild.textContent=state.parent_pin?'Change parent PIN':'New parent PIN');
+}
+function avatar(p){const a=document.createElement('span');a.className='avatar';a.style.background=p.color;a.textContent=(p.name||'?').charAt(0).toUpperCase();return a}
+function button(text,cls,fn){const b=document.createElement('button');b.type='button';b.className=cls||'secondary-button';b.textContent=text;b.addEventListener('click',fn);return b}
+function render(){
+ const list=$('people');list.replaceChildren();
+ for(const p of state.profiles){
+  const row=document.createElement('div');row.className='person-row';row.dataset.id=p.id;
+  const who=document.createElement('div');who.className='who';
+  const name=document.createElement('strong');name.textContent=p.name;
+  const sub=document.createElement('small');
+  sub.textContent=[p.kind==='family'?'Shared · the history from before profiles':p.is_owner?'You':p.kind==='kid'?'Kid':'Adult',p.has_pin?'PIN set':''].filter(Boolean).join(' · ');
+  who.append(name,sub);
+  const actions=document.createElement('div');actions.className='actions';
+  const panel=document.createElement('div');panel.className='edit-panel';panel.hidden=true;
+  actions.append(button('Edit','secondary-button',()=>{panel.hidden=!panel.hidden;if(!panel.hidden)panel.querySelector('input')?.focus()}));
+  row.append(avatar(p),who,actions,panel);
+  // Edit: name, colour, PIN, remove
+  const nameForm=document.createElement('form');nameForm.className='inline';
+  const nl=document.createElement('label');nl.textContent='Name';const ni=document.createElement('input');ni.maxLength=30;ni.value=p.name;ni.required=true;nl.append(ni);
+  nameForm.append(nl,button('Save name','primary-button',()=>nameForm.requestSubmit()));
+  nameForm.addEventListener('submit',e=>{e.preventDefault();save(()=>api('/api/profiles/'+p.id,{method:'PUT',body:JSON.stringify({name:ni.value})}),'Saved.')});
+  const colors=document.createElement('div');colors.className='colors';colors.setAttribute('aria-label','Colour');
+  for(const c of COLORS){const b=document.createElement('button');b.type='button';b.style.background=c;b.setAttribute('aria-label','Colour '+c);b.setAttribute('aria-pressed',String(c.toUpperCase()===p.color.toUpperCase()));
+   b.addEventListener('click',()=>save(()=>api('/api/profiles/'+p.id,{method:'PUT',body:JSON.stringify({color:c})}),'Saved.'));colors.append(b)}
+  const pinForm=document.createElement('form');pinForm.className='inline';
+  const pl=document.createElement('label');pl.textContent=p.has_pin?'Change PIN':'Optional PIN';const pi=document.createElement('input');
+  Object.assign(pi,{type:'password',inputMode:'numeric',maxLength:8,minLength:4,autocomplete:'new-password'});pi.pattern='[0-9]*';pl.append(pi);
+  pinForm.append(pl,button('Save PIN','secondary-button',()=>pinForm.requestSubmit()));
+  if(p.has_pin)pinForm.append(button('Remove PIN','secondary-button',()=>save(()=>api('/api/profiles/'+p.id+'/pin',{method:'PUT',body:JSON.stringify({pin:null})}),'PIN removed.')));
+  pinForm.addEventListener('submit',e=>{e.preventDefault();save(()=>api('/api/profiles/'+p.id+'/pin',{method:'PUT',body:JSON.stringify({pin:pi.value})}),'PIN saved.')});
+  panel.append(nameForm,colors,pinForm);
+  if(p.kind!=='family'&&!p.is_owner){
+   const kind=document.createElement('div');kind.className='inline';
+   kind.append(button(p.kind==='kid'?'Make adult':'Make kid profile','secondary-button',()=>save(()=>api('/api/profiles/'+p.id,{method:'PUT',body:JSON.stringify({kind:p.kind==='kid'?'adult':'kid'})}),'Saved.')));
+   const forget=document.createElement('label');forget.className='forget';const fc=document.createElement('input');fc.type='checkbox';forget.append(fc,document.createTextNode('Also delete their watch history'));
+   const remove=button('Remove '+p.name,'secondary-button danger',()=>{if(!confirm('Remove '+p.name+'?'))return;save(()=>api('/api/profiles/'+p.id+(fc.checked?'?forget=true':''),{method:'DELETE'}),'Removed.')});
+   kind.append(forget,remove);panel.append(kind);
+  }
+  list.append(row);
+ }
+ window.dispatchEvent(new Event('yarr-people-rendered'));
+}
+async function save(run,done){try{await run();say(done);await load()}catch(e){say(e.message)}}
+$('gate-form').addEventListener('submit',async e=>{e.preventDefault();const pin=$('gate-pin').value;
+ try{await api('/api/profiles/parent-pin/check',{method:'POST',body:JSON.stringify({pin})});parentPin=pin;say('');load()}catch(err){say(err.message)}});
+$('setup-form').addEventListener('submit',e=>{e.preventDefault();
+ save(()=>api('/api/profiles/setup',{method:'POST',body:JSON.stringify({owner_name:$('setup-owner').value,person:{name:$('setup-name').value,kind:document.querySelector('[name=setup-kind]:checked').value}})}),
+  'Profiles are on. The apps will now ask who’s watching.')});
+$('add-form').addEventListener('submit',e=>{e.preventDefault();
+ save(async()=>{await api('/api/profiles',{method:'POST',body:JSON.stringify({name:$('add-name').value,kind:document.querySelector('[name=add-kind]:checked').value})});$('add-name').value=''},'Added.')});
+$('parent-form').addEventListener('submit',e=>{e.preventDefault();const pin=$('parent-pin').value;
+ save(async()=>{await api('/api/profiles/parent-pin/set',{method:'PUT',body:JSON.stringify({pin})});parentPin=pin;$('parent-pin').value=''},'Parent PIN saved.')});
+$('parent-clear').addEventListener('click',()=>save(async()=>{await api('/api/profiles/parent-pin/set',{method:'PUT',body:JSON.stringify({pin:null})});parentPin=null},'Parent PIN removed.'));
+load().catch(e=>say(e.message));
+</script>
+</body></html>
