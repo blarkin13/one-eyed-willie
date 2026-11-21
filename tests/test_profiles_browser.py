@@ -38,6 +38,10 @@ class ProfilesBrowserTest(base.MobileHomeLayoutTest):
         owner.wait_for_selector(".limits:not([hidden]) select")
         self.assertEqual(owner.eval_on_selector(".limits select", "s => s.value"), "1")
         owner.screenshot(path="/tmp/profiles-limits.png", full_page=True)
+        # Backup needs a Yarr connection; the card says so.
+        owner.wait_for_selector("#backup:not([hidden])")
+        self.assertIn("Connect this server to Yarr first", owner.text_content("#backup-status"))
+        self.assertTrue(owner.is_disabled("#backup-on"))
 
         # A new device lands on Who's watching? and keeps going where it was headed.
         tv = self.page(1280, 720)

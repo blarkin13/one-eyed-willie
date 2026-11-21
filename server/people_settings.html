@@ -88,6 +88,30 @@
  </section>
  <p class="note">Profiles organise your household; they aren't passwords. Anyone at home can pick an adult profile unless it has a PIN.</p>
 </section>
+<section id="backup" class="form-card" hidden aria-labelledby="backup-heading">
+ <h2 id="backup-heading">Watch history backup</h2>
+ <p class="note">Everyone's watch history, profiles, kids' limits and their own settings, backed up to yarr.media every night,
+ encrypted on this server with a recovery code only you have. yarr.media can't read it. No media, files or passwords are included.</p>
+ <p id="backup-status" class="note" role="status"></p>
+ <div id="backup-code" class="form-card" hidden style="margin:0 0 14px;background:#1a1a1a">
+  <strong>Your recovery code</strong>
+  <p style="font:700 1.35rem ui-monospace,monospace;letter-spacing:.06em;user-select:all;margin:8px 0" id="backup-code-text"></p>
+  <p class="note" style="margin:0">Save it somewhere safe now (a password manager is ideal). It won't be shown again, and without it a backup can't be opened.</p>
+ </div>
+ <div class="inline">
+  <button class="primary-button" type="button" id="backup-on">Turn on backup</button>
+  <button class="secondary-button" type="button" id="backup-now" hidden>Back up now</button>
+  <button class="secondary-button" type="button" id="backup-off" hidden>Turn off and delete backup</button>
+ </div>
+ <details id="restore" style="margin-top:16px"><summary style="cursor:pointer">Restore from a backup</summary>
+  <p class="note">For a new or reinstalled server: pick a backup from your account and enter its recovery code. It's merged in; newer progress on this server is kept.</p>
+  <form id="restore-form" class="inline">
+   <label>Backup<select id="restore-id"></select></label>
+   <label>Recovery code<input id="restore-code" autocomplete="off" spellcheck="false" maxlength="40" placeholder="ABCDE-FGHJK-…"></label>
+   <button class="primary-button" type="submit">Restore</button>
+  </form>
+ </details>
+</section>
 </main></div></div>
 <script>
 'use strict';
@@ -228,6 +252,23 @@ $('add-form').addEventListener('submit',e=>{e.preventDefault();
 $('parent-form').addEventListener('submit',e=>{e.preventDefault();const pin=$('parent-pin').value;
  save(async()=>{await api('/api/profiles/parent-pin/set',{method:'PUT',body:JSON.stringify({pin})});parentPin=pin;$('parent-pin').value=''},'Parent PIN saved.')});
 $('parent-clear').addEventListener('click',()=>save(async()=>{await api('/api/profiles/parent-pin/set',{method:'PUT',body:JSON.stringify({pin:null})});parentPin=null},'Parent PIN removed.'));
-load().catch(e=>say(e.message));
+async function loadBackup(){
+ let b;try{b=await api('/api/backup')}catch(_){return}
+ $('backup').hidden=false;
+ const when=b.last_backup?new Date(b.last_backup*1000).toLocaleString():null;
+ $('backup-status').textContent=!b.paired&&!b.enabled?'Connect this server to Yarr first (Settings → Remote Access).':
+  b.enabled?(b.error?'Last backup failed: '+b.error:when?'Backed up '+when+'.':'On. The first backup runs shortly.'):'Off.';
+ $('backup-on').hidden=b.enabled;$('backup-on').disabled=!b.paired;$('backup-now').hidden=!b.enabled;$('backup-off').hidden=!b.enabled;
+}
+$('backup-on').addEventListener('click',async()=>{try{const r=await api('/api/backup/enable',{method:'POST'});$('backup-code-text').textContent=r.recovery_code;$('backup-code').hidden=false;loadBackup()}catch(e){say(e.message)}});
+$('backup-now').addEventListener('click',async()=>{try{await api('/api/backup/now',{method:'POST'});say('Backed up.');loadBackup()}catch(e){say(e.message);loadBackup()}});
+$('backup-off').addEventListener('click',async()=>{if(!confirm('Turn off backup and delete the copy on yarr.media?'))return;try{await api('/api/backup/disable',{method:'POST'});$('backup-code').hidden=true;say('Backup turned off.');loadBackup()}catch(e){say(e.message)}});
+$('restore').addEventListener('toggle',async()=>{if(!$('restore').open||$('restore-id').options.length)return;
+ try{const r=await api('/api/backup/available');for(const b of r.backups){const o=document.createElement('option');o.value=b.id;o.textContent=(b.server_name||'Server')+(b.this_server?' (this server)':'')+' · '+b.updated_at;$('restore-id').append(o)}
+  if(!r.backups.length)say('No backups in your account yet.')}catch(e){say(e.message)}});
+$('restore-form').addEventListener('submit',async e=>{e.preventDefault();
+ try{const r=await api('/api/backup/restore',{method:'POST',body:JSON.stringify({id:$('restore-id').value,code:$('restore-code').value})});
+  say('Restored: '+r.restored.progress+' watch positions and '+r.restored.profiles+' profiles.');$('restore-code').value='';load();loadBackup()}catch(err){say(err.message)}});
+load().then(()=>{if(!(state&&state.current&&state.current.kind==='kid'))loadBackup()}).catch(e=>say(e.message));
 </script>
 </body></html>

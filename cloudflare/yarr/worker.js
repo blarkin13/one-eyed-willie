@@ -514,6 +514,47 @@ async function connectionHeartbeat(req,env){
  const ownerPro=owner?!!(await proStatus(env,owner.owner_user_id)).active:false;
  return json({status:'accepted',media_access:false,public_ip:ip||null,owner_pro:ownerPro});
 }
+// ---- Encrypted watch-history backups (from paired servers) ---------------------
+const BACKUP_MAX=1500000;
+async function serverByCredential(req,env){
+ const token=req.headers.get('authorization')||'';
+ if(!token.startsWith('Bearer ')||token.length>120)return null;
+ const credential=token.slice(7);
+ if(!/^[A-Za-z0-9_-]{40,100}$/.test(credential))return null;
+ return env.ACCOUNTS.prepare("SELECT id,owner_user_id,display_name FROM servers WHERE connection_secret_hash=? AND status='paired' AND server_identity IS NOT NULL").bind(await digest(credential)).first();
+}
+async function connectionBackup(req,env){
+ const server=await serverByCredential(req,env);
+ if(!server)return json({error:'unauthorized'},401);
+ if(req.method==='DELETE'){
+  await env.ACCOUNTS.prepare("DELETE FROM server_backups WHERE server_id=?").bind(server.id).run();
+  return json({deleted:true});
+ }
+ if((req.headers.get('content-type')||'').split(';')[0].trim()!=='application/octet-stream')return json({error:'content_type'},415);
+ const size=Number(req.headers.get('content-length')||0);
+ if(!Number.isFinite(size)||size>BACKUP_MAX)return json({error:'too_large'},413);
+ const bytes=new Uint8Array(await req.arrayBuffer());
+ if(bytes.length>BACKUP_MAX)return json({error:'too_large'},413);
+ // Only accept the server's encrypted format ("YRB1" + salt + nonce + ciphertext).
+ if(bytes.length<64||String.fromCharCode(...bytes.slice(0,4))!=='YRB1')return json({error:'not_encrypted'},400);
+ await env.ACCOUNTS.prepare("INSERT INTO server_backups(server_id,user_id,server_name,blob,size,updated_at) VALUES(?,?,?,?,?,CURRENT_TIMESTAMP) "+
+  "ON CONFLICT(server_id) DO UPDATE SET user_id=excluded.user_id,server_name=excluded.server_name,blob=excluded.blob,size=excluded.size,updated_at=excluded.updated_at")
+  .bind(server.id,server.owner_user_id,String(server.display_name||'').slice(0,80),bytes,bytes.length).run();
+ return json({stored:true,size:bytes.length});
+}
+async function connectionBackups(req,env,id){
+ const server=await serverByCredential(req,env);
+ if(!server)return json({error:'unauthorized'},401);
+ if(!id){
+  const rows=await env.ACCOUNTS.prepare("SELECT server_id,server_name,size,updated_at FROM server_backups WHERE user_id=? ORDER BY updated_at DESC LIMIT 20").bind(server.owner_user_id).all();
+  return json({backups:(rows.results||[]).map(r=>({id:r.server_id,server_name:r.server_name,size:r.size,updated_at:r.updated_at,this_server:r.server_id===server.id}))});
+ }
+ if(!/^[A-Za-z0-9-]{8,64}$/.test(id))return json({error:'not_found'},404);
+ const row=await env.ACCOUNTS.prepare("SELECT blob FROM server_backups WHERE server_id=? AND user_id=?").bind(id,server.owner_user_id).first();
+ if(!row)return json({error:'not_found'},404);
+ const body=row.blob instanceof ArrayBuffer?new Uint8Array(row.blob):Array.isArray(row.blob)?new Uint8Array(row.blob):row.blob;
+ return new Response(body,{status:200,headers:{'content-type':'application/octet-stream','cache-control':'no-store','x-content-type-options':'nosniff'}});
+}
 async function accountConnectionStatus(req,env){
  const user=await currentUser(req,env);
  if(!user)return json({error:'not_authenticated'},401);
@@ -1258,6 +1299,7 @@ async function accountDelete(req,env) {
  await audit(env,null,'account_deleted',await digest('user\0'+user.id),req);
  const cleanupStatements=[env.ACCOUNTS.prepare("DELETE FROM pairing_requests WHERE owner_user_id=?").bind(user.id),
   env.ACCOUNTS.prepare("DELETE FROM server_icons WHERE server_id IN (SELECT id FROM servers WHERE owner_user_id=?)").bind(user.id),
+  env.ACCOUNTS.prepare("DELETE FROM server_backups WHERE user_id=?").bind(user.id),
   env.ACCOUNTS.prepare("DELETE FROM server_shares WHERE owner_user_id=? OR barnacle_user_id=? OR (barnacle_user_id IS NULL AND invite_email=?) OR server_id IN (SELECT id FROM servers WHERE owner_user_id=?)").bind(user.id,user.id,String(user.email||'').trim().toLowerCase(),user.id)];
  if(env.YARR_STRIPE_TEST_ENABLED==='1'||env.YARR_ONE_TIME_PRO_ENABLED==='1'){
   // Delete account identity and its usable Pro license while retaining a
@@ -1743,6 +1785,9 @@ export default { async fetch(req,env,ctx) {
    return new Response(null,{status:303,headers:cleared});
   }
   if(req.method==='POST'&&u.pathname==='/api/connection/heartbeat')return connectionHeartbeat(req,env);
+  if((req.method==='PUT'||req.method==='DELETE')&&u.pathname==='/api/connection/backup')return connectionBackup(req,env);
+  if(req.method==='GET'&&u.pathname==='/api/connection/backups')return connectionBackups(req,env,null);
+  if(req.method==='GET'&&u.pathname.startsWith('/api/connection/backups/'))return connectionBackups(req,env,u.pathname.slice('/api/connection/backups/'.length));
   if(req.method==='GET'&&u.pathname==='/api/connection/status')return accountConnectionStatus(req,env);
   if(req.method==='POST'&&u.pathname==='/api/pairing/start')return pairingStart(req,env);
   if(req.method==='GET'&&u.pathname==='/api/pairing/status')return pairingStatus(req,env);
