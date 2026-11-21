@@ -81,3 +81,98 @@ class KidRules:
         if where is None:
             return self.allow_unrated
         return where <= self.max_level
+
+
+# ---- Ratings of the titles in the libraries ---------------------------------
+# Filled by the catalog metadata sync (server/catalog_metadata.py) from Radarr,
+# Sonarr, NFO files and TMDB. Kept apart from the poster metadata.
+
+import threading as _threading
+import time as _time
+
+_cache = {"at": 0.0, "path": None, "data": None}
+_cache_lock = _threading.Lock()
+_CACHE_SECONDS = 120
+
+
+def _table(conn):
+    conn.execute("""CREATE TABLE IF NOT EXISTS title_ratings(
+        kind TEXT NOT NULL, library_id INTEGER NOT NULL, show_key TEXT NOT NULL,
+        rating TEXT NOT NULL, updated_at REAL NOT NULL,
+        PRIMARY KEY(kind, library_id, show_key))""")
+
+
+def store(kind, library_id, key, rating):
+    """Remembers a title's rating (an unknown rating never replaces a known one)."""
+    from .library import db
+    value = normalize(rating)
+    if not value:
+        return False
+    with db() as conn:
+        _table(conn)
+        row = conn.execute("SELECT rating FROM title_ratings WHERE kind=? AND library_id=? AND show_key=?",
+                           (kind, library_id, key)).fetchone()
+        if row and row["rating"] == value:
+            return False
+        conn.execute("INSERT INTO title_ratings(kind,library_id,show_key,rating,updated_at) VALUES(?,?,?,?,?) "
+                     "ON CONFLICT(kind,library_id,show_key) DO UPDATE SET rating=excluded.rating, updated_at=excluded.updated_at",
+                     (kind, library_id, key, value, _time.time()))
+    with _cache_lock:
+        _cache["data"] = None
+    return True
+
+
+def ratings():
+    """{(kind, library_id, key): rating} for every rated title (cached briefly)."""
+    from . import library
+    with _cache_lock:
+        if (_cache["data"] is not None and _cache["path"] == library.DB_PATH
+                and _time.time() - _cache["at"] < _CACHE_SECONDS):
+            return _cache["data"]
+    with library.db() as conn:
+        _table(conn)
+        data = {(r["kind"], r["library_id"], r["show_key"]): r["rating"]
+                for r in conn.execute("SELECT kind,library_id,show_key,rating FROM title_ratings")}
+    with _cache_lock:
+        _cache.update(at=_time.time(), path=library.DB_PATH, data=data)
+    return data
+
+
+def rating_of(kind, library_id, key):
+    return ratings().get((kind, library_id, key), "")
+
+
+def title_of_media(media_id):
+    """(kind, library_id, title key) for a media id, or None."""
+    from .library import db
+    from .catalog import movie_info, episode_info
+    with db() as conn:
+        row = conn.execute("SELECT m.path, m.source_root, m.library_id, l.kind, l.path AS root FROM media m "
+                           "JOIN libraries l ON l.id=m.library_id WHERE m.id=?", (media_id,)).fetchone()
+    if row is None:
+        return None
+    if row["kind"] == "music":
+        return ("music", row["library_id"], "")
+    try:
+        parse = movie_info if row["kind"] == "movies" else episode_info
+        return (row["kind"], row["library_id"], parse(row["path"], row["source_root"] or row["root"])["key"])
+    except (ValueError, OSError):
+        return None
+
+
+def viewer_allows(viewer, kind, library_id, key):
+    """May this viewer see this title? (library limits for everyone, ratings for kids)."""
+    if not viewer.can_see(library_id):
+        return False
+    rules = viewer.rules
+    if rules is None:
+        return True
+    return rules.allows(kind, library_id, key, rating_of(kind, library_id, key))
+
+
+def viewer_allows_media(viewer, media_id):
+    if viewer.rules is None:
+        from .barnacle_access import media_library
+        return viewer.can_see(media_library(media_id))
+    title = title_of_media(media_id)
+    return title is not None and viewer_allows(viewer, *title)

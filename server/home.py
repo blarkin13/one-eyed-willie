@@ -162,6 +162,8 @@ def home_shelves():
             "SELECT id,library_id,path,source_root,added_at,mtime_ns FROM media "
             "ORDER BY added_at DESC, mtime_ns DESC, id DESC"
         ).fetchall()
+        from .kid_rules import viewer_allows
+        kid = current_viewer() if current_viewer().rules is not None else None
         for row in rows:
             lib = libs.get(row["library_id"])
             if not lib or lib["kind"] not in ("movies", "tv"):
@@ -169,6 +171,8 @@ def home_shelves():
             desc = _describe(row, lib)
             if not desc:
                 continue
+            if kid is not None and not viewer_allows(kid, desc["kind"], desc["library_id"], desc["key"]):
+                continue    # kid profiles: only what their limits allow
             media_id = row["id"]
             descriptions[media_id] = desc
             group = desc["group"]

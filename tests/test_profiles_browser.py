@@ -27,6 +27,17 @@ class ProfilesBrowserTest(base.MobileHomeLayoutTest):
         names = owner.eval_on_selector_all(".person-row strong", "e => e.map(x => x.textContent)")
         self.assertEqual(names, ["Family", "Brian", "Sam"])
         owner.screenshot(path="/tmp/profiles-people.png", full_page=True)
+        # A kid's limits: rating, unrated titles, libraries, exceptions.
+        owner.click(".person-row:nth-child(3) .actions button:has-text('Limits')")
+        owner.wait_for_selector(".limits:not([hidden]) select")
+        self.assertEqual(owner.eval_on_selector(".limits select", "s => s.selectedOptions[0].textContent"), "PG / TV-PG")
+        owner.select_option(".limits select", "1")
+        owner.click(".limits button:has-text('Save limits')")
+        owner.wait_for_function("document.getElementById('message').textContent.startsWith('Limits saved')")
+        owner.click(".person-row:nth-child(3) .actions button:has-text('Limits')")
+        owner.wait_for_selector(".limits:not([hidden]) select")
+        self.assertEqual(owner.eval_on_selector(".limits select", "s => s.value"), "1")
+        owner.screenshot(path="/tmp/profiles-limits.png", full_page=True)
 
         # A new device lands on Who's watching? and keeps going where it was headed.
         tv = self.page(1280, 720)
