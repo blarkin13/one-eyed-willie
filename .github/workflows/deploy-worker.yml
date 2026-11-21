@@ -1,0 +1,40 @@
+name: Deploy yarr.media Worker
+# The same as cloudflare/yarr/deploy.sh, without needing the Mac:
+# code, bindings, domains and cron. --keep-vars leaves dashboard variables
+# alone and secrets (PASS_SIGNING_KEY, Stripe, Google) are never touched.
+# Needs repository secrets CLOUDFLARE_API_TOKEN (template "Edit Cloudflare
+# Workers") and CLOUDFLARE_ACCOUNT_ID. D1 migrations are applied separately.
+on:
+  push:
+    branches: [main]
+    paths: ['cloudflare/yarr/**']
+  workflow_dispatch:
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+permissions:
+  contents: read
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check that the Worker's tests pass
+        run: node --test --no-warnings cloudflare/yarr/test/*.test.mjs
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        working-directory: cloudflare/yarr
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::notice::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set; skipping the deploy."
+            exit 0
+          fi
+          npx --yes wrangler@4 deploy --keep-vars --env ""
+          sleep 5
+          curl -fsS https://yarr.media/health; echo
+          curl -fsS https://yarr.media/api/passes/keys >/dev/null && echo "passes ok"
