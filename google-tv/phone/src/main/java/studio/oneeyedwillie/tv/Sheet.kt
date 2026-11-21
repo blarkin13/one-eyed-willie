@@ -89,12 +89,12 @@ class Sheet(private val activity: Activity, title: String, subtitle: String? = n
             val choice = Choice(row) { on ->
                 dot.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    if (on) { setColor(ACTIVE); setStroke(dp(5), 0xFF1E2A33.toInt()) } else { setColor(Color.TRANSPARENT); setStroke(dp(2), 0xFF5A616B.toInt()) }
+                    if (on) { setColor(ACTIVE); setStroke(dp(5), 0xFF2A1416.toInt()) } else { setColor(Color.TRANSPARENT); setStroke(dp(2), 0xFF5A5D62.toInt()) }
                 }
                 row.background = GradientDrawable().apply {
                     cornerRadius = dp(12).toFloat()
-                    setColor(if (on) 0xFF1B2430.toInt() else Color.TRANSPARENT)
-                    if (on) setStroke(dp(1), 0xFF35506A.toInt())
+                    setColor(if (on) 0xFF1F1A1B.toInt() else Color.TRANSPARENT)
+                    if (on) setStroke(dp(1), 0xFF7A2328.toInt())
                 }
                 name.typeface = if (on) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
             }
@@ -111,7 +111,7 @@ class Sheet(private val activity: Activity, title: String, subtitle: String? = n
         val switch = Switch(activity).apply {
             isChecked = on
             thumbTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(ACTIVE, 0xFFC4C9CF.toInt()))
-            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF3D6680.toInt(), 0xFF3A3F47.toInt()))
+            trackTintList = ColorStateList(arrayOf(intArrayOf(android.R.attr.state_checked), intArrayOf()), intArrayOf(0xFF6E1F24.toInt(), 0xFF3A3D42.toInt()))
             setOnCheckedChangeListener { _, value -> changed(value) }
         }
         body.addView(LinearLayout(activity).apply {
@@ -133,10 +133,10 @@ class Sheet(private val activity: Activity, title: String, subtitle: String? = n
         body.addView(TextView(activity).apply {
             this.text = text; textSize = 16f; gravity = Gravity.CENTER
             typeface = Typeface.DEFAULT_BOLD
-            setTextColor(if (primary) 0xFF081018.toInt() else 0xFFE6E9ED.toInt())
+            setTextColor(Color.WHITE)
             background = GradientDrawable().apply {
                 cornerRadius = dp(26).toFloat()
-                setColor(if (primary) ACTIVE else 0xFF22262C.toInt())
+                setColor(if (primary) CRIMSON else 0xFF26282C.toInt())
             }
             isClickable = true; isFocusable = true
             setOnClickListener { dialog.dismiss(); action() }
@@ -167,7 +167,8 @@ class Sheet(private val activity: Activity, title: String, subtitle: String? = n
 
     companion object {
         const val SHEET = 0xFF111317.toInt()
-        const val ACTIVE = 0xFFA9DDFF.toInt()
+        const val ACTIVE = 0xFFE0303A.toInt()   // crimson for selection and toggles
+        const val CRIMSON = 0xFFA61E1E.toInt()  // the website's crimson, for filled buttons
         const val MUTED = 0xFF9AA0A6.toInt()
     }
 }

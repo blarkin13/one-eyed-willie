@@ -33,7 +33,9 @@ import org.json.JSONArray
  * no-op AppShell with the same functions (app/src/tvShell).
  */
 object AppShell {
-    private const val ACTIVE = 0xFFA9DDFF.toInt()
+    // Yarr Media colours: black, grey, white and crimson (the website's #A61E1E,
+    // brightened so small text and icons stay readable on black).
+    private const val ACTIVE = 0xFFE0303A.toInt()
     private const val INACTIVE = 0xFFAEB5BE.toInt()
     private const val BAR = 0xFF060608.toInt()
     private const val SHEET = 0xFF111317.toInt()
@@ -112,7 +114,7 @@ html.yarr-app .tile .cover{border:0!important;border-radius:6px!important;box-sh
 html.yarr-app body[data-page="home"] .tile-button{display:grid!important;grid-template-columns:minmax(0,1fr)}
 html.yarr-app body[data-page="home"] .tile-button>.cover{grid-area:1/1}
 html.yarr-app body[data-page="home"] .tile-button>.progress-track{grid-area:1/1;align-self:end;z-index:2;height:4px!important;margin:0 7px 7px!important;background:#000a!important;border-radius:3px}
-html.yarr-app body[data-page="home"] .progress-fill{background:#a9ddff!important}
+html.yarr-app body[data-page="home"] .progress-fill{background:#e0303a!important}
 html.yarr-app body[data-page="home"] .progress-time,html.yarr-app body[data-page="home"] .next-episode-badge{display:none!important}
 html.yarr-app .tile h3{font-size:.9rem!important;font-weight:500!important;color:#f2f2f2!important;line-height:1.3!important;margin:7px 0 1px!important;min-height:0!important;max-height:1.3em!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 html.yarr-app .tile .tile-meta{font-size:.78rem!important;color:#9aa0a6!important;line-height:1.3!important;min-height:0!important;max-height:1.3em!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important}

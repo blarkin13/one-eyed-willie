@@ -800,7 +800,7 @@ class MainActivity : ComponentActivity(), ShellHost {
                         addView(TextView(this@MainActivity).apply { text = row.detail; textSize = 13f; setTextColor(0xFFAAB0B8.toInt()) })
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     if (row == current) addView(TextView(this@MainActivity).apply {
-                        text = "✓"; textSize = 20f; setTextColor(0xFFA9DDFF.toInt()); contentDescription = "Current server"
+                        text = "✓"; textSize = 20f; setTextColor(if (isTv) 0xFFA9DDFF.toInt() else 0xFFE0303A.toInt()); contentDescription = "Current server"
                     })
                 }
             }

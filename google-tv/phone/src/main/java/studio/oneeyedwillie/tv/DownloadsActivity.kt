@@ -126,10 +126,14 @@ class DownloadsActivity : Activity() {
         if (item.status in setOf("preparing", "downloading")) text.addView(
             ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
                 max = 1000; progress = (item.progress * 1000).toInt().coerceIn(0, 1000)
+                progressTintList = android.content.res.ColorStateList.valueOf(Sheet.ACTIVE)
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0xFF3A3D42.toInt())
             }, LinearLayout.LayoutParams(-1, dp(10)).apply { topMargin = dp(5) })
         if (item.status == "done" && item.durationMs > 0 && !item.watched && item.positionMs > 30_000) text.addView(
             ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal).apply {
                 max = 1000; progress = (1000L * item.positionMs / item.durationMs).toInt().coerceIn(0, 1000)
+                progressTintList = android.content.res.ColorStateList.valueOf(Sheet.ACTIVE)
+                progressBackgroundTintList = android.content.res.ColorStateList.valueOf(0xFF3A3D42.toInt())
             }, LinearLayout.LayoutParams(-1, dp(6)).apply { topMargin = dp(5) })
         row.addView(text, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
         row.addView(ImageButton(this).apply {
