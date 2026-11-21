@@ -67,4 +67,6 @@ dependencies {
     // document start, and pull to refresh.
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("androidx.swiperefreshlayout:swiperefreshlayout:1.1.0")
+    // ServiceCompat (foreground service types) for downloads.
+    implementation("androidx.core:core:1.13.1")
 }

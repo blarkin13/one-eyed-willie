@@ -203,6 +203,8 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     }
 
     fun wrap(activity: Activity, host: ShellHost, screen: FrameLayout, web: WebView): View {
+        // Finish downloads that were interrupted (closed app, lost connection).
+        DownloadService.kick(activity)
         val index = screen.indexOfChild(web)
         screen.removeView(web)
         val pull = SidewaysAwareRefresh(activity).apply {
@@ -237,10 +239,102 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     }
 
     /** Messages from the page (prompt bridge). True when handled. */
-    fun onPrompt(activity: Activity, message: String): Boolean = when (message) {
-        "oewtv:shell:player:1" -> { setPlayerOpen(activity, true); true }
-        "oewtv:shell:player:0" -> { setPlayerOpen(activity, false); true }
+    fun onPrompt(activity: Activity, message: String): Boolean = when {
+        message == "oewtv:shell:player:1" -> { setPlayerOpen(activity, true); true }
+        message == "oewtv:shell:player:0" -> { setPlayerOpen(activity, false); true }
+        message.startsWith("oewtv:shell:download:") -> {
+            val item = try { org.json.JSONObject(message.removePrefix("oewtv:shell:download:")) } catch (_: Exception) { null }
+            if (item != null) activity.window.decorView.post { offerDownload(activity, item) }
+            true
+        }
         else -> false
+    }
+
+    // ---- Downloads for offline use (Pro) ---------------------------------------------
+    fun openDownloads(activity: Activity) {
+        activity.startActivity(android.content.Intent(activity, DownloadsActivity::class.java))
+    }
+
+    private fun toast(activity: Activity, text: String) =
+        android.widget.Toast.makeText(activity, text, android.widget.Toast.LENGTH_LONG).show()
+
+    /** The page's Download button: pick a quality, then the phone downloads it in the background. */
+    private fun offerDownload(activity: Activity, page: org.json.JSONObject) {
+        val target = (activity as? ShellHost)?.shellServerTarget() ?: return toast(activity, "Connect to your server first.")
+        val mediaId = page.optLong("media_id")
+        if (mediaId <= 0) return
+        val key = OfflineLogic.key(target.serverId ?: target.origin, mediaId)
+        OfflineStore.find(activity, key)?.let { existing ->
+            android.app.AlertDialog.Builder(activity)
+                .setTitle(if (existing.status == "done") "Already downloaded" else "Already in Downloads")
+                .setMessage(existing.heading + (if (existing.detail.isNotBlank()) " · " + existing.detail else ""))
+                .setPositiveButton("Open Downloads") { _, _ -> openDownloads(activity) }
+                .setNegativeButton("Close", null).show()
+            return
+        }
+        Thread {
+            val options = try { OfflineNet.json(activity, target, "/api/downloads/options/$mediaId") } catch (e: Exception) { null }
+            activity.runOnUiThread {
+                if (activity.isFinishing) return@runOnUiThread
+                when {
+                    options == null -> toast(activity, "Couldn't reach your server. Try again in a moment.")
+                    !options.optBoolean("allowed") -> android.app.AlertDialog.Builder(activity)
+                        .setTitle("Downloads need Yarr Media Pro")
+                        .setMessage(if (options.optString("reason") == "not_connected")
+                            "Connect this server to a Yarr account (Settings → General → Connect to Yarr) to download for offline use."
+                            else "Downloading to watch offline is part of Pro. On a shared server, the owner's Pro covers you.")
+                        .setPositiveButton("OK", null).show()
+                    else -> chooseQuality(activity, target, key, page, options)
+                }
+            }
+        }.start()
+    }
+
+    private fun chooseQuality(activity: Activity, target: ServerTarget, key: String,
+                              page: org.json.JSONObject, options: org.json.JSONObject) {
+        val list = options.optJSONArray("options") ?: return
+        val choices = (0 until list.length()).mapNotNull { list.optJSONObject(it) }.filter { it.optBoolean("available") }
+        if (choices.isEmpty()) return toast(activity, "This title can't be downloaded.")
+        val preferred = options.optString("default", "720p")
+        val group = android.widget.RadioGroup(activity)
+        choices.forEachIndexed { i, o ->
+            group.addView(android.widget.RadioButton(activity).apply {
+                id = View.generateViewId()
+                text = OfflineLogic.qualityLabel(o.optString("label", o.optString("quality")), o.optLong("bytes"), o.optString("kind"))
+                tag = o.optString("quality")
+                textSize = 15f
+                setPadding(dp(activity, 6), dp(activity, 10), 0, dp(activity, 10))
+                if (o.optString("quality") == preferred || (i == 0 && choices.none { it.optString("quality") == preferred })) isChecked = true
+            })
+        }
+        val wifi = android.widget.CheckBox(activity).apply { text = "Only download on Wi-Fi"; isChecked = true; textSize = 15f }
+        val body = LinearLayout(activity).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(dp(activity, 22), dp(activity, 6), dp(activity, 22), 0)
+            addView(group)
+            addView(wifi, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(activity, 8) })
+        }
+        val heading = page.optString("show_title").ifBlank { page.optString("title") }
+        android.app.AlertDialog.Builder(activity)
+            .setTitle("Download " + heading)
+            .setView(ScrollView(activity).apply { addView(body) })
+            .setPositiveButton("Download") { _, _ ->
+                val quality = group.findViewById<View>(group.checkedRadioButtonId)?.tag as? String ?: return@setPositiveButton
+                OfflineStore.add(activity, OfflineItem(
+                    id = OfflineItem.newId(), key = key, mediaId = page.optLong("media_id"),
+                    kind = page.optString("kind", "movie"), title = page.optString("title"),
+                    subtitle = page.optString("subtitle"), showTitle = page.optString("show_title"),
+                    season = if (page.has("season") && !page.isNull("season")) page.optInt("season") else null,
+                    episode = if (page.has("episode") && !page.isNull("episode")) page.optInt("episode") else null,
+                    posterUrl = page.optString("poster_url"), origin = target.origin, remote = target.remote,
+                    serverId = target.serverId, quality = quality, wifiOnly = wifi.isChecked))
+                if (android.os.Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                    != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                    activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4207)
+                DownloadService.kick(activity)
+                toast(activity, "Downloading. Find it in More → Downloads.")
+            }
+            .setNegativeButton("Cancel", null).show()
     }
 
     /** While a video plays: no tabs, no pull-to-refresh, and the phone's bars tucked away. */
@@ -399,6 +493,7 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         heading("This phone")
         row("Server connection") { host.shellConnectionSettings() }
         row("Yarr account") { host.shellYarrAccount() }
+        row("Downloads") { openDownloads(activity) }
         val version = try {
             activity.packageManager.getPackageInfo(activity.packageName, 0).versionName
         } catch (_: Exception) { null }

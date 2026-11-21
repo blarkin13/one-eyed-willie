@@ -5,7 +5,7 @@
 <link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
 <script src="/assets/media-title-logo.js?v=1"></script>
-<script defer src="/assets/shell.js?v=appearance-1"></script>
+<script defer src="/assets/shell.js?v=appearance-2"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script>
 <script defer src="/assets/player.js?v=continue-next-1"></script>
 <script defer src="/assets/theme-music.js?v=5"></script>
@@ -325,6 +325,14 @@ async function loadMovie(){
      $('progress-label').textContent=Math.round(position/60)+' of '+Math.round(duration/60)+' minutes';
    }else $('progress-label').textContent='';
    $('play-movie').disabled=!movie.media_id;
+   // Phone app: download to watch offline (shown only when the server allows it).
+   const addDownload=()=>{
+     document.querySelector('.movie-detail-actions .yarr-download')?.remove();
+     if(!movie.media_id||!window.YarrDownload)return;
+     $('resume-movie').after(window.YarrDownload.button({media_id:movie.media_id,kind:'movie',title:movie.title,
+       subtitle:movie.year?String(movie.year):'',poster_url:movie.poster_url||'',duration_seconds:Number(movie.duration_seconds)||0}));
+   };
+   if(window.YarrDownload)addDownload();else document.addEventListener('DOMContentLoaded',addDownload,{once:true});
    const trailer=$('trailer-movie');
    trailer.hidden=!/^[A-Za-z0-9_-]{11}$/.test(movie.trailer_key||'');
    renderExtras(movie);

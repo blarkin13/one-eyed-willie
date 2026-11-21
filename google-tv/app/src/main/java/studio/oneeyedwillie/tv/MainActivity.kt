@@ -170,9 +170,24 @@ class MainActivity : ComponentActivity(), ShellHost {
             if (!isTv) addView(loadingSignIn, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { leftMargin = dp(12) })
+            // Phone: what's downloaded plays with no connection at all.
+            if (!isTv) addView(Button(this@MainActivity).apply {
+                text = "Downloads"
+                setTextColor(Color.WHITE)
+                backgroundTintList = ColorStateList.valueOf(0xFF161616.toInt())
+                setOnClickListener { AppShell.openDownloads(this@MainActivity) }
+            }, LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = dp(12) })
             addView(settings, LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
             ).apply { leftMargin = dp(12) })
+            if (!isTv) {
+                // Phone: the buttons stack, full width, so they fit any screen.
+                orientation = LinearLayout.VERTICAL
+                for (i in 0 until childCount) getChildAt(i).layoutParams = LinearLayout.LayoutParams(
+                    dp(240), ViewGroup.LayoutParams.WRAP_CONTENT).apply { if (i > 0) topMargin = dp(8) }
+            }
         }
         errorControls.addView(loadingActions, LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT
@@ -932,6 +947,13 @@ class MainActivity : ComponentActivity(), ShellHost {
     }
     override fun shellConnectionSettings() = showConnectionSettings()
     override fun shellYarrAccount() = showYarrAccount()
+    override fun shellServerTarget(): ServerTarget? {
+        if (origin.isEmpty()) return null
+        val remote = RemoteSession.isRemote(this, origin)
+        val serverId = if (remote) RemoteSession.current()?.serverId
+            else RemoteSession.homeIdentity(this)?.let { home -> serverChoices.firstOrNull { it.identity == home }?.id }
+        return ServerTarget(origin, remote, serverId)
+    }
 
     private fun showServer(server: String) {
         if (!validOrigin(server)) { showUnconfigured(); return }
