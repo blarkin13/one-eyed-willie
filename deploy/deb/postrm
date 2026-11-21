@@ -1,9 +1,10 @@
 #!/bin/sh
 set -e
 if [ "$1" = purge ]; then
-  rm -rf /opt/yarr-media /usr/local/sbin/yarr-media-update /usr/local/sbin/yarr-media-upnp \
+  rm -rf /opt/yarr-media /usr/local/sbin/yarr-media-update /usr/local/sbin/yarr-media-upnp /usr/local/sbin/yarr-media-uninstall \
     /etc/systemd/system/yarr-media-update.service /etc/systemd/system/yarr-media-update.timer
   systemctl daemon-reload >/dev/null 2>&1 || true
-  echo "Yarr Media removed. Your library data is still in /var/lib/yarr-media; delete it if you no longer need it."
+  echo "Yarr Media removed. Library data is still in /var/lib/yarr-media; delete it if you no longer need it."
+  echo "(sudo yarr-media-uninstall, run before removing the package, removes everything including that.)"
 fi
 exit 0

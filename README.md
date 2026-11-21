@@ -37,9 +37,12 @@ sudo apt update && sudo apt install yarr-media
 sudo yarr-media-setup
 ```
 
-**Uninstall**: `cd /opt/yarr-media && sudo docker compose down && sudo rm -rf /opt/yarr-media`
-(or `sudo apt purge yarr-media`). Library data stays in `/var/lib/yarr-media`
-until you delete it.
+**Uninstall**: `sudo yarr-media-uninstall` removes everything Yarr Media added: its
+containers and images, the nightly update timer and helper commands, the router's
+port 443 forward, `/opt/yarr-media`, `/var/lib/yarr-media` (add `--keep-data` to keep
+your library database), and the apt package and repository if you used apt. If the
+installer installed Docker, it asks whether to remove that too (`--remove-docker`).
+Your media folders are never changed: Yarr Media mounts them read-only.
 
 ## Watch
 

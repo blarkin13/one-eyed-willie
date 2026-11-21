@@ -12,12 +12,13 @@ import yaml
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "deploy/install.sh"
 STUBS = {
-    "docker": 'echo "docker $*" >> "$STUB_LOG"; exit 0',
+    "docker": 'echo "docker $*" >> "$STUB_LOG"; [[ "$1 $2" == "image ls" ]] && echo "ghcr.io/blarkin13/yarr-media:stable" && echo "postgres:16"; [[ "$1" == ps ]] && [[ -n "${OTHER_CONTAINERS:-}" ]] && echo abc; exit 0',
+    "dpkg-query": 'exit 1',
     "systemctl": 'echo "systemctl $*" >> "$STUB_LOG"; exit 0',
     "curl": 'echo "curl $*" >> "$STUB_LOG"; exit 0',
-    "upnpc": 'echo "upnpc $*" >> "$STUB_LOG"; exit 0',
+    "upnpc": 'echo "upnpc $*" >> "$STUB_LOG"; [[ "$1" == -l ]] && echo " 0 TCP   443->192.168.1.50:443 \'Yarr Media\' \'\' 0"; exit 0',
     "ip": 'echo "1.1.1.1 via 192.168.1.1 dev eth0 src 192.168.1.50 uid 0"',
-    "apt-get": 'exit 0',
+    "apt-get": 'echo "apt-get $*" >> "$STUB_LOG"; exit 0',
 }
 
 
@@ -99,3 +100,64 @@ class InstallerTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UninstallTests(InstallerTests):
+    """sudo yarr-media-uninstall removes everything the installer added."""
+    def uninstall(self, *args, **extra):
+        self.log.write_text("")
+        return subprocess.run(["bash", str(self.tmp / "sbin/yarr-media-uninstall"), *args], env={**self.env, **extra},
+                              stdin=subprocess.DEVNULL, capture_output=True, text=True, timeout=60)
+
+    def leftovers(self):
+        return sorted(str(p.relative_to(self.tmp)) for d in ("opt", "var", "sbin", "systemd")
+                      for p in (self.tmp / d).rglob("*") if (self.tmp / d).exists())
+
+    def test_removes_everything_and_never_touches_media(self):
+        (self.media / "Movie.mkv").write_text("film")
+        self.run_installer()
+        (self.tmp / "var/data/library.sqlite3").write_text("db")
+        self.assertTrue((self.tmp / "sbin/yarr-media-uninstall").is_file())
+        result = self.uninstall("--yes")
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        self.assertEqual(self.leftovers(), [], "nothing of Yarr Media is left")
+        self.assertFalse((self.tmp / "var").exists())
+        self.assertEqual((self.media / "Movie.mkv").read_text(), "film")
+        calls = self.log.read_text()
+        self.assertIn("systemctl disable --now yarr-media-update.timer", calls)
+        self.assertIn("docker compose down --remove-orphans", calls)
+        self.assertIn("docker image rm -f ghcr.io/blarkin13/yarr-media:stable", calls)
+        self.assertNotIn("postgres", calls.replace("image ls", ""), "other images are left alone")
+        self.assertIn("upnpc -d 443 TCP", calls)
+        self.assertNotIn("apt-get purge", calls, "Docker wasn't installed by Yarr, so it stays")
+        self.assertIn(str(self.media), result.stdout + " (media folder named as untouched)")
+
+    def test_keep_data_and_nothing_happens_without_confirmation(self):
+        self.run_installer()
+        (self.tmp / "var/data/library.sqlite3").write_text("db")
+        refused = self.uninstall()
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertTrue((self.tmp / "opt/compose.yaml").is_file(), "no answer, no removal")
+        result = self.uninstall("--yes", "--keep-data")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.tmp / "var/data/library.sqlite3").read_text(), "db")
+        self.assertFalse((self.tmp / "opt").exists())
+
+    def test_docker_installed_by_yarr_is_removed_only_when_asked(self):
+        self.run_installer()
+        env = self.tmp / "opt/.env"
+        env.write_text(env.read_text().replace("YARR_INSTALLED_DOCKER=0", "YARR_INSTALLED_DOCKER=1"))
+        state = env.read_text()
+        self.uninstall("--yes")
+        self.assertNotIn("purge -y -qq docker-ce", self.log.read_text(), "--yes alone keeps Docker")
+        self.run_installer()
+        env.write_text(state)
+        self.uninstall("--yes", "--remove-docker")
+        self.assertIn("purge -y -qq docker-ce", self.log.read_text())
+
+    def test_installer_remembers_what_it_added(self):
+        self.run_installer()
+        env = (self.tmp / "opt/.env").read_text()
+        self.assertIn("YARR_INSTALLED_DOCKER=0", env, "docker was already there")
+        self.assertIn("sudo yarr-media-uninstall", self.run_installer().stdout)
+

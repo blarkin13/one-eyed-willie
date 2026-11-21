@@ -153,7 +153,7 @@ sudo apt update`}]],
    'To change the media folder or other settings, run the installer again. Your library and watch history are kept.',
    'Installer options: `YARR_MEDIA_DIR=/path`, `YARR_PORT=8787`, `YARR_NO_REMOTE=1` (home network only), for example `curl -fsSL https://yarr.media/install.sh | sudo YARR_NO_REMOTE=1 bash`.',
    'View the log: `sudo docker logs -f yarr-media`.',
-   'Uninstall: `cd /opt/yarr-media && sudo docker compose down && sudo rm -rf /opt/yarr-media`. Library data stays in `/var/lib/yarr-media` until you delete it.']}]]]},
+   'Uninstall: `sudo yarr-media-uninstall` removes everything Yarr Media added (containers, images, update timer, the router forward, `/opt/yarr-media` and `/var/lib/yarr-media`). Add `--keep-data` to keep your library database. Your media folders are never changed: Yarr Media only reads them.']}]]]},
 
  {slug:'media-folders', group:'yarr', title:'Organize your media folders', minutes:5,
   summary:'Name folders and files so Yarr Media matches every movie, episode and album correctly.',
