@@ -93,6 +93,9 @@ html.yarr-app .workspace>.content{padding:16px 16px 28px!important}
 html.yarr-app body[data-page="music"] .workspace>.content{padding-bottom:calc(var(--player-space,0px) + 28px)!important}
 html.yarr-app #items::before,html.yarr-app .shelf-track::before,html.yarr-app .explore-grid::before,html.yarr-app .movie-grid::before,html.yarr-app .tv-grid::before{display:none!important}
 html.yarr-app .cover,html.yarr-app .tile-button{transition:transform .12s ease,opacity .12s ease}
+html.yarr-app body[data-page] :is(.tile-button,.detail-trigger,.person-credit-link,.season-episode-tile,.cast-person,.tv-cast-person,.credit-cast a):is(:focus,:focus-visible),html.yarr-app body[data-page] :is(.tile-button,.detail-trigger,.person-credit-link,.cast-person,.tv-cast-person,.credit-cast a):is(:focus,:focus-visible) :is(.cover,.explore-poster,.person-credit-poster,img,.cast-blank,.tv-actor-image,.credit-empty-photo){transform:none!important;filter:none!important;box-shadow:none!important;outline:0!important}
+html.yarr-app body[data-page] .season-episode-tile.is-selected{border-color:transparent!important;box-shadow:none!important}
+html.yarr-app :where(a,button,[role="button"],[tabindex="0"]):focus-visible{transform:none!important;filter:none!important}
 html.yarr-app .tile-button:active,html.yarr-app a:active>.cover{transform:scale(.97);opacity:.88}
 html.yarr-app button:active,html.yarr-app .filter-link:active{opacity:.75}
 html.yarr-app .yarr-app-bar{display:flex;align-items:center;gap:10px;height:54px;padding:0 16px}

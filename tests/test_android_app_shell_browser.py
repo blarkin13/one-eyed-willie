@@ -92,6 +92,14 @@ class AppShellStylingTest(base.MobileHomeLayoutTest):
                 filled = page.evaluate("[...document.querySelectorAll('.home-feature-kicker')].some(e => e.textContent.trim())")
                 self.assertEqual(filled, not app)
 
+    def test_a_tapped_poster_does_not_grow_or_get_a_border(self):
+        # The remote-control selection look (bigger, outlined) is for the TV, not touch.
+        page = self.open_app(411)
+        page.focus("#recent-movies .shelf-track .tile-button")
+        style = page.eval_on_selector("#recent-movies .shelf-track .tile-button .cover",
+            "c => { const s = getComputedStyle(c); return [s.transform, s.boxShadow] }")
+        self.assertEqual(style, ["none", "none"])
+
     def test_home_is_poster_rows_like_plex(self):
         page = self.open_app(411)
         data = page.evaluate("""() => ({
