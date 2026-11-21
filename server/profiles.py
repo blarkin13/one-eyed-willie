@@ -457,11 +457,16 @@ class ProfileMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http" or viewer_mod.current() is not viewer_mod.OWNER:
             return await self.app(scope, receive, send)
-        home = household()
-        if not home.active:
-            return await self.app(scope, receive, send)
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         path = scope.get("path", "")
+        if path.startswith(OPEN_PREFIXES) and not _token(headers):
+            return await self.app(scope, receive, send)      # page assets: no database needed
+        try:
+            home = household()
+        except Exception:
+            return await self.app(scope, receive, send)      # no database yet: no profiles
+        if not home.active:
+            return await self.app(scope, receive, send)
         method = scope.get("method", "GET")
         profile = home.verify(_token(headers))
         if profile is None:
