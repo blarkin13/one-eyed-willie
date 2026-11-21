@@ -10,6 +10,7 @@ from server.catalog import catalog, start_background_scans
 from server.compression import compressed_json
 from server.connections import router as connections_router
 from server.music import router as music_router
+from server.music_top import router as music_top_router
 from server.lidarr import router as lidarr_router
 from server.bazarr import router as bazarr_router
 from server.remote_config import router as remote_config_router
@@ -120,6 +121,7 @@ app.add_middleware(RemotePassMiddleware)
 app.include_router(router)
 app.include_router(connections_router)
 app.include_router(music_router)
+app.include_router(music_top_router)
 app.include_router(lidarr_router)
 app.include_router(bazarr_router)
 app.include_router(remote_config_router)

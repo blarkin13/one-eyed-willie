@@ -151,6 +151,9 @@ body[data-page=music] :is(a,button,input,select):focus-visible{outline:3px solid
 .back-link{display:inline-flex;align-items:center;gap:7px;background:none;border:0;color:#cacaca;font:650 .9rem system-ui;padding:6px 0;margin-bottom:12px;cursor:pointer}
 .back-link:hover{color:#fff}
 .sub-heading{font-size:1.1rem;margin:28px 0 14px}
+.top-songs-head{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.top-songs-play{background:none;border:1px solid #ffffff40;color:#fff;border-radius:999px;padding:7px 16px;font:600 .9rem system-ui;cursor:pointer;margin-top:14px}
+.top-songs-play:hover{background:#ffffff14}
 
 /* Track list */
 .tracks{width:100%;border-collapse:collapse}
@@ -608,6 +611,18 @@ function renderArtist(name){
   button('btn-play',ICON_SHUFFLE,'Shuffle play',()=>playList(r.tracks,0,true)),
   button('btn-ghost',ICON_PLAY,'Play all',()=>playList(r.tracks,0))]}));
  const about=el('section','about');about.hidden=true;out.append(about);
+ // Top songs: the artist's most-listened songs (ListenBrainz) that are in this library.
+ const top=el('section','top-songs');top.hidden=true;out.append(top);
+ fetch('/api/music/artist-top?'+new URLSearchParams({name:r.name}),{cache:'no-store'}).then(res=>res.ok?res.json():null).then(data=>{
+  if(!data?.tracks?.length||new URLSearchParams(location.search).get('artist')!==r.name)return;
+  const byId=new Map(r.tracks.map(t=>[t.id,t]));
+  const list=data.tracks.map(id=>byId.get(id)).filter(Boolean);
+  if(!list.length)return;
+  const head=el('div','top-songs-head');
+  const play=el('button','top-songs-play','Play all');play.type='button';play.onclick=()=>playList(list,0);
+  head.append(el('h2','sub-heading','Top songs'),play);
+  top.replaceChildren(head,trackTable(list,{album:true,thumb:true,albumArtist:r.name}));top.hidden=false;
+ }).catch(()=>{});
  out.append(el('h2','sub-heading','Albums'),miniGrid(r.albums.sort((x,y)=>(y.year||0)-(x.year||0))));
  enrichArtist(r,out,about);
 }
