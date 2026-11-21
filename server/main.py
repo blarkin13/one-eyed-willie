@@ -20,6 +20,7 @@ from server.yarr_direct_gateway import router as yarr_direct_gateway_router
 from server.remote_access import RemotePassMiddleware, tls_router as remote_tls_router
 from server.profiles import ProfileMiddleware, router as profiles_router
 from server.yarr_pairing import heartbeat_loop as yarr_heartbeat_loop
+from server.backup import nightly_loop as backup_nightly_loop, router as backup_router
 from server.yarr_pairing import automatic_tunnel_loop as yarr_automatic_tunnel_loop
 from server.home import router as home_router
 from server.media_actions import router as media_actions_router
@@ -87,6 +88,11 @@ async def lifespan(app: FastAPI):
         daemon=True, name="yarr-presence"
     )
     yarr_heartbeat_thread.start()
+    # Encrypted watch-history backup to yarr.media, once a day when turned on.
+    backup_stop = threading.Event()
+    backup_thread = threading.Thread(target=backup_nightly_loop, args=(backup_stop,),
+                                     name="yarr-backup", daemon=True)
+    backup_thread.start()
     yarr_tunnel_stop = threading.Event()
     yarr_tunnel_thread = threading.Thread(
         target=yarr_automatic_tunnel_loop, args=(yarr_tunnel_stop,),
@@ -100,6 +106,8 @@ async def lifespan(app: FastAPI):
         yarr_tunnel_thread.join(timeout=7)
         yarr_heartbeat_stop.set()
         yarr_heartbeat_thread.join(timeout=3)
+        backup_stop.set()
+        backup_thread.join(timeout=3)
         downloads_stop.set()
         metadata_stop.set()
         metadata_thread.join(timeout=3)
@@ -124,6 +132,7 @@ app.add_middleware(ProfileMiddleware)
 app.add_middleware(RemotePassMiddleware)
 app.include_router(router)
 app.include_router(profiles_router)
+app.include_router(backup_router)
 app.include_router(connections_router)
 app.include_router(music_router)
 app.include_router(music_top_router)

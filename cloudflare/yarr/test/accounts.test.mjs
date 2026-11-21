@@ -447,3 +447,32 @@ test('app.yarr.media service worker keeps the household profile the server hands
  assert.equal(sent[2][0],'https://home.example/api/home');
  assert.equal(store.get('/__yarr/profile'),'TOKEN.1.sig');
 });
+
+test('servers keep one encrypted watch-history backup the owner can restore elsewhere', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
+ const user=await signedInUser(env);
+ const server=pairedServer(env,user.id);
+ const secret='s'.repeat(48);
+ env.ACCOUNTS.raw.prepare("UPDATE servers SET connection_secret_hash=? WHERE id=?").run(await digest(secret),server.id);
+ const auth={authorization:'Bearer '+secret};
+ const blob=new Uint8Array([...new TextEncoder().encode('YRB1'),...new Uint8Array(80).fill(7)]);
+ const put=(body,type='application/octet-stream',headers=auth)=>request(worker,env,'PUT',PUB+'/api/connection/backup',{headers:{...headers,'content-type':type,'content-length':String(body.length)},body});
+ assert.equal((await put(blob,'application/octet-stream',{})).status,401);
+ assert.equal((await put(new Uint8Array(80).fill(1))).status,400,'only the encrypted format is stored');
+ assert.equal((await put(blob)).status,200);
+ assert.equal((await put(blob)).status,200,'replaces, never piles up');
+ const list=await (await request(worker,env,'GET',PUB+'/api/connection/backups',{headers:auth})).json();
+ assert.deepEqual(list.backups.map(b=>[b.id,b.server_name,b.size,b.this_server]),[[server.id,'Home',84,true]]);
+ const got=await request(worker,env,'GET',PUB+'/api/connection/backups/'+server.id,{headers:auth});
+ assert.deepEqual(new Uint8Array(await got.arrayBuffer()),blob);
+ // Another owner's server can't see it.
+ const other=await signedInUser(env,{id:'user-2',email:'other@example.com'});
+ const theirs=pairedServer(env,other.id,{id:'99999999-2222-3333-4444-555555555555',identity:'ffffffff-bbbb-cccc-dddd-eeeeeeeeeeee'});
+ env.ACCOUNTS.raw.prepare("UPDATE servers SET connection_secret_hash=? WHERE id=?").run(await digest('t'.repeat(48)),theirs.id);
+ const peek=await request(worker,env,'GET',PUB+'/api/connection/backups/'+server.id,{headers:{authorization:'Bearer '+'t'.repeat(48)}});
+ assert.equal(peek.status,404);
+ // Deleting the account deletes its backups.
+ const del=await request(worker,env,'POST',ACC+'/account/delete',{headers:formHeaders(user),form:{confirm:'DELETE'}});
+ assert.equal(del.status,303);
+ assert.equal(env.ACCOUNTS.raw.prepare("SELECT COUNT(*) AS n FROM server_backups").get().n,0);
+});
