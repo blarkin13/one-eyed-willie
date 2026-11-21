@@ -90,7 +90,7 @@ class DistributionTests(unittest.TestCase):
         shell = (TV / "phone/src/main/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
         tv_shell = (TV / "app/src/tvShell/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
         phone_src = TV / "phone/src/main/java/studio/oneeyedwillie/tv"
-        for name in ("DownloadService.kt", "DownloadsActivity.kt", "OfflinePlayerActivity.kt", "OfflineStore.kt", "OfflineNet.kt"):
+        for name in ("DownloadService.kt", "DownloadsActivity.kt", "OfflinePlayerActivity.kt", "OfflineStore.kt", "OfflineNet.kt", "OfflineSync.kt"):
             self.assertTrue((phone_src / name).is_file(), name)
             self.assertFalse((TV / "app/src/main/java/studio/oneeyedwillie/tv" / name).exists(), "not in the TV app: " + name)
         self.assertIn('message.startsWith("oewtv:shell:download:")', shell)
@@ -102,6 +102,13 @@ class DistributionTests(unittest.TestCase):
             self.assertNotIn(permission, TV_MANIFEST)
         self.assertIn("if (!isTv) addView(Button(this@MainActivity).apply {", MAIN)
         self.assertIn("AppShell.openDownloads(this@MainActivity)", MAIN)
+        # Part 3: offline progress is sent back with when it was watched; the next episode is offered.
+        sync = (phone_src / "OfflineSync.kt").read_text()
+        self.assertIn('"/api/playback/progress", "PUT"', sync)
+        self.assertIn('.put("played_at"', sync)
+        self.assertIn("OfflineSync.later(activity)", shell)
+        self.assertIn("Also download the next episode", shell)
+        self.assertIn("Download the next episode?", (phone_src / "OfflinePlayerActivity.kt").read_text())
 
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()

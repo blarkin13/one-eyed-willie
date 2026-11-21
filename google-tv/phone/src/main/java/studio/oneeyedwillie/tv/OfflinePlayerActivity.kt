@@ -52,7 +52,7 @@ class OfflinePlayerActivity : Activity() {
         exo.setMediaItem(media, OfflineLogic.resumeFrom(item.positionMs, item.durationMs))
         exo.addListener(object : Player.Listener {
             override fun onPlaybackStateChanged(state: Int) {
-                if (state == Player.STATE_ENDED) { save(); finish() }
+                if (state == Player.STATE_ENDED) { save(); offerNext() }
             }
         })
         exo.prepare()
@@ -69,12 +69,47 @@ class OfflinePlayerActivity : Activity() {
             it.durationMs = duration
             if (OfflineLogic.watched(position, duration)) it.watched = true
             it.pendingSync = true
+            it.playedAt = System.currentTimeMillis()
         }
+    }
+
+    /** At the end of an episode: play the next one if it's downloaded, or offer to download it. */
+    private fun offerNext() {
+        val item = OfflineStore.get(this, itemId) ?: return finish()
+        OfflineNext.downloaded(this, item)?.let { next ->
+            android.app.AlertDialog.Builder(this)
+                .setTitle("Play the next episode?")
+                .setMessage(listOf(next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · "))
+                .setPositiveButton("Play") { _, _ ->
+                    startActivity(android.content.Intent(this, OfflinePlayerActivity::class.java).putExtra("id", next.id))
+                    finish()
+                }
+                .setNegativeButton("Not now") { _, _ -> finish() }
+                .setOnCancelListener { finish() }.show()
+            return
+        }
+        Thread {
+            val next = OfflineNext.fromServer(this, item)
+            runOnUiThread {
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (next == null) { finish(); return@runOnUiThread }
+                android.app.AlertDialog.Builder(this)
+                    .setTitle("Download the next episode?")
+                    .setMessage(listOf(next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · ") +
+                        "\n\nSame quality (" + next.quality + ")" + (if (next.wifiOnly) ", on Wi-Fi." else "."))
+                    .setPositiveButton("Download") { _, _ ->
+                        OfflineStore.add(this, next); DownloadService.kick(this); finish()
+                    }
+                    .setNegativeButton("Not now") { _, _ -> finish() }
+                    .setOnCancelListener { finish() }.show()
+            }
+        }.start()
     }
 
     override fun onPause() { save(); player?.pause(); super.onPause() }
 
     override fun onDestroy() {
+        OfflineSync.later(this)
         player?.release()
         player = null
         super.onDestroy()

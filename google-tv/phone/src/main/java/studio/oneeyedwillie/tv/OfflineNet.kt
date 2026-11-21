@@ -31,7 +31,7 @@ object OfflineNet {
         }
     }
 
-    private fun open(url: String, method: String, auth: String?, range: String?, timeoutMs: Int): HttpURLConnection =
+    private fun open(url: String, method: String, auth: String?, range: String?, timeoutMs: Int, body: ByteArray? = null): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = timeoutMs
@@ -40,7 +40,12 @@ object OfflineNet {
             setRequestProperty("Accept", "application/json, video/mp4, */*")
             auth?.let { setRequestProperty("Authorization", it) }
             range?.let { setRequestProperty("Range", it) }
-            if (method == "POST") { doOutput = true; setFixedLengthStreamingMode(0) }
+            if (body != null) {
+                doOutput = true
+                setRequestProperty("Content-Type", "application/json")
+                setFixedLengthStreamingMode(body.size)
+                outputStream.use { it.write(body) }
+            } else if (method == "POST" || method == "PUT") { doOutput = true; setFixedLengthStreamingMode(0) }
         }
 
     /**
@@ -48,11 +53,13 @@ object OfflineNet {
      * read and OK). Throws [HttpError] for server refusals, IOException when the
      * server can't be reached at all.
      */
-    fun connect(context: Context, target: ServerTarget, path: String, method: String = "GET", range: String? = null): HttpURLConnection {
+    fun connect(context: Context, target: ServerTarget, path: String, method: String = "GET", range: String? = null,
+                body: JSONObject? = null): HttpURLConnection {
+        val bytes = body?.toString()?.toByteArray()
         var lastProblem: IOException? = null
         if (!target.remote) {
             try {
-                val c = open(target.origin + path, method, null, range, 4_000)
+                val c = open(target.origin + path, method, null, range, 4_000, bytes)
                 val code = c.responseCode
                 if (code in 200..299) return c
                 val error = readError(c)
@@ -62,7 +69,7 @@ object OfflineNet {
         val serverId = target.serverId ?: throw (lastProblem ?: IOException("This server can't be reached from here"))
         for (fresh in listOf(false, true)) {
             val pass = remotePass(context, serverId, fresh) ?: throw (lastProblem ?: IOException("Sign in to Yarr Media to download away from home"))
-            val c = open(pass.origin + path, method, "Yarr-Pass " + pass.pass, range, 10_000)
+            val c = open(pass.origin + path, method, "Yarr-Pass " + pass.pass, range, 10_000, bytes)
             val code = c.responseCode
             if (code in 200..299) return c
             val error = readError(c)
@@ -72,8 +79,8 @@ object OfflineNet {
         throw IOException("Could not reach the server")
     }
 
-    fun json(context: Context, target: ServerTarget, path: String, method: String = "GET"): JSONObject {
-        val c = connect(context, target, path, method)
+    fun json(context: Context, target: ServerTarget, path: String, method: String = "GET", body: JSONObject? = null): JSONObject {
+        val c = connect(context, target, path, method, body = body)
         try { return JSONObject(c.inputStream.bufferedReader().use { it.readText().take(200_000) }) }
         finally { c.disconnect() }
     }

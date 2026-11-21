@@ -187,5 +187,23 @@ class ContinueWatchingTests(unittest.TestCase):
         ))
 
 
+    def test_offline_progress_never_replaces_newer_progress(self):
+        import time
+        now = time.time()
+        # Watched on the phone (offline) an hour ago, sent now: saved with that time.
+        result = update_playback(PlaybackUpdate(media_id=1, position_seconds=600, duration_seconds=7200, played_at=now - 3600))
+        self.assertTrue(result["saved"])
+        with library.db() as conn:
+            saved = conn.execute("SELECT CAST(strftime('%s',updated_at) AS INTEGER) AS t FROM playback_progress WHERE media_id=1").fetchone()["t"]
+        self.assertAlmostEqual(saved, now - 3600, delta=2)
+        # Then watched further on the TV...
+        update_playback(PlaybackUpdate(media_id=1, position_seconds=3000, duration_seconds=7200))
+        # ...and older offline progress arrives late: the TV's position stays.
+        late = update_playback(PlaybackUpdate(media_id=1, position_seconds=900, duration_seconds=7200, played_at=now - 1800))
+        self.assertEqual((late["saved"], late["newer_on_server"]), (False, True))
+        with library.db() as conn:
+            self.assertEqual(conn.execute("SELECT position_seconds FROM playback_progress WHERE media_id=1").fetchone()[0], 3000)
+
+
 if __name__=="__main__":
     unittest.main()

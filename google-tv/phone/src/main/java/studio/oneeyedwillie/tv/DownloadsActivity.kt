@@ -65,6 +65,7 @@ class DownloadsActivity : Activity() {
         OfflineStore.observe(refresh)
         render()
         DownloadService.kick(this)
+        OfflineSync.later(this)
     }
 
     override fun onStop() { OfflineStore.stopObserving(refresh); super.onStop() }
