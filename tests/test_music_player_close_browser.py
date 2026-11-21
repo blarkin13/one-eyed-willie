@@ -69,6 +69,7 @@ class MusicPlayerCloseTest(base.MobileHomeLayoutTest):
         page = self.open_music(True, details=self.LYRICS, prompts=prompts)
         page.tap("#max-player")
         page.wait_for_selector("#player.max .pf-facts span")
+        page.wait_for_function("document.querySelector('.pf-credits').textContent.includes('Bob Thiele')")
         self.assertIn("oewtv:shell:player:1", prompts, "the phone app hides its tabs and bars")
         facts = page.eval_on_selector_all(".pf-facts span", "s => s.map(x => x.textContent)")
         self.assertEqual(facts, ["Track 3", "Jazz", "3:17", "FLAC", "16-bit / 44.1 kHz", "912 kbps", "Stereo"])
@@ -89,7 +90,7 @@ class MusicPlayerCloseTest(base.MobileHomeLayoutTest):
     def test_no_lyrics_message_and_close_from_full_screen(self):
         page = self.open_music(False, viewport={"width": 1366, "height": 800}, details={"format": "MP3", "lyrics": None})
         page.click("#max-player")
-        page.wait_for_selector("#player.max .pf-lyrics .pf-none")
+        page.wait_for_selector("#player.max .pf-lyrics .pf-none:not(.pf-loading)")
         self.assertIn("No lyrics", page.text_content(".pf-lyrics"))
         self.assertTrue(page.is_visible(".pf-panel[data-panel='lyrics']"), "wide screens show lyrics beside the details")
         page.screenshot(path="/tmp/music-full-desktop.png")

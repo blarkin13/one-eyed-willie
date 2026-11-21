@@ -785,7 +785,7 @@ function renderFull(){
 function renderLyrics(lyrics,online){
  const box=$('player').querySelector('.pf-lyrics');
  box.className='pf-lyrics';lyricLines=[];lyricIndex=-1;box.replaceChildren();
- if(lyrics===undefined){box.append(el('p','pf-none','Loading lyrics…'));return}
+ if(lyrics===undefined){box.append(el('p','pf-none pf-loading','Loading lyrics…'));return}
  if(!lyrics){
   box.append(el('p','pf-none','No lyrics for this song.'),
    el('p','pf-note','Add a .lrc file with the same name next to the song, or lyrics in its tags, and they show up here.'+
