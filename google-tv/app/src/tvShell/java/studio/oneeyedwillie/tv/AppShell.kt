@@ -19,4 +19,7 @@ object AppShell {
     /** Null keeps WebView's own default. */
     fun defaultVideoPoster(): android.graphics.Bitmap? = null
     fun openDownloads(activity: Activity) = Unit
+    /** 0: the TV keeps Android's own dialog look. */
+    fun dialogTheme(): Int = 0
+    fun styleDialog(dialog: android.app.Dialog) = Unit
 }

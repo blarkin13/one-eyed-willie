@@ -33,7 +33,9 @@ import org.json.JSONArray
  * no-op AppShell with the same functions (app/src/tvShell).
  */
 object AppShell {
-    private const val ACTIVE = 0xFFA9DDFF.toInt()
+    // Yarr Media colours: black, grey, white and crimson (the website's #A61E1E,
+    // brightened so small text and icons stay readable on black).
+    private const val ACTIVE = 0xFFE0303A.toInt()
     private const val INACTIVE = 0xFFAEB5BE.toInt()
     private const val BAR = 0xFF060608.toInt()
     private const val SHEET = 0xFF111317.toInt()
@@ -112,7 +114,7 @@ html.yarr-app .tile .cover{border:0!important;border-radius:6px!important;box-sh
 html.yarr-app body[data-page="home"] .tile-button{display:grid!important;grid-template-columns:minmax(0,1fr)}
 html.yarr-app body[data-page="home"] .tile-button>.cover{grid-area:1/1}
 html.yarr-app body[data-page="home"] .tile-button>.progress-track{grid-area:1/1;align-self:end;z-index:2;height:4px!important;margin:0 7px 7px!important;background:#000a!important;border-radius:3px}
-html.yarr-app body[data-page="home"] .progress-fill{background:#a9ddff!important}
+html.yarr-app body[data-page="home"] .progress-fill{background:#e0303a!important}
 html.yarr-app body[data-page="home"] .progress-time,html.yarr-app body[data-page="home"] .next-episode-badge{display:none!important}
 html.yarr-app .tile h3{font-size:.9rem!important;font-weight:500!important;color:#f2f2f2!important;line-height:1.3!important;margin:7px 0 1px!important;min-height:0!important;max-height:1.3em!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important}
 html.yarr-app .tile .tile-meta{font-size:.78rem!important;color:#9aa0a6!important;line-height:1.3!important;min-height:0!important;max-height:1.3em!important;display:block!important;white-space:nowrap!important;overflow:hidden!important;text-overflow:ellipsis!important;margin:0!important}
@@ -252,6 +254,21 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         else -> false
     }
 
+    // ---- Dialogs in the app's own style ------------------------------------------------
+    /** The phone app's dark sheet theme for MainActivity's dialogs (account, server). */
+    fun dialogTheme(): Int = R.style.YarrSheet
+
+    /** Shows a dialog as a sheet from the bottom of the screen, like the More sheet. */
+    fun styleDialog(dialog: android.app.Dialog) {
+        dialog.window?.apply {
+            setGravity(Gravity.BOTTOM)
+            val wide = dialog.context.resources.configuration.screenWidthDp > 600
+            setLayout(if (wide) (520 * dialog.context.resources.displayMetrics.density).toInt() else ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT)
+            attributes = attributes.apply { windowAnimations = android.R.style.Animation_InputMethod }
+        }
+    }
+
     // ---- Downloads for offline use (Pro) ---------------------------------------------
     fun openDownloads(activity: Activity) {
         activity.startActivity(android.content.Intent(activity, DownloadsActivity::class.java))
@@ -267,11 +284,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         if (mediaId <= 0) return
         val key = OfflineLogic.key(target.serverId ?: target.origin, mediaId)
         OfflineStore.find(activity, key)?.let { existing ->
-            android.app.AlertDialog.Builder(activity)
-                .setTitle(if (existing.status == "done") "Already downloaded" else "Already in Downloads")
-                .setMessage(existing.heading + (if (existing.detail.isNotBlank()) " · " + existing.detail else ""))
-                .setPositiveButton("Open Downloads") { _, _ -> openDownloads(activity) }
-                .setNegativeButton("Close", null).show()
+            Sheet(activity, if (existing.status == "done") "Already downloaded" else "Already in Downloads",
+                existing.heading + (if (existing.detail.isNotBlank()) " · " + existing.detail else ""))
+                .button("Open Downloads", primary = true) { openDownloads(activity) }
+                .button("Close").show()
             return
         }
         Thread {
@@ -283,12 +299,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                 if (activity.isFinishing) return@runOnUiThread
                 when {
                     options == null -> toast(activity, "Couldn't reach your server. Try again in a moment.")
-                    !options.optBoolean("allowed") -> android.app.AlertDialog.Builder(activity)
-                        .setTitle("Downloads need Yarr Media Pro")
-                        .setMessage(if (options.optString("reason") == "not_connected")
+                    !options.optBoolean("allowed") -> Sheet(activity, "Downloads need Yarr Media Pro")
+                        .text(if (options.optString("reason") == "not_connected")
                             "Connect this server to a Yarr account (Settings → General → Connect to Yarr) to download for offline use."
                             else "Downloading to watch offline is part of Pro. On a shared server, the owner's Pro covers you.")
-                        .setPositiveButton("OK", null).show()
+                        .button("OK", primary = true).show()
                     else -> chooseQuality(activity, target, key, page, options, next)
                 }
             }
@@ -310,51 +325,39 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         val choices = (0 until list.length()).mapNotNull { list.optJSONObject(it) }.filter { it.optBoolean("available") }
         if (choices.isEmpty()) return toast(activity, "This title can't be downloaded.")
         val preferred = options.optString("default", "720p")
-        val group = android.widget.RadioGroup(activity)
-        choices.forEachIndexed { i, o ->
-            group.addView(android.widget.RadioButton(activity).apply {
-                id = View.generateViewId()
-                text = OfflineLogic.qualityLabel(o.optString("label", o.optString("quality")), o.optLong("bytes"), o.optString("kind"))
-                tag = o.optString("quality")
-                textSize = 15f
-                setPadding(dp(activity, 6), dp(activity, 10), 0, dp(activity, 10))
-                if (o.optString("quality") == preferred || (i == 0 && choices.none { it.optString("quality") == preferred })) isChecked = true
-            })
-        }
-        val wifi = android.widget.CheckBox(activity).apply { text = "Only download on Wi-Fi"; isChecked = true; textSize = 15f }
-        val alsoNext = next?.let {
-            android.widget.CheckBox(activity).apply {
-                text = "Also download the next episode (" + listOf(it.subtitle, it.title).filter { s -> s.isNotBlank() }.joinToString(" · ") + ")"
-                isChecked = false; textSize = 15f
-            }
-        }
-        val body = LinearLayout(activity).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(dp(activity, 22), dp(activity, 6), dp(activity, 22), 0)
-            addView(group)
-            addView(wifi, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(activity, 8) })
-            alsoNext?.let { addView(it, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(activity, 4) }) }
-        }
+        var picked = choices.indexOfFirst { it.optString("quality") == preferred }.coerceAtLeast(0)
+        var wifiOnly = true
+        var withNext = false
         val heading = page.optString("show_title").ifBlank { page.optString("title") }
-        android.app.AlertDialog.Builder(activity)
-            .setTitle("Download " + heading)
-            .setView(ScrollView(activity).apply { addView(body) })
-            .setPositiveButton("Download") { _, _ ->
-                val quality = group.findViewById<View>(group.checkedRadioButtonId)?.tag as? String ?: return@setPositiveButton
-                OfflineStore.add(activity, pageItem(target, key, page, quality, wifi.isChecked))
-                if (next != null && alsoNext?.isChecked == true)
-                    OfflineStore.add(activity, OfflineItem(id = OfflineItem.newId(), key = next.key, mediaId = next.mediaId,
-                        kind = "episode", title = next.title, subtitle = next.subtitle, showTitle = next.showTitle,
-                        season = next.season, episode = next.episode, posterUrl = next.posterUrl, origin = next.origin,
-                        remote = next.remote, serverId = next.serverId, quality = quality, wifiOnly = wifi.isChecked,
-                        addedAt = System.currentTimeMillis() + 1))
-                if (android.os.Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
-                    != android.content.pm.PackageManager.PERMISSION_GRANTED)
-                    activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4207)
-                DownloadService.kick(activity)
-                toast(activity, "Downloading. Find it in More → Downloads.")
-            }
-            .setNegativeButton("Cancel", null).show()
+        val detail = if (page.optString("kind") == "episode")
+            listOf(page.optString("subtitle"), page.optString("title")).filter { it.isNotBlank() }.joinToString(" · ")
+            else page.optString("subtitle")
+        val sheet = Sheet(activity, "Download", listOf(heading, detail).filter { it.isNotBlank() }.joinToString(" · "))
+            .heading("Quality")
+            .choices(choices.map { o ->
+                val bytes = o.optLong("bytes")
+                o.optString("label", o.optString("quality")) to
+                    (if (bytes > 0) (if (o.optString("kind") == "up_to") "up to " else "about ") + OfflineLogic.sizeLabel(bytes) else "")
+            }, picked) { picked = it }
+            .heading("Options")
+            .toggle("Only download on Wi-Fi", true) { wifiOnly = it }
+        if (next != null) sheet.toggle("Also download the next episode" +
+            listOf(next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · ", prefix = "\n"), false) { withNext = it }
+        sheet.button("Download", primary = true) {
+            val quality = choices[picked].optString("quality")
+            OfflineStore.add(activity, pageItem(target, key, page, quality, wifiOnly))
+            if (next != null && withNext)
+                OfflineStore.add(activity, OfflineItem(id = OfflineItem.newId(), key = next.key, mediaId = next.mediaId,
+                    kind = "episode", title = next.title, subtitle = next.subtitle, showTitle = next.showTitle,
+                    season = next.season, episode = next.episode, posterUrl = next.posterUrl, origin = next.origin,
+                    remote = next.remote, serverId = next.serverId, quality = quality, wifiOnly = wifiOnly,
+                    addedAt = System.currentTimeMillis() + 1))
+            if (android.os.Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
+                != android.content.pm.PackageManager.PERMISSION_GRANTED)
+                activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4207)
+            DownloadService.kick(activity)
+            toast(activity, "Downloading. Find it in More → Downloads.")
+        }.button("Cancel").show()
     }
 
     /** While a video plays: no tabs, no pull-to-refresh, and the phone's bars tucked away. */

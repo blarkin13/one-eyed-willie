@@ -146,6 +146,10 @@ class MainActivity : ComponentActivity(), ShellHost {
                 if (web != null && isTv) {
                     if (RemoteSession.isRemote(this@MainActivity, origin)) remotePassRefresh.run()
                     web.reload()
+                } else if (web != null && failedAfterLoad) {
+                    // Back where you were once the connection returns.
+                    showLoading()
+                    web.reload()
                 } else if (validOrigin(saved)) startWithSavedServer(saved) else showUnconfigured()
             }
         }
@@ -260,6 +264,19 @@ class MainActivity : ComponentActivity(), ShellHost {
         playStartupSoundOnce()
     }
 
+    /** Phone, while using the app: the connection dropped. Show the app's own offline
+     *  screen (Retry, Downloads, Server settings) instead of WebView's error page. */
+    private var failedAfterLoad = false
+    private fun connectionLost() {
+        initialPageLoaded = false
+        failedAfterLoad = true
+        val cm = getSystemService(android.net.ConnectivityManager::class.java)
+        val online = cm?.getNetworkCapabilities(cm.activeNetwork)
+            ?.hasCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+        showLoadingFailure(if (online) "Can't reach your server right now."
+            else "You're offline. Anything you've downloaded still plays.")
+    }
+
     private fun showLoadingFailure(message: String) {
         if (initialPageLoaded) {
             // Keep ordinary page navigation visible rather than restarting the
@@ -298,6 +315,7 @@ class MainActivity : ComponentActivity(), ShellHost {
             return
         }
         initialPageLoaded = true
+        failedAfterLoad = false
         loadingOverlay?.animate()?.alpha(0f)?.setDuration(240L)?.withEndAction {
             if (browser === web && serial == pageLoadSerial && !loadingFailed) {
                 loadingOverlay?.visibility = View.GONE
@@ -609,7 +627,7 @@ class MainActivity : ComponentActivity(), ShellHost {
             setPadding(dp(24), dp(8), dp(24), dp(4))
             addView(input)
         }
-        val dialog = android.app.AlertDialog.Builder(this)
+        val dialog = android.app.AlertDialog.Builder(this, AppShell.dialogTheme())
             .setTitle(if (isTv) "TV Server Connection" else "Server connection")
             .setMessage(if (isTv) "Change this TV's saved server address and port."
                 else "Your server's address at home. Away from home, the app connects through your Yarr account.")
@@ -641,6 +659,7 @@ class MainActivity : ComponentActivity(), ShellHost {
             }
         }
         dialog.show()
+        AppShell.styleDialog(dialog)
     }
 
     // ---- Yarr account (sign in with a code shown on the TV) -------------------
@@ -671,9 +690,9 @@ class MainActivity : ComponentActivity(), ShellHost {
 
     private fun showAccountDialog(title: String, body: View, configure: (android.app.AlertDialog.Builder) -> Unit) {
         accountDialog?.dismiss()
-        val builder = android.app.AlertDialog.Builder(this).setTitle(title).setView(body)
+        val builder = android.app.AlertDialog.Builder(this, AppShell.dialogTheme()).setTitle(title).setView(body)
         configure(builder)
-        accountDialog = builder.create().also { it.show() }
+        accountDialog = builder.create().also { it.show(); AppShell.styleDialog(it) }
     }
 
     private fun showYarrAccount() {
@@ -781,13 +800,13 @@ class MainActivity : ComponentActivity(), ShellHost {
                         addView(TextView(this@MainActivity).apply { text = row.detail; textSize = 13f; setTextColor(0xFFAAB0B8.toInt()) })
                     }, LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f))
                     if (row == current) addView(TextView(this@MainActivity).apply {
-                        text = "✓"; textSize = 20f; setTextColor(0xFFA9DDFF.toInt()); contentDescription = "Current server"
+                        text = "✓"; textSize = 20f; setTextColor(if (isTv) 0xFFA9DDFF.toInt() else 0xFFE0303A.toInt()); contentDescription = "Current server"
                     })
                 }
             }
         }
         accountDialog?.dismiss()
-        accountDialog = android.app.AlertDialog.Builder(this)
+        accountDialog = android.app.AlertDialog.Builder(this, AppShell.dialogTheme())
             .setTitle("Switch server")
             .setAdapter(adapter) { _, which ->
                 val row = rows[which]
@@ -804,7 +823,7 @@ class MainActivity : ComponentActivity(), ShellHost {
                 }
             }
             .setNegativeButton("Cancel", null)
-            .show()
+            .show().also { AppShell.styleDialog(it) }
         // Owners' server pictures, loaded after the list is on screen.
         rows.mapNotNull { it.iconUrl }.distinct().forEach { url ->
             accountWorker.execute {
@@ -1175,7 +1194,8 @@ class MainActivity : ComponentActivity(), ShellHost {
             override fun onReceivedError(
                 web: WebView, request: WebResourceRequest, error: WebResourceError
             ) {
-                if (browser === web && request.isForMainFrame)
+                if (browser === web && request.isForMainFrame && !isTv && (initialPageLoaded || failedAfterLoad)) connectionLost()
+                else if (browser === web && request.isForMainFrame)
                     showLoadingFailure(
                         if (!isTv && YarrAccount.savedToken(this@MainActivity) == null && !RemoteSession.isRemote(this@MainActivity, origin))
                             "Can't reach your server on this network. Sign in to Yarr Media to watch away from home."
