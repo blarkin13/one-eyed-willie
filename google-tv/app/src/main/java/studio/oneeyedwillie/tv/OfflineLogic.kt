@@ -53,6 +53,27 @@ object OfflineLogic {
     private fun percent(progress: Double) =
         if (progress > 0) " · " + (progress * 100).toInt().coerceIn(0, 100) + "%" else ""
 
+    /** "S01 · E04" (or what's known of it). */
+    fun episodeLabel(season: Int?, episode: Int?): String = when {
+        season != null && episode != null -> "S" + season.toString().padStart(2, '0') + " · E" + episode.toString().padStart(2, '0')
+        episode != null -> "E" + episode.toString().padStart(2, '0')
+        else -> ""
+    }
+
+    /** Index of the episode that comes right after [current] among [candidates], or -1. */
+    fun nextEpisode(current: Pair<Int?, Int?>, candidates: List<Pair<Int?, Int?>>): Int {
+        val (season, episode) = current
+        if (season == null || episode == null) return -1
+        var best = -1
+        candidates.forEachIndexed { i, (s, e) ->
+            if (s == null || e == null) return@forEachIndexed
+            val after = s > season || (s == season && e > episode)
+            val b = candidates.getOrNull(best)
+            if (after && (b == null || s < b.first!! || (s == b.first && e < b.second!!))) best = i
+        }
+        return best
+    }
+
     /** The same title from the same server counts as one download. */
     fun key(serverKey: String, mediaId: Long) = "$serverKey#$mediaId"
 }

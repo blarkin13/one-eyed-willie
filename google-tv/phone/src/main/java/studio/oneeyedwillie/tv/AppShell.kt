@@ -203,8 +203,10 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
     }
 
     fun wrap(activity: Activity, host: ShellHost, screen: FrameLayout, web: WebView): View {
-        // Finish downloads that were interrupted (closed app, lost connection).
+        // Finish downloads that were interrupted (closed app, lost connection),
+        // and send watch progress made offline back to the server.
         DownloadService.kick(activity)
+        OfflineSync.later(activity)
         val index = screen.indexOfChild(web)
         screen.removeView(web)
         val pull = SidewaysAwareRefresh(activity).apply {
@@ -274,6 +276,9 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
         }
         Thread {
             val options = try { OfflineNet.json(activity, target, "/api/downloads/options/$mediaId") } catch (e: Exception) { null }
+            // For an episode, also offer the next one (unticked).
+            val next = if (options?.optBoolean("allowed") == true && page.optString("kind") == "episode")
+                OfflineNext.fromServer(activity, pageItem(target, key, page, "720p", true)) else null
             activity.runOnUiThread {
                 if (activity.isFinishing) return@runOnUiThread
                 when {
@@ -284,14 +289,23 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
                             "Connect this server to a Yarr account (Settings → General → Connect to Yarr) to download for offline use."
                             else "Downloading to watch offline is part of Pro. On a shared server, the owner's Pro covers you.")
                         .setPositiveButton("OK", null).show()
-                    else -> chooseQuality(activity, target, key, page, options)
+                    else -> chooseQuality(activity, target, key, page, options, next)
                 }
             }
         }.start()
     }
 
+    private fun pageItem(target: ServerTarget, key: String, page: org.json.JSONObject, quality: String, wifiOnly: Boolean) = OfflineItem(
+        id = OfflineItem.newId(), key = key, mediaId = page.optLong("media_id"),
+        kind = page.optString("kind", "movie"), title = page.optString("title"),
+        subtitle = page.optString("subtitle"), showTitle = page.optString("show_title"),
+        season = if (page.has("season") && !page.isNull("season")) page.optInt("season") else null,
+        episode = if (page.has("episode") && !page.isNull("episode")) page.optInt("episode") else null,
+        posterUrl = page.optString("poster_url"), origin = target.origin, remote = target.remote,
+        serverId = target.serverId, quality = quality, wifiOnly = wifiOnly)
+
     private fun chooseQuality(activity: Activity, target: ServerTarget, key: String,
-                              page: org.json.JSONObject, options: org.json.JSONObject) {
+                              page: org.json.JSONObject, options: org.json.JSONObject, next: OfflineItem?) {
         val list = options.optJSONArray("options") ?: return
         val choices = (0 until list.length()).mapNotNull { list.optJSONObject(it) }.filter { it.optBoolean("available") }
         if (choices.isEmpty()) return toast(activity, "This title can't be downloaded.")
@@ -308,11 +322,18 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             })
         }
         val wifi = android.widget.CheckBox(activity).apply { text = "Only download on Wi-Fi"; isChecked = true; textSize = 15f }
+        val alsoNext = next?.let {
+            android.widget.CheckBox(activity).apply {
+                text = "Also download the next episode (" + listOf(it.subtitle, it.title).filter { s -> s.isNotBlank() }.joinToString(" · ") + ")"
+                isChecked = false; textSize = 15f
+            }
+        }
         val body = LinearLayout(activity).apply {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(activity, 22), dp(activity, 6), dp(activity, 22), 0)
             addView(group)
             addView(wifi, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(activity, 8) })
+            alsoNext?.let { addView(it, LinearLayout.LayoutParams(-2, -2).apply { topMargin = dp(activity, 4) }) }
         }
         val heading = page.optString("show_title").ifBlank { page.optString("title") }
         android.app.AlertDialog.Builder(activity)
@@ -320,14 +341,13 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
             .setView(ScrollView(activity).apply { addView(body) })
             .setPositiveButton("Download") { _, _ ->
                 val quality = group.findViewById<View>(group.checkedRadioButtonId)?.tag as? String ?: return@setPositiveButton
-                OfflineStore.add(activity, OfflineItem(
-                    id = OfflineItem.newId(), key = key, mediaId = page.optLong("media_id"),
-                    kind = page.optString("kind", "movie"), title = page.optString("title"),
-                    subtitle = page.optString("subtitle"), showTitle = page.optString("show_title"),
-                    season = if (page.has("season") && !page.isNull("season")) page.optInt("season") else null,
-                    episode = if (page.has("episode") && !page.isNull("episode")) page.optInt("episode") else null,
-                    posterUrl = page.optString("poster_url"), origin = target.origin, remote = target.remote,
-                    serverId = target.serverId, quality = quality, wifiOnly = wifi.isChecked))
+                OfflineStore.add(activity, pageItem(target, key, page, quality, wifi.isChecked))
+                if (next != null && alsoNext?.isChecked == true)
+                    OfflineStore.add(activity, OfflineItem(id = OfflineItem.newId(), key = next.key, mediaId = next.mediaId,
+                        kind = "episode", title = next.title, subtitle = next.subtitle, showTitle = next.showTitle,
+                        season = next.season, episode = next.episode, posterUrl = next.posterUrl, origin = next.origin,
+                        remote = next.remote, serverId = next.serverId, quality = quality, wifiOnly = wifi.isChecked,
+                        addedAt = System.currentTimeMillis() + 1))
                 if (android.os.Build.VERSION.SDK_INT >= 33 && activity.checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS)
                     != android.content.pm.PackageManager.PERMISSION_GRANTED)
                     activity.requestPermissions(arrayOf(android.Manifest.permission.POST_NOTIFICATIONS), 4207)

@@ -34,6 +34,7 @@ class OfflineItem(
     var durationMs: Long = 0,
     var watched: Boolean = false,
     var pendingSync: Boolean = false, // watch progress made offline, not yet sent to the server
+    var playedAt: Long = 0,           // when it was last watched (ms), so newer progress elsewhere wins
     val addedAt: Long = System.currentTimeMillis(),
 ) {
     val heading: String get() = if (kind == "episode" && showTitle.isNotBlank()) showTitle else title
@@ -47,7 +48,7 @@ class OfflineItem(
         .put("wifi_only", wifiOnly).put("status", status).put("progress", progress).put("bytes", bytes)
         .put("error", error ?: JSONObject.NULL).put("job_id", jobId ?: JSONObject.NULL)
         .put("position_ms", positionMs).put("duration_ms", durationMs).put("watched", watched)
-        .put("pending_sync", pendingSync).put("added_at", addedAt)
+        .put("pending_sync", pendingSync).put("played_at", playedAt).put("added_at", addedAt)
 
     companion object {
         fun fromJson(o: JSONObject) = OfflineItem(
@@ -64,6 +65,7 @@ class OfflineItem(
             jobId = if (o.isNull("job_id")) null else o.optString("job_id"),
             positionMs = o.optLong("position_ms"), durationMs = o.optLong("duration_ms"),
             watched = o.optBoolean("watched"), pendingSync = o.optBoolean("pending_sync"),
+            playedAt = o.optLong("played_at"),
             addedAt = o.optLong("added_at", System.currentTimeMillis()),
         )
 

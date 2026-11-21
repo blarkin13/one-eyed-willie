@@ -42,4 +42,15 @@ class OfflineLogicTest {
         assertEquals("Downloads need Pro", OfflineLogic.statusLine("failed", 0.0, 0, "Downloads need Pro"))
         assertEquals("srv#12", OfflineLogic.key("srv", 12))
     }
+
+    @Test fun nextEpisodes() {
+        val list = listOf(2 to 1, 1 to 5, 1 to 3, null to 9, 1 to 2)
+        assertEquals(2, OfflineLogic.nextEpisode(1 to 2, list))      // S01E03
+        assertEquals(1, OfflineLogic.nextEpisode(1 to 3, list))      // S01E05
+        assertEquals(0, OfflineLogic.nextEpisode(1 to 5, list))      // S02E01
+        assertEquals(-1, OfflineLogic.nextEpisode(2 to 1, list))
+        assertEquals(-1, OfflineLogic.nextEpisode(null to 1, list))
+        assertEquals("S01 · E04", OfflineLogic.episodeLabel(1, 4))
+        assertEquals("", OfflineLogic.episodeLabel(null, null))
+    }
 }

@@ -18,6 +18,9 @@ class PlaybackUpdate(BaseModel):
     duration_seconds: float = Field(ge=0, le=10000000)
     completed: bool = False
     replaying: bool = False  # An explicitly restarted, previously watched episode
+    # When this was watched (Unix seconds), for progress made offline and sent
+    # later: it never replaces anything saved more recently.
+    played_at: float | None = Field(None, ge=0, le=4102444800)
 
 
 def _describe(media, lib):
@@ -299,9 +302,13 @@ def update_playback(item: PlaybackUpdate):
         if not exists or not current_viewer().can_see(exists["library_id"]):
             raise HTTPException(404, "Media item not found")
         previous = connection.execute(
-            "SELECT duration_seconds,completed FROM playback_progress WHERE viewer=? AND media_id=?",
+            "SELECT duration_seconds,completed,CAST(strftime('%s',updated_at) AS INTEGER) AS saved_at "
+            "FROM playback_progress WHERE viewer=? AND media_id=?",
             (current_viewer().id, item.media_id),
         ).fetchone()
+        if item.played_at is not None and previous and (previous["saved_at"] or 0) > item.played_at:
+            # Watched elsewhere since then: keep the newer progress.
+            return {"saved": False, "newer_on_server": True, "completed": bool(previous["completed"])}
         # A transient unknown duration must not wipe a previously probed one.
         duration = item.duration_seconds
         if duration == 0 and previous and previous["duration_seconds"] >= item.position_seconds:
@@ -313,16 +320,19 @@ def update_playback(item: PlaybackUpdate):
         completed = bool(item.completed or finished or (
             previous and previous["completed"] and not item.replaying
         ))
+        # Offline progress keeps the time it was watched, so "Continue watching" orders it right.
+        saved_at = ("datetime(?,'unixepoch')", item.played_at) if item.played_at is not None else ("CURRENT_TIMESTAMP", None)
         connection.execute(
             """INSERT INTO playback_progress
                 (viewer,media_id,position_seconds,duration_seconds,completed,updated_at)
-                VALUES (?,?,?,?,?,CURRENT_TIMESTAMP)
+                VALUES (?,?,?,?,?,""" + saved_at[0] + """)
                 ON CONFLICT(viewer,media_id) DO UPDATE SET
                   position_seconds=excluded.position_seconds,
                   duration_seconds=excluded.duration_seconds,
                   completed=excluded.completed,
-                  updated_at=CURRENT_TIMESTAMP""",
-            (current_viewer().id, item.media_id, item.position_seconds, duration, int(completed)),
+                  updated_at=excluded.updated_at""",
+            (current_viewer().id, item.media_id, item.position_seconds, duration, int(completed),
+             *([int(item.played_at)] if item.played_at is not None else [])),
         )
     return {"saved": True, "completed": completed,
             "position_seconds": item.position_seconds, "duration_seconds": duration}
