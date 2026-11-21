@@ -222,7 +222,8 @@ body.music-tv :is(#close-player,#max-player){display:none}
 .pf-top{position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:calc(12px + env(safe-area-inset-top)) 14px 8px}
 .pf-top .pbtn{color:#fff}.pf-top .pbtn svg{width:24px;height:24px}
 .pf-tabs{display:flex;gap:4px;background:#ffffff14;border-radius:999px;padding:4px}
-.pf-tabs button{background:none;border:0;color:#cfcfcf;font:inherit;font-size:.9rem;font-weight:650;padding:7px 16px;border-radius:999px;cursor:pointer}
+.pf-tabs button{background:none;border:0;color:#cfcfcf;font:inherit;font-size:.9rem;font-weight:650;padding:7px 13px;border-radius:999px;cursor:pointer;white-space:nowrap}
+@media(max-width:380px){.pf-tabs button{padding:7px 10px;font-size:.84rem}}
 .pf-tabs button[aria-selected="true"]{background:#fff;color:#111}
 .pf-body{position:relative;z-index:1;flex:1;min-height:0;display:grid;grid-template-columns:minmax(0,1fr);overflow:hidden}
 .pf-panel{min-height:0;overflow:auto;padding:12px 24px 8px;scrollbar-width:none}
@@ -245,12 +246,33 @@ body.music-tv :is(#close-player,#max-player){display:none}
 .pf-lyrics.plain{white-space:pre-wrap;color:#eee;font-size:1.1rem;font-weight:600;padding-bottom:40px}
 .pf-lyrics .pf-none{color:#aeb3b9;font-size:1rem;font-weight:500;text-align:center;padding-top:20vh}
 .pf-lyrics .pf-note{color:#8d939a;font-size:.8rem;font-weight:500;margin-top:18px}
-/* Wide screens: details on the left, lyrics on the right, no tabs needed. */
+/* Up next: the queue, with remove and drag to reorder. */
+.pf-queue{max-width:640px;margin:0 auto;padding:4px 0 24px}
+.pf-qhead{display:flex;align-items:center;justify-content:space-between;margin:14px 2px 6px;color:#aeb3b9;font-size:.78rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase}
+.pf-qhead button{background:none;border:0;color:var(--accent-soft);font:inherit;letter-spacing:0;text-transform:none;font-size:.9rem;cursor:pointer;padding:6px 0}
+.pf-qrow{display:flex;align-items:center;gap:12px;padding:7px 6px;border-radius:10px;cursor:pointer;position:relative;background:transparent;touch-action:pan-y}
+.pf-qrow:hover{background:#ffffff0d}
+.pf-qrow.current{background:#ffffff12}
+.pf-qrow.dragging{background:#26282c;box-shadow:0 8px 24px #000a;z-index:2;transition:none}
+.pf-qrow img,.pf-qrow .ph{width:46px;height:46px;border-radius:5px;object-fit:cover;flex:none;background:#2a2a2a}
+.pf-qtext{flex:1;min-width:0}
+.pf-qtext strong{display:block;color:#fff;font-size:.95rem;font-weight:650;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf-qrow.current .pf-qtext strong{color:var(--accent-soft)}
+.pf-qtext span{display:block;color:#aeb3b9;font-size:.82rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pf-qrow button{background:none;border:0;color:#9aa0a6;width:40px;height:40px;display:grid;place-items:center;cursor:pointer;flex:none;border-radius:50%}
+.pf-qrow button:hover{color:#fff;background:#ffffff14}
+.pf-qrow .pf-qdrag{cursor:grab;touch-action:none}
+.pf-qrow svg{width:20px;height:20px}
+.pf-qempty{color:#aeb3b9;text-align:center;padding:24px 0}
+#queue-player{opacity:.8}#queue-player:hover{opacity:1}
+body.music-tv #queue-player{display:none}
+/* Wide screens: details always on the left; lyrics or the queue on the right. */
 @media(min-width:900px){
  .pf-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:24px;padding:0 4vw}
- #player.max .pf-panel[hidden]{display:block}
- .pf-panel[data-panel="info"]{display:flex;align-items:center;justify-content:center}
- .pf-tabs{visibility:hidden}
+ #player.max .pf-panel[data-panel="info"][hidden]{display:flex}
+ .pf-panel[data-panel="info"]{display:flex;align-items:center;justify-content:center;grid-column:1;grid-row:1}
+ .pf-panel:not([data-panel="info"]){grid-column:2;grid-row:1}
+ .pf-tabs button[data-tab="info"]{display:none}
 }
 @media(max-width:900px){
  .player{left:0;grid-template-columns:1fr auto;gap:8px 12px;padding:8px 12px}
@@ -347,12 +369,13 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
   <div class="pf-bg"></div>
   <div class="pf-top">
    <button class="pbtn" type="button" id="pf-min" aria-label="Minimise player" title="Minimise"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></button>
-   <div class="pf-tabs" role="tablist"><button type="button" role="tab" data-tab="info" aria-selected="true">Now playing</button><button type="button" role="tab" data-tab="lyrics" aria-selected="false">Lyrics</button></div>
+   <div class="pf-tabs" role="tablist"><button type="button" role="tab" data-tab="info" aria-selected="true">Now playing</button><button type="button" role="tab" data-tab="lyrics" aria-selected="false">Lyrics</button><button type="button" role="tab" data-tab="queue" aria-selected="false">Up next</button></div>
    <button class="pbtn" type="button" id="pf-close" aria-label="Stop and close player" title="Stop and close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   </div>
   <div class="pf-body">
    <section class="pf-panel" data-panel="info"><div class="pf-info"><div class="pf-art"></div><h2 class="pf-title"></h2><button type="button" class="pf-artist"></button><button type="button" class="pf-album"></button><div class="pf-facts"></div><p class="pf-credits"></p></div></section>
    <section class="pf-panel" data-panel="lyrics" hidden><div class="pf-lyrics"></div></section>
+   <section class="pf-panel" data-panel="queue" hidden><div class="pf-queue"></div></section>
   </div>
  </div>
  <div class="now"><span id="now-art"></span><div class="now-text"><strong id="now-title">—</strong><button type="button" id="now-sub">—</button></div></div>
@@ -367,6 +390,7 @@ body.music-tv #seek::-webkit-slider-thumb{opacity:1}
   <div class="seek-row"><span id="elapsed">0:00</span><input class="bar" id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek"><span id="total">0:00</span></div>
  </div>
  <div class="right">
+  <button class="pbtn" type="button" id="queue-player" aria-label="Up next" title="Up next"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h12M4 11h12M4 16h8"/><path d="M17 14v6l4-3z" fill="currentColor"/></svg></button>
   <button class="pbtn" type="button" id="max-player" aria-label="Full screen player" title="Full screen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg></button>
   <button class="pbtn" type="button" id="close-player" aria-label="Stop and close player" title="Stop and close"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
   <button class="pbtn" type="button" id="mute" aria-label="Mute" title="Mute"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4z" fill="currentColor"/><path id="vol-waves" d="M15.5 8.5a5 5 0 0 1 0 7M19 5a10 10 0 0 1 0 14"/></svg></button>
@@ -701,6 +725,7 @@ function load(autoplay){
  store.set('last',JSON.stringify({ids:queue.map(x=>x.id),order,pos,shuffle}));
  markPlaying();
  if(typeof renderFull==='function')renderFull();
+ if(typeof renderQueue==='function'&&fullTab==='queue')renderQueue();
 }
 function next(auto){
  if(!queue.length)return;
@@ -739,7 +764,7 @@ function maximisePlayer(){
  // In the phone app: no tabs or phone bars while full screen, and Back minimises.
  window.yarrShellBack=minimisePlayer;
  if(inPhoneApp())try{prompt('oewtv:shell:player:1','')}catch(_){}
- renderFull();$('pf-min').focus({preventScroll:true});
+ renderFull();showFullTab(fullTab);$('pf-min').focus({preventScroll:true});
 }
 function minimisePlayer(){
  if(!fullOpen())return;
@@ -749,10 +774,83 @@ function minimisePlayer(){
  if(inPhoneApp())try{prompt('oewtv:shell:player:0','')}catch(_){}
 }
 function showFullTab(tab){
+ if(tab==='info'&&wideFull())tab='lyrics';   // wide screens always show the details
  fullTab=tab;
  for(const b of document.querySelectorAll('.pf-tabs button'))b.setAttribute('aria-selected',String(b.dataset.tab===tab));
  for(const p of document.querySelectorAll('.pf-panel'))p.hidden=p.dataset.panel!==tab;
  lyricIndex=-1;syncLyrics(true);
+ if(tab==='queue')renderQueue();
+}
+
+/* ---------- Up next (the queue) ---------- */
+function saveQueue(){store.set('last',JSON.stringify({ids:queue.map(x=>x.id),order,pos,shuffle}))}
+function jumpTo(i){if(i<0||i>=order.length||i===pos)return;pos=i;load(true)}
+function removeAt(i){
+ if(i<=pos||i>=order.length)return;
+ const qi=order[i];
+ queue.splice(qi,1);order.splice(i,1);
+ order=order.map(x=>x>qi?x-1:x);
+ saveQueue();renderQueue();
+}
+function moveTo(from,to){
+ if(from<=pos||to<=pos||from>=order.length)return;
+ to=Math.min(to,order.length-1);
+ const [x]=order.splice(from,1);order.splice(to,0,x);
+ saveQueue();renderQueue();
+}
+function clearUpNext(){
+ const keep=order.slice(0,pos+1);
+ queue=keep.map(i=>queue[i]);order=keep.map((_,k)=>k);
+ saveQueue();renderQueue();
+}
+const QUEUE_ICONS={drag:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 8h14M5 12h14M5 16h14"/></svg>',
+ remove:'<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>'};
+function queueRow(t,i,current){
+ const row=el('div','pf-qrow'+(current?' current':''));row.dataset.index=String(i);
+ const img=new Image();img.alt='';img.loading='lazy';img.src=artUrl(t);img.onerror=()=>img.replaceWith(el('span','ph'));
+ const text=el('div','pf-qtext');text.append(el('strong','',t.title),el('span','',[t.artist,t.duration?fmt(t.duration):''].filter(Boolean).join(' · ')));
+ row.append(img,text);
+ if(!current){
+  const remove=el('button','');remove.type='button';remove.setAttribute('aria-label','Remove '+t.title+' from the queue');remove.innerHTML=QUEUE_ICONS.remove;
+  remove.onclick=e=>{e.stopPropagation();removeAt(i)};
+  const drag=el('button','pf-qdrag');drag.type='button';drag.setAttribute('aria-label','Drag to move '+t.title);drag.innerHTML=QUEUE_ICONS.drag;
+  drag.onclick=e=>e.stopPropagation();
+  dragToReorder(drag,row,i);
+  row.append(remove,drag);
+  row.onclick=()=>jumpTo(i);
+ }
+ return row;
+}
+function dragToReorder(handle,row,from){
+ handle.addEventListener('pointerdown',e=>{
+  e.preventDefault();e.stopPropagation();
+  handle.setPointerCapture(e.pointerId);
+  const startY=e.clientY,height=row.offsetHeight||56;
+  row.classList.add('dragging');
+  let shift=0;
+  const moveRow=ev=>{shift=ev.clientY-startY;row.style.transform='translateY('+shift+'px)'};
+  const drop=()=>{
+   handle.removeEventListener('pointermove',moveRow);
+   row.classList.remove('dragging');row.style.transform='';
+   const to=Math.max(pos+1,from+Math.round(shift/height));
+   if(to!==from)moveTo(from,to);
+  };
+  handle.addEventListener('pointermove',moveRow);
+  handle.addEventListener('pointerup',drop,{once:true});
+  handle.addEventListener('pointercancel',drop,{once:true});
+ });
+}
+function renderQueue(){
+ const box=document.querySelector('.pf-queue');if(!box)return;
+ box.replaceChildren();
+ const cur=currentTrack();
+ if(cur){box.append(el('div','pf-qhead','Now playing'),queueRow(cur,pos,true))}
+ const upcoming=order.slice(pos+1);
+ const head=el('div','pf-qhead');head.append(el('span','','Up next'+(upcoming.length?' · '+upcoming.length:'')));
+ if(upcoming.length){const clear=el('button','','Clear');clear.type='button';clear.onclick=clearUpNext;head.append(clear)}
+ box.append(head);
+ if(!upcoming.length){box.append(el('p','pf-qempty',repeat==='all'&&queue.length>1?'The queue starts over after this song.':'Nothing else is queued.'));return}
+ upcoming.forEach((qi,k)=>{if(queue[qi])box.append(queueRow(queue[qi],pos+1+k,false))});
 }
 async function trackDetails(t){
  if(detailsCache.has(t.id))return detailsCache.get(t.id);
@@ -818,7 +916,8 @@ function syncLyrics(jump){
 for(const b of document.querySelectorAll('.pf-tabs button'))b.onclick=()=>showFullTab(b.dataset.tab);
 const lyricsPanel=document.querySelector('.pf-panel[data-panel="lyrics"]');
 for(const type of ['touchstart','wheel'])lyricsPanel.addEventListener(type,()=>{lyricsTouchedAt=Date.now()},{passive:true});
-$('max-player').onclick=maximisePlayer;$('pf-min').onclick=minimisePlayer;$('pf-close').onclick=closePlayer;
+$('max-player').onclick=maximisePlayer;
+$('queue-player').onclick=()=>{maximisePlayer();showFullTab('queue')};$('pf-min').onclick=minimisePlayer;$('pf-close').onclick=closePlayer;
 $('now-art').onclick=()=>{if(!tvMode)maximisePlayer()};
 audio.addEventListener('timeupdate',()=>syncLyrics(false));
 audio.addEventListener('seeked',()=>syncLyrics(true));
@@ -826,7 +925,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape'&&fullOpen()){e.preve
 // Keep the page scrollable above the player: the content's bottom padding follows its height.
 new ResizeObserver(()=>{const p=$('player');document.body.style.setProperty('--player-space',(p.hidden?0:p.offsetHeight)+'px')}).observe($('player'));
 $('play-pause').onclick=togglePlay;$('next').onclick=()=>next(false);$('previous').onclick=prev;
-$('shuffle').onclick=()=>{shuffle=!shuffle;const cur=order[pos];buildOrder(cur);pos=shuffle?0:cur};
+$('shuffle').onclick=()=>{shuffle=!shuffle;const cur=order[pos];buildOrder(cur);pos=shuffle?0:cur;saveQueue();if(fullTab==='queue')renderQueue()};
 $('repeat').onclick=()=>{repeat={off:'all',all:'one',one:'off'}[repeat];store.set('repeat',repeat);updateModeButtons()};
 let seeking=false;
 $('seek').addEventListener('input',()=>{seeking=true;setBar($('seek'),$('seek').value/10);$('elapsed').textContent=fmt(audio.duration*$('seek').value/1000)});

@@ -102,5 +102,31 @@ class MusicPlayerCloseTest(base.MobileHomeLayoutTest):
         self.assertFalse(page.eval_on_selector("#player", "p => p.classList.contains('max')"))
 
 
+    def test_up_next_queue_remove_reorder_and_jump(self):
+        page = self.open_music(False)
+        page.evaluate("playList([1,2,3,4,5].map(n => ({id: n, title: 'Song ' + n, artist: 'A', album: 'B', duration: 180})), 0)")
+        page.tap("#queue-player")
+        page.wait_for_selector(".pf-panel[data-panel='queue']:not([hidden]) .pf-qrow")
+        titles = lambda: page.eval_on_selector_all(".pf-queue .pf-qrow strong", "s => s.map(x => x.textContent)")
+        self.assertEqual(titles(), ["Song 1", "Song 2", "Song 3", "Song 4", "Song 5"])
+        self.assertIn("Up next · 4", page.text_content(".pf-queue"))
+        page.tap(".pf-qrow[data-index='2'] button[aria-label^='Remove']")
+        self.assertEqual(titles(), ["Song 1", "Song 2", "Song 4", "Song 5"])
+        # Drag Song 5 above Song 2.
+        handle = page.query_selector(".pf-qrow[data-index='3'] .pf-qdrag").bounding_box()
+        page.mouse.move(handle["x"] + 10, handle["y"] + 10)
+        page.mouse.down()
+        page.mouse.move(handle["x"] + 10, handle["y"] + 10 - 2 * page.eval_on_selector(".pf-qrow[data-index='3']", "r => r.offsetHeight"), steps=6)
+        page.mouse.up()
+        self.assertEqual(titles(), ["Song 1", "Song 5", "Song 2", "Song 4"])
+        page.tap(".pf-qrow[data-index='2']")
+        page.wait_for_timeout(200)
+        self.assertEqual(page.text_content("#now-title"), "Song 2")
+        self.assertEqual(titles(), ["Song 2", "Song 4"], "what's played isn't in Up next")
+        page.click(".pf-qhead button")
+        self.assertIn("Nothing else is queued", page.text_content(".pf-queue"))
+        page.screenshot(path="/tmp/music-queue.png")
+
+
 if __name__ == "__main__":
     unittest.main()
