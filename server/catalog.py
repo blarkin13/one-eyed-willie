@@ -170,6 +170,11 @@ def catalog(kind=None, search="", limit=60, offset=0, sort="title", library_id=N
             group["episodes"].sort(key=lambda e: (e["season"] if e["season"] is not None else 999,
                                                  e["episode"] if e["episode"] is not None else 999))
             results.append(group)
+        if current_viewer().rules is not None:
+            # Kid profiles: only titles their rating limits and exceptions allow.
+            from .kid_rules import viewer_allows
+            who = current_viewer()
+            results = [g for g in results if viewer_allows(who, g["kind"], g["library_id"], g["key"])]
         available_genres = set()
         for group in results:
             metadata = cached_metadata.get((group["kind"], group["library_id"], group["key"]), {})

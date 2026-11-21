@@ -26,6 +26,20 @@
 #message{min-height:1.3em}
 .danger{color:#ff8a8a!important}
 .forget{display:flex;gap:8px;align-items:center;font-size:.88rem;color:#ccc}
+.limits{flex-basis:100%;display:grid;gap:16px;padding-top:12px;border-top:1px solid #ffffff14;margin-top:4px}
+.limits[hidden]{display:none}
+.limits h3{margin:0;font-size:.95rem}
+.limits .row{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
+.limits select{min-height:44px;min-width:200px}
+.libs{display:flex;gap:8px 18px;flex-wrap:wrap}.libs label{display:flex;gap:7px;align-items:center;color:#ddd;font-size:.9rem}
+.exceptions{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:760px){.exceptions{grid-template-columns:1fr}}
+.title-list{display:grid;gap:6px;margin:6px 0 0;padding:0;list-style:none}
+.title-list li{display:flex;align-items:center;gap:10px;justify-content:space-between;background:#181818;border-radius:9px;padding:7px 10px;font-size:.9rem}
+.title-list li small{color:#9b9b9b;margin-left:6px}
+.title-list button{min-height:34px;padding:4px 12px;font-size:.82rem}
+.rating-chip{display:inline-block;border:1px solid #ffffff40;border-radius:5px;padding:0 5px;font-size:.72rem;color:#ddd;margin-left:6px}
+.search-results li{background:#141414}
 </style></head>
 <body data-page="people"><div class="app-shell">
 <aside id="app-nav" class="sidebar" aria-label="Sidebar"></aside>
@@ -135,9 +149,58 @@ function render(){
    const remove=button('Remove '+p.name,'secondary-button danger',()=>{if(!confirm('Remove '+p.name+'?'))return;save(()=>api('/api/profiles/'+p.id+(fc.checked?'?forget=true':''),{method:'DELETE'}),'Removed.')});
    kind.append(forget,remove);panel.append(kind);
   }
+  if(p.kind==='kid'){
+   const limits=document.createElement('div');limits.className='limits';limits.hidden=true;
+   actions.prepend(button('Limits','secondary-button',()=>{limits.hidden=!limits.hidden;if(!limits.hidden&&!limits.dataset.loaded)loadLimits(p,limits)}));
+   row.append(limits);
+  }
   list.append(row);
  }
  window.dispatchEvent(new Event('yarr-people-rendered'));
+}
+function chip(rating){const c=document.createElement('span');c.className='rating-chip';c.textContent=rating||'Unrated';return c}
+function titleLine(t){const li=document.createElement('li');const name=document.createElement('span');name.textContent=t.title;
+ if(t.year){const y=document.createElement('small');y.textContent=t.year;name.append(y)}
+ if(t.kind)name.append(chip(t.rating));li.append(name);return li}
+async function loadLimits(p,box){
+ box.replaceChildren(Object.assign(document.createElement('p'),{className:'note',textContent:'Loading…'}));
+ let r;try{r=await api('/api/profiles/'+p.id+'/rules')}catch(e){box.firstChild.textContent=e.message;return}
+ box.dataset.loaded='1';box.replaceChildren();
+ const allow=new Map(r.allow_titles.map(t=>[t.id,t])),block=new Map(r.block_titles.map(t=>[t.id,t]));
+ const top=document.createElement('div');top.className='row';
+ const sl=document.createElement('label');sl.className='inline';sl.style.display='grid';sl.style.gap='6px';sl.textContent='Movies and shows rated up to';
+ const sel=document.createElement('select');for(const c of r.choices){const o=document.createElement('option');o.value=c.level;o.textContent=c.label;if(c.level===r.max_level)o.selected=true;sel.append(o)}sl.append(sel);
+ const un=document.createElement('label');un.className='forget';const uc=document.createElement('input');uc.type='checkbox';uc.checked=r.allow_unrated;un.append(uc,document.createTextNode('Show titles without a rating'));
+ top.append(sl,un);
+ const coverage=document.createElement('p');coverage.className='note';
+ coverage.textContent=!(r.rated+r.unrated)?'No movies or shows yet.':r.unrated?(r.rated+' of '+(r.rated+r.unrated)+' titles have a rating so far; the rest are looked up in the background (Radarr, Sonarr, TMDB). Until then they count as unrated.'):'Every title has a rating.';
+ const libsH=document.createElement('h3');libsH.textContent='Libraries';
+ const libs=document.createElement('div');libs.className='libs';
+ const chosen=r.libraries===null?null:new Set(r.libraries);const boxes=[];
+ for(const l of r.libraries_available){const lab=document.createElement('label');const c=document.createElement('input');c.type='checkbox';c.value=l.id;c.checked=!chosen||chosen.has(l.id);boxes.push(c);lab.append(c,document.createTextNode(l.name));libs.append(lab)}
+ const exH=document.createElement('h3');exH.textContent='Exceptions';
+ const ex=document.createElement('div');ex.className='exceptions';
+ const listFor=(title,map,other)=>{const wrap=document.createElement('div');const h=document.createElement('strong');h.textContent=title;const ul=document.createElement('ul');ul.className='title-list';
+  const draw=()=>{ul.replaceChildren();if(!map.size){const li=document.createElement('li');li.textContent='None';li.style.color='#888';ul.append(li)}
+   for(const t of map.values()){const li=titleLine(t);li.append(button('Remove','secondary-button',()=>{map.delete(t.id);draw()}));ul.append(li)}};
+  draw();wrap.append(h,ul);wrap.redraw=draw;return wrap};
+ const allowBox=listFor('Always allowed',allow),blockBox=listFor('Never allowed',block);ex.append(allowBox,blockBox);
+ const find=document.createElement('div');find.className='inline';
+ const fl=document.createElement('label');fl.textContent='Find a movie or show';const fi=document.createElement('input');fi.type='search';fi.maxLength=80;fi.autocomplete='off';fl.append(fi);find.append(fl);
+ const results=document.createElement('ul');results.className='title-list search-results';
+ let timer=0;fi.addEventListener('input',()=>{clearTimeout(timer);timer=setTimeout(async()=>{
+  if(fi.value.trim().length<2){results.replaceChildren();return}
+  const found=await api('/api/profiles/titles/search?q='+encodeURIComponent(fi.value)).catch(()=>({items:[]}));
+  results.replaceChildren();for(const t of found.items){const li=titleLine(t);const acts=document.createElement('span');acts.className='actions';
+   acts.append(button('Allow','secondary-button',()=>{block.delete(t.id);allow.set(t.id,t);allowBox.redraw();blockBox.redraw()}),
+               button('Block','secondary-button',()=>{allow.delete(t.id);block.set(t.id,t);allowBox.redraw();blockBox.redraw()}));
+   li.append(acts);results.append(li)}},250)});
+ const saveBtn=button('Save limits','primary-button',()=>{
+  const all=boxes.every(c=>c.checked);
+  save(()=>api('/api/profiles/'+p.id+'/rules',{method:'PUT',body:JSON.stringify({max_level:Number(sel.value),allow_unrated:uc.checked,
+   libraries:all?null:boxes.filter(c=>c.checked).map(c=>Number(c.value)),allow:[...allow.keys()],block:[...block.keys()]})}),'Limits saved for '+p.name+'.')});
+ saveBtn.style.justifySelf='start';
+ box.append(top,coverage,libsH,libs,exH,ex,find,results,saveBtn);
 }
 async function save(run,done){try{await run();say(done);await load()}catch(e){say(e.message)}}
 $('gate-form').addEventListener('submit',async e=>{e.preventDefault();const pin=$('gate-pin').value;

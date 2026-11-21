@@ -130,7 +130,11 @@ class ProfileTests(unittest.TestCase):
         self.assertEqual(kid.put("/api/settings/sidebar", json={"order": [], "hidden": []}).status_code, 403)
         self.assertEqual(kid.post("/api/profiles", json={"name": "X"}).status_code, 403)
         self.assertEqual(kid.get("/api/viewer").json()["role"], "kid")
-        self.assertEqual(kid.get("/api/watch/1/status").status_code != 403, True)
+        # Unrated titles are hidden from kids by default; a PG rating is fine.
+        self.assertEqual(kid.get("/api/watch/1/status").status_code, 403)
+        from server import kid_rules
+        kid_rules.store("movies", 1, "arrival:2016", "PG")
+        self.assertNotEqual(kid.get("/api/watch/1/status").status_code, 403)
         _, r = self.choose(people["Brian"]["id"], "4321", client=kid)
         self.assertEqual(r.status_code, 200)
 
@@ -164,3 +168,74 @@ class ProfileTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class KidLimitTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        p = patch.object(library, "DB_PATH", Path(temp.name) / "library.sqlite3")
+        p.start()
+        self.addCleanup(p.stop)
+        from server import kid_rules
+        kid_rules._cache["data"] = None
+        media = [(1, 1, "/media/Movies/Arrival (2016)/Arrival (2016).mkv"),
+                 (2, 1, "/media/Movies/Frozen (2013)/Frozen (2013).mkv"),
+                 (3, 1, "/media/Movies/Home Video (2001)/Home Video (2001).mkv"),
+                 (4, 2, "/media/TV/Bluey/Season 01/Bluey.S01E01.mkv"),
+                 (5, 2, "/media/TV/Severance/Season 01/Severance.S01E01.mkv")]
+        with library.db() as conn:
+            conn.execute("INSERT INTO libraries(id,name,kind,path) VALUES(1,'Movies','movies','/media/Movies')")
+            conn.execute("INSERT INTO libraries(id,name,kind,path) VALUES(2,'TV','tv','/media/TV')")
+            for media_id, lib, path in media:
+                conn.execute("INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) VALUES(?,?,?,?,1,1,'2026-11-15')",
+                             (media_id, lib, path, Path(path).stem))
+        for kind, lib, key, rating in (("movies", 1, "arrival:2016", "PG-13"), ("movies", 1, "frozen:2013", "PG"),
+                                       ("tv", 2, "bluey:", "TV-Y"), ("tv", 2, "severance:", "TV-MA")):
+            kid_rules.store(kind, lib, key, rating)
+        self.client = TestClient(app)
+        r = self.client.post("/api/profiles/setup", json={"owner_name": "Brian", "person": {"name": "Sam", "kind": "kid"}})
+        self.sam = next(p["id"] for p in r.json()["profiles"] if p["name"] == "Sam")
+        self.kid = TestClient(app)
+        self.kid.post("/api/profiles/choose", json={"id": self.sam})
+
+    def titles(self, client, kind):
+        return sorted(i["title"] for i in client.get(f"/api/catalog/all?kind={kind}").json()["items"])
+
+    def test_kids_see_only_titles_within_their_rating(self):
+        self.assertEqual(self.titles(self.kid, "movies"), ["Frozen"])
+        self.assertEqual(self.titles(self.kid, "tv"), ["Bluey"])
+        self.assertEqual(self.titles(self.client, "movies"), ["Arrival", "Frozen", "Home Video"])
+        home = self.kid.get("/api/home").json()
+        self.assertEqual([c["title"] for c in home["recent_movies"]], ["Frozen"])
+        self.assertEqual([c["title"] for c in home["recent_tv"]], ["Bluey"])
+        for url in ("/api/movies/details?library_id=1&key=arrival:2016", "/api/watch/1/status",
+                    "/api/watch/3/status", "/api/tv/next?media_id=5", "/api/tv/show?library_id=2&key=severance:"):
+            with self.subTest(url=url):
+                self.assertEqual(self.kid.get(url).status_code, 403)
+        self.assertNotEqual(self.kid.get("/api/watch/2/status").status_code, 403)
+
+    def test_parents_set_limits_and_exceptions(self):
+        rules = self.client.get(f"/api/profiles/{self.sam}/rules").json()
+        self.assertEqual((rules["max_level"], rules["allow_unrated"], rules["rated"], rules["unrated"]), (3, False, 4, 1))
+        found = self.client.get("/api/profiles/titles/search?q=arr").json()["items"]
+        self.assertEqual([(t["title"], t["rating"]) for t in found], [("Arrival", "PG-13")])
+        saved = self.client.put(f"/api/profiles/{self.sam}/rules", json={
+            "max_level": 3, "allow_unrated": True, "libraries": None,
+            "allow": ["movies:1:arrival:2016"], "block": ["movies:1:frozen:2013"]})
+        self.assertEqual(saved.status_code, 200, saved.text)
+        self.assertEqual(self.titles(self.kid, "movies"), ["Arrival", "Home Video"])
+        rules = self.client.get(f"/api/profiles/{self.sam}/rules").json()
+        self.assertEqual([t["title"] for t in rules["allow_titles"]], ["Arrival"])
+        # Little kids: TV-Y only, and only the TV library.
+        self.client.put(f"/api/profiles/{self.sam}/rules", json={"max_level": 0, "libraries": [2]})
+        self.assertEqual(self.titles(self.kid, "movies"), [])
+        self.assertEqual(self.titles(self.kid, "tv"), ["Bluey"])
+        # Kids can't change their own limits.
+        self.assertEqual(self.kid.put(f"/api/profiles/{self.sam}/rules", json={"max_level": 5}).status_code, 403)
+        self.assertEqual(self.kid.get(f"/api/profiles/{self.sam}/rules").status_code, 403)
+
+    def test_rating_names_share_one_scale(self):
+        from server import kid_rules
+        self.assertEqual([kid_rules.level(r) for r in ("TV-Y", "TV-Y7", "G", "tv-g", "Rated PG", "PG13", "TV-14", "R", "TV-MA", "NR", "")],
+                         [0, 1, 2, 2, 3, 4, 4, 5, 5, None, None])

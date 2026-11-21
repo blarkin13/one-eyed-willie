@@ -107,9 +107,11 @@ def _persist(kind, library_id, key, incoming):
 
 def sync_once():
     """Run one complete metadata sync, recording incremental progress."""
-    from . import arr, metadata, movies, tv
+    from . import arr, kid_rules, metadata, movies, tv
 
     titles = _collect()
+    from .profiles import household
+    need_ratings = any(p.kind == "kid" for p in household().profiles)
     with _lock:
         _state["total"] = len(titles)
         _state["processed"] = 0
@@ -140,20 +142,29 @@ def sync_once():
         titles.items(), key=lambda entry: entry[0][0] != "movies"
     ):
         try:
+            # The title's age rating (for kid profiles): Radarr/Sonarr first, then
+            # the detail resolvers (NFO, TMDB), unless it's already known.
+            # Extra lookups only when a kid profile needs ratings.
+            rated = not need_ratings or bool(kid_rules.rating_of(kind, library_id, key))
             if kind == "movies":
                 matched = _matching_movie(title, year, films)
                 incoming = _safe_metadata(matched)
-                if not _complete(incoming):
+                certification = (matched or {}).get("certification") or ""
+                if not _complete(incoming) or not (certification or rated):
                     # Existing movie detail resolver also reads local NFO sidecars,
                     # manual TMDB matches, and cached TMDB metadata.
-                    incoming = _combine(incoming, _safe_metadata(
-                        movies._details(library_id, key, snapshot=films, enrich=True, include_video_format=False)))
+                    details = movies._details(library_id, key, snapshot=films, enrich=True, include_video_format=False)
+                    incoming = _combine(incoming, _safe_metadata(details))
+                    certification = certification or details.get("certification") or ""
             else:
                 matched = _matching_series(title, year, series)
                 incoming = _safe_metadata(matched)
-                if not _complete(incoming):
-                    incoming = _combine(incoming, _safe_metadata(
-                        tv.show_metadata(title, year, library_id, key)))
+                certification = (matched or {}).get("certification") or ""
+                if not _complete(incoming) or not (certification or rated):
+                    show = tv.show_metadata(title, year, library_id, key) or {}
+                    incoming = _combine(incoming, _safe_metadata(show))
+                    certification = certification or show.get("content_rating") or ""
+            kid_rules.store(kind, library_id, key, certification)
             changed = _persist(kind, library_id, key, incoming)
         except Exception:
             log.exception("Could not index metadata for %s %s", kind, key)

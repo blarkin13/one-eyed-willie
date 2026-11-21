@@ -321,6 +321,7 @@ def _local_nfo(video_path, root):
                 "runtime": int(text("runtime")) if text("runtime").isdigit() else None,
                 "imdb_id": imdb_id if IMDB_ID.fullmatch(imdb_id) else None,
                 "genres": [x.text for x in element.findall("genre") if x.text],
+                "certification": text("mpaa")[:20],
             }
         except (ET.ParseError, OSError, ValueError):
             pass
@@ -358,6 +359,20 @@ def _tmdb_id_for_title(title, year):
         return found
 
 
+def _us_certification(details):
+    """The US rating (G, PG, PG-13, R, NC-17) from TMDB release dates, or ''."""
+    for country in ((details or {}).get("release_dates") or {}).get("results") or []:
+        if not isinstance(country, dict) or country.get("iso_3166_1") != "US":
+            continue
+        dates = [d for d in country.get("release_dates") or [] if isinstance(d, dict)]
+        dates.sort(key=lambda d: d.get("type") != 3)        # theatrical first
+        for entry in dates:
+            value = str(entry.get("certification") or "").strip()
+            if value:
+                return value[:10]
+    return ""
+
+
 def _movie_extras(radarr):
     """Optional, cached TMDB cast and user reviews; never scrape review sites."""
     tmdb_id = radarr.get("tmdb_id")
@@ -366,7 +381,7 @@ def _movie_extras(radarr):
     from .metadata import token_status, _call, _cache_get, _cache_put, image_url, logo_image_url, LOCK as META_LOCK
     if not token_status():
         return {}
-    key = "movie-extras:v5:" + str(tmdb_id)
+    key = "movie-extras:v6:" + str(tmdb_id)
     with META_LOCK:
         cached = _cache_get(key)
         if cached is not None:
@@ -374,7 +389,7 @@ def _movie_extras(radarr):
         details = _call("movie/" + str(tmdb_id),
                         query={"language": "en-US",
                                "include_image_language": "en,null",
-                               "append_to_response": "credits,reviews,videos,images"})
+                               "append_to_response": "credits,reviews,videos,images,release_dates"})
         if details is None:
             return {}
         credits = details.get("credits") or {}
@@ -403,6 +418,7 @@ def _movie_extras(radarr):
             and re.fullmatch(r"[A-Za-z0-9_-]{11}", str(v.get("key") or ""))
         ), None)
         extras = {
+            "certification": _us_certification(details),
             "trailer_key": trailer,
             "overview": str((details or {}).get("overview") or "")[:1200],
             "poster_url": register_remote(image_url(details.get("poster_path"), "w500")),
@@ -540,7 +556,7 @@ def _details(library_id, key, snapshot=None, *, enrich=True, include_video_forma
         **extras,
         "ratings": radarr.get("ratings") or {},
         "studio": radarr.get("studio") or "",
-        "certification": radarr.get("certification") or "",
+        "certification": radarr.get("certification") or nfo.get("certification") or extras.get("certification") or "",
         "trailer_key": (
             radarr.get("youtube_trailer_id")
             if re.fullmatch(r"[A-Za-z0-9_-]{11}",

@@ -307,6 +307,8 @@ def setup(body: Setup, x_yarr_parent_pin: str | None = Header(None)):
         _insert(conn, secrets.token_hex(5), _clean(body.person.name), body.person.kind, body.person.color,
                 rules=_default_rules() if body.person.kind == "kid" else None)
     _changed()
+    if body.person.kind == "kid":
+        _rate_titles_soon()
     return list_profiles()
 
 
@@ -324,6 +326,8 @@ def add_person(person: Person, x_yarr_parent_pin: str | None = Header(None)):
         _insert(conn, pid, _clean(person.name), person.kind, person.color,
                 rules=_default_rules() if person.kind == "kid" else None)
     _changed()
+    if person.kind == "kid":
+        _rate_titles_soon()
     return household().by_id[pid].public()
 
 
@@ -351,6 +355,8 @@ def edit_person(pid: str, edit: Edit, x_yarr_parent_pin: str | None = Header(Non
             conn.execute("UPDATE profiles SET kind=?, rules_json=COALESCE(rules_json,?) WHERE id=?",
                          (edit.kind, json.dumps(_default_rules()), pid))
     _changed()
+    if edit.kind == "kid":
+        _rate_titles_soon()
     return household().by_id[pid].public()
 
 
@@ -496,3 +502,86 @@ class ProfileMiddleware:
             return await self.app(scope, receive, send)
         finally:
             viewer_mod.reset(token)
+
+
+# ---- Kids' limits -------------------------------------------------------------
+
+class RulesChange(BaseModel):
+    max_level: int = Field(3, ge=0, le=5)
+    allow_unrated: bool = False
+    libraries: list[int] | None = Field(None, max_length=200)
+    allow: list[str] = Field(default_factory=list, max_length=2000)
+    block: list[str] = Field(default_factory=list, max_length=2000)
+
+
+def _kid(pid):
+    profile = household().by_id.get(pid)
+    if profile is None or profile.kind != "kid":
+        raise HTTPException(404, "No such kid profile.")
+    return profile
+
+
+def _titles_by_id():
+    """{title id: {title, year, kind, rating}} for every movie and show (as the adult asking)."""
+    from .catalog import catalog
+    from . import kid_rules
+    rated = kid_rules.ratings()
+    out = {}
+    for kind in ("movies", "tv"):
+        for item in catalog(kind=kind, search="", limit=100000).get("items", []):
+            ident = kid_rules.title_id(kind, item["library_id"], item["key"])
+            out[ident] = {"id": ident, "title": item["title"], "year": item.get("year"), "kind": kind,
+                          "rating": rated.get((kind, item["library_id"], item["key"]), "")}
+    return out
+
+
+@router.get("/{pid}/rules")
+def get_rules(pid: str):
+    """A kid's limits, with the names of excepted titles and how many titles have a rating."""
+    _manager()
+    from . import kid_rules
+    rules = kid_rules.KidRules.from_json(_kid(pid).rules)
+    titles = _titles_by_id()
+    with db() as conn:
+        libraries = [dict(r) for r in conn.execute("SELECT id,name,kind FROM libraries ORDER BY sort_order,id")]
+    rated = sum(1 for t in titles.values() if t["rating"])
+    return {**rules.to_json(),
+            "choices": [{"level": level, "label": label} for level, label in kid_rules.CHOICES],
+            "libraries_available": libraries,
+            "allow_titles": [titles.get(i) or {"id": i, "title": "(no longer in your library)"} for i in sorted(rules.allow)],
+            "block_titles": [titles.get(i) or {"id": i, "title": "(no longer in your library)"} for i in sorted(rules.block)],
+            "rated": rated, "unrated": len(titles) - rated}
+
+
+@router.put("/{pid}/rules")
+def set_rules(pid: str, change: RulesChange, x_yarr_parent_pin: str | None = Header(None)):
+    _manager()
+    _require_parent(x_yarr_parent_pin)
+    _kid(pid)
+    from . import kid_rules
+    rules = kid_rules.KidRules.from_json(change.model_dump())
+    with db() as conn:
+        conn.execute("UPDATE profiles SET rules_json=? WHERE id=?", (json.dumps(rules.to_json()), pid))
+    _changed()
+    return rules.to_json()
+
+
+@router.get("/titles/search")
+def search_titles(q: str = "", kid: str | None = None):
+    """Movies and shows matching q, with their ratings (for kids' exceptions)."""
+    _manager()
+    q = q.strip().casefold()
+    if len(q) < 2:
+        return {"items": []}
+    items = [t for t in _titles_by_id().values() if q in t["title"].casefold()]
+    items.sort(key=lambda t: (not t["title"].casefold().startswith(q), t["title"].casefold()))
+    return {"items": items[:25]}
+
+
+def _rate_titles_soon():
+    """Kid profiles need age ratings: look them up now rather than at the next sync."""
+    try:
+        from . import catalog_metadata
+        catalog_metadata.start_refresh(force=True)
+    except Exception:
+        pass

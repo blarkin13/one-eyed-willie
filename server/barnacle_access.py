@@ -74,6 +74,19 @@ def media_library(media_id):
     return row["library_id"] if row else None
 
 
+def _library_kind(library_id):
+    with db() as connection:
+        row = connection.execute("SELECT kind FROM libraries WHERE id=?", (library_id,)).fetchone()
+    return row["kind"] if row else None
+
+
+def _media_ok(viewer, media_id):
+    if viewer.rules is not None:
+        from . import kid_rules
+        return kid_rules.viewer_allows_media(viewer, media_id)
+    return viewer.can_see(media_library(media_id))
+
+
 def allowed(viewer, method, path, query):
     """True when this barnacle (or kid profile) may make this request."""
     if not viewer.restricted:
@@ -84,7 +97,7 @@ def allowed(viewer, method, path, query):
         match = pattern.match(path)
         if not match:
             continue
-        if kind == "media" and not viewer.can_see(media_library(int(match.group(1)))):
+        if kind == "media" and not _media_ok(viewer, int(match.group(1))):
             return False
         if kind == "library" and not viewer.can_see(int(match.group(1))):
             return False
@@ -92,7 +105,14 @@ def allowed(viewer, method, path, query):
             if not value.isdigit() or not viewer.can_see(int(value)):
                 return False
         for value in query.get("media_id", []):
-            if not value.isdigit() or not viewer.can_see(media_library(int(value))):
+            if not value.isdigit() or not _media_ok(viewer, int(value)):
+                return False
+        # Kids: a title named by library and key (detail pages) must be allowed.
+        if viewer.rules is not None and query.get("library_id") and query.get("key"):
+            from . import kid_rules
+            lib = int(query["library_id"][0])
+            kind = _library_kind(lib)
+            if kind in ("movies", "tv") and not kid_rules.viewer_allows(viewer, kind, lib, query["key"][0]):
                 return False
         return True
     return False
