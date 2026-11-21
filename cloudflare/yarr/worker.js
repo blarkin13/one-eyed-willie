@@ -509,7 +509,10 @@ async function connectionHeartbeat(req,env){
  let body=null;try{body=await readJSON(req,20000);}catch(_){}
  const libraries=cleanServerLibraries(body?.libraries);
  if(libraries)await env.ACCOUNTS.prepare("UPDATE servers SET libraries_json=? WHERE connection_secret_hash=? AND (libraries_json IS NULL OR libraries_json<>?)").bind(JSON.stringify(libraries),hash,JSON.stringify(libraries)).run();
- return json({status:'accepted',media_access:false,public_ip:ip||null});
+ // Tell the server whether its owner has Pro: downloads for offline use need it.
+ const owner=await env.ACCOUNTS.prepare("SELECT owner_user_id FROM servers WHERE connection_secret_hash=?").bind(hash).first();
+ const ownerPro=owner?!!(await proStatus(env,owner.owner_user_id)).active:false;
+ return json({status:'accepted',media_access:false,public_ip:ip||null,owner_pro:ownerPro});
 }
 async function accountConnectionStatus(req,env){
  const user=await currentUser(req,env);

@@ -256,3 +256,10 @@ test('"needs Pro" is not shown to an account that has Pro, and refusals are reco
  assert.match(refused.headers.get('location')||'',/remote=pro_required/);
  assert.equal(t.db.prepare("SELECT detail FROM audit_log WHERE event='pass_refused'").get().detail,'pro_required '+own.id);
 });
+
+test('the heartbeat tells the server whether its owner has Pro (for downloads)', async()=>{
+ const beat=async t=>(await (await request(t.worker,t.env,'POST',ACC+'/api/connection/heartbeat',
+  {headers:{authorization:'Bearer '+'s'.repeat(48)},json:{libraries:LIBS}})).json()).owner_pro;
+ assert.equal(await beat(await setup()),true);
+ assert.equal(await beat(await setup({ownerPro:false})),false);
+});

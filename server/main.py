@@ -37,6 +37,7 @@ from server.sabnzbd import router as sabnzbd_router
 from server.subtitles import router as subtitles_router
 from server.subtitle_provider import router as subtitle_provider_router
 from server.hls import router as hls_router, init_cache, cleanup_loop
+from server.downloads import router as downloads_router, worker_loop as downloads_worker_loop
 from server.media_probe import warm_media_profiles
 from server.hardware import hardware_supported
 from server.artwork import router as artwork_router
@@ -74,6 +75,10 @@ async def lifespan(app: FastAPI):
         target=catalog_metadata_refresh_loop, args=(metadata_stop,),
         daemon=True, name="catalog-metadata-background")
     metadata_thread.start()
+    downloads_stop = threading.Event()
+    downloads_thread = threading.Thread(target=downloads_worker_loop, args=(downloads_stop,),
+                                        daemon=True, name="downloads")
+    downloads_thread.start()
     yarr_heartbeat_stop = threading.Event()
     yarr_heartbeat_thread = threading.Thread(
         target=yarr_heartbeat_loop, args=(yarr_heartbeat_stop,),
@@ -93,6 +98,7 @@ async def lifespan(app: FastAPI):
         yarr_tunnel_thread.join(timeout=7)
         yarr_heartbeat_stop.set()
         yarr_heartbeat_thread.join(timeout=3)
+        downloads_stop.set()
         metadata_stop.set()
         metadata_thread.join(timeout=3)
         posters_stop.set()
@@ -126,6 +132,7 @@ app.include_router(media_actions_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
 app.include_router(time_adrift_router)
+app.include_router(downloads_router)
 app.include_router(lyrics_online_router)
 app.include_router(subtitle_settings_router)
 app.include_router(ambient_settings_router)

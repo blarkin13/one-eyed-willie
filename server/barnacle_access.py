@@ -42,6 +42,11 @@ _RULES = [
     ({"GET"}, r"/api/stream/hls/[A-Za-z0-9_-]+/(status|[A-Za-z0-9_.-]+)", None),
     ({"DELETE"}, r"/api/stream/hls/[A-Za-z0-9_-]+", None),
     ({"GET"}, r"/api/stream/subtitles/" + _ID, "media"),
+    # Downloading for offline use (through the owner's Pro)
+    ({"GET"}, r"/api/downloads/status", None),
+    ({"GET"}, r"/api/downloads/options/" + _ID, "media"),
+    ({"POST"}, r"/api/downloads/prepare/" + _ID, "media"),
+    ({"GET", "HEAD"}, r"/api/downloads/jobs/[a-f0-9]{32}(/file)?", None),
     ({"GET"}, r"/api/stream/subtitles/" + _ID + r"/[A-Za-z0-9_.:-]+\.vtt", "media"),
     ({"GET"}, r"/api/maintenance/preview/" + _ID + r"(/[A-Za-z0-9_.-]+)?", "media"),
     # Their own history
