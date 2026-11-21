@@ -121,7 +121,7 @@ function render(){
   const who=document.createElement('div');who.className='who';
   const name=document.createElement('strong');name.textContent=p.name;
   const sub=document.createElement('small');
-  sub.textContent=[p.kind==='family'?'Shared · the history from before profiles':p.is_owner?'You':p.kind==='kid'?'Kid':'Adult',p.has_pin?'PIN set':''].filter(Boolean).join(' · ');
+  sub.textContent=[p.linked?'Signs in away from home':'',p.kind==='family'?'Shared · the history from before profiles':p.is_owner?'You':p.kind==='kid'?'Kid':'Adult',p.has_pin?'PIN set':''].filter(Boolean).join(' · ');
   who.append(name,sub);
   const actions=document.createElement('div');actions.className='actions';
   const panel=document.createElement('div');panel.className='edit-panel';panel.hidden=true;
@@ -142,6 +142,7 @@ function render(){
   if(p.has_pin)pinForm.append(button('Remove PIN','secondary-button',()=>save(()=>api('/api/profiles/'+p.id+'/pin',{method:'PUT',body:JSON.stringify({pin:null})}),'PIN removed.')));
   pinForm.addEventListener('submit',e=>{e.preventDefault();save(()=>api('/api/profiles/'+p.id+'/pin',{method:'PUT',body:JSON.stringify({pin:pi.value})}),'PIN saved.')});
   panel.append(nameForm,colors,pinForm);
+  if(p.kind!=='family'&&!p.is_owner)panel.append(awayPanel(p));
   if(p.kind!=='family'&&!p.is_owner){
    const kind=document.createElement('div');kind.className='inline';
    kind.append(button(p.kind==='kid'?'Make adult':'Make kid profile','secondary-button',()=>save(()=>api('/api/profiles/'+p.id,{method:'PUT',body:JSON.stringify({kind:p.kind==='kid'?'adult':'kid'})}),'Saved.')));
@@ -157,6 +158,20 @@ function render(){
   list.append(row);
  }
  window.dispatchEvent(new Event('yarr-people-rendered'));
+}
+let seen=null;
+function awayPanel(p){
+ const box=document.createElement('div');box.className='inline';box.style.flexDirection='column';box.style.alignItems='stretch';
+ const h=document.createElement('strong');h.textContent='Away from home';
+ const note=document.createElement('p');note.className='note';note.style.margin='0';
+ note.textContent='To watch away from home, '+p.name+' signs in to yarr.media with their own email. Share this server with them in My Account → Barnacles, have them open it once, then pick their account here. Their watch history comes with them.';
+ const row=document.createElement('div');row.className='inline';
+ const sel=document.createElement('select');sel.setAttribute('aria-label','yarr.media account for '+p.name);
+ const none=document.createElement('option');none.value='';none.textContent='Not linked';sel.append(none);
+ const fill=()=>{for(const a of seen||[]){if(a.profile&&a.profile!==p.id)continue;const o=document.createElement('option');o.value=a.id;o.textContent=a.name;if(a.profile===p.id)o.selected=true;sel.append(o)}};
+ if(seen)fill();else api('/api/profiles/accounts/seen').then(r=>{seen=r.accounts;fill()}).catch(()=>{});
+ row.append(sel,button('Save','secondary-button',()=>save(async()=>{await api('/api/profiles/'+p.id+'/account',{method:'PUT',body:JSON.stringify({account:sel.value||null})});seen=null},sel.value?'Linked. Away from home, '+p.name+' now lands in their profile.':'Unlinked.')));
+ box.append(h,note,row);return box;
 }
 function chip(rating){const c=document.createElement('span');c.className='rating-chip';c.textContent=rating||'Unrated';return c}
 function titleLine(t){const li=document.createElement('li');const name=document.createElement('span');name.textContent=t.title;
