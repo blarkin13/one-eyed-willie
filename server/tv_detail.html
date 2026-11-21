@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Yarr Media · TV Shows</title>
 <link rel="stylesheet" href="/assets/ui.css?v=appearance-1">
-<script src="/assets/media-title-logo.js?v=1"></script><script defer src="/assets/shell.js?v=appearance-1"></script>
+<script src="/assets/media-title-logo.js?v=1"></script><script defer src="/assets/shell.js?v=appearance-2"></script>
 <script defer src="/assets/media-context.js?v=viewport-2"></script><script defer src="/assets/player.js?v=continue-next-1"></script><script defer src="/assets/theme-music.js?v=5"></script>
 <style>
 body[data-page=tv] .tv-extras{padding:10px 0 28px}
@@ -1003,6 +1003,11 @@ async function renderSeason(){
       resume.setAttribute('aria-label','Resume '+epTitle.textContent+' from saved position');
       actions.append(resume);
     }
+    // Phone app: download this episode to watch offline (when the server allows it).
+    if(window.YarrDownload)actions.append(window.YarrDownload.button({media_id:episode.id,kind:'episode',
+      title:epTitle.textContent,show_title:data.show.title,season:episode.season??state.season_number,episode:episode.episode??null,
+      subtitle:(episode.season!=null&&episode.episode!=null)?'S'+String(episode.season).padStart(2,'0')+' · E'+String(episode.episode).padStart(2,'0'):'',
+      poster_url:data.show.poster_url||'',still_url:episode.still_url||'',duration_seconds:Number(episode.duration_seconds)||0}));
     actions.append(trailerButton(data.show.trailer_key,data.show.title));
     const more=el('button','media-icon-action season-more-button');
     more.type='button';more.title='Episode and season options';

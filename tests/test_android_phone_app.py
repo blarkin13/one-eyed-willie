@@ -86,6 +86,23 @@ class DistributionTests(unittest.TestCase):
         self.assertIn('fun defaultVideoPoster(): android.graphics.Bitmap? = null', tv_shell)
         self.assertIn('AppShell.defaultVideoPoster() ?: super.getDefaultVideoPoster()', MAIN)
 
+    def test_offline_downloads_are_phone_only(self):
+        shell = (TV / "phone/src/main/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+        tv_shell = (TV / "app/src/tvShell/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+        phone_src = TV / "phone/src/main/java/studio/oneeyedwillie/tv"
+        for name in ("DownloadService.kt", "DownloadsActivity.kt", "OfflinePlayerActivity.kt", "OfflineStore.kt", "OfflineNet.kt"):
+            self.assertTrue((phone_src / name).is_file(), name)
+            self.assertFalse((TV / "app/src/main/java/studio/oneeyedwillie/tv" / name).exists(), "not in the TV app: " + name)
+        self.assertIn('message.startsWith("oewtv:shell:download:")', shell)
+        self.assertIn('row("Downloads") { openDownloads(activity) }', shell)
+        self.assertIn("fun openDownloads(activity: Activity) = Unit", tv_shell)
+        self.assertIn('android:foregroundServiceType="dataSync"', PHONE_MANIFEST)
+        for permission in ("FOREGROUND_SERVICE_DATA_SYNC", "POST_NOTIFICATIONS", "ACCESS_NETWORK_STATE"):
+            self.assertIn(permission, PHONE_MANIFEST)
+            self.assertNotIn(permission, TV_MANIFEST)
+        self.assertIn("if (!isTv) addView(Button(this@MainActivity).apply {", MAIN)
+        self.assertIn("AppShell.openDownloads(this@MainActivity)", MAIN)
+
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()
         self.assertIn(":phone:assembleDebug :phone:assembleLean", ci)

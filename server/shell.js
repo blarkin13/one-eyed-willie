@@ -658,3 +658,27 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 // Media pages load the shared context menu as a versioned deferred script.
+
+// Phone app: "Download" for watching offline (a Pro feature). Pages add the
+// button with YarrDownload.button(item); it shows only in the phone app and
+// only when this server allows downloads. The app takes it from there.
+window.YarrDownload=(()=>{
+  const inPhoneApp=/YarrMediaAndroid\/1/.test(navigator.userAgent);
+  let status=null;
+  const allowed=()=>{
+    if(!inPhoneApp)return Promise.resolve(false);
+    status=status||fetch('/api/downloads/status',{cache:'no-store'})
+      .then(r=>r.ok?r.json():{allowed:false}).then(j=>!!j.allowed).catch(()=>false);
+    return status;
+  };
+  function button(item){
+    const b=document.createElement('button');
+    b.type='button';b.className='secondary-button media-icon-action yarr-download';b.hidden=true;
+    b.title='Download';b.setAttribute('aria-label','Download to watch offline');
+    b.innerHTML='<svg viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>';
+    b.addEventListener('click',()=>{try{prompt('oewtv:shell:download:'+JSON.stringify(item),'')}catch(_){}});
+    allowed().then(ok=>{b.hidden=!ok});
+    return b;
+  }
+  return {button,allowed};
+})();

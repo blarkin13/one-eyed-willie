@@ -18,4 +18,5 @@ object AppShell {
     fun onPrompt(activity: Activity, message: String): Boolean = false
     /** Null keeps WebView's own default. */
     fun defaultVideoPoster(): android.graphics.Bitmap? = null
+    fun openDownloads(activity: Activity) = Unit
 }
