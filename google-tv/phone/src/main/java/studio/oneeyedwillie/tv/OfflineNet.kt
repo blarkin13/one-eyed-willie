@@ -31,7 +31,8 @@ object OfflineNet {
         }
     }
 
-    private fun open(url: String, method: String, auth: String?, range: String?, timeoutMs: Int, body: ByteArray? = null): HttpURLConnection =
+    private fun open(url: String, method: String, auth: String?, range: String?, timeoutMs: Int, body: ByteArray? = null,
+                     profile: String? = null): HttpURLConnection =
         (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = method
             connectTimeout = timeoutMs
@@ -39,6 +40,9 @@ object OfflineNet {
             instanceFollowRedirects = false
             setRequestProperty("Accept", "application/json, video/mp4, */*")
             auth?.let { setRequestProperty("Authorization", it) }
+            // The household profile picked in the app ("Who's watching?"), so downloads
+            // and offline progress belong to that person, at home or away.
+            profile?.let { setRequestProperty("X-Yarr-Profile", it) }
             range?.let { setRequestProperty("Range", it) }
             if (body != null) {
                 doOutput = true
@@ -56,10 +60,11 @@ object OfflineNet {
     fun connect(context: Context, target: ServerTarget, path: String, method: String = "GET", range: String? = null,
                 body: JSONObject? = null): HttpURLConnection {
         val bytes = body?.toString()?.toByteArray()
+        val profile = WebCookies.profileToken(target.origin)
         var lastProblem: IOException? = null
         if (!target.remote) {
             try {
-                val c = open(target.origin + path, method, null, range, 4_000, bytes)
+                val c = open(target.origin + path, method, null, range, 4_000, bytes, profile)
                 val code = c.responseCode
                 if (code in 200..299) return c
                 val error = readError(c)
@@ -69,7 +74,8 @@ object OfflineNet {
         val serverId = target.serverId ?: throw (lastProblem ?: IOException("This server can't be reached from here"))
         for (fresh in listOf(false, true)) {
             val pass = remotePass(context, serverId, fresh) ?: throw (lastProblem ?: IOException("Sign in to Yarr Media to download away from home"))
-            val c = open(pass.origin + path, method, "Yarr-Pass " + pass.pass, range, 10_000, bytes)
+            val c = open(pass.origin + path, method, "Yarr-Pass " + pass.pass, range, 10_000, bytes,
+                profile ?: WebCookies.profileToken(pass.origin))
             val code = c.responseCode
             if (code in 200..299) return c
             val error = readError(c)

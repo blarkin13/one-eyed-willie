@@ -1466,7 +1466,20 @@ const APP_SW_SOURCE = String.raw`/* Yarr Media app service worker (served by yar
 'use strict';
 const OWN = ['/__yarr/'];
 const COPY = ['accept','accept-language','content-type','range','if-range','if-none-match','if-modified-since','x-requested-with'];
-let conn = null, pending = null;
+let conn = null, pending = null, profile;
+// The household profile picked on "Who's watching?": the server hands it back in
+// a header (cookies don't cross to the home server), kept here between visits.
+async function profileToken() {
+  if (profile === undefined) {
+    try { const r = await (await caches.open('yarr-profile')).match('/__yarr/profile'); profile = r ? await r.text() : ''; }
+    catch (_) { profile = ''; }
+  }
+  return profile;
+}
+function keepProfile(token) {
+  profile = token;
+  caches.open('yarr-profile').then(c => token ? c.put('/__yarr/profile', new Response(token)) : c.delete('/__yarr/profile')).catch(() => {});
+}
 self.addEventListener('install', e => e.waitUntil(self.skipWaiting()));
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
 async function connection(force) {
@@ -1495,7 +1508,12 @@ async function send(req, c, body) {
   const headers = new Headers();
   for (const name of COPY) { const v = req.headers.get(name); if (v) headers.set(name, v); }
   headers.set('authorization', 'Yarr-Pass ' + c.pass);
-  return fetch(c.origin + url.pathname + url.search, {method: req.method, headers, body, mode: 'cors', credentials: 'omit', redirect: 'follow', cache: 'no-store'});
+  const who = await profileToken();
+  if (who) headers.set('x-yarr-profile', who);
+  const res = await fetch(c.origin + url.pathname + url.search, {method: req.method, headers, body, mode: 'cors', credentials: 'omit', redirect: 'follow', cache: 'no-store'});
+  const chosen = res.headers.get('x-yarr-profile-set');
+  if (chosen !== null) keepProfile(chosen);
+  return res;
 }
 async function forward(req) {
   const url = new URL(req.url);

@@ -34,6 +34,12 @@ _RULES = [
     ({"GET"}, r"/api/music/tracks/" + _ID + r"/(stream|art|details)", "media"),
     ({"GET"}, r"/api/people/(profile|local-title)", None),
     ({"GET"}, r"/api/settings/(ambient|playback|sidebar|sidebar/icons|subtitle-appearance|tv-appearance)", None),
+    # Their own playback, subtitle and TV look preferences (stored per person)
+    ({"PUT"}, r"/api/settings/(playback|subtitle-appearance|tv-appearance)", None),
+    # Who's watching (household profiles)
+    ({"GET", "HEAD"}, r"/who", None),
+    ({"GET"}, r"/api/profiles", None),
+    ({"POST"}, r"/api/profiles/choose", None),
     ({"GET"}, r"/api/themes/" + _ID + r"/(audio|info)", "media"),
     # Playing
     ({"GET", "HEAD"}, r"/api/watch/" + _ID + r"/(status|stream|transcode)", "media"),
@@ -69,8 +75,8 @@ def media_library(media_id):
 
 
 def allowed(viewer, method, path, query):
-    """True when this barnacle may make this request."""
-    if not viewer.is_barnacle:
+    """True when this barnacle (or kid profile) may make this request."""
+    if not viewer.restricted:
         return True
     for methods, pattern, kind in _COMPILED:
         if method not in methods:

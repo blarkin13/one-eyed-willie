@@ -336,6 +336,7 @@ class MainActivity : ComponentActivity(), ShellHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WebCookies.install()   // native requests carry the chosen profile
         NavTrace.init(applicationContext)
         BuildConfigVersion.name = (if (isTv) "tv-" else "android-") + (try {
             packageManager.getPackageInfo(packageName, 0).versionName

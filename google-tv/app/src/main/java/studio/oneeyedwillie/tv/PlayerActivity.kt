@@ -200,6 +200,7 @@ class PlayerActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        WebCookies.install()
         NavTrace.init(applicationContext)
         NavTrace.log { "PLAYER_CREATE" }
         mediaId = intent.getIntExtra("media_id", -1)

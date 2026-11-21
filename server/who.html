@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en"><head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="icon" type="image/png" sizes="128x128" href="/assets/favicon.png?v=5">
+<title>Who's watching? · Yarr Media</title>
+<style>
+:root{color-scheme:dark;--crimson:#c62838;--ink:#f5f1e8;--grey:#9b9b9b}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;background:#000;color:var(--ink);font-family:system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+body{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:calc(max(22px,env(safe-area-inset-top)) + 70px) 20px 40px}
+.brand{display:flex;align-items:center;gap:10px;position:absolute;top:max(22px,env(safe-area-inset-top));left:max(20px,env(safe-area-inset-left))}
+.brand img{width:44px;height:44px}
+.brand b{font:900 21px/1 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;letter-spacing:.01em;white-space:nowrap}
+.brand .dot{color:var(--grey)}.brand .media{color:var(--crimson)}
+h1{font-size:clamp(1.7rem,4.4vw,3rem);font-weight:750;letter-spacing:-.01em;margin:0 0 4vh;text-align:center}
+.people{display:flex;flex-wrap:wrap;justify-content:center;gap:clamp(18px,3vw,40px);max-width:1100px}
+.person{display:flex;flex-direction:column;align-items:center;gap:12px;background:none;border:0;color:#cfcfcf;font:inherit;cursor:pointer;padding:6px;border-radius:14px;outline:0;width:clamp(104px,15vw,170px);-webkit-tap-highlight-color:transparent}
+.avatar{position:relative;width:100%;aspect-ratio:1;border-radius:22%;display:grid;place-items:center;font-weight:800;color:#fff;font-size:clamp(2.6rem,6vw,4.6rem);box-shadow:inset 0 -10px 30px #0003;border:3px solid transparent;transition:border-color .12s}
+.person .name{font-size:clamp(.98rem,1.6vw,1.25rem);font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.person:hover .avatar,.person:focus-visible .avatar,.person:focus .avatar{border-color:#fff}
+.person:hover,.person:focus-visible,.person:focus{color:#fff}
+.person[aria-current=true] .name::after{content:" ·";color:var(--crimson)}
+.lock{position:absolute;right:7%;bottom:7%;width:26%;height:26%;border-radius:50%;background:#000c;display:grid;place-items:center}
+.lock svg{width:58%;height:58%}
+.kid-badge{font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--grey);margin-top:-8px}
+.manage{margin-top:6vh;background:none;border:1px solid #ffffff45;color:#d8d8d8;border-radius:999px;padding:11px 24px;font:600 1rem system-ui;cursor:pointer;outline:0}
+.manage:hover,.manage:focus-visible,.manage:focus{border-color:#fff;color:#fff}
+.message{color:var(--grey);min-height:1.4em;margin:18px 0 0;text-align:center}
+dialog{background:#141414;color:var(--ink);border:1px solid #ffffff22;border-radius:18px;padding:22px 22px 18px;width:min(360px,92vw);text-align:center}
+dialog::backdrop{background:#000c}
+dialog h2{margin:0 0 4px;font-size:1.2rem}dialog p{margin:0 0 14px;color:var(--grey);font-size:.9rem}
+.dots{display:flex;justify-content:center;gap:12px;margin:8px 0 16px;min-height:16px}
+.dots i{width:14px;height:14px;border-radius:50%;border:2px solid #777}.dots i.on{background:var(--ink);border-color:var(--ink)}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.pad button{height:58px;border-radius:14px;border:0;background:#262626;color:#fff;font:600 1.4rem system-ui;cursor:pointer;outline:0}
+.pad button:hover,.pad button:focus-visible,.pad button:focus{background:#3a3a3a;box-shadow:0 0 0 2px #fff}
+.pad .ok{background:#a61e1e}.pad .ok:hover,.pad .ok:focus{background:#c62838}
+.pin-error{color:#ff7a7a;min-height:1.3em;margin:10px 0 0;font-size:.9rem}
+.cancel{margin-top:12px;background:none;border:0;color:var(--grey);font:inherit;cursor:pointer;padding:8px 14px;border-radius:9px;outline:0}
+.cancel:focus,.cancel:hover{color:#fff;box-shadow:0 0 0 2px #fff}
+</style></head>
+<body>
+<div class="brand" aria-label="Yarr Media"><img src="/assets/logo.svg?v=moon-sail-v1" alt=""><b aria-hidden="true">YARR<span class="dot">.</span><span class="media">MEDIA</span></b></div>
+<h1 id="title">Who's watching?</h1>
+<div class="people" id="people" role="list"></div>
+<button class="manage" id="manage" type="button" hidden>Manage profiles</button>
+<p class="message" id="message" role="status"></p>
+<dialog id="pin-dialog" aria-labelledby="pin-title">
+ <h2 id="pin-title">Enter PIN</h2><p id="pin-hint"></p>
+ <div class="dots" id="dots" aria-hidden="true"></div>
+ <div class="pad" id="pad"></div>
+ <p class="pin-error" id="pin-error" role="alert"></p>
+ <button class="cancel" id="pin-cancel" type="button">Cancel</button>
+</dialog>
+<script>
+'use strict';
+const $=id=>document.getElementById(id);
+const params=new URLSearchParams(location.search);
+const raw=params.get('next')||'/';
+const next=(raw.startsWith('/')&&!raw.startsWith('//')&&!raw.startsWith('/who'))?raw:'/';
+let state=null,pin='',pending=null;
+const LOCK='<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
+
+async function load(){
+ try{const r=await fetch('/api/profiles',{cache:'no-store'});state=await r.json()}catch(_){$('message').textContent="Can't reach the server. Check the connection and try again.";return}
+ if(!state.active){location.replace(next);return}
+ render();
+}
+function render(){
+ const box=$('people');box.replaceChildren();
+ const locked=state.locked;
+ for(const p of state.profiles){
+  const b=document.createElement('button');b.type='button';b.className='person';b.setAttribute('role','listitem');b.dataset.id=p.id;
+  const av=document.createElement('span');av.className='avatar';av.style.background=p.color;av.textContent=(p.name||'?').trim().charAt(0).toUpperCase();
+  const needsPin=locked?p.id!==state.current?.id:p.has_pin&&p.id!==state.current?.id;
+  if(needsPin){const l=document.createElement('span');l.className='lock';l.innerHTML=LOCK;av.append(l)}
+  const name=document.createElement('span');name.className='name';name.textContent=p.name;
+  b.append(av,name);
+  if(p.kind==='kid'){const k=document.createElement('span');k.className='kid-badge';k.textContent='Kid';b.append(k)}
+  if(state.current&&p.id===state.current.id)b.setAttribute('aria-current','true');
+  b.setAttribute('aria-label',p.name+(p.kind==='kid'?', kid profile':'')+(needsPin?', needs a PIN':''));
+  b.addEventListener('click',()=>pick(p,needsPin));
+  box.append(b);
+ }
+ $('manage').hidden=!(state.can_manage&&state.current&&state.current.kind!=='kid');
+ (box.querySelector('[aria-current=true]')||box.querySelector('.person'))?.focus();
+}
+async function pick(p,needsPin,code){
+ if(needsPin&&code===undefined){askPin(p);return}
+ $('message').textContent='';
+ const r=await fetch('/api/profiles/choose',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({id:p.id,pin:code||null})}).catch(()=>null);
+ if(!r){$('message').textContent="Can't reach the server.";return}
+ if(r.ok){location.replace(next);return}
+ const body=await r.json().catch(()=>({}));
+ const detail=body.detail==='pin_required'?'Enter the PIN.':String(body.detail||'That didn’t work.');
+ if($('pin-dialog').open){$('pin-error').textContent=detail;pin='';dots()}else $('message').textContent=detail;
+}
+function askPin(p){
+ pending=p;pin='';$('pin-error').textContent='';
+ $('pin-title').textContent=state.locked?'Parent PIN':'PIN for '+p.name;
+ $('pin-hint').textContent=state.locked?'A parent PIN is needed to leave a kid profile.':'Enter the profile’s PIN (or the parent PIN).';
+ dots();$('pin-dialog').showModal();$('pad').querySelector('button')?.focus();
+}
+function dots(){const d=$('dots');d.replaceChildren();for(let i=0;i<Math.max(4,pin.length);i++){const e=document.createElement('i');if(i<pin.length)e.className='on';d.append(e)}}
+function key(k){
+ if(k==='del'){pin=pin.slice(0,-1)}
+ else if(k==='ok'){if(pin.length>=4){const p=pending;pick(p,true,pin)}return}
+ else if(pin.length<8)pin+=k;
+ $('pin-error').textContent='';dots();
+}
+for(const k of ['1','2','3','4','5','6','7','8','9','del','0','ok']){
+ const b=document.createElement('button');b.type='button';b.dataset.key=k;
+ b.textContent=k==='del'?'⌫':k==='ok'?'OK':k;if(k==='ok')b.className='ok';
+ b.setAttribute('aria-label',k==='del'?'Delete':k==='ok'?'OK':k);
+ b.addEventListener('click',()=>key(k));$('pad').append(b);
+}
+$('pin-cancel').addEventListener('click',()=>$('pin-dialog').close());
+$('pin-dialog').addEventListener('close',()=>{pending=null;pin='';(document.querySelector('.person[aria-current=true]')||document.querySelector('.person'))?.focus()});
+$('manage').addEventListener('click',()=>{location.href='/settings/people'});
+// Number keys type the PIN; arrows move between tiles (TV remotes).
+document.addEventListener('keydown',e=>{
+ if($('pin-dialog').open){
+  if(/^[0-9]$/.test(e.key)){key(e.key);e.preventDefault();return}
+  if(e.key==='Backspace'){key('del');e.preventDefault();return}
+ }
+ const dir={ArrowLeft:[-1,0],ArrowRight:[1,0],ArrowUp:[0,-1],ArrowDown:[0,1]}[e.key];
+ if(!dir)return;
+ const scope=$('pin-dialog').open?$('pin-dialog'):document;
+ const items=[...scope.querySelectorAll('button')].filter(b=>!b.hidden&&b.offsetParent!==null);
+ const from=document.activeElement&&items.includes(document.activeElement)?document.activeElement:null;
+ if(!from){items[0]?.focus();e.preventDefault();return}
+ const a=from.getBoundingClientRect(),ax=a.left+a.width/2,ay=a.top+a.height/2;
+ let best=null,score=Infinity;
+ for(const b of items){if(b===from)continue;const r=b.getBoundingClientRect(),dx=r.left+r.width/2-ax,dy=r.top+r.height/2-ay;
+  const along=dir[0]?dx*dir[0]:dy*dir[1];if(along<=4)continue;const across=dir[0]?Math.abs(dy):Math.abs(dx);
+  const s=along+across*2.5;if(s<score){score=s;best=b}}
+ if(best){best.focus();e.preventDefault()}
+});
+load();
+</script>
+</body></html>

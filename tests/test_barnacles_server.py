@@ -52,7 +52,7 @@ class BarnacleServerTests(unittest.TestCase):
     def test_barnacle_sees_only_their_libraries(self):
         h = self.headers()
         self.assertEqual(self.client.get("/api/viewer", headers=h).json(),
-                         {"role": "barnacle", "name": "Friend", "libraries": [1, 2]})
+                         {"role": "barnacle", "name": "Friend", "libraries": [1, 2], "profile": None, "profiles_active": False})
         libs = self.client.get("/api/libraries", headers=h).json()
         self.assertEqual([l["id"] for l in libs], [1, 2])
         self.assertTrue(all("path" not in l and "folders" not in l for l in libs))
@@ -85,7 +85,7 @@ class BarnacleServerTests(unittest.TestCase):
                             ("GET", "/radarr"), ("GET", "/sabnzbd"), ("GET", "/services"), ("GET", "/explore"),
                             ("POST", "/api/libraries"), ("DELETE", "/api/libraries/1"), ("PATCH", "/api/libraries/1"),
                             ("POST", "/api/libraries/1/scan"), ("PUT", "/api/libraries/1/icon.png"),
-                            ("PUT", "/api/settings/sidebar"), ("PUT", "/api/settings/playback"),
+                            ("PUT", "/api/settings/sidebar"), ("PUT", "/api/settings/ambient"),
                             ("GET", "/api/arr/connections"), ("GET", "/api/sabnzbd/status"), ("POST", "/api/sabnzbd/queue"),
                             ("GET", "/api/media/actions"), ("POST", "/api/media/actions/delete"),
                             ("GET", "/api/metadata/settings"), ("PUT", "/api/movies/match?library_id=1&key=x"),
@@ -97,6 +97,10 @@ class BarnacleServerTests(unittest.TestCase):
             with self.subTest(method=method, url=url):
                 r = self.client.request(method, url, headers=h, follow_redirects=False)
                 self.assertIn(r.status_code, (303, 403), f"{method} {url} -> {r.status_code}")
+        # Their own playback preferences are theirs alone; the owner's stay as they were.
+        self.assertEqual(self.client.put("/api/settings/playback", headers=h, json={"auto_play_next": True}).status_code, 200)
+        self.assertTrue(self.client.get("/api/settings/playback", headers=h).json()["auto_play_next"])
+        self.assertFalse(self.client.get("/api/settings/playback").json()["auto_play_next"])
         # Owner passes keep full access.
         self.assertEqual(self.client.get("/api/remote/settings", headers=self.headers(role="owner")).status_code, 200)
 

@@ -423,3 +423,27 @@ test('servers learn their public IP and owners can check remote reachability', a
  assert.match(page,/Forward TCP port 443/);
  assert.match(page,/Check remote access/);
 });
+
+test('app.yarr.media service worker keeps the household profile the server hands back', async()=>{
+ const worker=await loadWorker(),env=makeEnv();
+ const sw=await request(worker,env,'GET','https://app.yarr.media/__yarr/sw.js');
+ const source=await sw.text();
+ const store=new Map(),sent=[],listeners={};
+ const cachesStub={open:async()=>({match:async k=>store.has(k)?new Response(store.get(k)):undefined,
+  put:async(k,r)=>{store.set(k,await r.text())},delete:async k=>{store.delete(k)}})};
+ const fetchStub=async(url,opts={})=>{
+  if(url==='/__yarr/connection')return new Response(JSON.stringify({server_origin:'https://home.example',pass:'P',expires_at:new Date(Date.now()+3600e3).toISOString()}),{status:200});
+  sent.push([url,opts.headers.get('x-yarr-profile')]);
+  return new Response('{}',{status:200,headers:url.endsWith('/api/profiles/choose')?{'x-yarr-profile-set':'TOKEN.1.sig'}:{}});
+ };
+ const self={addEventListener:(type,fn)=>{listeners[type]=fn},location:{origin:'https://app.yarr.media'},skipWaiting(){},clients:{claim(){}}};
+ new Function('self','caches','fetch',source)(self,cachesStub,fetchStub);
+ const go=async(path,method='GET')=>{let done;listeners.fetch({request:new Request('https://app.yarr.media'+path,{method}),respondWith:p=>{done=p}});return done};
+ await go('/api/viewer');
+ await go('/api/profiles/choose','POST');
+ await new Promise(r=>setTimeout(r,10));
+ await go('/api/home');
+ assert.deepEqual(sent.map(x=>x[1]),[null,null,'TOKEN.1.sig']);
+ assert.equal(sent[2][0],'https://home.example/api/home');
+ assert.equal(store.get('/__yarr/profile'),'TOKEN.1.sig');
+});

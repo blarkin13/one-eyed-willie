@@ -8,6 +8,7 @@ from typing import Literal
 from fastapi import APIRouter
 from pydantic import BaseModel
 from .library import db
+from . import personal_settings
 
 router = APIRouter(prefix="/api/settings/subtitle-appearance", tags=["appearance"])
 
@@ -25,11 +26,8 @@ def get_subtitle_appearance():
     with db() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS app_settings "
                      "(key TEXT PRIMARY KEY, value TEXT NOT NULL)")
-        rows = conn.execute(
-            "SELECT key,value FROM app_settings WHERE key IN "
-            "('subtitle_background','subtitle_size','subtitle_color','subtitle_outline')"
-        ).fetchall()
-    saved = {row["key"]: row["value"] for row in rows}
+        saved = personal_settings.read(
+            conn, ["subtitle_background", "subtitle_size", "subtitle_color", "subtitle_outline"])
     for key in values:
         value = saved.get("subtitle_" + key)
         if value is None:
@@ -50,7 +48,7 @@ def save_subtitle_appearance(settings: SubtitleAppearance):
         conn.executemany(
             "INSERT INTO app_settings(key,value) VALUES(?,?) "
             "ON CONFLICT(key) DO UPDATE SET value=excluded.value",
-            [("subtitle_" + key, ("true" if value else "false") if isinstance(value, bool)
+            [(personal_settings.key("subtitle_" + key), ("true" if value else "false") if isinstance(value, bool)
               else value) for key, value in values.items()]
         )
     return values
