@@ -23,6 +23,10 @@ object ShellLogic {
 
     fun isTabRoot(path: String) = path.ifEmpty { "/" } in TAB_ROOTS
 
+    /** A finger that has moved past the touch slop mostly sideways is scrolling a row, not pulling to refresh. */
+    fun isSideways(dx: Float, dy: Float, slop: Float): Boolean =
+        kotlin.math.abs(dx) > slop && kotlin.math.abs(dx) >= kotlin.math.abs(dy)
+
     /** Server pages for the More sheet: everything the web navigation has that isn't a tab. */
     fun moreLinks(links: List<NavLink>): List<NavLink> {
         val hub = links.any { it.service == "services" }

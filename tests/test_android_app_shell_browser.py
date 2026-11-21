@@ -79,6 +79,19 @@ class AppShellStylingTest(base.MobileHomeLayoutTest):
         page.wait_for_timeout(700)
         self.assertEqual(page.eval_on_selector(track, "t => Math.round(t.scrollLeft)"), 70)
 
+    def test_swiping_rows_does_no_hidden_feature_work_in_the_app(self):
+        # The feature panel is hidden in the app, so neither loading nor swiping fills it in.
+        for app in (True, False):
+            with self.subTest(app=app):
+                page = self.open_app(411, app=app)
+                for x in (120, 260, 420):
+                    page.evaluate(f"document.querySelector('#recent-movies .shelf-track').scrollLeft={x}")
+                    page.wait_for_timeout(150)
+                page.dispatch_event("#recent-movies .shelf-track .tile-button >> nth=2", "pointerover")
+                page.wait_for_timeout(400)
+                filled = page.evaluate("[...document.querySelectorAll('.home-feature-kicker')].some(e => e.textContent.trim())")
+                self.assertEqual(filled, not app)
+
     def test_home_is_poster_rows_like_plex(self):
         page = self.open_app(411)
         data = page.evaluate("""() => ({
