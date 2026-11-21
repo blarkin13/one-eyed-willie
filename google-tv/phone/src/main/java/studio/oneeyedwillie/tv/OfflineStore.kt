@@ -37,8 +37,13 @@ class OfflineItem(
     var playedAt: Long = 0,           // when it was last watched (ms), so newer progress elsewhere wins
     val addedAt: Long = System.currentTimeMillis(),
 ) {
+    // Songs: title = song, subtitle = artist, showTitle = album, season = disc, episode = track number.
     val heading: String get() = if (kind == "episode" && showTitle.isNotBlank()) showTitle else title
-    val detail: String get() = if (kind == "episode") listOf(subtitle, title).filter { it.isNotBlank() }.joinToString(" · ") else subtitle
+    val detail: String get() = when (kind) {
+        "episode" -> listOf(subtitle, title).filter { it.isNotBlank() }.joinToString(" · ")
+        "track" -> listOf(subtitle, showTitle).filter { it.isNotBlank() }.joinToString(" · ")
+        else -> subtitle
+    }
 
     fun toJson(): JSONObject = JSONObject()
         .put("id", id).put("key", key).put("media_id", mediaId).put("kind", kind).put("title", title)
@@ -81,8 +86,9 @@ object OfflineStore {
 
     fun root(context: Context) = File(context.filesDir, "offline").apply { mkdirs() }
     fun folder(context: Context, item: OfflineItem) = File(root(context), item.id).apply { mkdirs() }
-    fun video(context: Context, item: OfflineItem) = File(folder(context, item), "video.mp4")
-    fun partial(context: Context, item: OfflineItem) = File(folder(context, item), "video.mp4.part")
+    /** The downloaded file: a phone-ready MP4 for video, the original file for a song. */
+    fun video(context: Context, item: OfflineItem) = File(folder(context, item), if (item.kind == "track") "audio" else "video.mp4")
+    fun partial(context: Context, item: OfflineItem) = File(folder(context, item), if (item.kind == "track") "audio.part" else "video.mp4.part")
     fun poster(context: Context, item: OfflineItem) = File(folder(context, item), "poster.jpg")
     fun subtitles(context: Context, item: OfflineItem): List<File> =
         File(folder(context, item), "subs").listFiles { f -> f.name.endsWith(".vtt") }?.sortedBy { it.name } ?: emptyList()

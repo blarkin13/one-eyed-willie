@@ -70,7 +70,8 @@ class DownloadsActivity : Activity() {
     override fun onStop() { OfflineStore.stopObserving(refresh); super.onStop() }
 
     private fun render() {
-        val items = OfflineStore.all(this).sortedByDescending { it.addedAt }
+        // Newest first; an album's songs (added together) stay in album order.
+        val items = OfflineStore.all(this).sortedWith(compareByDescending<OfflineItem> { it.addedAt / 10_000 }.thenBy { it.addedAt })
         val total = items.filter { it.status == "done" }.sumOf { it.bytes }
         summary.text = if (items.isEmpty()) "" else
             items.size.toString() + (if (items.size == 1) " title" else " titles") +
@@ -107,7 +108,7 @@ class DownloadsActivity : Activity() {
                 BitmapFactory.decodeFile(file.path, options)?.let { setImageBitmap(it) }
             }
         }
-        row.addView(poster, LinearLayout.LayoutParams(dp(62), dp(92)))
+        row.addView(poster, LinearLayout.LayoutParams(dp(62), if (item.kind == "track") dp(62) else dp(92)))
         val text = LinearLayout(this).apply { orientation = LinearLayout.VERTICAL; setPadding(dp(14), 0, dp(6), 0) }
         text.addView(TextView(this).apply {
             this.text = item.heading; textSize = 16f; setTextColor(Color.WHITE); typeface = Typeface.DEFAULT_BOLD

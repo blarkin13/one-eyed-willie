@@ -81,6 +81,7 @@ class DownloadService : Service() {
     private fun download(start: OfflineItem) {
         val target = ServerTarget(start.origin, start.remote, start.serverId)
         val id = start.id
+        if (start.kind == "track") return downloadSong(start, target)
         // 1. The server prepares a phone-ready file (or has it already).
         val quality = URLEncoder.encode(start.quality, "UTF-8")
         var job = OfflineNet.json(this, target, "/api/downloads/prepare/${start.mediaId}?quality=$quality", "POST")
@@ -133,6 +134,54 @@ class DownloadService : Service() {
         fetchSubtitles(start, target)
         OfflineStore.update(this, id) { it.status = "done"; it.progress = 1.0; it.bytes = video.length(); it.error = null }
         notifyDone(start)
+    }
+
+    /** A song: the original file, no preparing needed; then its album art. */
+    private fun downloadSong(start: OfflineItem, target: ServerTarget) {
+        val id = start.id
+        fetchFile(start, target, "/api/downloads/music/${start.mediaId}") ?: return
+        fetchPoster(start, target)
+        val file = OfflineStore.video(this, start)
+        OfflineStore.update(this, id) { it.status = "done"; it.progress = 1.0; it.bytes = file.length(); it.error = null }
+        if (OfflineStore.nextWork(this) == null) notifyDone(start)
+    }
+
+    /** Downloads [path] into the item's file, resuming a partial one. Null if the item was removed meanwhile. */
+    private fun fetchFile(start: OfflineItem, target: ServerTarget, path: String): java.io.File? {
+        val id = start.id
+        val part = OfflineStore.partial(this, start)
+        val have = if (part.isFile) part.length() else 0L
+        val c = OfflineNet.connect(this, target, path, range = OfflineLogic.rangeHeader(have))
+        val resumed = OfflineLogic.resumes(c.responseCode, have)
+        val total = OfflineLogic.totalBytes(c.getHeaderField("Content-Range"), c.contentLengthLong, have, resumed)
+        var done = if (resumed) have else 0L
+        OfflineStore.update(this, id) { it.status = "downloading" } ?: run { c.disconnect(); return null }
+        var lastReport = 0L
+        try {
+            c.inputStream.use { input ->
+                FileOutputStream(part, resumed).use { out ->
+                    val buffer = ByteArray(64 * 1024)
+                    while (true) {
+                        if (Thread.interrupted()) throw InterruptedException()
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        out.write(buffer, 0, n)
+                        done += n
+                        val now = System.currentTimeMillis()
+                        if (now - lastReport > 1_000) {
+                            lastReport = now
+                            val p = if (total > 0) done.toDouble() / total else 0.0
+                            if (OfflineStore.update(this, id) { it.progress = p } == null) { part.delete(); return null }
+                            notify("Downloading", start.title, (p * 100).toInt())
+                        }
+                    }
+                }
+            }
+        } finally { c.disconnect() }
+        if (total > 0 && done < total) throw IOException("The download was cut off")
+        val file = OfflineStore.video(this, start)
+        if (!part.renameTo(file)) throw IOException("Couldn't save the download")
+        return file
     }
 
     private fun fetchPoster(item: OfflineItem, target: ServerTarget) {
