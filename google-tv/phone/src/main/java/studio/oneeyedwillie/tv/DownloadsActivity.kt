@@ -1,7 +1,6 @@
 package studio.oneeyedwillie.tv
 
 import android.app.Activity
-import android.app.AlertDialog
 import android.content.Intent
 import android.graphics.BitmapFactory
 import android.graphics.Color
@@ -146,16 +145,15 @@ class DownloadsActivity : Activity() {
     private fun open(item: OfflineItem) {
         when (item.status) {
             "done" -> startActivity(Intent(this, OfflinePlayerActivity::class.java).putExtra("id", item.id))
-            "failed", "paused", "waiting_wifi" -> AlertDialog.Builder(this)
-                .setTitle(item.heading)
-                .setMessage(OfflineLogic.statusLine(item.status, item.progress, item.bytes, item.error))
-                .setPositiveButton("Try again") { _, _ ->
+            "failed", "paused", "waiting_wifi" -> Sheet(this, item.heading, item.detail)
+                .text(OfflineLogic.statusLine(item.status, item.progress, item.bytes, item.error))
+                .button("Try again", primary = true) {
                     OfflineStore.update(this, item.id) { it.status = "waiting"; it.error = null }
                     DownloadService.kick(this)
                 }
-                .apply { if (item.status == "waiting_wifi") setNeutralButton("Use mobile data") { _, _ ->
+                .apply { if (item.status == "waiting_wifi") button("Download on mobile data now") {
                     replaceWifiOnly(item); DownloadService.kick(this@DownloadsActivity) } }
-                .setNegativeButton("Close", null).show()
+                .button("Close").show()
             else -> {}
         }
     }
@@ -170,12 +168,10 @@ class DownloadsActivity : Activity() {
     }
 
     private fun confirmRemove(item: OfflineItem) {
-        AlertDialog.Builder(this)
-            .setTitle("Remove download?")
-            .setMessage(item.heading + (if (item.detail.isNotBlank()) " · " + item.detail else "") +
-                "\n\nIt stays on your server; this only frees space on the phone.")
-            .setPositiveButton("Remove") { _, _ -> OfflineStore.remove(this, item.id) }
-            .setNegativeButton("Cancel", null).show()
+        Sheet(this, "Remove download?", item.heading + (if (item.detail.isNotBlank()) " · " + item.detail else ""))
+            .text("It stays on your server; this only frees space on the phone.")
+            .button("Remove from phone", primary = true) { OfflineStore.remove(this, item.id) }
+            .button("Cancel").show()
     }
 
     companion object {

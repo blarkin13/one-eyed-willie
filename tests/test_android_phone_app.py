@@ -110,6 +110,18 @@ class DistributionTests(unittest.TestCase):
         self.assertIn("Also download the next episode", shell)
         self.assertIn("Download the next episode?", (phone_src / "OfflinePlayerActivity.kt").read_text())
 
+    def test_phone_menus_use_the_app_style_and_tv_dialogs_are_unchanged(self):
+        phone_src = TV / "phone/src/main/java/studio/oneeyedwillie/tv"
+        tv_shell = (TV / "app/src/tvShell/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
+        for name in ("AppShell.kt", "DownloadsActivity.kt", "OfflinePlayerActivity.kt"):
+            self.assertNotIn("AlertDialog", (phone_src / name).read_text(), name + " uses the app's sheet")
+        self.assertIn("fun dialogTheme(): Int = 0", tv_shell)
+        self.assertIn("fun styleDialog(dialog: android.app.Dialog) = Unit", tv_shell)
+        self.assertEqual(MAIN.count("AlertDialog.Builder(this, AppShell.dialogTheme())"), 3)
+        self.assertIn('<style name="YarrSheet"', (TV / "phone/src/main/res/values/yarr_sheet.xml").read_text())
+        # A dropped connection mid-session shows the app's offline screen (phone only).
+        self.assertIn("!isTv && (initialPageLoaded || failedAfterLoad)) connectionLost()", MAIN)
+
     def test_ci_and_release_build_the_phone_app(self):
         ci = (ROOT / ".github/workflows/google-tv.yml").read_text()
         self.assertIn(":phone:assembleDebug :phone:assembleLean", ci)

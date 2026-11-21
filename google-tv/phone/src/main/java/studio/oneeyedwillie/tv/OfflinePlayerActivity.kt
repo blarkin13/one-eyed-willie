@@ -77,15 +77,13 @@ class OfflinePlayerActivity : Activity() {
     private fun offerNext() {
         val item = OfflineStore.get(this, itemId) ?: return finish()
         OfflineNext.downloaded(this, item)?.let { next ->
-            android.app.AlertDialog.Builder(this)
-                .setTitle("Play the next episode?")
-                .setMessage(listOf(next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · "))
-                .setPositiveButton("Play") { _, _ ->
+            Sheet(this, "Play the next episode?", listOf(next.heading, next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · "))
+                .button("Play", primary = true) {
                     startActivity(android.content.Intent(this, OfflinePlayerActivity::class.java).putExtra("id", next.id))
                     finish()
                 }
-                .setNegativeButton("Not now") { _, _ -> finish() }
-                .setOnCancelListener { finish() }.show()
+                .button("Not now") { finish() }
+                .onClose { finish() }.show()
             return
         }
         Thread {
@@ -93,15 +91,11 @@ class OfflinePlayerActivity : Activity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 if (next == null) { finish(); return@runOnUiThread }
-                android.app.AlertDialog.Builder(this)
-                    .setTitle("Download the next episode?")
-                    .setMessage(listOf(next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · ") +
-                        "\n\nSame quality (" + next.quality + ")" + (if (next.wifiOnly) ", on Wi-Fi." else "."))
-                    .setPositiveButton("Download") { _, _ ->
-                        OfflineStore.add(this, next); DownloadService.kick(this); finish()
-                    }
-                    .setNegativeButton("Not now") { _, _ -> finish() }
-                    .setOnCancelListener { finish() }.show()
+                Sheet(this, "Download the next episode?", listOf(next.heading, next.subtitle, next.title).filter { it.isNotBlank() }.joinToString(" · "))
+                    .text("Same quality (" + next.quality + ")" + (if (next.wifiOnly) ", on Wi-Fi." else "."))
+                    .button("Download", primary = true) { OfflineStore.add(this, next); DownloadService.kick(this); finish() }
+                    .button("Not now") { finish() }
+                    .onClose { finish() }.show()
             }
         }.start()
     }
