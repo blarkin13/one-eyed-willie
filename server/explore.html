@@ -94,13 +94,13 @@ body[data-page=explore] #add-dialog .form-actions{position:sticky;bottom:-1px;ba
 <p class="remote-help">Remote: arrows to navigate · OK to select · Back to return. Use ◀ ▶ to change a form choice.</p>
 <div id="status" class="status-line" role="status"></div>
 <div id="hint" class="explore-hint"><h2>Find something new</h2><p>Enter a title to search your connected media manager's catalog. Choose a result to add it to that manager. Existing titles will be marked as already added.</p></div>
+<h2 id="search-heading" hidden>Search Results</h2>
+<div id="results" class="explore-results"></div>
 <div id="discovery">
 <section class="discovery-section"><h2>Popular</h2><div id="popular" class="discovery-row"></div></section>
 <section class="discovery-section"><h2>New Releases</h2><div id="new" class="discovery-row"></div></section>
 <section class="discovery-section"><h2>Coming Soon</h2><div id="soon" class="discovery-row"></div></section>
 </div>
-<h2 id="search-heading" hidden>Search Results</h2>
-<div id="results" class="explore-results"></div>
 <p class="note">Adding a title registers it with Radarr or Sonarr and enables their normal monitoring; it does not immediately provide playable files. Only add content you are authorized to obtain.</p></div>
 <section id="explore-detail" class="explore-detail" hidden aria-label="Title details">
 
@@ -150,7 +150,7 @@ function setProvider(id){
  $('explore-description').textContent=id==='radarr'?'Discover movies for Radarr.':'Discover TV shows for Sonarr.';
  $('query').placeholder=id==='radarr'?'Search for a movie…':'Search for a TV show…';
  $('results').replaceChildren();$('status').textContent='';$('search-heading').hidden=true;
- $('hint').hidden=false;
+ $('hint').hidden=false;$('discovery').hidden=false;
  const query=new URLSearchParams(location.search);query.set('type',id==='radarr'?'movies':'tv');history.replaceState(null,'',location.pathname+'?'+query);
 }
 
@@ -317,6 +317,8 @@ async function search(){
   const data=await fetchJson('/api/arr/'+provider+'/lookup?q='+encodeURIComponent(q));
   if(current!==provider)return;
   results=data.items||[];render(results);$('search-heading').hidden=false;
+  // Results replace the discovery rows, so they're right under the search box (not below three rows of posters).
+  $('discovery').hidden=results.length>0;
   $('status').textContent=results.length?results.length+' results — select a title to add.':'No matching titles. Try a different search.';
  }catch(e){
   $('status').textContent=e.message;
@@ -325,6 +327,11 @@ async function search(){
  }finally{searching=false;$('search-button').disabled=false;}
 }
 $('search-form').onsubmit=e=>{e.preventDefault();search();};
+// Clearing the search box brings the discovery rows back.
+$('query').addEventListener('input',()=>{
+ if($('query').value.trim()||searching)return;
+ $('results').replaceChildren();$('search-heading').hidden=true;$('status').textContent='';$('discovery').hidden=false;
+});
 async function openAdd(item){
  previousDialogFocus=document.activeElement;
  selected={...item,provider};
