@@ -24,7 +24,7 @@ class ProfilesBrowserTest(base.MobileHomeLayoutTest):
         owner.check("[name=setup-kind][value=kid]")
         owner.click("#setup-form button[type=submit]")
         owner.wait_for_selector("#manage:not([hidden]) .person-row")
-        names = owner.eval_on_selector_all(".person-row strong", "e => e.map(x => x.textContent)")
+        names = owner.eval_on_selector_all(".person-row .who strong", "e => e.map(x => x.textContent)")
         self.assertEqual(names, ["Family", "Brian", "Sam"])
         owner.screenshot(path="/tmp/profiles-people.png", full_page=True)
         # A kid's limits: rating, unrated titles, libraries, exceptions.
