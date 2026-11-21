@@ -30,6 +30,7 @@ _RULES = [
     ({"POST"}, r"/api/movies/posters", None),
     ({"GET"}, r"/api/tv/(poster|show|season|episode|next)", None),
     ({"GET"}, r"/api/music/catalog", None),
+    ({"GET"}, r"/api/music/artist-top", None),
     ({"GET"}, r"/api/music/tracks/" + _ID + r"/(stream|art|details)", "media"),
     ({"GET"}, r"/api/people/(profile|local-title)", None),
     ({"GET"}, r"/api/settings/(ambient|playback|sidebar|sidebar/icons|subtitle-appearance|tv-appearance)", None),
