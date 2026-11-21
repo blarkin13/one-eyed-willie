@@ -239,3 +239,61 @@ class KidLimitTests(unittest.TestCase):
         from server import kid_rules
         self.assertEqual([kid_rules.level(r) for r in ("TV-Y", "TV-Y7", "G", "tv-g", "Rated PG", "PG13", "TV-14", "R", "TV-MA", "NR", "")],
                          [0, 1, 2, 2, 3, 4, 4, 5, 5, None, None])
+
+
+class AwayFromHomeTests(unittest.TestCase):
+    def setUp(self):
+        temp = tempfile.TemporaryDirectory()
+        self.addCleanup(temp.cleanup)
+        self.key = Ed25519PrivateKey.generate()
+        for p in (patch.object(library, "DB_PATH", Path(temp.name) / "library.sqlite3"),
+                  patch.object(ra, "KEYS", Keys({"k1": self.key.public_key()})),
+                  patch.object(ra, "get_server_id", lambda: SERVER)):
+            p.start()
+            self.addCleanup(p.stop)
+        profiles._seen_at.clear()
+        with library.db() as conn:
+            conn.execute("INSERT INTO libraries(id,name,kind,path) VALUES(1,'Movies','movies','/media/Movies')")
+            conn.execute("INSERT INTO media(id,library_id,path,title,size,mtime_ns,added_at) "
+                         "VALUES(1,1,'/media/Movies/Arrival (2016)/Arrival (2016).mkv','Arrival',1,1,'2026-11-15')")
+        self.client = TestClient(app)
+        r = self.client.post("/api/profiles/setup", json={"owner_name": "Brian", "person": {"name": "Sam", "kind": "adult"}})
+        self.people = {p["name"]: p for p in r.json()["profiles"]}
+        self.remote = {"X-Yarr-Remote": "1", "Authorization": "Yarr-Pass " + make_pass(
+            self.key, role="barnacle", sub="sam-account", lib=[1], nm="sam@example.com")}
+
+    def test_a_family_members_own_login_lands_in_their_profile(self):
+        sam = self.people["Sam"]["id"]
+        # Before linking: an ordinary barnacle, with their own history.
+        self.assertEqual(self.client.get("/api/viewer", headers=self.remote).json()["name"], "sam@example.com")
+        self.client.put("/api/playback/progress", headers=self.remote,
+                        json={"media_id": 1, "position_seconds": 300, "duration_seconds": 6000})
+        seen = self.client.get("/api/profiles/accounts/seen").json()["accounts"]
+        self.assertEqual([(a["id"], a["name"], a["profile"]) for a in seen], [("u:sam-account", "sam@example.com", None)])
+        r = self.client.put(f"/api/profiles/{sam}/account", json={"account": "u:sam-account"})
+        self.assertEqual(r.status_code, 200, r.text)
+        viewer = self.client.get("/api/viewer", headers=self.remote).json()
+        self.assertEqual((viewer["name"], viewer["role"]), ("Sam", "barnacle"))
+        with library.db() as conn:
+            self.assertEqual([r["viewer"] for r in conn.execute("SELECT viewer FROM playback_progress")], ["p:" + sam])
+        # Still watch-and-listen only away from home.
+        self.assertEqual(self.client.get("/api/arr/connections", headers=self.remote).status_code, 403)
+        # Their settings are the same ones as at home.
+        home, _ = TestClient(app), None
+        home.post("/api/profiles/choose", json={"id": sam})
+        home.put("/api/settings/playback", json={"auto_play_next": True})
+        self.assertTrue(self.client.get("/api/settings/playback", headers=self.remote).json()["auto_play_next"])
+
+    def test_linked_kids_keep_their_limits_away(self):
+        sam = self.people["Sam"]["id"]
+        self.client.get("/api/viewer", headers=self.remote)
+        self.client.put(f"/api/profiles/{sam}", json={"kind": "kid"})
+        self.client.put(f"/api/profiles/{sam}/account", json={"account": "u:sam-account"})
+        self.assertEqual(self.client.get("/api/viewer", headers=self.remote).json()["role"], "kid")
+        self.assertEqual(self.client.get("/api/watch/1/status", headers=self.remote).status_code, 403)   # unrated
+
+    def test_family_and_owner_cannot_be_linked_and_unknown_accounts_are_refused(self):
+        self.assertEqual(self.client.put(f"/api/profiles/{self.people['Family']['id']}/account",
+                                         json={"account": "u:x"}).status_code, 409)
+        self.assertEqual(self.client.put(f"/api/profiles/{self.people['Sam']['id']}/account",
+                                         json={"account": "u:never-seen"}).status_code, 404)

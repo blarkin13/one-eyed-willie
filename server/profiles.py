@@ -97,7 +97,7 @@ class Profile:
 
     def public(self):
         return {"id": self.id, "name": self.name, "kind": self.kind, "color": self.color,
-                "has_pin": bool(self.pin_hash), "is_owner": self.is_owner}
+                "has_pin": bool(self.pin_hash), "is_owner": self.is_owner, "linked": bool(self.account_id)}
 
 
 class Household:
@@ -461,7 +461,11 @@ class ProfileMiddleware:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or viewer_mod.current() is not viewer_mod.OWNER:
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        if viewer_mod.current().is_barnacle:
+            return await self._shared(scope, receive, send)
+        if viewer_mod.current() is not viewer_mod.OWNER:
             return await self.app(scope, receive, send)
         headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
         path = scope.get("path", "")
@@ -491,6 +495,33 @@ class ProfileMiddleware:
             return await self.app(scope, receive, send)
         who = profile.viewer()
         if who.restricted:
+            query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
+            if not await asyncio.to_thread(barnacle_access.allowed, who, method, path, query):
+                if method == "GET" and not path.startswith("/api/") and "text/html" in headers.get("accept", ""):
+                    return await _reply(send, 303, [("location", "/"), ("cache-control", "no-store")])
+                return await _reply(send, 403, [("content-type", "application/json"), ("cache-control", "no-store")],
+                                    b'{"detail":"Not available on this profile."}')
+        token = viewer_mod.use(who)
+        try:
+            return await self.app(scope, receive, send)
+        finally:
+            viewer_mod.reset(token)
+
+    async def _shared(self, scope, receive, send):
+        """Someone the owner shares with: their household profile, if linked."""
+        barnacle = viewer_mod.current()
+        try:
+            await asyncio.to_thread(remember_account, barnacle)
+            home = household()
+        except Exception:
+            return await self.app(scope, receive, send)
+        profile = next((p for p in home.profiles if p.account_id and p.account_id == barnacle.id), None)
+        if profile is None:
+            return await self.app(scope, receive, send)
+        who = linked_viewer(barnacle, profile)
+        if who.rules is not None:
+            headers = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope.get("headers", [])}
+            path, method = scope.get("path", ""), scope.get("method", "GET")
             query = parse_qs(scope.get("query_string", b"").decode("latin-1"))
             if not await asyncio.to_thread(barnacle_access.allowed, who, method, path, query):
                 if method == "GET" and not path.startswith("/api/") and "text/html" in headers.get("accept", ""):
@@ -585,3 +616,89 @@ def _rate_titles_soon():
         catalog_metadata.start_refresh(force=True)
     except Exception:
         pass
+
+
+# ---- Family members away from home ------------------------------------------
+# A family member signs in to yarr.media with their own email; the owner shares
+# the server with them there (as a barnacle). Once they've opened it, the owner
+# links that account to their profile here, and from then on, away from home,
+# they land in their own profile: same history and settings as at home, kids'
+# limits included. They watch and listen only (no owner tools) away from home.
+
+_seen_at = {}
+
+
+def _accounts_table(conn):
+    conn.execute("CREATE TABLE IF NOT EXISTS household_accounts(viewer_id TEXT PRIMARY KEY, name TEXT NOT NULL, last_seen REAL NOT NULL)")
+
+
+def remember_account(who):
+    """Notes a yarr.media account that opened this server (at most every 10 minutes)."""
+    now = time.time()
+    if now - _seen_at.get(who.id, 0) < 600:
+        return
+    _seen_at[who.id] = now
+    try:
+        with db() as conn:
+            _accounts_table(conn)
+            conn.execute("INSERT INTO household_accounts(viewer_id,name,last_seen) VALUES(?,?,?) "
+                         "ON CONFLICT(viewer_id) DO UPDATE SET name=excluded.name, last_seen=excluded.last_seen",
+                         (who.id, who.name or "yarr.media account", now))
+    except Exception:
+        pass
+
+
+def linked_viewer(barnacle, profile):
+    """A shared-with account, seen as the household profile it's linked to."""
+    libraries, rules, role = barnacle.libraries, None, "barnacle"
+    if profile.kind == "kid":
+        from . import kid_rules
+        rules = kid_rules.KidRules.from_json(profile.rules)
+        role = "kid"
+        if rules.libraries is not None:
+            libraries = (libraries or frozenset()) & rules.libraries if libraries is not None else rules.libraries
+    return viewer_mod.Viewer(id=profile.viewer_id, role=role, name=profile.name, libraries=libraries,
+                             profile=profile.id, color=profile.color, rules=rules)
+
+
+@router.get("/accounts/seen")
+def seen_accounts():
+    """yarr.media accounts that have opened this server, and the profile each is linked to."""
+    _manager()
+    links = {p.account_id: p.id for p in household().profiles if p.account_id}
+    with db() as conn:
+        _accounts_table(conn)
+        rows = conn.execute("SELECT viewer_id,name,last_seen FROM household_accounts ORDER BY last_seen DESC LIMIT 100").fetchall()
+    return {"accounts": [{"id": r["viewer_id"], "name": r["name"], "last_seen": r["last_seen"],
+                          "profile": links.get(r["viewer_id"])} for r in rows]}
+
+
+class AccountLink(BaseModel):
+    account: str | None = Field(None, max_length=120)
+    move_history: bool = True
+
+
+@router.put("/{pid}/account")
+def link_account(pid: str, link: AccountLink, x_yarr_parent_pin: str | None = Header(None)):
+    """Links (or with null, unlinks) a yarr.media account to a profile; their history moves over."""
+    _manager()
+    _require_parent(x_yarr_parent_pin)
+    profile = household().by_id.get(pid)
+    if profile is None:
+        raise HTTPException(404, "No such profile.")
+    if profile.kind == "family" or profile.is_owner:
+        raise HTTPException(409, "Family and your own profile use your account.")
+    with db() as conn:
+        _accounts_table(conn)
+        if link.account is not None:
+            if not conn.execute("SELECT 1 FROM household_accounts WHERE viewer_id=?", (link.account,)).fetchone():
+                raise HTTPException(404, "That account hasn't opened this server yet.")
+            conn.execute("UPDATE profiles SET account_id=NULL WHERE account_id=?", (link.account,))
+        conn.execute("UPDATE profiles SET account_id=? WHERE id=?", (link.account, pid))
+        if link.account and link.move_history:
+            target = profile.viewer_id
+            for table in ("playback_progress", "continue_watching_hidden"):
+                conn.execute(f"UPDATE OR IGNORE {table} SET viewer=? WHERE viewer=?", (target, link.account))
+                conn.execute(f"DELETE FROM {table} WHERE viewer=?", (link.account,))
+    _changed()
+    return household().by_id[pid].public() | {"account": link.account}
