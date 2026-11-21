@@ -38,3 +38,23 @@ Description: Self-hosted movie, TV and music server
  browser. The server runs in Docker and updates itself nightly. After
  installing, run "sudo yarr-media-setup" to choose your media folder.
 
+Package: yarr-media
+Architecture: all
+Version: 0.16.1
+Priority: optional
+Section: video
+Maintainer: Yarr Media <support@yarr.media>
+Depends: curl, docker.io | docker-ce, docker-compose-v2 | docker-compose-plugin
+Recommends: miniupnpc
+Filename: pool/main/y/yarr-media/yarr-media_0.16.1_all.deb
+Size: 6508
+MD5sum: b159e9e158b9138de1237afe5c8fa24a
+SHA1: 51275aeb9a92d4dfaf7c640682d4d7500aa86289
+SHA256: 1a7f5ffc164c3fadca842b66c514e7bbe63147df969e2219caef972e70fe5e0a
+SHA512: 94d29f419978bca328169c1dc0a6948ca88a59d4562a54a4d202c037340574b44835763c62277352c4a98eb20ce4f955d39b51e61a45ef28a0046f782180e994
+Homepage: https://yarr.media
+Description: Self-hosted movie, TV and music server
+ Yarr Media organizes your own media and streams it to your TV, phone and
+ browser. The server runs in Docker and updates itself nightly. After
+ installing, run "sudo yarr-media-setup" to choose your media folder.
+
