@@ -174,6 +174,21 @@
  <p id="time-adrift-message" class="message" role="status" aria-live="polite"></p>
  <p class="connection-help">Rewound time counts the length of deliberate backward seeks, not buffering or automatic quality changes. No media files are changed and no tracking data is sent outside this server.</p>
 </section>
+<section class="connection-card" data-connection-id="lrclib" aria-labelledby="lrclib-heading">
+ <div class="connection-head"><h2 id="lrclib-heading"><i class="fa-solid fa-align-left" aria-hidden="true"></i> Lyrics (LRCLIB)</h2>
+ <span id="lrclib-state" class="integration-state">Checking…</span></div>
+ <p class="connection-kind">Show lyrics in the full-screen music player for songs that don't have their own.</p>
+ <p class="connection-state">Lyrics in your files always come first: a <code>.lrc</code> file next to the song, or lyrics in its tags. When this is on, other songs are looked up on <a class="text-link" href="https://lrclib.net" target="_blank" rel="noopener noreferrer">LRCLIB</a>, a free community lyrics database, and synced lyrics follow along as the song plays.</p>
+ <form id="lrclib-form" class="connection-form">
+  <label for="lrclib-enabled" class="connection-visibility-label"><input id="lrclib-enabled" type="checkbox"><span>Look up lyrics on LRCLIB</span></label>
+  <label for="lrclib-server">LRCLIB address</label>
+  <input id="lrclib-server" type="url" maxlength="200" autocomplete="off" spellcheck="false" placeholder="https://lrclib.net">
+  <p class="connection-help">Leave it as https://lrclib.net, or use your own copy of LRCLIB (for example http://lrclib:3300 on this server).</p>
+  <div class="form-actions"><button type="submit" id="lrclib-save" class="primary-button">Save</button></div>
+ </form>
+ <p id="lrclib-message" class="message" role="status" aria-live="polite"></p>
+ <p class="connection-help">Only a song's artist, title, album and length are sent to the LRCLIB address, once per song; answers are saved on this server. LRCLIB's lyrics are contributed by its users and are not licensed from songwriters or publishers, so it's your choice whether to use them.</p>
+</section>
 </div>
 
 
@@ -437,6 +452,32 @@ $('time-adrift-enabled').addEventListener('change',async event=>{
  }finally{input.disabled=false}
 });
 loadTimeAdrift();
+
+async function loadLrclib(){
+ try{
+  const setting=await fetchJson('/api/lyrics-online/settings',{cache:'no-store'});
+  $('lrclib-enabled').checked=!!setting.enabled;
+  $('lrclib-server').value=setting.server||'';
+  $('lrclib-state').textContent=setting.enabled?'Enabled':'Disabled';
+  $('lrclib-state').classList.toggle('on',!!setting.enabled);
+ }catch(error){
+  $('lrclib-state').textContent='Unavailable';
+  $('lrclib-message').textContent=error.message;
+ }
+}
+$('lrclib-form').addEventListener('submit',async event=>{
+ event.preventDefault();
+ const enabled=$('lrclib-enabled').checked,server=$('lrclib-server').value.trim()||'https://lrclib.net';
+ $('lrclib-save').disabled=true;$('lrclib-message').textContent='Saving…';
+ try{
+  await fetchJson('/api/lyrics-online/settings',{method:'PUT',
+   headers:{'Content-Type':'application/json'},body:JSON.stringify({enabled,server})});
+  $('lrclib-message').textContent=enabled?'Online lyrics on.':'Online lyrics off.';
+  await loadLrclib();
+ }catch(error){$('lrclib-message').textContent='Could not save: '+error.message}
+ finally{$('lrclib-save').disabled=false}
+});
+loadLrclib();
 
 // First-party optional widgets: independent enable switches and placement
 // controls for Home, Pause and Idle. Each change persists immediately.

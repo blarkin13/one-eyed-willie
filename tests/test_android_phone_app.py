@@ -81,7 +81,7 @@ class DistributionTests(unittest.TestCase):
         tv_shell = (TV / "app/src/tvShell/java/studio/oneeyedwillie/tv/AppShell.kt").read_text()
         self.assertIn('tabBarView?.visibility = if (open) View.GONE else View.VISIBLE', shell)
         self.assertIn('bars.hide(androidx.core.view.WindowInsetsCompat.Type.systemBars())', shell)
-        self.assertIn('if (playerOpen) { web.evaluateJavascript("window.WilliePlayer&&window.WilliePlayer.close()"', shell)
+        self.assertIn('if(window.yarrShellBack)window.yarrShellBack();else if(window.WilliePlayer)window.WilliePlayer.close()', shell)
         self.assertIn('fun onPrompt(activity: Activity, message: String): Boolean = false', tv_shell)
         self.assertIn('fun defaultVideoPoster(): android.graphics.Bitmap? = null', tv_shell)
         self.assertIn('AppShell.defaultVideoPoster() ?: super.getDefaultVideoPoster()', MAIN)

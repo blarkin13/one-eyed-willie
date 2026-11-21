@@ -262,8 +262,11 @@ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',
 
     /** Back on a tab goes Home, Back on Home leaves the app; deeper pages go back as usual. */
     fun onBack(activity: Activity, host: ShellHost, web: WebView): Boolean {
-        // Back closes the player first, like the player's own back arrow.
-        if (playerOpen) { web.evaluateJavascript("window.WilliePlayer&&window.WilliePlayer.close()", null); return true }
+        // Back closes the video player or minimises the full-screen music player first.
+        if (playerOpen) {
+            web.evaluateJavascript("if(window.yarrShellBack)window.yarrShellBack();else if(window.WilliePlayer)window.WilliePlayer.close()", null)
+            return true
+        }
         if (currentPath == "/" || currentPath.isEmpty()) { activity.finish(); return true }
         if (ShellLogic.isTabRoot(currentPath)) { host.shellOpen("/"); return true }
         return false
