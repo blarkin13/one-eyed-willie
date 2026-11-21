@@ -776,29 +776,33 @@ function renderFull(){
    d.bitrate_kbps?d.bitrate_kbps+' kbps':null,d.channels===1?'Mono':d.channels===2?'Stereo':d.channels?d.channels+' channels':null];
   facts.replaceChildren(...[...base,...quality].filter(Boolean).map(x=>el('span','',String(x))));
   credits.textContent=[d.composer?'Written by '+d.composer:null,d.album_artist&&d.album_artist!==t.artist?'Album artist: '+d.album_artist:null,d.label?'Label: '+d.label:null].filter(Boolean).join(' · ');
-  renderLyrics(d.lyrics);
+  renderLyrics(d.lyrics,d.online_lyrics);
  };
  paint({});
  const want=t.id;
  trackDetails(t).then(d=>{if(currentTrack()?.id===want&&fullOpen())paint(d)});
 }
-function renderLyrics(lyrics){
+function renderLyrics(lyrics,online){
  const box=$('player').querySelector('.pf-lyrics');
  box.className='pf-lyrics';lyricLines=[];lyricIndex=-1;box.replaceChildren();
  if(lyrics===undefined){box.append(el('p','pf-none','Loading lyrics…'));return}
  if(!lyrics){
   box.append(el('p','pf-none','No lyrics for this song.'),
-   el('p','pf-note','Add a .lrc file with the same name next to the song, or lyrics in its tags, and they show up here.'));
+   el('p','pf-note','Add a .lrc file with the same name next to the song, or lyrics in its tags, and they show up here.'+
+    (online===false?' You can also turn on Lyrics (LRCLIB) in Settings → Integrations.':'')));
   return;
  }
+ if(lyrics.instrumental){box.append(el('p','pf-none','Instrumental'));return}
+ const credit=lyrics.source==='lrclib'?el('p','pf-note','Lyrics from LRCLIB'):null;
  if(lyrics.synced){
   box.classList.add('synced');
   for(const line of lyrics.synced){
    const p=el('p','',line.text||'♪');p.onclick=()=>{audio.currentTime=line.time;if(audio.paused)audio.play().catch(()=>{})};
    box.append(p);lyricLines.push({time:line.time,el:p});
   }
+  if(credit)box.append(credit);
   syncLyrics(true);
- }else{box.classList.add('plain');box.textContent=lyrics.plain}
+ }else{box.classList.add('plain');box.append(document.createTextNode(lyrics.plain));if(credit)box.append(credit)}
 }
 const wideFull=()=>matchMedia('(min-width:900px)').matches;
 function syncLyrics(jump){

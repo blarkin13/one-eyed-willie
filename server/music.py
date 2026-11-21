@@ -14,6 +14,7 @@ from PIL import Image, UnidentifiedImageError
 from .viewer import current as current_viewer
 
 from . import library as _library
+from . import lyrics_online
 from .library import db, AUDIO_EXTENSIONS
 
 router = APIRouter(prefix="/api/music", tags=["music"])
@@ -363,5 +364,23 @@ def music_track_details(track_id: int):
         "album_artist": easy.get("albumartist"),
         "label": easy.get("organization"),
         "copyright": easy.get("copyright"),
-        "lyrics": _read_lyrics(path, audio),
+        "lyrics": _read_lyrics(path, audio) or _online_lyrics(track_id),
+        # Lets the owner know online lyrics can be turned on (not shown to shared viewers).
+        "online_lyrics": lyrics_online.enabled() if current_viewer().role != "barnacle" else None,
     }
+
+
+def _online_lyrics(track_id):
+    with db() as connection:
+        _ensure_table(connection)
+        row = connection.execute("""SELECT m.mtime_ns,t.title,t.artist,t.album,t.duration FROM media m
+            LEFT JOIN music_tags t ON t.media_id=m.id WHERE m.id=?""", (track_id,)).fetchone()
+    if not row:
+        return None
+    found = lyrics_online.lookup(track_id, row["mtime_ns"], row["artist"], row["title"], row["album"], row["duration"])
+    if not found:
+        return None
+    if found.get("instrumental"):
+        return {"synced": None, "plain": "", "instrumental": True, "source": "lrclib"}
+    parsed = parse_lyrics(found.get("text"))
+    return {**parsed, "source": "lrclib"} if parsed else None

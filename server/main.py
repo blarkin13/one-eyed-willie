@@ -24,6 +24,7 @@ from server.media_actions import router as media_actions_router
 from server.playback import router as playback_router
 from server.playback_settings import router as playback_settings_router
 from server.time_adrift import router as time_adrift_router
+from server.lyrics_online import router as lyrics_online_router
 from server.subtitle_settings import router as subtitle_settings_router
 from server.ambient_settings import router as ambient_settings_router
 from server.glance import router as glance_router
@@ -125,6 +126,7 @@ app.include_router(media_actions_router)
 app.include_router(playback_router)
 app.include_router(playback_settings_router)
 app.include_router(time_adrift_router)
+app.include_router(lyrics_online_router)
 app.include_router(subtitle_settings_router)
 app.include_router(ambient_settings_router)
 app.include_router(glance_router)

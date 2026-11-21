@@ -172,6 +172,7 @@ const entries=[
  {id:'plex',title:'Plex',config:'#plex-heading',description:'Manage connected Plex watched-history import.',image:'/assets/brand/plex.svg'},
  {id:'opensubtitles',title:'OpenSubtitles',config:'#opensubtitles-heading',description:'Manage subtitles and API access.',image:'/assets/brand/opensubtitles.png'},
  {id:'time-adrift',title:'Time Adrift',config:'#time-adrift-heading',description:'Per-video pause and rewind time counter.',image:null},
+ {id:'lrclib',title:'Lyrics (LRCLIB)',config:'#lrclib-heading',description:'Lyrics for songs without their own, in the full-screen music player.',image:null,icon:'♪'},
  {id:'clock',title:'Clock',description:'Live digital clock with optional 12/24-hour format.',image:null,icon:'◷'},
  {id:'weather',title:'Weather',description:'US National Weather Service forecasts by ZIP code.',image:null,icon:'☀'},
  {id:'news',title:'News',description:'News headlines with links and source attribution.',image:null,icon:'≡'},
@@ -202,6 +203,7 @@ function showServiceDetails(service){
  document.getElementById('connection-service-description').textContent=service.description;
  document.getElementById('connection-service-status').textContent=
   service.id==='time-adrift'?'Enabled · In-player tracking':
+  service.id==='lrclib'?'Enabled · Configured in Settings → Integrations':
   ['clock','weather','news','ambient'].includes(service.id)
    ?'Enabled · Configured in Settings → Integrations':'Connected · API integration';
  serviceDialog.showModal();serviceClose.focus({preventScroll:true});
@@ -221,7 +223,7 @@ async function statusPost(url,payload){
 async function showConnected(){
  const root=document.getElementById('connected-services');
  const message=document.getElementById('connections-message');
- const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings','/api/glance/settings','/api/bazarr/connection'];
+ const urls=['/api/arr/connections','/api/sabnzbd/settings','/api/plex/settings','/api/stream/subtitles/settings','/api/lidarr/connection','/api/time-adrift/settings','/api/glance/settings','/api/bazarr/connection','/api/lyrics-online/settings'];
  const [settled,visibility]=await Promise.all([
   Promise.allSettled(urls.map(status)),
   status('/api/settings/connections/visibility').catch(()=>({visible:{}}))
@@ -238,10 +240,11 @@ async function showConnected(){
  const timeAdrift=settled[5].status==='fulfilled'?settled[5].value:{};
  const glanceSettings=settled[6].status==='fulfilled'?settled[6].value.integrations||{}:{};
  const bazarr=settled[7].status==='fulfilled'?settled[7].value:{};
+ const lrclib=settled[8].status==='fulfilled'?settled[8].value:{};
  const glanceNames=['clock','weather','news','ambient'];
  const connected={radarr:!!arr.radarr?.connected,sonarr:!!arr.sonarr?.connected,
    lidarr:!!lidarr.connected,bazarr:!!bazarr.connected,sabnzbd:!!sab.connected,plex:!!plex.connected,
-   opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled,
+   opensubtitles:!!subs.configured,'time-adrift':!!timeAdrift.enabled,lrclib:!!lrclib.enabled,
    clock:!!glanceSettings.clock?.enabled,
    weather:!!glanceSettings.weather?.enabled&&/^[0-9]{5}$/.test(glanceSettings.weather.zip_code||''),
    news:!!glanceSettings.news?.enabled,ambient:!!glanceSettings.ambient?.enabled};
