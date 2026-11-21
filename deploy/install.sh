@@ -46,10 +46,17 @@ ask() {
   printf '%s' "${reply:-$default}"
 }
 
+# What this installer added to the computer (so the uninstaller can offer to
+# remove exactly that). Remembered across re-runs.
+previous() { if [[ -f "$INSTALL_DIR/.env" ]]; then sed -n "s/^$1=//p" "$INSTALL_DIR/.env" | head -1; fi; }
+INSTALLED_DOCKER="$(previous YARR_INSTALLED_DOCKER)"
+INSTALLED_MINIUPNPC="$(previous YARR_INSTALLED_MINIUPNPC)"
+
 # ---- Docker -------------------------------------------------------------------
 if ! command -v docker >/dev/null 2>&1; then
   say "Installing Docker (from get.docker.com)"
   curl -fsSL https://get.docker.com | sh
+  INSTALLED_DOCKER=1
 fi
 systemctl enable --now docker >/dev/null 2>&1 || true
 docker compose version >/dev/null 2>&1 || die "Docker Compose v2 is missing. Install the docker-compose-plugin package and run this again."
@@ -90,6 +97,8 @@ cat >"$INSTALL_DIR/.env" <<EOF
 YARR_MEDIA_DIR=$MEDIA_DIR
 YARR_CHANNEL=$CHANNEL
 YARR_PORT=$PORT
+YARR_INSTALLED_DOCKER=${INSTALLED_DOCKER:-0}
+YARR_INSTALLED_MINIUPNPC=${INSTALLED_MINIUPNPC:-0}
 EOF
 
 REMOTE_SERVICES=""
@@ -171,6 +180,112 @@ docker image prune -f >/dev/null
 EOF
 chmod 755 "$SBIN/yarr-media-update"
 
+# ---- Uninstaller ----------------------------------------------------------------
+{
+  printf '#!/usr/bin/env bash\n'
+  printf '# Written by the Yarr Media installer. Removes Yarr Media completely.\n'
+  printf 'INSTALL_DIR=%q\nDATA_DIR=%q\nSBIN=%q\nSYSTEMD=%q\nIMAGE=%q\n' "$INSTALL_DIR" "$DATA_DIR" "$SBIN" "$SYSTEMD" "$IMAGE"
+  cat <<'UNINSTALL'
+# Usage: sudo yarr-media-uninstall [--yes] [--keep-data] [--remove-docker|--keep-docker]
+set -uo pipefail
+YES=0 KEEP_DATA=0 DOCKER=ask
+for arg in "$@"; do
+  case "$arg" in
+    -y|--yes) YES=1 ;;
+    --keep-data) KEEP_DATA=1 ;;
+    --remove-docker) DOCKER=remove ;;
+    --keep-docker) DOCKER=keep ;;
+    -h|--help)
+      echo "Usage: sudo yarr-media-uninstall [--yes] [--keep-data] [--remove-docker|--keep-docker]"
+      echo "Removes Yarr Media: containers, images, update timer, helper scripts, the router's"
+      echo "port 443 forward, $INSTALL_DIR and (unless --keep-data) $DATA_DIR."
+      echo "Your media folders are never touched (Yarr Media only ever reads them)."
+      exit 0 ;;
+    *) echo "Unknown option: $arg (see --help)" >&2; exit 2 ;;
+  esac
+done
+say()  { printf '\033[1;31m==>\033[0m %s\n' "$*"; }
+[[ $EUID -eq 0 || -n "${YARR_TEST_MODE:-}" ]] || { echo "Run with sudo:  sudo yarr-media-uninstall" >&2; exit 1; }
+ask() {   # ask "question" -> yes?
+  [[ $YES == 1 ]] && return 0
+  local reply=""
+  if [[ -r /dev/tty ]] && read -r -p "$1 [y/N]: " reply </dev/tty; then [[ $reply =~ ^[Yy] ]]; else return 1; fi
+}
+setting() { if [[ -f "$INSTALL_DIR/.env" ]]; then sed -n "s/^$1=//p" "$INSTALL_DIR/.env" | head -1; fi; }
+INSTALLED_DOCKER="$(setting YARR_INSTALLED_DOCKER)"
+INSTALLED_MINIUPNPC="$(setting YARR_INSTALLED_MINIUPNPC)"
+MEDIA_DIR="$(setting YARR_MEDIA_DIR)"
+
+echo "This removes Yarr Media from this computer:"
+echo "  - its containers and images, the nightly update and helper commands"
+echo "  - the router's port 443 forward it set up"
+echo "  - $INSTALL_DIR"
+if [[ $KEEP_DATA == 1 ]]; then echo "  - (keeping library data in $DATA_DIR)"
+else echo "  - $DATA_DIR: library database, watch history, artwork and caches"; fi
+[[ -n $MEDIA_DIR ]] && echo "Your media in $MEDIA_DIR is not touched."
+ask "Remove Yarr Media?" || { echo "Nothing was removed."; exit 1; }
+
+say "Stopping Yarr Media"
+systemctl disable --now yarr-media-update.timer >/dev/null 2>&1 || true
+systemctl stop yarr-media-update.service >/dev/null 2>&1 || true
+if command -v docker >/dev/null 2>&1; then
+  if [[ -f "$INSTALL_DIR/compose.yaml" ]]; then
+    (cd "$INSTALL_DIR" && docker compose down --remove-orphans) >/dev/null 2>&1 || true
+  fi
+  docker rm -f yarr-media yarr-media-https >/dev/null 2>&1 || true
+  say "Removing Yarr Media images"
+  docker image ls --format '{{.Repository}}:{{.Tag}}' 2>/dev/null | grep -E "^${IMAGE}:" | while read -r image; do
+    docker image rm -f "$image" >/dev/null 2>&1 || true
+  done
+  # Caddy is removed only if nothing else on this computer uses it.
+  docker image rm caddy:2 >/dev/null 2>&1 || true
+fi
+
+if command -v upnpc >/dev/null 2>&1 && upnpc -l 2>/dev/null | grep -q "Yarr Media"; then
+  say "Removing the router's port 443 forward"
+  upnpc -d 443 TCP >/dev/null 2>&1 || true
+fi
+
+say "Removing files"
+rm -f "$SBIN/yarr-media-update" "$SBIN/yarr-media-upnp" \
+      "$SYSTEMD/yarr-media-update.service" "$SYSTEMD/yarr-media-update.timer"
+systemctl daemon-reload >/dev/null 2>&1 || true
+rm -rf "$INSTALL_DIR"
+if [[ $KEEP_DATA == 1 ]]; then echo "   Kept $DATA_DIR"; else rm -rf "$DATA_DIR"; fi
+
+# Installed with apt: remove the package and the Yarr Media apt repository.
+if command -v dpkg-query >/dev/null 2>&1 && dpkg-query -W -f='${Status}' yarr-media 2>/dev/null | grep -q "install ok installed"; then
+  say "Removing the yarr-media package"
+  dpkg --purge yarr-media >/dev/null 2>&1 || true
+fi
+rm -f /etc/apt/sources.list.d/yarr-media.list /usr/share/keyrings/yarr-media.gpg
+
+# Docker and miniupnpc: only what the Yarr Media installer itself added.
+if [[ $INSTALLED_DOCKER == 1 && $DOCKER != keep ]] && command -v docker >/dev/null 2>&1; then
+  others="$(docker ps -aq 2>/dev/null | wc -l)"
+  question="The Yarr Media installer also installed Docker. Remove Docker too?"
+  [[ $others -gt 0 ]] && question="The Yarr Media installer also installed Docker, which now has $others other container(s). Remove Docker and them too?"
+  if [[ $DOCKER == remove ]] || { [[ $YES == 0 ]] && ask "$question"; }; then
+    say "Removing Docker"
+    systemctl disable --now docker.service docker.socket containerd.service >/dev/null 2>&1 || true
+    DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq docker-ce docker-ce-cli containerd.io \
+      docker-buildx-plugin docker-compose-plugin docker-ce-rootless-extras docker-model-plugin >/dev/null 2>&1 || true
+    rm -rf /var/lib/docker /var/lib/containerd
+    rm -f /etc/apt/sources.list.d/docker.list /etc/apt/sources.list.d/docker.sources \
+          /etc/apt/keyrings/docker.asc /etc/apt/keyrings/docker.gpg
+  else
+    echo "   Kept Docker."
+  fi
+fi
+if [[ $INSTALLED_MINIUPNPC == 1 ]]; then
+  DEBIAN_FRONTEND=noninteractive apt-get purge -y -qq miniupnpc >/dev/null 2>&1 || true
+fi
+rm -f "$SBIN/yarr-media-uninstall"
+say "Yarr Media is removed."
+UNINSTALL
+} >"$SBIN/yarr-media-uninstall"
+chmod 755 "$SBIN/yarr-media-uninstall"
+
 cat >"$SYSTEMD/yarr-media-update.service" <<EOF
 [Unit]
 Description=Update Yarr Media
@@ -201,7 +316,10 @@ LAN_IP="$(ip -4 route get 1.1.1.1 2>/dev/null | awk '{for(i=1;i<NF;i++) if($i=="
 UPNP_RESULT="skipped"
 if [[ "${YARR_NO_REMOTE:-0}" != 1 && -n "$LAN_IP" ]]; then
   if ! command -v upnpc >/dev/null 2>&1 && command -v apt-get >/dev/null 2>&1; then
-    DEBIAN_FRONTEND=noninteractive apt-get install -y -qq miniupnpc >/dev/null 2>&1 || true
+    if DEBIAN_FRONTEND=noninteractive apt-get install -y -qq miniupnpc >/dev/null 2>&1; then
+      INSTALLED_MINIUPNPC=1
+      sed -i "s/^YARR_INSTALLED_MINIUPNPC=.*/YARR_INSTALLED_MINIUPNPC=1/" "$INSTALL_DIR/.env" || true
+    fi
   fi
   if command -v upnpc >/dev/null 2>&1; then
     cat >"$SBIN/yarr-media-upnp" <<EOF
@@ -242,5 +360,4 @@ if [[ "${YARR_NO_REMOTE:-0}" != 1 ]]; then
 fi
 echo
 echo "   Updates install automatically every night. Update now: sudo $SBIN/yarr-media-update"
-echo "   Uninstall: cd $INSTALL_DIR && sudo docker compose down && sudo rm -rf $INSTALL_DIR"
-echo "              (your library data stays in $DATA_DIR until you delete it)"
+echo "   Uninstall everything:          sudo yarr-media-uninstall   (--keep-data keeps your library data)"
